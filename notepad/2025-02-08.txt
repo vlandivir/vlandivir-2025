@@ -1,0 +1,1 @@
+mkdir -p terminal && history > terminal/$(date +"%Y-%m-%d").txt
