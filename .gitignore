@@ -130,4 +130,5 @@ dist
 .pnp.*
 
 # custom
-terminal
+.terminal
+.specstory
