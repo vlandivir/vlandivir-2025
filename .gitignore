@@ -129,6 +129,8 @@ dist
 .yarn/install-state.gz
 .pnp.*
 
-# custom
-.terminal
+# local
+.data
+.secret
 .specstory
+.terminal
