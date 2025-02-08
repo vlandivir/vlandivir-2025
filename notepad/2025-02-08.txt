@@ -1,1 +1,8 @@
 mkdir -p terminal && history > terminal/$(date +"%Y-%m-%d").txt
+
+https://specstory.com/
+Capture, search and learn from every AI coding journey
+Transform your AI interactions into a living spec. Accelerate your software composition workflow.
+
+docker build -t vlandivir-2025 .
+docker run -p 3000:3000 vlandivir-2025
