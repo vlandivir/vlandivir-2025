@@ -3,3 +3,5 @@ nest generate controller controller-name
 nest generate service service-name  
 
 nest generate controller telegram-bot telegram-bot 
+
+curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook?url=https://<YOUR_DOMAIN>/api/telegramWebhook"
