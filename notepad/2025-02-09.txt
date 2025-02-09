@@ -1,0 +1,5 @@
+nest generate module module-name  
+nest generate controller controller-name  
+nest generate service service-name  
+
+nest generate controller telegram-bot telegram-bot 
