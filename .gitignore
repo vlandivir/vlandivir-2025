@@ -131,6 +131,7 @@ dist
 
 # local
 .data
+.dairy
 .secret
 .specstory
 .terminal

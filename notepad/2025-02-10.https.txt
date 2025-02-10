@@ -1,0 +1,13 @@
+sudo certbot certonly --standalone -d vlandivir.com -d www.vlandivir.com --agree-tos --email vladimir.rybakov@gmail.com
+
+sudo certbot certonly --manual --preferred-challenges dns -d vlandivir.com -d www.vlandivir.com --agree-tos --email vladimir.rybakov@gmail.com
+
+Successfully received certificate.
+Certificate is saved at: /etc/letsencrypt/live/vlandivir.com/fullchain.pem
+Key is saved at:         /etc/letsencrypt/live/vlandivir.com/privkey.pem
+
+NEXT STEPS:
+- This certificate will not be renewed automatically. Autorenewal of --manual certificates requires the use of an authentication hook script (--manual-auth-hook) but one was not provided. To renew this certificate, repeat this same certbot command before the certificate's expiry date.
+
+sudo cp -r /etc/letsencrypt/live/vlandivir.com/. ./.secret
+sudo chmod 644 ./.secret/privkey.pem
