@@ -29,6 +29,6 @@ docker push registry.digitalocean.com/vlandivir-main/vlandivir-2025:$TAG_NAME
 SSH_COMMANDS="docker pull registry.digitalocean.com/vlandivir-main/vlandivir-2025:$TAG_NAME; \
 docker stop vlandivir-2025; \
 docker rm vlandivir-2025; \
-docker run -d -p 80:3000 --name vlandivir-2025 registry.digitalocean.com/vlandivir-main/vlandivir-2025:$TAG_NAME"
+docker run -d -p 443:443 --name vlandivir-2025 registry.digitalocean.com/vlandivir-main/vlandivir-2025:$TAG_NAME"
 
 ssh -o StrictHostKeyChecking=no root@$SERVER_IP "$SSH_COMMANDS"
