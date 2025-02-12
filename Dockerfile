@@ -16,8 +16,8 @@ RUN npm install -g @nestjs/cli && npm install --save-dev @types/node
 # Копируем все файлы приложения
 COPY . .
 
-# Устанавливаем правильные разрешения для сертификатов
-# RUN chmod 600 .secret/private-key.pem .secret/certificate.pem
+# Генерируем Prisma клиент
+RUN npx prisma generate
 
 # Компилируем TypeScript в JavaScript
 RUN npm run build
