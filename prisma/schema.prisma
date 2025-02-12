@@ -16,9 +16,12 @@ datasource db {
 model Note {
   id        Int      @id @default(autoincrement())
   content   String   @db.Text
+  rawMessage Json    @db.JsonB
+  noteDate  DateTime @default(now())
   createdAt DateTime @default(now())
   updatedAt DateTime? @updatedAt
   userId    Int
 
   @@index([userId])
+  @@index([noteDate])
 }
