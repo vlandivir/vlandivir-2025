@@ -22,6 +22,9 @@ RUN npx prisma generate
 # Компилируем TypeScript в JavaScript
 RUN npm run build
 
+# Копируем сгенерированный Prisma клиент в папку dist
+RUN cp -r src/generated dist/
+
 # Открываем только порт 443 для HTTPS
 EXPOSE 443
 
