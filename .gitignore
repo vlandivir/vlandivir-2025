@@ -135,3 +135,5 @@ dist
 .secret
 .specstory
 .terminal
+
+src/generated
