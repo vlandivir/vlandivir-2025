@@ -26,7 +26,7 @@ export class TelegramBotService {
                 data: {
                     content: this.extractMessageText(update),
                     rawMessage: update as any, // Сохраняем весь объект update
-                    userId: chatId,
+                    chatId: chatId,
                 }
             });
 
