@@ -4,6 +4,8 @@ import { Telegraf } from 'telegraf';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 
+type TelegramUpdate = Update.CallbackQueryUpdate | Update.MessageUpdate;
+
 @Injectable()
 export class TelegramBotService {
     private bot: Telegraf;
@@ -19,25 +21,37 @@ export class TelegramBotService {
         this.bot = new Telegraf(token);
     }
 
-    async handleIncomingMessage(chatId: number, update: Update.CallbackQueryUpdate | Update.MessageUpdate) {
+    async handleIncomingMessage(chatId: number, update: TelegramUpdate) {
         try {
-            // Сохраняем сообщение в базу
-            await this.prisma.note.create({
+            // Сохраняем сообщение пользователя в базу
+            const savedNote = await this.prisma.note.create({
                 data: {
                     content: this.extractMessageText(update),
-                    rawMessage: update as any, // Сохраняем весь объект update
+                    rawMessage: JSON.parse(JSON.stringify(update)),
                     chatId: chatId,
                 }
             });
 
+            // Формируем ответ бота
+            const botResponse = 'Привет!';
+            
             // Отправляем ответ
-            await this.bot.telegram.sendMessage(chatId, 'Привет!');
+            await this.bot.telegram.sendMessage(chatId, botResponse);
+
+            // Сохраняем ответ бота
+            await this.prisma.botResponse.create({
+                data: {
+                    content: botResponse,
+                    noteId: savedNote.id,
+                    chatId: chatId,
+                }
+            });
         } catch (error) {
             console.error('Error processing message:', error);
         }
     }    
 
-    private extractMessageText(update: Update.CallbackQueryUpdate | Update.MessageUpdate): string {
+    private extractMessageText(update: TelegramUpdate): string {
         if ('message' in update && update.message && 'text' in update.message) {
             return update.message.text || '';
         }

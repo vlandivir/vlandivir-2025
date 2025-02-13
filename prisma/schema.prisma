@@ -26,3 +26,15 @@ model Note {
   @@index([chatId])
   @@index([noteDate])
 }
+
+model BotResponse {
+  id        Int       @id @default(autoincrement())
+  content   String    @db.Text
+  noteId    Int
+  chatId    Int
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([chatId])
+  @@index([noteId])
+}
