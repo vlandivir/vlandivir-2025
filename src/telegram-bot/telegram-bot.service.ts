@@ -4,7 +4,7 @@ import { Telegraf, Context } from 'telegraf';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { DateParserService } from '../services/date-parser.service';
-import { format } from 'date-fns';
+import { format, startOfDay, endOfDay } from 'date-fns';
 import { ru } from 'date-fns/locale';
 
 type TelegramUpdate = Update.CallbackQueryUpdate | Update.MessageUpdate;
@@ -26,6 +26,15 @@ export class TelegramBotService {
         this.setupCommands();
     }
 
+    async startBot() {
+        await this.bot.launch();
+        console.log('Telegram bot started');
+    }
+
+    async stopBot() {
+        await this.bot.stop();
+    }
+
     private setupCommands() {
         // Регистрируем обе команды с одинаковым обработчиком
         this.bot.command(['dairy', 'd'], this.handleDairyCommand.bind(this));
@@ -41,27 +50,20 @@ export class TelegramBotService {
         try {
             let notes;
             if (!dateArg) {
-                // Если дата не указана - показываем за сегодня
                 notes = await this.getDairyNotes(chatId, new Date());
                 await this.sendDairyNotes(ctx, notes, 'сегодня');
             } else {
-                const parsedDate = this.dateParser.extractDateFromFirstLine(dateArg);
+                const { date: parsedDate } = this.dateParser.extractDateFromFirstLine(dateArg);
                 if (!parsedDate) {
                     await ctx.reply('Не удалось распознать дату. Используйте форматы: DD.MM.YYYY, DD.MM, DD месяц');
                     return;
                 }
 
                 if (dateArg.includes(String(parsedDate.getFullYear()))) {
-                    // Если указан год - показываем записи только за эту дату
                     notes = await this.getDairyNotes(chatId, parsedDate);
                     await this.sendDairyNotes(ctx, notes, format(parsedDate, 'd MMMM yyyy', { locale: ru }));
                 } else {
-                    // Если год не указан - показываем записи за все годы
-                    notes = await this.getDairyNotesForDayMonth(
-                        chatId,
-                        parsedDate.getMonth(),
-                        parsedDate.getDate()
-                    );
+                    notes = await this.getDairyNotesForDayMonth(chatId, parsedDate.getMonth(), parsedDate.getDate());
                     await this.sendDairyNotesAllYears(ctx, notes, format(parsedDate, 'd MMMM', { locale: ru }));
                 }
             }
@@ -72,18 +74,12 @@ export class TelegramBotService {
     }
 
     private async getDairyNotes(chatId: number, date: Date) {
-        const startOfDay = new Date(date);
-        startOfDay.setHours(0, 0, 0, 0);
-        
-        const endOfDay = new Date(date);
-        endOfDay.setHours(23, 59, 59, 999);
-
         return await this.prisma.note.findMany({
             where: {
                 chatId,
                 noteDate: {
-                    gte: startOfDay,
-                    lte: endOfDay,
+                    gte: startOfDay(date),
+                    lt: endOfDay(date)
                 }
             },
             orderBy: {
@@ -93,21 +89,28 @@ export class TelegramBotService {
     }
 
     private async getDairyNotesForDayMonth(chatId: number, month: number, day: number) {
+        const currentYear = new Date().getFullYear();
+        const startYear = 2000;
+        
         // Получаем записи за указанный день и месяц за все годы
         const notes = await this.prisma.note.findMany({
             where: {
                 chatId,
                 AND: [
-                    { noteDate: { gte: new Date(2000, month, day) } }, // Используем 2000 год как базовый
                     {
                         noteDate: {
-                            lt: new Date(2100, month, day + 1) // Ограничиваем будущей датой
+                            gte: startOfDay(new Date(startYear, month, day))
+                        }
+                    },
+                    {
+                        noteDate: {
+                            lt: endOfDay(new Date(currentYear, month, day))
                         }
                     }
                 ]
             },
             orderBy: {
-                noteDate: 'desc' // Сначала показываем самые новые
+                noteDate: 'desc'
             }
         });
 
@@ -160,15 +163,15 @@ export class TelegramBotService {
     async handleIncomingMessage(chatId: number, update: TelegramUpdate) {
         try {
             const messageText = this.extractMessageText(update);
-            const noteDate = this.dateParser.extractDateFromFirstLine(messageText) || new Date();
+            const { date: noteDate, cleanContent } = this.dateParser.extractDateFromFirstLine(messageText);
 
             // Сохраняем сообщение пользователя в базу
             const savedNote = await this.prisma.note.create({
                 data: {
-                    content: messageText,
+                    content: cleanContent,
                     rawMessage: JSON.parse(JSON.stringify(update)),
                     chatId: chatId,
-                    noteDate: noteDate,
+                    noteDate: noteDate || new Date(),
                 }
             });
 
