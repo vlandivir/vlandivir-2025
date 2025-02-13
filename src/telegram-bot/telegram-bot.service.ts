@@ -36,7 +36,15 @@ export class TelegramBotService {
     }
 
     private setupCommands() {
-        // Регистрируем обе команды с одинаковым обработчиком
+        // Регистрируем обработчик для всех текстовых сообщений
+        this.bot.on('text', async (ctx) => {
+            if (ctx.message.text.startsWith('/')) {
+                return; // Пропускаем команды, они обрабатываются отдельно
+            }
+            await this.handleIncomingMessage(ctx.chat.id, ctx.update);
+        });
+
+        // Существующие команды
         this.bot.command(['dairy', 'd'], this.handleDairyCommand.bind(this));
     }
 
@@ -175,7 +183,7 @@ export class TelegramBotService {
             });
 
             // Формируем ответ бота
-            const botResponse = 'Привет!';
+            const botResponse = `Сообщение сохранено${noteDate ? ` с датой ${format(noteDate, 'd MMMM yyyy', { locale: ru })}` : ''}`;
             
             // Отправляем ответ
             await this.bot.telegram.sendMessage(chatId, botResponse);

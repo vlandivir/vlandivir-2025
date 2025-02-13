@@ -8,6 +8,9 @@ export class TelegramBotController {
 
     @Post()
     handleWebhook(@Body() update: Update.CallbackQueryUpdate | Update.MessageUpdate) {
+      // Подробное логирование типа обновления
+      console.log('Тип обновления:', 'message' in update ? 'message' : 'callback_query');
+      
       const chatId = 'message' in update ? update.message.chat.id : update.callback_query.message?.chat.id;
       
       if (!chatId) {
@@ -15,8 +18,13 @@ export class TelegramBotController {
         return;
       }
       
+      // Добавляем логирование текста сообщения, если оно есть
+      if ('message' in update && 'text' in update.message) {
+        console.log('Текст сообщения:', update.message.text);
+      }
+      
       console.log('Получен update для чата:', chatId);
-      console.log('Update:', update);
+      console.log('Update:', JSON.stringify(update, null, 2));
   
       return this.telegramBotService.handleIncomingMessage(chatId, update);
     }  
