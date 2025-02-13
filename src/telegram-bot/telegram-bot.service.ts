@@ -37,16 +37,15 @@ export class TelegramBotService {
     }
 
     private setupCommands() {
-        // Регистрируем обработчик для всех текстовых сообщений
-        this.bot.on(message('text'), async (ctx) => {
-            if (ctx.message.text.startsWith('/')) {
-                return; // Пропускаем команды, они обрабатываются отдельно
-            }
-            await this.handleIncomingMessage(ctx.chat.id, ctx.update);
-        });
-
-        // Существующие команды
+        // Сначала регистрируем команды
         this.bot.command(['dairy', 'd'], this.handleDairyCommand.bind(this));
+
+        // Затем обработчик для всех остальных текстовых сообщений
+        this.bot.on(message('text'), async (ctx) => {
+            if (!ctx.message.text.startsWith('/')) {  // Обрабатываем только НЕ команды
+                await this.handleIncomingMessage(ctx.chat.id, ctx.update);
+            }
+        });
     }
 
     private async handleDairyCommand(ctx: Context) {
