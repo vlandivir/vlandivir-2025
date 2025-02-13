@@ -90,39 +90,38 @@ export class TelegramBotService {
 
     private async getDairyNotesForDayMonth(chatId: number, month: number, day: number) {
         const currentYear = new Date().getFullYear();
-        const startYear = 2000;
-        
-        // Получаем записи за указанный день и месяц за все годы
-        const notes = await this.prisma.note.findMany({
-            where: {
-                chatId,
-                AND: [
-                    {
-                        noteDate: {
-                            gte: startOfDay(new Date(startYear, month, day))
-                        }
-                    },
-                    {
-                        noteDate: {
-                            lt: endOfDay(new Date(currentYear, month, day))
-                        }
-                    }
-                ]
-            },
-            orderBy: {
-                noteDate: 'desc'
-            }
-        });
+        const startYear = 1978;
+        const years = Array.from(
+            { length: currentYear - startYear + 1 },
+            (_, i) => currentYear - i
+        );
 
-        // Группируем заметки по годам
-        return notes.reduce((acc, note) => {
-            const year = note.noteDate.getFullYear();
-            if (!acc[year]) {
-                acc[year] = [];
+        // Получаем записи для каждого года отдельно
+        const notesPromises = years.map(year => 
+            this.prisma.note.findMany({
+                where: {
+                    chatId,
+                    noteDate: {
+                        gte: startOfDay(new Date(year, month, day)),
+                        lt: endOfDay(new Date(year, month, day))
+                    }
+                },
+                orderBy: {
+                    noteDate: 'asc'
+                }
+            })
+        );
+
+        const allNotes = await Promise.all(notesPromises);
+
+        // Создаем объект только с теми годами, где есть записи
+        return allNotes.reduce((acc, notes, index) => {
+            const year = currentYear - index;
+            if (notes.length > 0) {
+                acc[year] = notes;
             }
-            acc[year].push(note);
             return acc;
-        }, {} as Record<number, typeof notes>);
+        }, {} as Record<number, typeof allNotes[0]>);
     }
 
     private async sendDairyNotes(ctx: Context, notes: any[], dateStr: string) {
