@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { DateParserService } from '../services/date-parser.service';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import { ru } from 'date-fns/locale';
+import { message } from 'telegraf/filters';
 
 type TelegramUpdate = Update.CallbackQueryUpdate | Update.MessageUpdate;
 
@@ -37,7 +38,7 @@ export class TelegramBotService {
 
     private setupCommands() {
         // Регистрируем обработчик для всех текстовых сообщений
-        this.bot.on('text', async (ctx) => {
+        this.bot.on(message('text'), async (ctx) => {
             if (ctx.message.text.startsWith('/')) {
                 return; // Пропускаем команды, они обрабатываются отдельно
             }
