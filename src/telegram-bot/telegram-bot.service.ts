@@ -123,7 +123,10 @@ export class TelegramBotService {
             const messageText = this.extractMessageText(update);
             const { date: noteDate, cleanContent } = this.dateParser.extractDateFromFirstLine(messageText);
 
-            // Сохраняем сообщение пользователя в базу
+            // Получаем ID отправителя
+            const fromUserId = this.extractSenderId(update);
+            
+            // Сохраняем сообщение в чат/группу/канал
             const savedNote = await this.prisma.note.create({
                 data: {
                     content: cleanContent,
@@ -138,12 +141,23 @@ export class TelegramBotService {
                 const botResponse = `Сообщение сохранено${noteDate ? ` с датой ${format(noteDate, 'd MMMM yyyy', { locale: ru })}` : ''}`;
                 await this.bot.telegram.sendMessage(chatId, botResponse);
 
-                // Сохраняем ответ бота
                 await this.prisma.botResponse.create({
                     data: {
                         content: botResponse,
                         noteId: savedNote.id,
                         chatId: chatId,
+                    }
+                });
+            }
+
+            // Если сообщение из группы/канала и есть ID отправителя, сохраняем копию в личный чат
+            if (chatId !== fromUserId && fromUserId) {
+                await this.prisma.note.create({
+                    data: {
+                        content: cleanContent,
+                        rawMessage: JSON.parse(JSON.stringify(update)),
+                        chatId: fromUserId,
+                        noteDate: noteDate || new Date(),
                     }
                 });
             }
@@ -171,24 +185,21 @@ export class TelegramBotService {
             
             if (!photos || photos.length === 0 || !ctx.chat) return;
 
-            // Get the best quality photo
             const photo = photos[photos.length - 1];
-            
-            // Download photo
             const file = await ctx.telegram.getFile(photo.file_id);
             const photoBuffer = await this.downloadPhoto(file.file_path!);
-
-            // Upload to DO Spaces with chat ID
             const photoUrl = await this.storageService.uploadFile(
                 photoBuffer,
                 'image/jpeg',
                 ctx.chat.id
             );
 
-            // Parse date from caption if exists
             const { date: noteDate, cleanContent } = this.dateParser.extractDateFromFirstLine(caption || '');
-
-            // Save note with photo
+            
+            // Получаем ID отправителя
+            const fromUserId = ctx.message.from?.id;
+            
+            // Сохраняем фото в чат/группу/канал
             const savedNote = await this.prisma.note.create({
                 data: {
                     content: cleanContent || '',
@@ -207,19 +218,34 @@ export class TelegramBotService {
             });
 
             if (!silent) {
-                // Отправляем ответ только для личных чатов
                 const botResponse = `Фотография сохранена${
                     noteDate ? ` с датой ${format(noteDate, 'd MMMM yyyy', { locale: ru })}` : ''
                 }`;
                 await ctx.reply(botResponse);
 
-                // Сохраняем ответ бота
                 await this.prisma.botResponse.create({
                     data: {
                         content: botResponse,
                         noteId: savedNote.id,
                         chatId: ctx.chat.id,
                     }
+                });
+            }
+
+            // Если фото из группы/канала и есть ID отправителя, сохраняем копию в личный чат
+            if (ctx.chat.id !== fromUserId && fromUserId) {
+                await this.prisma.note.create({
+                    data: {
+                        content: cleanContent || '',
+                        rawMessage: JSON.parse(JSON.stringify(ctx.message)),
+                        chatId: fromUserId,
+                        noteDate: noteDate || new Date(),
+                        images: {
+                            create: {
+                                url: photoUrl,
+                            },
+                        },
+                    },
                 });
             }
         } catch (error) {
@@ -236,6 +262,16 @@ export class TelegramBotService {
         );
         const arrayBuffer = await response.arrayBuffer();
         return Buffer.from(arrayBuffer);
+    }
+
+    private extractSenderId(update: TelegramUpdate): number | undefined {
+        if ('message' in update && update.message?.from) {
+            return update.message.from.id;
+        }
+        if ('callback_query' in update && update.callback_query?.from) {
+            return update.callback_query.from.id;
+        }
+        return undefined;
     }
 
     // Добавляем метод для обработки webhook-обновлений
