@@ -28,6 +28,15 @@ export class TelegramBotService {
             throw new Error('TELEGRAM_BOT_TOKEN is not defined');
         }
         this.bot = new Telegraf<Context>(token);
+
+        // Добавляем middleware для логирования
+        this.bot.use((ctx, next) => {
+            const updateType = ctx.updateType;
+            const chatType = ctx.chat?.type;
+            console.log(`Получено обновление типа [${updateType}] из чата типа [${chatType}]`);
+            return next();
+        });
+
         this.setupCommands();
     }
 
@@ -41,26 +50,21 @@ export class TelegramBotService {
     }
 
     private setupCommands() {
-        // Регистрируем команды для всех типов чатов
-        this.bot.command(['dairy', 'd'], (ctx) => this.dairyCommands.handleDairyCommand(ctx));
-
-        // Обработчик для текстовых сообщений в личных чатах и группах
-        this.bot.on(message('text'), async (ctx) => {
-            if (!ctx.message.text.startsWith('/')) {
-                // Тихий режим только для групп
-                const isGroup = ctx.chat.type === 'group' || ctx.chat.type === 'supergroup';
-                await this.handleIncomingMessage(ctx.chat.id, ctx.update, isGroup);
-            }
+        // Регистрируем команды для личных чатов и групп
+        this.bot.command(['dairy', 'd'], (ctx) => {
+            console.log('Получена команда /dairy /d:', ctx.message?.text);
+            return this.dairyCommands.handleDairyCommand(ctx);
         });
 
-        // Обработчик для фото в личных чатах и группах
-        this.bot.on(message('photo'), async (ctx) => {
-            const isGroup = ctx.chat.type === 'group' || ctx.chat.type === 'supergroup';
-            await this.handleIncomingPhoto(ctx, isGroup);
-        });
-
-        // Обработчик текстовых сообщений из каналов
+        // Регистрируем те же команды для каналов
         this.bot.on(channelPost('text'), async (ctx) => {
+            console.log('Получено сообщение из канала:', ctx.channelPost.text);
+            
+            if (ctx.channelPost.text.startsWith('/d') || ctx.channelPost.text.startsWith('/dairy')) {
+                console.log('Обработка команды /dairy /d из канала');
+                await this.dairyCommands.handleDairyCommand(ctx);
+                return;
+            }
             const update = {
                 message: ctx.channelPost,
                 ...ctx.update
@@ -68,8 +72,28 @@ export class TelegramBotService {
             await this.handleIncomingMessage(ctx.chat.id, update, true);
         });
 
+        // Обработчик для текстовых сообщений в личных чатах и группах
+        this.bot.on(message('text'), async (ctx) => {
+            console.log('Получено текстовое сообщение:', ctx.message.text);
+            
+            if (!ctx.message.text.startsWith('/')) {
+                const isGroup = ctx.chat.type === 'group' || ctx.chat.type === 'supergroup';
+                await this.handleIncomingMessage(ctx.chat.id, ctx.update, isGroup);
+            }
+        });
+
+        // Обработчик для фото в личных чатах и группах
+        this.bot.on(message('photo'), async (ctx) => {
+            console.log('Получено фото из чата/группы');
+            
+            const isGroup = ctx.chat.type === 'group' || ctx.chat.type === 'supergroup';
+            await this.handleIncomingPhoto(ctx, isGroup);
+        });
+
         // Обработчик фото из каналов
         this.bot.on(channelPost('photo'), async (ctx) => {
+            console.log('Получено фото из канала');
+            
             if (!ctx.channelPost) return;
             
             const photoContext = {
