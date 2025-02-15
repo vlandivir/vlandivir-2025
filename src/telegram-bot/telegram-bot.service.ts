@@ -65,7 +65,11 @@ export class TelegramBotService {
 
         // Регистрируем те же команды для каналов
         this.bot.on(channelPost('text'), async (ctx) => {
-            console.log('Получено сообщение из канала:', ctx.channelPost.text);
+            console.log('Получено сообщение из канала:', {
+                text: ctx.channelPost.text,
+                from: ctx.channelPost.from,
+                chat: ctx.chat
+            });
             
             if (ctx.channelPost.text.startsWith('/d') || ctx.channelPost.text.startsWith('/dairy')) {
                 console.log('Обработка команды /dairy /d из канала');
@@ -73,7 +77,7 @@ export class TelegramBotService {
                 return;
             }
             const update = {
-                message: ctx.channelPost,
+                channel_post: ctx.channelPost,
                 ...ctx.update
             } as TelegramUpdate;
             await this.handleIncomingMessage(ctx.chat.id, update, true);
@@ -125,6 +129,12 @@ export class TelegramBotService {
 
             // Получаем ID отправителя
             const fromUserId = this.extractSenderId(update);
+            console.log('Обработка сообщения:', {
+                chatId,
+                fromUserId,
+                isChannel: 'channel_post' in update,
+                messageText: messageText.substring(0, 50) // первые 50 символов для лога
+            });
             
             // Сохраняем сообщение в чат/группу/канал
             const savedNote = await this.prisma.note.create({
@@ -152,6 +162,7 @@ export class TelegramBotService {
 
             // Если сообщение из группы/канала и есть ID отправителя, сохраняем копию в личный чат
             if (chatId !== fromUserId && fromUserId) {
+                console.log('Сохраняем копию в личный чат:', fromUserId);
                 await this.prisma.note.create({
                     data: {
                         content: cleanContent,
@@ -270,6 +281,9 @@ export class TelegramBotService {
         }
         if ('callback_query' in update && update.callback_query?.from) {
             return update.callback_query.from.id;
+        }
+        if ('channel_post' in update && update.channel_post?.from) {
+            return update.channel_post.from.id;
         }
         return undefined;
     }
