@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Update } from 'telegraf/typings/core/types/typegram';
+import { Update, Message } from 'telegraf/typings/core/types/typegram';
 import { Telegraf, Context } from 'telegraf';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
@@ -10,7 +10,10 @@ import { message, channelPost } from 'telegraf/filters';
 import { DairyCommandsService } from './dairy-commands.service';
 import { StorageService } from '../services/storage.service';
 
-type TelegramUpdate = Update.CallbackQueryUpdate | Update.MessageUpdate | Update.ChannelPostUpdate;
+type TelegramUpdate = 
+    | Update.CallbackQueryUpdate 
+    | Update.MessageUpdate 
+    | { channel_post: Message.TextMessage };
 
 @Injectable()
 export class TelegramBotService {
@@ -77,8 +80,8 @@ export class TelegramBotService {
                 return;
             }
             const update = {
-                channel_post: ctx.channelPost,
-                ...ctx.update
+                ...ctx.update,
+                channel_post: ctx.channelPost
             } as TelegramUpdate;
             await this.handleIncomingMessage(ctx.chat.id, update, true);
         });
@@ -127,15 +130,26 @@ export class TelegramBotService {
             const messageText = this.extractMessageText(update);
             const { date: noteDate, cleanContent } = this.dateParser.extractDateFromFirstLine(messageText);
 
-            // Получаем ID отправителя
-            const fromUserId = this.extractSenderId(update);
-            console.log('Обработка сообщения:', {
-                chatId,
-                fromUserId,
-                isChannel: 'channel_post' in update,
-                messageText: messageText.substring(0, 50) // первые 50 символов для лога
-            });
+            // Получаем ID отправителя или создателя канала
+            let fromUserId = this.extractSenderId(update);
             
+            // Если это канал и нет ID отправителя, получаем создателя канала
+            if ('channel_post' in update && !fromUserId) {
+                try {
+                    const chatInfo = await this.bot.telegram.getChat(chatId);
+                    if ('creator' in chatInfo) {
+                        const admins = await this.bot.telegram.getChatAdministrators(chatId);
+                        const creator = admins.find(admin => admin.status === 'creator');
+                        if (creator) {
+                            fromUserId = creator.user.id;
+                            console.log('Найден создатель канала:', fromUserId);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Ошибка при получении информации о создателе канала:', error);
+                }
+            }
+
             // Сохраняем сообщение в чат/группу/канал
             const savedNote = await this.prisma.note.create({
                 data: {
@@ -160,9 +174,9 @@ export class TelegramBotService {
                 });
             }
 
-            // Если сообщение из группы/канала и есть ID отправителя, сохраняем копию в личный чат
+            // Если есть ID создателя канала, сохраняем копию в его личный чат
             if (chatId !== fromUserId && fromUserId) {
-                console.log('Сохраняем копию в личный чат:', fromUserId);
+                console.log('Сохраняем копию создателю канала:', fromUserId);
                 await this.prisma.note.create({
                     data: {
                         content: cleanContent,
@@ -207,9 +221,23 @@ export class TelegramBotService {
 
             const { date: noteDate, cleanContent } = this.dateParser.extractDateFromFirstLine(caption || '');
             
-            // Получаем ID отправителя
-            const fromUserId = ctx.message.from?.id;
+            // Получаем ID отправителя или создателя канала
+            let fromUserId = ctx.message.from?.id;
             
+            // Если это канал и нет ID отправителя, получаем создателя канала
+            if (ctx.chat.type === 'channel' && !fromUserId) {
+                try {
+                    const admins = await ctx.telegram.getChatAdministrators(ctx.chat.id);
+                    const creator = admins.find(admin => admin.status === 'creator');
+                    if (creator) {
+                        fromUserId = creator.user.id;
+                        console.log('Найден создатель канала:', fromUserId);
+                    }
+                } catch (error) {
+                    console.error('Ошибка при получении информации о создателе канала:', error);
+                }
+            }
+
             // Сохраняем фото в чат/группу/канал
             const savedNote = await this.prisma.note.create({
                 data: {
@@ -243,8 +271,9 @@ export class TelegramBotService {
                 });
             }
 
-            // Если фото из группы/канала и есть ID отправителя, сохраняем копию в личный чат
+            // Если есть ID создателя канала, сохраняем копию в его личный чат
             if (ctx.chat.id !== fromUserId && fromUserId) {
+                console.log('Сохраняем копию создателю канала:', fromUserId);
                 await this.prisma.note.create({
                     data: {
                         content: cleanContent || '',
