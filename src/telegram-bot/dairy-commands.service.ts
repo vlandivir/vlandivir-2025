@@ -92,6 +92,9 @@ export class DairyCommandsService {
                         lt: endOfDay(new Date(year, month, day))
                     }
                 },
+                include: {
+                    images: true
+                },
                 orderBy: {
                     noteDate: 'asc'
                 }
@@ -142,11 +145,19 @@ export class DairyCommandsService {
 
         for (const year of years) {
             const notes = notesByYear[year];
-            const message = notes
-                .map(note => note.content)
-                .join('\n\n---\n\n');
+            await ctx.reply(`${dateStr} ${year}:`);
 
-            await ctx.reply(`${dateStr} ${year}:\n\n${message}`);
+            for (const note of notes) {
+                if (note.images && note.images.length > 0) {
+                    for (const image of note.images) {
+                        await ctx.replyWithPhoto(image.url, {
+                            caption: note.content || undefined
+                        });
+                    }
+                } else {
+                    await ctx.reply(note.content);
+                }
+            }
         }
     }
 } 
