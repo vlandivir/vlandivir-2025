@@ -5,11 +5,19 @@ import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from '../prisma/prisma.module';
 import { DateParserService } from '../services/date-parser.service';
 import { DairyCommandsService } from './dairy-commands.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../services/storage.service';
 
 @Module({
   imports: [ConfigModule, PrismaModule],
   controllers: [TelegramBotController],
-  providers: [TelegramBotService, DateParserService, DairyCommandsService],
+  providers: [
+    TelegramBotService,
+    DairyCommandsService,
+    PrismaService,
+    DateParserService,
+    StorageService,
+  ],
   exports: [TelegramBotService]
 })
 export class TelegramBotModule implements OnModuleInit, OnModuleDestroy {

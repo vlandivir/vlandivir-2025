@@ -54,6 +54,9 @@ export class DairyCommandsService {
                     lt: endOfDay(date)
                 }
             },
+            include: {
+                images: true
+            },
             orderBy: {
                 noteDate: 'asc'
             }
@@ -100,11 +103,19 @@ export class DairyCommandsService {
             return;
         }
 
-        const message = notes
-            .map(note => note.content)
-            .join('\n\n---\n\n');
+        for (const note of notes) {
+            let message = note.content;
 
-        await ctx.reply(`Заметки за ${dateStr}:\n\n${message}`);
+            // Send text message
+            await ctx.reply(message);
+
+            // Send images if any
+            if (note.images && note.images.length > 0) {
+                for (const image of note.images) {
+                    await ctx.replyWithPhoto(image.url);
+                }
+            }
+        }
     }
 
     private async sendDairyNotesAllYears(

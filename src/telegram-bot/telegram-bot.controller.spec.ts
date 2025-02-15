@@ -4,6 +4,8 @@ import { TelegramBotService } from './telegram-bot.service';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { DateParserService } from '../services/date-parser.service';
+import { DairyCommandsService } from './dairy-commands.service';
+import { StorageService } from '../services/storage.service';
 
 describe('TelegramBotController', () => {
   let controller: TelegramBotController;
@@ -15,16 +17,40 @@ describe('TelegramBotController', () => {
         TelegramBotService,
         {
           provide: ConfigService,
-          useValue: { get: () => 'fake-token' }
+          useValue: {
+            get: jest.fn().mockReturnValue('mock_token'),
+          },
         },
         {
           provide: PrismaService,
-          useValue: {}
+          useValue: {
+            note: {
+              create: jest.fn(),
+              findMany: jest.fn(),
+            },
+            botResponse: {
+              create: jest.fn(),
+            },
+          },
         },
         {
           provide: DateParserService,
-          useValue: {}
-        }
+          useValue: {
+            extractDateFromFirstLine: jest.fn(),
+          },
+        },
+        {
+          provide: DairyCommandsService,
+          useValue: {
+            handleDairyCommand: jest.fn(),
+          },
+        },
+        {
+          provide: StorageService,
+          useValue: {
+            uploadFile: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
