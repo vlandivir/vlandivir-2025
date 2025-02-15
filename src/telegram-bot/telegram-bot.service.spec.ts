@@ -46,7 +46,9 @@ describe('TelegramBotService', () => {
         {
           provide: StorageService,
           useValue: {
-            uploadFile: jest.fn(),
+            uploadFile: jest.fn().mockImplementation((buffer, mimeType, chatId) => 
+              Promise.resolve(`https://example.com/chats/${chatId}/images/mock-uuid`)
+            ),
           },
         },
       ],

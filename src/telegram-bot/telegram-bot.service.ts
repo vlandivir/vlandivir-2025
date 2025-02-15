@@ -117,10 +117,11 @@ export class TelegramBotService {
             const file = await ctx.telegram.getFile(photo.file_id);
             const photoBuffer = await this.downloadPhoto(file.file_path!);
 
-            // Upload to DO Spaces
+            // Upload to DO Spaces with chat ID
             const photoUrl = await this.storageService.uploadFile(
                 photoBuffer,
-                'image/jpeg'
+                'image/jpeg',
+                ctx.chat.id
             );
 
             // Parse date from caption if exists
@@ -129,7 +130,7 @@ export class TelegramBotService {
             // Save note with photo
             const savedNote = await this.prisma.note.create({
                 data: {
-                    content: cleanContent || 'Фотография без подписи',
+                    content: cleanContent || '',
                     rawMessage: JSON.parse(JSON.stringify(ctx.message)),
                     chatId: ctx.chat.id,
                     noteDate: noteDate || new Date(),
