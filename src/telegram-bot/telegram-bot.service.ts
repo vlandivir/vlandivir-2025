@@ -42,9 +42,9 @@ export class TelegramBotService {
 
     async startBot() {
         // Заменяем launch() на webhook
-        const webhookUrl = this.configService.get<string>('WEBHOOK_URL'); // например, https://your-domain.com/telegram-bot
+        const webhookUrl = this.configService.get<string>('VLANDIVIR_2025_WEBHOOK_URL'); // например, https://your-domain.com/telegram-bot
         if (!webhookUrl) {
-            throw new Error('WEBHOOK_URL is not defined');
+            throw new Error('VLANDIVIR_2025_WEBHOOK_URL is not defined');
         }
 
         // Устанавливаем webhook вместо запуска long polling
