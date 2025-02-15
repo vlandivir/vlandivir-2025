@@ -41,33 +41,31 @@ export class TelegramBotService {
     }
 
     private setupCommands() {
-        // Регистрируем команды
+        // Регистрируем команды для личных чатов и каналов
         this.bot.command(['dairy', 'd'], (ctx) => this.dairyCommands.handleDairyCommand(ctx));
 
-        // Обработчик для всех остальных текстовых сообщений
+        // Обработчик для текстовых сообщений в личных чатах
         this.bot.on(message('text'), async (ctx) => {
-            if (!ctx.message.text.startsWith('/')) {  // Обрабатываем только НЕ команды
-                await this.handleIncomingMessage(ctx.chat.id, ctx.update);
+            if (!ctx.message.text.startsWith('/')) {
+                await this.handleIncomingMessage(ctx.chat.id, ctx.update, false);
             }
         });
 
-        // Add handler for photos
+        // Обработчик для фото в личных чатах
         this.bot.on(message('photo'), async (ctx) => {
-            await this.handleIncomingPhoto(ctx);
+            await this.handleIncomingPhoto(ctx, false);
         });
 
-        // Обновим обработчик текстовых сообщений из каналов
+        // Обработчик текстовых сообщений из каналов
         this.bot.on(channelPost('text'), async (ctx) => {
-            if (!ctx.channelPost.text.startsWith('/')) {
-                const update = {
-                    message: ctx.channelPost,
-                    ...ctx.update
-                } as TelegramUpdate;
-                await this.handleIncomingMessage(ctx.chat.id, update);
-            }
+            const update = {
+                message: ctx.channelPost,
+                ...ctx.update
+            } as TelegramUpdate;
+            await this.handleIncomingMessage(ctx.chat.id, update, true);
         });
 
-        // Обновим обработчик фото из каналов
+        // Обработчик фото из каналов
         this.bot.on(channelPost('photo'), async (ctx) => {
             if (!ctx.channelPost) return;
             
@@ -82,11 +80,11 @@ export class TelegramBotService {
                 state: {},
             } as unknown as Context<Update>;
             
-            await this.handleIncomingPhoto(photoContext);
+            await this.handleIncomingPhoto(photoContext, true);
         });
     }
 
-    async handleIncomingMessage(chatId: number, update: TelegramUpdate) {
+    async handleIncomingMessage(chatId: number, update: TelegramUpdate, silent: boolean = false) {
         try {
             const messageText = this.extractMessageText(update);
             const { date: noteDate, cleanContent } = this.dateParser.extractDateFromFirstLine(messageText);
@@ -101,20 +99,20 @@ export class TelegramBotService {
                 }
             });
 
-            // Формируем ответ бота
-            const botResponse = `Сообщение сохранено${noteDate ? ` с датой ${format(noteDate, 'd MMMM yyyy', { locale: ru })}` : ''}`;
-            
-            // Отправляем ответ
-            await this.bot.telegram.sendMessage(chatId, botResponse);
+            if (!silent) {
+                // Формируем и отправляем ответ бота только для личных чатов
+                const botResponse = `Сообщение сохранено${noteDate ? ` с датой ${format(noteDate, 'd MMMM yyyy', { locale: ru })}` : ''}`;
+                await this.bot.telegram.sendMessage(chatId, botResponse);
 
-            // Сохраняем ответ бота
-            await this.prisma.botResponse.create({
-                data: {
-                    content: botResponse,
-                    noteId: savedNote.id,
-                    chatId: chatId,
-                }
-            });
+                // Сохраняем ответ бота
+                await this.prisma.botResponse.create({
+                    data: {
+                        content: botResponse,
+                        noteId: savedNote.id,
+                        chatId: chatId,
+                    }
+                });
+            }
         } catch (error) {
             console.error('Error processing message:', error);
         }
@@ -130,7 +128,7 @@ export class TelegramBotService {
         return '';
     }
 
-    public async handleIncomingPhoto(ctx: Context) {
+    public async handleIncomingPhoto(ctx: Context, silent: boolean = false) {
         try {
             if (!ctx.message) return;
             
@@ -174,25 +172,27 @@ export class TelegramBotService {
                 },
             });
 
-            // Form bot response
-            const botResponse = `Фотография сохранена${
-                noteDate ? ` с датой ${format(noteDate, 'd MMMM yyyy', { locale: ru })}` : ''
-            }`;
+            if (!silent) {
+                // Отправляем ответ только для личных чатов
+                const botResponse = `Фотография сохранена${
+                    noteDate ? ` с датой ${format(noteDate, 'd MMMM yyyy', { locale: ru })}` : ''
+                }`;
+                await ctx.reply(botResponse);
 
-            // Send response
-            await ctx.reply(botResponse);
-
-            // Save bot response
-            await this.prisma.botResponse.create({
-                data: {
-                    content: botResponse,
-                    noteId: savedNote.id,
-                    chatId: ctx.chat.id,
-                },
-            });
+                // Сохраняем ответ бота
+                await this.prisma.botResponse.create({
+                    data: {
+                        content: botResponse,
+                        noteId: savedNote.id,
+                        chatId: ctx.chat.id,
+                    }
+                });
+            }
         } catch (error) {
             console.error('Error processing photo:', error);
-            await ctx.reply('Произошла ошибка при сохранении фотографии');
+            if (!silent) {
+                await ctx.reply('Произошла ошибка при сохранении фотографии');
+            }
         }
     }
 
