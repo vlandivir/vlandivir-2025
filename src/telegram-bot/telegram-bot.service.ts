@@ -41,8 +41,15 @@ export class TelegramBotService {
     }
 
     async startBot() {
-        await this.bot.launch();
-        console.log('Telegram bot started');
+        // Заменяем launch() на webhook
+        const webhookUrl = this.configService.get<string>('WEBHOOK_URL'); // например, https://your-domain.com/telegram-bot
+        if (!webhookUrl) {
+            throw new Error('WEBHOOK_URL is not defined');
+        }
+
+        // Устанавливаем webhook вместо запуска long polling
+        await this.bot.telegram.setWebhook(webhookUrl);
+        console.log('Telegram bot webhook set to:', webhookUrl);
     }
 
     async stopBot() {
@@ -229,5 +236,10 @@ export class TelegramBotService {
         );
         const arrayBuffer = await response.arrayBuffer();
         return Buffer.from(arrayBuffer);
+    }
+
+    // Добавляем метод для обработки webhook-обновлений
+    async handleWebhook(update: Update) {
+        return this.bot.handleUpdate(update);
     }
 }
