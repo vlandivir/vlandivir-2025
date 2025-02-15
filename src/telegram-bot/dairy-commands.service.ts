@@ -104,16 +104,14 @@ export class DairyCommandsService {
         }
 
         for (const note of notes) {
-            let message = note.content;
-
-            // Send text message
-            await ctx.reply(message);
-
-            // Send images if any
             if (note.images && note.images.length > 0) {
                 for (const image of note.images) {
-                    await ctx.replyWithPhoto(image.url);
+                    await ctx.replyWithPhoto(image.url, {
+                        caption: note.content || undefined
+                    });
                 }
+            } else {
+                await ctx.reply(note.content);
             }
         }
     }
