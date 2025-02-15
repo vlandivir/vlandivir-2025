@@ -41,19 +41,22 @@ export class TelegramBotService {
     }
 
     private setupCommands() {
-        // Регистрируем команды для личных чатов и каналов
+        // Регистрируем команды для всех типов чатов
         this.bot.command(['dairy', 'd'], (ctx) => this.dairyCommands.handleDairyCommand(ctx));
 
-        // Обработчик для текстовых сообщений в личных чатах
+        // Обработчик для текстовых сообщений в личных чатах и группах
         this.bot.on(message('text'), async (ctx) => {
             if (!ctx.message.text.startsWith('/')) {
-                await this.handleIncomingMessage(ctx.chat.id, ctx.update, false);
+                // Тихий режим только для групп
+                const isGroup = ctx.chat.type === 'group' || ctx.chat.type === 'supergroup';
+                await this.handleIncomingMessage(ctx.chat.id, ctx.update, isGroup);
             }
         });
 
-        // Обработчик для фото в личных чатах
+        // Обработчик для фото в личных чатах и группах
         this.bot.on(message('photo'), async (ctx) => {
-            await this.handleIncomingPhoto(ctx, false);
+            const isGroup = ctx.chat.type === 'group' || ctx.chat.type === 'supergroup';
+            await this.handleIncomingPhoto(ctx, isGroup);
         });
 
         // Обработчик текстовых сообщений из каналов

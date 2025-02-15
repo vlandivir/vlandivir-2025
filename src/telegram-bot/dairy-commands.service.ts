@@ -14,9 +14,11 @@ export class DairyCommandsService {
 
     async handleDairyCommand(ctx: Context) {
         const chatId = ctx.chat?.id;
-        if (!chatId || !ctx.message) return;
+        if (!chatId) return;
 
-        const messageText = 'text' in ctx.message ? ctx.message.text : '';
+        const messageText = this.getCommandText(ctx);
+        if (!messageText) return;
+
         const dateArg = messageText.split(' ').slice(1).join(' ').trim();
         
         try {
@@ -43,6 +45,16 @@ export class DairyCommandsService {
             console.error('Error handling dairy command:', error);
             await ctx.reply('Произошла ошибка при получении заметок');
         }
+    }
+
+    private getCommandText(ctx: Context): string | undefined {
+        if ('message' in ctx && ctx.message && 'text' in ctx.message) {
+            return ctx.message.text;
+        }
+        if ('channelPost' in ctx && ctx.channelPost && 'text' in ctx.channelPost) {
+            return ctx.channelPost.text;
+        }
+        return undefined;
     }
 
     private async getDairyNotes(chatId: number, date: Date) {
