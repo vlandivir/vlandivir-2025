@@ -6,11 +6,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { DateParserService } from '../services/date-parser.service';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { message } from 'telegraf/filters';
+import { message, channelPost } from 'telegraf/filters';
 import { DairyCommandsService } from './dairy-commands.service';
 import { StorageService } from '../services/storage.service';
 
-type TelegramUpdate = Update.CallbackQueryUpdate | Update.MessageUpdate;
+type TelegramUpdate = Update.CallbackQueryUpdate | Update.MessageUpdate | Update.ChannelPostUpdate;
 
 @Injectable()
 export class TelegramBotService {
@@ -54,6 +54,35 @@ export class TelegramBotService {
         // Add handler for photos
         this.bot.on(message('photo'), async (ctx) => {
             await this.handleIncomingPhoto(ctx);
+        });
+
+        // Обновим обработчик текстовых сообщений из каналов
+        this.bot.on(channelPost('text'), async (ctx) => {
+            if (!ctx.channelPost.text.startsWith('/')) {
+                const update = {
+                    message: ctx.channelPost,
+                    ...ctx.update
+                } as TelegramUpdate;
+                await this.handleIncomingMessage(ctx.chat.id, update);
+            }
+        });
+
+        // Обновим обработчик фото из каналов
+        this.bot.on(channelPost('photo'), async (ctx) => {
+            if (!ctx.channelPost) return;
+            
+            const photoContext = {
+                ...ctx,
+                message: ctx.channelPost,
+                chat: ctx.chat,
+                updateType: 'message',
+                me: ctx.botInfo,
+                tg: ctx.telegram,
+                editedMessage: undefined,
+                state: {},
+            } as unknown as Context<Update>;
+            
+            await this.handleIncomingPhoto(photoContext);
         });
     }
 
@@ -101,7 +130,7 @@ export class TelegramBotService {
         return '';
     }
 
-    private async handleIncomingPhoto(ctx: Context) {
+    public async handleIncomingPhoto(ctx: Context) {
         try {
             if (!ctx.message) return;
             
@@ -168,7 +197,9 @@ export class TelegramBotService {
     }
 
     private async downloadPhoto(filePath: string): Promise<Buffer> {
-        const response = await fetch(`https://api.telegram.org/file/bot${this.configService.get('TELEGRAM_BOT_TOKEN')}/${filePath}`);
+        const response = await fetch(
+            `https://api.telegram.org/file/bot${this.configService.get('TELEGRAM_BOT_TOKEN')}/${filePath}`
+        );
         const arrayBuffer = await response.arrayBuffer();
         return Buffer.from(arrayBuffer);
     }

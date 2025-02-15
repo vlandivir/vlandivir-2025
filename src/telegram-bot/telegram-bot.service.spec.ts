@@ -5,9 +5,45 @@ import { PrismaService } from '../prisma/prisma.service';
 import { DateParserService } from '../services/date-parser.service';
 import { DairyCommandsService } from './dairy-commands.service';
 import { StorageService } from '../services/storage.service';
+import { Context } from 'telegraf';
 
 describe('TelegramBotService', () => {
   let service: TelegramBotService;
+
+  const mockContext = {
+    message: {
+      text: 'test message',
+      photo: [{
+        file_id: 'test-file-id',
+        width: 100,
+        height: 100
+      }],
+      caption: 'test caption'
+    },
+    chat: {
+      id: 123456
+    },
+    telegram: {
+      getFile: jest.fn().mockResolvedValue({ file_path: 'test/path' }),
+    },
+    reply: jest.fn(),
+    updateType: 'message',
+    me: {
+      id: 123,
+      is_bot: true,
+      first_name: 'TestBot',
+      username: 'test_bot'
+    },
+    tg: {
+      getFile: jest.fn().mockResolvedValue({ file_path: 'test/path' }),
+    },
+    botInfo: {
+      id: 123,
+      is_bot: true,
+      first_name: 'TestBot',
+      username: 'test_bot'
+    }
+  } as unknown as Context;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -23,7 +59,10 @@ describe('TelegramBotService', () => {
           provide: PrismaService,
           useValue: {
             note: {
-              create: jest.fn(),
+              create: jest.fn().mockResolvedValue({
+                id: 1,
+                content: 'test content'
+              }),
               findMany: jest.fn(),
             },
             botResponse: {
@@ -34,7 +73,10 @@ describe('TelegramBotService', () => {
         {
           provide: DateParserService,
           useValue: {
-            extractDateFromFirstLine: jest.fn(),
+            extractDateFromFirstLine: jest.fn().mockReturnValue({
+              date: new Date(),
+              cleanContent: 'test content'
+            }),
           },
         },
         {
@@ -59,5 +101,24 @@ describe('TelegramBotService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  it('should handle photo messages', async () => {
+    await service.handleIncomingPhoto(mockContext);
+    expect(mockContext.reply).toHaveBeenCalled();
+  });
+
+  it('should handle channel posts', async () => {
+    const channelContext = {
+      ...mockContext,
+      channelPost: {
+        ...mockContext.message,
+        chat: { id: -1001234567890, type: 'channel', title: 'Test Channel' }
+      },
+      updateType: 'channel_post'
+    } as unknown as Context;
+
+    await service.handleIncomingPhoto(channelContext);
+    expect(channelContext.reply).toHaveBeenCalled();
   });
 });

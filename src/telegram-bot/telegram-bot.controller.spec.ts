@@ -14,7 +14,15 @@ describe('TelegramBotController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [TelegramBotController],
       providers: [
-        TelegramBotService,
+        {
+          provide: TelegramBotService,
+          useValue: {
+            startBot: jest.fn(),
+            stopBot: jest.fn(),
+            handleIncomingMessage: jest.fn(),
+            handleIncomingPhoto: jest.fn(),
+          },
+        },
         {
           provide: ConfigService,
           useValue: {
