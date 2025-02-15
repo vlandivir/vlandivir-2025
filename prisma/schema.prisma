@@ -21,7 +21,7 @@ model Note {
   noteDate  DateTime @default(now())
   createdAt DateTime @default(now())
   updatedAt DateTime? @updatedAt
-  chatId    Int
+  chatId    BigInt
 
   @@index([chatId])
   @@index([noteDate])
@@ -31,7 +31,7 @@ model BotResponse {
   id        Int       @id @default(autoincrement())
   content   String    @db.Text
   noteId    Int
-  chatId    Int
+  chatId    BigInt
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
 
