@@ -36,7 +36,7 @@ export class SerbianCommandsService {
             const translation = await this.getTranslation(query);
             console.log('Получен ответ от ChatGPT:', translation);
             
-            await ctx.reply(translation);
+            await ctx.reply(translation, { parse_mode: 'Markdown' });
         } catch (error) {
             console.error('Error handling Serbian translation:', error);
             await ctx.reply('Произошла ошибка при получении перевода');
@@ -66,7 +66,7 @@ export class SerbianCommandsService {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    model: 'gpt-3.5-turbo',
+                    model: 'gpt-4o-mini',
                     messages: [
                         {
                             role: 'user',
