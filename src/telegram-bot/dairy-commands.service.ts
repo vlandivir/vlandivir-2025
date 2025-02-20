@@ -23,6 +23,8 @@ export class DairyCommandsService {
         
         try {
             let notes;
+            const { date: parsedDate } = this.dateParser.extractDateFromFirstLine(dateArg || '');
+
             if (!dateArg) {
                 const today = new Date();
                 const todayNotes = await this.getDairyNotes(chatId, today);
@@ -31,7 +33,6 @@ export class DairyCommandsService {
                 await this.sendDairyNotes(ctx, todayNotes, 'сегодня');
                 await this.sendDairyNotesAllYears(ctx, previousYearsNotes, format(today, 'd MMMM', { locale: ru }));
             } else {
-                const { date: parsedDate } = this.dateParser.extractDateFromFirstLine(dateArg);
                 if (!parsedDate) {
                     await ctx.reply('Не удалось распознать дату. Используйте форматы: DD.MM.YYYY, DD.MM, DD месяц');
                     return;
