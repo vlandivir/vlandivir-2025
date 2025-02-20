@@ -24,8 +24,12 @@ export class DairyCommandsService {
         try {
             let notes;
             if (!dateArg) {
-                notes = await this.getDairyNotes(chatId, new Date());
-                await this.sendDairyNotes(ctx, notes, 'сегодня');
+                const today = new Date();
+                const todayNotes = await this.getDairyNotes(chatId, today);
+                const previousYearsNotes = await this.getDairyNotesForDayMonth(chatId, today.getMonth(), today.getDate());
+                
+                await this.sendDairyNotes(ctx, todayNotes, 'сегодня');
+                await this.sendDairyNotesAllYears(ctx, previousYearsNotes, format(today, 'd MMMM', { locale: ru }));
             } else {
                 const { date: parsedDate } = this.dateParser.extractDateFromFirstLine(dateArg);
                 if (!parsedDate) {
