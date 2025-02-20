@@ -88,6 +88,12 @@ export class TelegramBotService {
             await this.handleIncomingMessage(ctx.chat.id, update, true);
         });
 
+        // Add the new Serbian translation command
+        this.bot.command(['s'], (ctx) => {
+            console.log('Получена команда /s:', ctx.message?.text);
+            return this.serbianCommands.handleSerbianCommand(ctx);
+        });
+
         // Обработчик для текстовых сообщений в личных чатах и группах
         this.bot.on(message('text'), async (ctx) => {
             console.log('Получено текстовое сообщение:', ctx.message.text);
@@ -124,12 +130,6 @@ export class TelegramBotService {
             } as unknown as Context<Update>;
             
             await this.handleIncomingPhoto(photoContext, true);
-        });
-
-        // Add the new Serbian translation command
-        this.bot.command(['s'], (ctx) => {
-            console.log('Получена команда /s:', ctx.message?.text);
-            return this.serbianCommands.handleSerbianCommand(ctx);
         });
     }
 

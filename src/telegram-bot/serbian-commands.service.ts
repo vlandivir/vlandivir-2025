@@ -14,6 +14,12 @@ export class SerbianCommandsService {
     }
 
     async handleSerbianCommand(ctx: Context) {
+        // Проверяем, что команда вызвана из приватного чата
+        if (ctx.chat?.type !== 'private') {
+            await ctx.reply('Эта команда доступна только в личных сообщениях с ботом');
+            return;
+        }
+
         const messageText = this.getCommandText(ctx);
         if (!messageText) return;
 
@@ -24,7 +30,12 @@ export class SerbianCommandsService {
         }
 
         try {
+            console.log('Отправляем запрос к ChatGPT для перевода:', query);
+            await ctx.reply('Получаю перевод...');
+            
             const translation = await this.getTranslation(query);
+            console.log('Получен ответ от ChatGPT:', translation);
+            
             await ctx.reply(translation);
         } catch (error) {
             console.error('Error handling Serbian translation:', error);
@@ -43,32 +54,51 @@ export class SerbianCommandsService {
     }
 
     private async getTranslation(serbianText: string): Promise<string> {
-        const prompt = `Переведи с сербского на русский слово или выражение: "${serbianText}".
-Дай несколько примеров использования этого слова/выражения в предложениях на сербском с переводом на русский.`;
+        const prompt = this.createPrompt(serbianText);
 
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${this.apiKey}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                model: 'gpt-3.5-turbo',
-                messages: [
-                    {
-                        role: 'user',
-                        content: prompt,
-                    },
-                ],
-                temperature: 0.7,
-            }),
-        });
+        console.log('Отправляем запрос к OpenAI API');
+        
+        try {
+            const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${this.apiKey}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    model: 'gpt-3.5-turbo',
+                    messages: [
+                        {
+                            role: 'user',
+                            content: prompt,
+                        },
+                    ],
+                    temperature: 0.7,
+                }),
+            });
 
-        if (!response.ok) {
-            throw new Error(`OpenAI API error: ${response.statusText}`);
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('OpenAI API error:', response.status, errorText);
+                throw new Error(`OpenAI API error: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            return data.choices[0].message.content;
+        } catch (error) {
+            console.error('Error in getTranslation:', error);
+            throw error;
         }
+    }
 
-        const data = await response.json();
-        return data.choices[0].message.content;
+    private createPrompt(serbianText: string): string {
+        return `
+            Дай мне развернутое объяснение слова или выражения: ${serbianText} на сербском языке. 
+            Включи все его значения, примеры употребления, синонимы, этимологию, а также возможные переносные или разговорные значения. 
+            Если слово имеет культурные или исторические ассоциации, добавь их тоже. 
+            Переведи слово на русский, но весь остальной текст должен быть на сербском. 
+            Ответ должен быть структурирован: значение, примеры, синонимы, этимология и дополнительные примечания.
+            Отвормарируй ответ так, чтобы он хорошо выглядел в мессенджере Телеграм.        
+        `;
     }
 } 
