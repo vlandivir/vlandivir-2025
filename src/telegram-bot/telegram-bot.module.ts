@@ -7,6 +7,7 @@ import { DateParserService } from '../services/date-parser.service';
 import { DairyCommandsService } from './dairy-commands.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../services/storage.service';
+import { SerbianCommandsService } from './serbian-commands.service';
 
 @Module({
   imports: [ConfigModule, PrismaModule],
@@ -17,6 +18,7 @@ import { StorageService } from '../services/storage.service';
     PrismaService,
     DateParserService,
     StorageService,
+    SerbianCommandsService,
   ],
   exports: [TelegramBotService]
 })

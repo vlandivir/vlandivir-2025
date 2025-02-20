@@ -9,6 +9,7 @@ import { ru } from 'date-fns/locale';
 import { message, channelPost } from 'telegraf/filters';
 import { DairyCommandsService } from './dairy-commands.service';
 import { StorageService } from '../services/storage.service';
+import { SerbianCommandsService } from './serbian-commands.service';
 
 type TelegramUpdate = 
     | Update.CallbackQueryUpdate 
@@ -25,6 +26,7 @@ export class TelegramBotService {
         private dateParser: DateParserService,
         private dairyCommands: DairyCommandsService,
         private storageService: StorageService,
+        private serbianCommands: SerbianCommandsService,
     ) {
         const token = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
         if (!token) {
@@ -122,6 +124,12 @@ export class TelegramBotService {
             } as unknown as Context<Update>;
             
             await this.handleIncomingPhoto(photoContext, true);
+        });
+
+        // Add the new Serbian translation command
+        this.bot.command(['s'], (ctx) => {
+            console.log('Получена команда /s:', ctx.message?.text);
+            return this.serbianCommands.handleSerbianCommand(ctx);
         });
     }
 
