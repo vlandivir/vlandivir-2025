@@ -11,3 +11,16 @@ NEXT STEPS:
 
 sudo cp -r /etc/letsencrypt/live/vlandivir.com/. ./.secret
 sudo chmod 644 ./.secret/privkey.pem
+
+Saving debug log to /var/log/letsencrypt/letsencrypt.log
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Found the following certs:
+  Certificate Name: vlandivir.com
+    Serial Number: 47e478da450d5024e399faaa84af78df634
+    Key Type: ECDSA
+    Domains: vlandivir.com www.vlandivir.com
+    Expiry Date: 2025-05-11 20:54:43+00:00 (VALID: 61 days)
+    Certificate Path: /etc/letsencrypt/live/vlandivir.com/fullchain.pem
+    Private Key Path: /etc/letsencrypt/live/vlandivir.com/privkey.pem
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
