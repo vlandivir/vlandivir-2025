@@ -135,6 +135,7 @@ dist
 .data
 .dairy
 .secret
+.secret-backup
 .specstory
 .terminal
 

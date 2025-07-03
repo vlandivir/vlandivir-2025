@@ -24,3 +24,64 @@ Found the following certs:
     Certificate Path: /etc/letsencrypt/live/vlandivir.com/fullchain.pem
     Private Key Path: /etc/letsencrypt/live/vlandivir.com/privkey.pem
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+UPDATE 2025.05.10
+
+sudo certbot certonly --manual --preferred-challenges dns -d vlandivir.com -d www.vlandivir.com --agree-tos --email vladimir.rybakov@gmail.com
+
+Saving debug log to /var/log/letsencrypt/letsencrypt.log
+Renewing an existing certificate for vlandivir.com and www.vlandivir.com
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Please deploy a DNS TXT record under the name:
+
+_acme-challenge.vlandivir.com.
+
+with the following value:
+
+KQKil1BUdB-CYM6CGFnX6x_GvL27wN4L85ZNnEmmX5Q
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Press Enter to Continue
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Please deploy a DNS TXT record under the name:
+
+_acme-challenge.www.vlandivir.com.
+
+with the following value:
+
+1xHSZKmUcqxjKsegHgFX-7WzTi0eZCfylaMJrU7j-ws
+
+(This must be set up in addition to the previous challenges; do not remove,
+replace, or undo the previous challenge tasks yet. Note that you might be
+asked to create multiple distinct TXT records with the same name. This is
+permitted by DNS standards.)
+
+Before continuing, verify the TXT record has been deployed. Depending on the DNS
+provider, this may take some time, from a few seconds to multiple minutes. You can
+check if it has finished deploying with aid of online tools, such as the Google
+Admin Toolbox: https://toolbox.googleapps.com/apps/dig/#TXT/_acme-challenge.www.vlandivir.com.
+Look for one or more bolded line(s) below the line ';ANSWER'. It should show the
+value(s) you've just added.
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Press Enter to Continue
+
+Successfully received certificate.
+Certificate is saved at: /etc/letsencrypt/live/vlandivir.com/fullchain.pem
+Key is saved at:         /etc/letsencrypt/live/vlandivir.com/privkey.pem
+This certificate expires on 2025-08-08.
+These files will be updated when the certificate renews.
+
+NEXT STEPS:
+- This certificate will not be renewed automatically. Autorenewal of --manual certificates requires the use of an authentication hook script (--manual-auth-hook) but one was not provided. To renew this certificate, repeat this same certbot command before the certificate's expiry date.
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+If you like Certbot, please consider supporting our work by:
+ * Donating to ISRG / Let's Encrypt:   https://letsencrypt.org/donate
+ * Donating to EFF:                    https://eff.org/donate-le
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+sudo cp -r /etc/letsencrypt/live/vlandivir.com/. ./.secret
+sudo chmod 644 ./.secret/privkey.pem
