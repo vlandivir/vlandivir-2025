@@ -23,4 +23,4 @@ if docker ps -a | grep -q vlandivir-2025; then
   docker rm vlandivir-2025 || true
 fi
 
-docker run --name vlandivir-2025 vlandivir-2025
+docker run -p 3042:3000 --name vlandivir-2025 vlandivir-2025

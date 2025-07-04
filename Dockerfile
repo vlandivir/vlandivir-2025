@@ -25,8 +25,8 @@ RUN npm run build
 # Копируем сгенерированный Prisma клиент в папку dist
 RUN cp -r src/generated dist/
 
-# Открываем только порт 443 для HTTPS
-EXPOSE 443
+# Открываем порт 3000 для HTTP (development)
+EXPOSE 443 3000
 
 # Запускаем приложение
 CMD ["node", "dist/main.js"]

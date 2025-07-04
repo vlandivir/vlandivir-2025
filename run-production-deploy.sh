@@ -14,6 +14,7 @@ DO_SPACES_ACCESS_KEY=$(grep DO_SPACES_ACCESS_KEY .env | cut -d '=' -f2)
 DO_SPACES_SECRET_KEY=$(grep DO_SPACES_SECRET_KEY .env | cut -d '=' -f2)
 
 docker build \
+  --platform linux/amd64 \
   --build-arg TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN}" \
   --build-arg TAG_NAME="${TAG_NAME}" \
   --build-arg ENVIRONMENT="PROD" \
@@ -29,6 +30,6 @@ docker push registry.digitalocean.com/vlandivir-main/vlandivir-2025:$TAG_NAME
 SSH_COMMANDS="docker pull registry.digitalocean.com/vlandivir-main/vlandivir-2025:$TAG_NAME; \
 docker stop vlandivir-2025; \
 docker rm vlandivir-2025; \
-docker run -d -p 443:443 --name vlandivir-2025 registry.digitalocean.com/vlandivir-main/vlandivir-2025:$TAG_NAME"
+docker run -d -p 443:443 -e ENVIRONMENT=PROD --name vlandivir-2025 registry.digitalocean.com/vlandivir-main/vlandivir-2025:$TAG_NAME"
 
 ssh -o StrictHostKeyChecking=no root@$SERVER_IP "$SSH_COMMANDS"
