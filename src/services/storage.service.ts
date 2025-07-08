@@ -59,4 +59,19 @@ export class StorageService implements OnModuleInit {
         await upload.done();
         return `${this.endpoint}/${this.bucket}/${key}`;
     }
+
+    async uploadFileWithKey(buffer: Buffer, mimeType: string, key: string): Promise<string> {
+        const upload = new Upload({
+            client: this.s3,
+            params: {
+                Bucket: this.bucket,
+                Key: key,
+                Body: buffer,
+                ContentType: mimeType,
+                ACL: 'public-read',
+            },
+        });
+        await upload.done();
+        return `${this.endpoint}/${this.bucket}/${key}`;
+    }
 } 

@@ -5,12 +5,16 @@ import { ConfigService } from '@nestjs/config';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
+import * as fs from 'fs';
+import * as path from 'path';
+import { StorageService } from '../services/storage.service';
 
 @Injectable()
 export class HistoryCommandsService {
     constructor(
         private prisma: PrismaService,
-        private configService: ConfigService
+        private configService: ConfigService,
+        private storageService: StorageService
     ) {}
 
     async handleHistoryCommand(ctx: Context) {
@@ -43,22 +47,14 @@ export class HistoryCommandsService {
 
             // Generate a unique GUID for the secret link
             const secretId = uuidv4();
-            
             // Create HTML content
             const htmlContent = this.generateHtmlPage(filteredMessages, chatId);
-            
-            // Save the HTML content to a file or database
-            // For now, we'll create a simple endpoint that serves this content
-            // You might want to save this to a file system or database
-            const baseUrl = this.configService.get<string>('VLANDIVIR_2025_BASE_URL') || 'http://localhost:3000';
-            const secretLink = `${baseUrl}/history/${secretId}`;
-            
-            // Store the HTML content temporarily (you might want to use Redis or a database)
-            // For now, we'll create a simple in-memory storage
-            this.storeHtmlContent(secretId, htmlContent);
-
-            await ctx.reply(`История чата доступна по ссылке: ${secretLink}`);
-            
+            // Upload HTML to DO Space
+            const key = `history/${secretId}.html`;
+            const buffer = Buffer.from(htmlContent, 'utf8');
+            const url = await this.storageService.uploadFileWithKey(buffer, 'text/html', key);
+            // Send the public URL as the secret link
+            await ctx.reply(`История чата доступна по ссылке: ${url}`);
         } catch (error) {
             console.error('Error handling history command:', error);
             await ctx.reply('Произошла ошибка при создании истории чата');
@@ -187,20 +183,5 @@ export class HistoryCommandsService {
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#039;');
-    }
-
-    private htmlContentStorage: Map<string, string> = new Map();
-
-    private storeHtmlContent(secretId: string, htmlContent: string): void {
-        this.htmlContentStorage.set(secretId, htmlContent);
-        
-        // Clean up old content after 24 hours
-        setTimeout(() => {
-            this.htmlContentStorage.delete(secretId);
-        }, 24 * 60 * 60 * 1000);
-    }
-
-    public getHtmlContent(secretId: string): string | null {
-        return this.htmlContentStorage.get(secretId) || null;
     }
 } 

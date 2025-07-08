@@ -4,7 +4,6 @@ import { AppService } from './app.service';
 import { TelegramBotModule } from './telegram-bot/telegram-bot.module';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
-import { HistoryModule } from './history/history.module';
 
 @Module({
   imports: [
@@ -13,7 +12,6 @@ import { HistoryModule } from './history/history.module';
     }),
     PrismaModule,
     TelegramBotModule,
-    HistoryModule,
   ],
   controllers: [AppController],
   providers: [AppService],
