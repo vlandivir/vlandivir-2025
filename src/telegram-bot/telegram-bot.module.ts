@@ -8,6 +8,7 @@ import { DairyCommandsService } from './dairy-commands.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../services/storage.service';
 import { SerbianCommandsService } from './serbian-commands.service';
+import { HistoryCommandsService } from './history-commands.service';
 
 @Module({
   imports: [ConfigModule, PrismaModule],
@@ -19,6 +20,7 @@ import { SerbianCommandsService } from './serbian-commands.service';
     DateParserService,
     StorageService,
     SerbianCommandsService,
+    HistoryCommandsService,
   ],
   exports: [TelegramBotService]
 })

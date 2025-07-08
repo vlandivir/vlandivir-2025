@@ -28,6 +28,26 @@
 
 [Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
 
+## Telegram Bot Commands
+
+This project includes a Telegram bot with the following commands:
+
+### `/dairy` or `/d` - Dairy Notes
+Retrieves and displays diary entries for a specific date or all years for a given day/month.
+
+### `/s` - Serbian Translation
+Provides Serbian translations for text.
+
+### `/history` - Chat History
+Creates an HTML page with all messages from the current chat that are longer than 42 characters. The page is accessible via a secret link that is sent to the chat.
+
+**Features:**
+- Filters messages longer than 42 characters
+- Generates a beautiful HTML page with chat history
+- Provides a secret GUID-based link
+- Includes message dates and images
+- Auto-expires after 24 hours for security
+
 ## Project setup
 
 ```bash

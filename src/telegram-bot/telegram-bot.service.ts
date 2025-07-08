@@ -10,6 +10,7 @@ import { message, channelPost } from 'telegraf/filters';
 import { DairyCommandsService } from './dairy-commands.service';
 import { StorageService } from '../services/storage.service';
 import { SerbianCommandsService } from './serbian-commands.service';
+import { HistoryCommandsService } from './history-commands.service';
 
 type TelegramUpdate = 
     | Update.CallbackQueryUpdate 
@@ -27,6 +28,7 @@ export class TelegramBotService {
         private dairyCommands: DairyCommandsService,
         private storageService: StorageService,
         private serbianCommands: SerbianCommandsService,
+        private historyCommands: HistoryCommandsService,
     ) {
         const token = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
         if (!token) {
@@ -92,6 +94,12 @@ export class TelegramBotService {
         this.bot.command(['s'], (ctx) => {
             console.log('Получена команда /s:', ctx.message?.text);
             return this.serbianCommands.handleSerbianCommand(ctx);
+        });
+
+        // Add the new history command
+        this.bot.command(['history'], (ctx) => {
+            console.log('Получена команда /history:', ctx.message?.text);
+            return this.historyCommands.handleHistoryCommand(ctx);
         });
 
         // Обработчик для текстовых сообщений в личных чатах и группах
