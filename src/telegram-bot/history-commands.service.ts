@@ -5,16 +5,17 @@ import { ConfigService } from '@nestjs/config';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import * as fs from 'fs';
-import * as path from 'path';
-import { StorageService } from '../services/storage.service';
 
 @Injectable()
 export class HistoryCommandsService {
+    /**
+     * In-memory storage for generated HTML pages keyed by secretId.
+     */
+    private htmlStorage = new Map<string, string>();
+
     constructor(
         private prisma: PrismaService,
-        private configService: ConfigService,
-        private storageService: StorageService
+        private configService: ConfigService
     ) {}
 
     async handleHistoryCommand(ctx: Context) {
@@ -47,12 +48,14 @@ export class HistoryCommandsService {
 
             // Generate a unique GUID for the secret link
             const secretId = uuidv4();
-            // Create HTML content
+            // Create HTML content and store it in memory
             const htmlContent = this.generateHtmlPage(filteredMessages, chatId);
-            // Upload HTML to DO Space
-            const key = `history/${secretId}.html`;
-            const buffer = Buffer.from(htmlContent, 'utf8');
-            const url = await this.storageService.uploadFileWithKey(buffer, 'text/html', key);
+            this.storeHtmlContent(secretId, htmlContent);
+
+            // Compose a link using configured base URL
+            const baseUrl = this.configService.get<string>('VLANDIVIR_2025_BASE_URL') || 'http://localhost:3000';
+            const url = `${baseUrl}/history/${secretId}`;
+
             // Send the public URL as the secret link
             await ctx.reply(`История чата доступна по ссылке: ${url}`);
         } catch (error) {
@@ -184,4 +187,17 @@ export class HistoryCommandsService {
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#039;');
     }
-} 
+    /**
+     * Store generated HTML content in memory.
+     */
+    private storeHtmlContent(secretId: string, html: string): void {
+        this.htmlStorage.set(secretId, html);
+    }
+
+    /**
+     * Retrieve stored HTML content if available.
+     */
+    getHtmlContent(secretId: string): string | null {
+        return this.htmlStorage.get(secretId) || null;
+    }
+}
