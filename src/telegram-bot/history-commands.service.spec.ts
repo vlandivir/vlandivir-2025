@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { HistoryCommandsService } from './history-commands.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
+import { StorageService } from '../services/storage.service';
 
 describe('HistoryCommandsService', () => {
   let service: HistoryCommandsService;
@@ -18,6 +19,10 @@ describe('HistoryCommandsService', () => {
     get: jest.fn(),
   };
 
+  const mockStorageService = {
+    uploadFileWithKey: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -29,6 +34,10 @@ describe('HistoryCommandsService', () => {
         {
           provide: ConfigService,
           useValue: mockConfigService,
+        },
+        {
+          provide: StorageService,
+          useValue: mockStorageService,
         },
       ],
     }).compile();
@@ -67,7 +76,7 @@ describe('HistoryCommandsService', () => {
       expect(mockContext.reply).toHaveBeenCalledWith('Нет сообщений длиннее 42 символов в этом чате.');
     });
 
-    it('should filter messages longer than 42 characters', async () => {
+    it('should filter messages longer than 42 characters and upload to DO Space', async () => {
       const mockContext = {
         chat: { id: 123 },
         reply: jest.fn(),
@@ -80,33 +89,22 @@ describe('HistoryCommandsService', () => {
       ];
 
       mockPrismaService.note.findMany.mockResolvedValue(mockMessages);
-      mockConfigService.get.mockReturnValue('http://localhost:3000');
+      mockStorageService.uploadFileWithKey.mockResolvedValue('https://fra1.digitaloceanspaces.com/vlandivir-2025/history/test-uuid.html');
 
       await service.handleHistoryCommand(mockContext);
 
+      expect(mockStorageService.uploadFileWithKey).toHaveBeenCalledWith(
+        expect.any(Buffer),
+        'text/html',
+        expect.stringMatching(/^history\/[a-f0-9-]+\.html$/)
+      );
       expect(mockContext.reply).toHaveBeenCalledWith(
-        expect.stringContaining('История чата доступна по ссылке: http://localhost:3000/history/')
+        expect.stringContaining('История чата доступна по ссылке: https://fra1.digitaloceanspaces.com/vlandivir-2025/history/')
       );
     });
   });
 
-  describe('getHtmlContent', () => {
-    it('should return null for non-existent secretId', () => {
-      const result = service.getHtmlContent('non-existent-id');
-      expect(result).toBeNull();
-    });
 
-    it('should return stored HTML content', () => {
-      const testHtml = '<html><body>Test</body></html>';
-      const secretId = 'test-id';
-      
-      // Store content using private method (we'll test the public interface)
-      (service as any).storeHtmlContent(secretId, testHtml);
-      
-      const result = service.getHtmlContent(secretId);
-      expect(result).toBe(testHtml);
-    });
-  });
 
   describe('escapeHtml', () => {
     it('should escape HTML special characters', () => {
