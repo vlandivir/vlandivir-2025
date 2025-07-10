@@ -1,0 +1,18 @@
+npx prisma generate
+
+➜  vlandivir-2025 git:(main) ✗ npx prisma migrate dev --name add_todo_model
+Environment variables loaded from .env
+Prisma schema loaded from prisma/schema.prisma
+Datasource "db": PostgreSQL database "vlandivir-2025", schema "public" at "defaultdb-do-user-237849-0.m.db.ondigitalocean.com:25060"
+
+Applying migration `20250710204504_add_todo_model`
+
+The following migration(s) have been created and applied from new schema changes:
+
+migrations/
+  └─ 20250710204504_add_todo_model/
+    └─ migration.sql
+
+Your database is now in sync with your schema.
+
+✔ Generated Prisma Client (v6.11.1) to ./src/generated/prisma-client in 46ms
