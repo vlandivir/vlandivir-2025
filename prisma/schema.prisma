@@ -52,6 +52,7 @@ model Image {
 model Todo {
   id           Int       @id @default(autoincrement())
   key          String
+  content      String    @db.Text
   createdAt    DateTime  @default(now())
   status       String    @default("new")
   completedAt  DateTime?
