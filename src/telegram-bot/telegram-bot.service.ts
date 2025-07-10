@@ -102,6 +102,12 @@ export class TelegramBotService {
             return this.historyCommands.handleHistoryCommand(ctx);
         });
 
+        // Help command
+        this.bot.command(['help'], (ctx) => {
+            console.log('Получена команда /help');
+            return ctx.reply(this.getHelpMessage());
+        });
+
         // Обработчик для текстовых сообщений в личных чатах и группах
         this.bot.on(message('text'), async (ctx) => {
             console.log('Получено текстовое сообщение:', ctx.message.text);
@@ -331,6 +337,17 @@ export class TelegramBotService {
             return update.channel_post.from.id;
         }
         return undefined;
+    }
+
+    private getHelpMessage(): string {
+        const commands = [
+            { name: '/dairy or /d', description: 'Dairy Notes' },
+            { name: '/history', description: 'Chat History' },
+            { name: '/s', description: 'Serbian Translation' },
+            { name: '/help', description: 'Show this help message' },
+        ];
+        commands.sort((a, b) => a.name.localeCompare(b.name));
+        return commands.map(c => `${c.name} - ${c.description}`).join('\n');
     }
 
     // Добавляем метод для обработки webhook-обновлений
