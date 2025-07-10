@@ -135,4 +135,15 @@ describe('TelegramBotService', () => {
     await service.handleIncomingPhoto(channelContext);
     expect(channelContext.reply).toHaveBeenCalled();
   });
+
+  it('should return sorted help message', () => {
+    const result = (service as any).getHelpMessage();
+    const expected = [
+      '/dairy or /d - Dairy Notes',
+      '/help - Show this help message',
+      '/history - Chat History',
+      '/s - Serbian Translation',
+    ].join('\n');
+    expect(result).toBe(expected);
+  });
 });
