@@ -41,6 +41,9 @@ Provides Serbian translations for text.
 ### `/history` - Chat History
 Creates an HTML page with all messages from the current chat that are longer than 42 characters. The page is accessible via a secret link that is sent to the chat.
 
+### `/t` or `/task` - Create Todo
+Creates a new todo item with tags, contexts, projects, optional priority and due date.
+
 ### `/help` - Command List
 Shows a list of available commands with brief descriptions.
 

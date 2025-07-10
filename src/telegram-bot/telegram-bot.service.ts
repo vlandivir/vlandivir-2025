@@ -11,6 +11,7 @@ import { DairyCommandsService } from './dairy-commands.service';
 import { StorageService } from '../services/storage.service';
 import { SerbianCommandsService } from './serbian-commands.service';
 import { HistoryCommandsService } from './history-commands.service';
+import { TaskCommandsService } from './task-commands.service';
 
 type TelegramUpdate = 
     | Update.CallbackQueryUpdate 
@@ -29,6 +30,7 @@ export class TelegramBotService {
         private storageService: StorageService,
         private serbianCommands: SerbianCommandsService,
         private historyCommands: HistoryCommandsService,
+        private taskCommands: TaskCommandsService,
     ) {
         const token = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
         if (!token) {
@@ -100,6 +102,12 @@ export class TelegramBotService {
         this.bot.command(['history'], (ctx) => {
             console.log('Получена команда /history:', ctx.message?.text);
             return this.historyCommands.handleHistoryCommand(ctx);
+        });
+
+        // Add the new task command
+        this.bot.command(['t', 'task'], (ctx) => {
+            console.log('Получена команда /t /task:', ctx.message?.text);
+            return this.taskCommands.handleTaskCommand(ctx);
         });
 
         // Help command
@@ -344,6 +352,7 @@ export class TelegramBotService {
             { name: '/dairy or /d', description: 'Dairy Notes' },
             { name: '/history', description: 'Chat History' },
             { name: '/s', description: 'Serbian Translation' },
+            { name: '/t or /task', description: 'Create Todo item' },
             { name: '/help', description: 'Show this help message' },
         ];
         commands.sort((a, b) => a.name.localeCompare(b.name));
