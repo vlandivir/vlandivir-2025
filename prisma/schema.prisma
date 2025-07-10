@@ -48,3 +48,18 @@ model Image {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+model Todo {
+  id           Int       @id @default(autoincrement())
+  key          String
+  createdAt    DateTime  @default(now())
+  status       String    @default("new")
+  completedAt  DateTime?
+  priority     String?   @db.VarChar(1)
+  dueDate      DateTime?
+  tags         String[]
+  contexts     String[]
+  projects     String[]
+
+  @@index([key])
+}
