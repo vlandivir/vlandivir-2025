@@ -1,23 +1,61 @@
 # vlandivir-2025
 
-## Telegram Bot Commands
+## Telegram Bot Commands and Examples
 
-This project includes a Telegram bot with the following commands:
+This project includes a Telegram bot with several useful commands. Notes are saved automatically from any text or photo you send to the bot.
 
-### `/dairy` or `/d` - Dairy Notes
-Retrieves and displays diary entries for a specific date or all years for a given day/month.
+### Creating a new note
+Send a message or a photo caption to save a diary note for today. To store a note for a different date, start the first line with the desired date in a supported format such as `DD.MM.YYYY`, `DD.MM` or `DD month`.
 
-### `/s` - Serbian Translation
-Provides Serbian translations for text.
+```
+02.01.2025
+My note text
+```
 
-### `/history` - Chat History
-Creates an HTML page with all messages from the current chat that are longer than 42 characters. The page is accessible via a secret link that is sent to the chat.
+If you omit the date, the note is saved with today's date.
 
-### `/t` or `/task` - Create Todo
-Creates a new todo item with tags, contexts, projects, optional priority and due date.
+### `/dairy` or `/d`
+Retrieves diary entries for a specific date.
+- **date** (optional) — use `DD.MM.YYYY` to show a single day or `DD.MM`/`DD month` to see the same day across years.
 
-### `/help` - Command List
-Shows a list of available commands with brief descriptions.
+Example:
+```
+/d 25.03.2024
+```
+
+### `/s`
+Provides Serbian translations. Only works in private chats.
+- **text** — Serbian word or phrase.
+
+Example:
+```
+/s zdravo
+```
+
+### `/history`
+Generates an HTML page with all messages longer than 42 characters.
+
+Example:
+```
+/history
+```
+
+### `/t` or `/task`
+Creates a new todo item.
+- **content** — description of the todo item.
+- `@tag` — add tags.
+- `.context` — specify contexts.
+- `!project` — assign projects (multiword names are allowed).
+- `(A)` — set priority with a letter in parentheses.
+- `:YYYY.MM.DD` or `:YYYY.MM.DD HH:MM` — optional due date.
+
+Example:
+```
+/task (B) @work .office !Big Project :2025.07.31 09:00 Prepare report
+```
+
+### `/help`
+Shows a list of all available commands.
 
 **Features:**
 - Filters messages longer than 42 characters
