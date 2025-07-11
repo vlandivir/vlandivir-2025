@@ -60,7 +60,7 @@ Creates a new todo item.
 - `.context` — specify contexts.
 - `!project` — assign projects (multiword names are allowed).
 - `(A)` — set priority with a letter in parentheses.
-- `:YYYY.MM.DD` or `:YYYY.MM.DD HH:MM` — optional due date. The date portion supports the formats listed above.
+- `:<date>` or `:<date> HH:MM` — optional due date. `<date>` accepts the same formats as in the note examples above.
 
 Example:
 ```
