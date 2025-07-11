@@ -5,12 +5,19 @@
 This project includes a Telegram bot with several useful commands. Notes are saved automatically from any text or photo you send to the bot.
 
 ### Creating a new note
-Send a message or a photo caption to save a diary note for today. To store a note for a different date, start the first line with the desired date in a supported format such as `DD.MM.YYYY`, `DD.MM` or `DD month`.
+Send a message or a photo caption to save a diary note for today. To store a note for a different date, start the first line with the desired date. The bot understands several common date formats.
 
 ```
 02.01.2025
 My note text
 ```
+
+Supported date formats:
+
+- `YYYY.MM.DD` or `YYYY-MM-DD`
+- `DD.MM` or `MM/DD` (year defaults to the current one)
+- `DD MMMM` (Russian month names, e.g. `2 января`)
+- `DD MMM YYYY` (English month names, e.g. `2 Jan 2025`)
 
 If you omit the date, the note is saved with today's date.
 
@@ -53,7 +60,7 @@ Creates a new todo item.
 - `.context` — specify contexts.
 - `!project` — assign projects (multiword names are allowed).
 - `(A)` — set priority with a letter in parentheses.
-- `:YYYY.MM.DD` or `:YYYY.MM.DD HH:MM` — optional due date.
+- `:YYYY.MM.DD` or `:YYYY.MM.DD HH:MM` — optional due date. The date portion supports the formats listed above.
 
 Example:
 ```
