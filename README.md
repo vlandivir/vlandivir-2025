@@ -14,7 +14,7 @@ My note text
 
 If you omit the date, the note is saved with today's date.
 
-### `/dairy` or `/d`
+### `/d` or `/dairy`
 Retrieves diary entries for a specific date.
 - **date** (optional) — use `DD.MM.YYYY` to show a single day or `DD.MM`/`DD month` to see the same day across years.
 
