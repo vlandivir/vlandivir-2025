@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { Context } from 'telegraf';
 import { PrismaService } from '../prisma/prisma.service';
-import { parse, isValid, format, startOfDay, endOfDay } from 'date-fns';
+import { format, startOfDay, endOfDay } from 'date-fns';
+import { DateParserService } from '../services/date-parser.service';
 
 interface ParsedTask {
     content: string;
@@ -14,7 +15,10 @@ interface ParsedTask {
 
 @Injectable()
 export class TaskCommandsService {
-    constructor(private prisma: PrismaService) {}
+    constructor(
+        private prisma: PrismaService,
+        private dateParser: DateParserService,
+    ) {}
 
     async handleTaskCommand(ctx: Context) {
         const text = this.getCommandText(ctx);
@@ -106,12 +110,17 @@ export class TaskCommandsService {
     }
 
     private parseDueDate(text: string): Date | undefined {
-        const formats = ['yyyy.MM.dd HH:mm', 'yyyy.MM.dd'];
-        for (const fmt of formats) {
-            const d = parse(text, fmt, new Date());
-            if (isValid(d)) return d;
+        const timeMatch = text.match(/(\d{1,2}:\d{2})$/);
+        const datePart = timeMatch ? text.replace(timeMatch[0], '').trim() : text.trim();
+        const { date } = this.dateParser.extractDateFromFirstLine(datePart);
+        if (!date) return undefined;
+
+        if (timeMatch) {
+            const [h, m] = timeMatch[1].split(':').map(Number);
+            date.setHours(h, m, 0, 0);
         }
-        return undefined;
+
+        return date;
     }
 
     private async generateKey(): Promise<string> {
