@@ -5,8 +5,6 @@ import { ConfigService } from '@nestjs/config';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import * as fs from 'fs';
-import * as path from 'path';
 import { StorageService } from '../services/storage.service';
 
 @Injectable()
