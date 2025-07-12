@@ -50,4 +50,7 @@ jobs:
           docker pull registry.digitalocean.com/vlandivir-main/vlandivir-2025:${{ steps.tag.outputs.TAG_NAME }}
           docker stop vlandivir-2025 || true
           docker rm vlandivir-2025 || true
-          docker run -d -p 443:443 -e ENVIRONMENT=PROD --name vlandivir-2025 registry.digitalocean.com/vlandivir-main/vlandivir-2025:${{ steps.tag.outputs.TAG_NAME }} 
+          docker run -d -p 443:443 -e ENVIRONMENT=PROD \
+            -v /root/.secret:/usr/src/app/.secret:ro \
+            --name vlandivir-2025 \
+            registry.digitalocean.com/vlandivir-main/vlandivir-2025:${{ steps.tag.outputs.TAG_NAME }} 
