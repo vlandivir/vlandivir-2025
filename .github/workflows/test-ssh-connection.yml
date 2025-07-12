@@ -8,7 +8,39 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Test SSH Connection
+    - name: Debug - Check secrets exist
+      run: |
+        echo "Checking if secrets are set..."
+        echo "DIGITAL_OCEAN_IP length: ${#DIGITAL_OCEAN_IP}"
+        echo "SSH_PRIVATE_KEY length: ${#SSH_PRIVATE_KEY}"
+        echo "IP starts with: ${DIGITAL_OCEAN_IP:0:5}..."
+        echo "Key starts with: ${SSH_PRIVATE_KEY:0:30}..."
+      env:
+        DIGITAL_OCEAN_IP: ${{ secrets.DIGITAL_OCEAN_IP }}
+        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+    
+    - name: Debug - Test network connectivity
+      run: |
+        echo "Testing network connectivity..."
+        ping -c 3 ${{ secrets.DIGITAL_OCEAN_IP }} || echo "Ping failed"
+        nc -zv ${{ secrets.DIGITAL_OCEAN_IP }} 22 || echo "SSH port not reachable"
+        
+    - name: Debug - Create SSH key file
+      run: |
+        echo "Creating SSH key file..."
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/test_key
+        chmod 600 ~/.ssh/test_key
+        echo "Key file created, checking format..."
+        head -n 1 ~/.ssh/test_key
+        tail -n 1 ~/.ssh/test_key
+        
+    - name: Debug - Test SSH with verbose output
+      run: |
+        echo "Testing SSH with verbose debugging..."
+        ssh -vvv -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/test_key root@${{ secrets.DIGITAL_OCEAN_IP }} "echo 'SSH test successful'" || echo "SSH failed"
+        
+    - name: Test SSH Connection (Original)
       uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.DIGITAL_OCEAN_IP }}
@@ -24,4 +56,17 @@ jobs:
           echo "Running containers:"
           docker ps
           echo "Available disk space:"
-          df -h 
+          df -h
+          
+    - name: Test SSH Connection (Alternative with options)
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.DIGITAL_OCEAN_IP }}
+        username: root
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        port: 22
+        timeout: 30s
+        command_timeout: 10s
+        script: |
+          echo "Alternative SSH connection successful!"
+          whoami 
