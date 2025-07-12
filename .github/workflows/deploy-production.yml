@@ -33,12 +33,13 @@ jobs:
         push: true
         tags: registry.digitalocean.com/vlandivir-main/vlandivir-2025:${{ steps.tag.outputs.TAG_NAME }}
         build-args: |
-          TELEGRAM_BOT_TOKEN=${{ secrets.VLANDIVIR_2025_BOT_TOKEN }}
           TAG_NAME=${{ steps.tag.outputs.TAG_NAME }}
           ENVIRONMENT=PROD
+          TELEGRAM_BOT_TOKEN=${{ secrets.VLANDIVIR_2025_BOT_TOKEN }}
           POSTGRES_CONNECTION_STRING=${{ secrets.POSTGRES_CONNECTION_STRING }}
           DO_SPACES_ACCESS_KEY=${{ secrets.DO_SPACES_ACCESS_KEY }}
           DO_SPACES_SECRET_KEY=${{ secrets.DO_SPACES_SECRET_KEY }}
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
           
     - name: Deploy to server
       uses: appleboy/ssh-action@v1.0.3
