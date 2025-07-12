@@ -62,6 +62,11 @@ Creates a new todo item.
 - `(A)` — set priority with a letter in parentheses.
 - `:<date>` or `:<date> HH:MM` — optional due date. `<date>` accepts the same formats as in the note examples above.
 
+To update an existing task, start the command with its key:
+`/t T-20250710-3 ...`. New tags and contexts are appended while
+projects and due dates are replaced. The text part can be empty.
+Use `-canceled`, `-done`, `-in-progress` or `-started` to set the status.
+
 Example:
 ```
 /task (B) @work .office !Big Project :2025.07.31 09:00 Prepare report

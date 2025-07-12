@@ -11,6 +11,7 @@ interface ParsedTask {
     contexts: string[];
     projects: string[];
     dueDate?: Date;
+    status?: string;
 }
 
 @Injectable()
@@ -24,24 +25,37 @@ export class TaskCommandsService {
         const text = this.getCommandText(ctx);
         if (!text) return;
         const withoutCommand = text.replace(/^\/(t|task)\s*/, '').trim();
-        const parsed = this.parseTask(withoutCommand);
+        const parts = withoutCommand.split(/\s+/);
+        let key: string | undefined;
+        if (parts.length && /^T-\d{8}-\d+$/.test(parts[0])) {
+            key = parts.shift() as string;
+        }
+        const parsed = this.parseTask(parts.join(' '));
+
+        if (key) {
+            await this.editTask(ctx, key, parsed);
+            return;
+        }
+
         if (!parsed.content) {
             await ctx.reply('Task text cannot be empty');
             return;
         }
-        const key = await this.generateKey();
+
+        const newKey = await this.generateKey();
         await this.prisma.todo.create({
             data: {
-                key,
+                key: newKey,
                 content: parsed.content,
                 priority: parsed.priority,
                 dueDate: parsed.dueDate,
                 tags: parsed.tags,
                 contexts: parsed.contexts,
                 projects: parsed.projects,
+                status: parsed.status ?? 'new',
             },
         });
-        await ctx.reply(`Task created with key ${key}`);
+        await ctx.reply(`Task created with key ${newKey}`);
     }
 
     private getCommandText(ctx: Context): string | undefined {
@@ -61,9 +75,17 @@ export class TaskCommandsService {
         const projects: string[] = [];
         let priority: string | undefined;
         let dueDate: Date | undefined;
+        let status: string | undefined;
         const descParts: string[] = [];
         for (let i = 0; i < tokens.length; i++) {
             const token = tokens[i];
+            if (token.startsWith('-')) {
+                const st = token.slice(1);
+                if (['canceled', 'done', 'in-progress', 'started'].includes(st)) {
+                    status = st;
+                    continue;
+                }
+            }
             if (/^\([a-zA-Z]\)$/.test(token)) {
                 priority = token.slice(1, 2).toUpperCase();
                 continue;
@@ -106,6 +128,7 @@ export class TaskCommandsService {
             contexts,
             projects,
             dueDate,
+            status,
         };
     }
 
@@ -121,6 +144,31 @@ export class TaskCommandsService {
         }
 
         return date;
+    }
+
+    private async editTask(ctx: Context, key: string, updates: ParsedTask) {
+        const existing = await this.prisma.todo.findFirst({
+            where: { key },
+            orderBy: { createdAt: 'desc' },
+        });
+        if (!existing) {
+            await ctx.reply(`Task with key ${key} not found`);
+            return;
+        }
+
+        const data = {
+            key,
+            content: updates.content || existing.content,
+            priority: updates.priority ?? existing.priority,
+            dueDate: updates.dueDate ?? existing.dueDate,
+            tags: Array.from(new Set([...existing.tags, ...updates.tags])),
+            contexts: Array.from(new Set([...existing.contexts, ...updates.contexts])),
+            projects: updates.projects.length > 0 ? updates.projects : existing.projects,
+            status: updates.status ?? existing.status,
+        };
+
+        await this.prisma.todo.create({ data });
+        await ctx.reply(`Task ${key} updated`);
     }
 
     private async generateKey(): Promise<string> {
