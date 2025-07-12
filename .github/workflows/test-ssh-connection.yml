@@ -1,0 +1,27 @@
+name: Test SSH Connection
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-ssh:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Test SSH Connection
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.DIGITAL_OCEAN_IP }}
+        username: root
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        script: |
+          echo "SSH connection successful!"
+          echo "Current date: $(date)"
+          echo "Current user: $(whoami)"
+          echo "Server hostname: $(hostname)"
+          echo "Uptime: $(uptime)"
+          echo "Docker version: $(docker --version)"
+          echo "Running containers:"
+          docker ps
+          echo "Available disk space:"
+          df -h 
