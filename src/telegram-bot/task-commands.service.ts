@@ -201,29 +201,8 @@ export class TaskCommandsService {
         const withoutCommand = text.replace(/^\/tl\s*/, '').trim();
         const { tags, contexts, projects } = this.parseFilters(withoutCommand);
 
-        // Build filter conditions for the final WHERE clause
-        const conditions: string[] = [`status NOT IN ('done', 'canceled')`];
-        const queryParams: any[] = [];
-
-        if (tags.length > 0) {
-            conditions.push(`tags @> $${queryParams.length + 1}`);
-            queryParams.push(tags);
-        }
-
-        if (contexts.length > 0) {
-            conditions.push(`contexts @> $${queryParams.length + 1}`);
-            queryParams.push(contexts);
-        }
-
-        if (projects.length > 0) {
-            conditions.push(`projects @> $${queryParams.length + 1}`);
-            queryParams.push(projects);
-        }
-
-        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-
-        // Use CTE to get latest record for each key, then apply filters
-        const query = `
+        // Build the complete query as a template literal
+        let query = `
             WITH latest_todos AS (
                 SELECT *,
                        ROW_NUMBER() OVER (PARTITION BY key ORDER BY id DESC) as rn
@@ -231,10 +210,23 @@ export class TaskCommandsService {
             )
             SELECT id, key, content, "createdAt", status, "completedAt", priority, "dueDate", tags, contexts, projects
             FROM latest_todos
-            WHERE rn = 1 ${whereClause ? 'AND ' + whereClause.replace('WHERE ', '') : ''}
-            ORDER BY "createdAt" DESC, key ASC
-        `;
+            WHERE rn = 1 AND status NOT IN ('done', 'canceled')`;
 
+        if (tags.length > 0) {
+            query += ` AND tags @> '${JSON.stringify(tags)}'::jsonb`;
+        }
+
+        if (contexts.length > 0) {
+            query += ` AND contexts @> '${JSON.stringify(contexts)}'::jsonb`;
+        }
+
+        if (projects.length > 0) {
+            query += ` AND projects @> '${JSON.stringify(projects)}'::jsonb`;
+        }
+
+        query += ` ORDER BY "createdAt" DESC, key ASC`;
+
+        // Use CTE to get latest record for each key, then apply filters
         const latestTasks = await this.prisma.$queryRaw<Array<{
             id: number;
             key: string;
@@ -247,7 +239,7 @@ export class TaskCommandsService {
             tags: string[];
             contexts: string[];
             projects: string[];
-        }>>(query as any, ...queryParams);
+        }>>`${query}`;
 
         if (latestTasks.length === 0) {
             await ctx.reply('No tasks found');
