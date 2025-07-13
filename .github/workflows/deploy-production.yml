@@ -41,6 +41,37 @@ jobs:
           DO_SPACES_SECRET_KEY=${{ secrets.DO_SPACES_SECRET_KEY }}
           OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
           VLANDIVIR_2025_WEBHOOK_URL=${{ secrets.VLANDIVIR_2025_WEBHOOK_URL }}
+    
+    - name: Clean up old Docker images
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.DIGITAL_OCEAN_IP }}
+        username: root
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        script: |
+          echo "Cleaning up old vlandivir-2025 Docker images before deployment..."
+          
+          # Remove old vlandivir-2025 images, keeping only the 3 most recent
+          docker images registry.digitalocean.com/vlandivir-main/vlandivir-2025 --format "table {{.Repository}}:{{.Tag}}\t{{.CreatedAt}}" | \
+            tail -n +2 | \
+            sort -k2 -r | \
+            tail -n +4 | \
+            awk '{print $1}' | \
+            xargs -r docker rmi || true
+          
+          # Remove dangling images
+          docker image prune -f
+          
+          # Remove unused images older than 24 hours
+          docker image prune -a --filter "until=24h" -f
+          
+          # Show remaining images for verification
+          echo "Remaining vlandivir-2025 images:"
+          docker images registry.digitalocean.com/vlandivir-main/vlandivir-2025
+          
+          # Show disk space before deployment
+          echo "Disk space before deployment:"
+          df -h /var/lib/docker
           
     - name: Deploy to server
       uses: appleboy/ssh-action@v1.0.3
