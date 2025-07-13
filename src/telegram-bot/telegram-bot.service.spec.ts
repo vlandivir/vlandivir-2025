@@ -112,6 +112,7 @@ describe('TelegramBotService', () => {
           provide: TaskCommandsService,
           useValue: {
             handleTaskCommand: jest.fn(),
+            handleListCommand: jest.fn(),
           },
         },
       ],
@@ -151,6 +152,7 @@ describe('TelegramBotService', () => {
       '/history - Chat History',
       '/s - Serbian Translation',
       '/t or /task - Create Todo item',
+      '/tl - List Todo items',
     ].join('\n');
     expect(result).toBe(expected);
   });

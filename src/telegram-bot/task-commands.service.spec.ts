@@ -51,6 +51,16 @@ describe('TaskCommandsService', () => {
     });
   });
 
+  describe('parseFilters', () => {
+    it('should parse tags contexts and projects', () => {
+      const result = (service as any).parseFilters('@a .b !Proj rest');
+      expect(result.tags).toEqual(['a']);
+      expect(result.contexts).toEqual(['b']);
+      expect(result.projects).toEqual(['Proj rest']);
+      expect(result.remaining).toEqual([]);
+    });
+  });
+
   describe('handleTaskCommand edit', () => {
     it('should copy existing task and apply updates', async () => {
       const mockPrisma = {

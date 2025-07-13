@@ -68,11 +68,44 @@ export class TaskCommandsService {
         return undefined;
     }
 
-    private parseTask(text: string): ParsedTask {
-        const tokens = text.split(/\s+/);
+    private parseFilters(text: string): { tags: string[]; contexts: string[]; projects: string[]; remaining: string[] } {
+        const tokens = text.split(/\s+/).filter(t => t);
         const tags: string[] = [];
         const contexts: string[] = [];
         const projects: string[] = [];
+        const remaining: string[] = [];
+        for (let i = 0; i < tokens.length; i++) {
+            const token = tokens[i];
+            if (token.startsWith('@')) {
+                tags.push(token.slice(1));
+                continue;
+            }
+            if (token.startsWith('.')) {
+                contexts.push(token.slice(1));
+                continue;
+            }
+            if (token.startsWith('!')) {
+                let project = token.slice(1);
+                while (i + 1 < tokens.length &&
+                    !tokens[i + 1].startsWith('@') &&
+                    !tokens[i + 1].startsWith('.') &&
+                    !tokens[i + 1].startsWith('!') &&
+                    !tokens[i + 1].startsWith(':') &&
+                    !/^\([a-zA-Z]\)$/.test(tokens[i + 1])) {
+                    project += ' ' + tokens[i + 1];
+                    i++;
+                }
+                projects.push(project);
+                continue;
+            }
+            remaining.push(token);
+        }
+        return { tags, contexts, projects, remaining };
+    }
+
+    private parseTask(text: string): ParsedTask {
+        const { tags, contexts, projects, remaining } = this.parseFilters(text);
+        const tokens = remaining;
         let priority: string | undefined;
         let dueDate: Date | undefined;
         let status: string | undefined;
@@ -88,23 +121,6 @@ export class TaskCommandsService {
             }
             if (/^\([a-zA-Z]\)$/.test(token)) {
                 priority = token.slice(1, 2).toUpperCase();
-                continue;
-            }
-            if (token.startsWith('@')) {
-                tags.push(token.slice(1));
-                continue;
-            }
-            if (token.startsWith('.')) {
-                contexts.push(token.slice(1));
-                continue;
-            }
-            if (token.startsWith('!')) {
-                let project = token.slice(1);
-                while (i + 1 < tokens.length && !tokens[i + 1].startsWith('@') && !tokens[i + 1].startsWith('.') && !tokens[i + 1].startsWith('!') && !tokens[i + 1].startsWith(':') && !/^\([a-zA-Z]\)$/.test(tokens[i + 1])) {
-                    project += ' ' + tokens[i + 1];
-                    i++;
-                }
-                projects.push(project);
                 continue;
             }
             if (token.startsWith(':')) {
@@ -178,5 +194,40 @@ export class TaskCommandsService {
             where: { createdAt: { gte: startOfDay(today), lt: endOfDay(today) } },
         });
         return `T-${datePart}-${count + 1}`;
+    }
+
+    async handleListCommand(ctx: Context) {
+        const text = this.getCommandText(ctx) || '';
+        const withoutCommand = text.replace(/^\/tl\s*/, '').trim();
+        const { tags, contexts, projects } = this.parseFilters(withoutCommand);
+
+        const all = await this.prisma.todo.findMany({
+            orderBy: { createdAt: 'desc' },
+        });
+
+        const map = new Map<string, any>();
+        for (const task of all) {
+            if (map.has(task.key)) continue;
+            if (['done', 'canceled'].includes(task.status)) continue;
+            if (tags.length && !tags.every(t => task.tags.includes(t))) continue;
+            if (contexts.length && !contexts.every(c => task.contexts.includes(c))) continue;
+            if (projects.length && !projects.every(p => task.projects.includes(p))) continue;
+            map.set(task.key, task);
+        }
+
+        const tasks = Array.from(map.values());
+        tasks.sort((a, b) => {
+            const diff = b.createdAt.getTime() - a.createdAt.getTime();
+            if (diff !== 0) return diff;
+            return a.key.localeCompare(b.key);
+        });
+
+        if (tasks.length === 0) {
+            await ctx.reply('No tasks found');
+            return;
+        }
+
+        const lines = tasks.map(t => `${t.key} ${t.content}`);
+        await ctx.reply(lines.join('\n'));
     }
 }
