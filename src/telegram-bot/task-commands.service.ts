@@ -201,33 +201,66 @@ export class TaskCommandsService {
         const withoutCommand = text.replace(/^\/tl\s*/, '').trim();
         const { tags, contexts, projects } = this.parseFilters(withoutCommand);
 
-        const all = await this.prisma.todo.findMany({
-            orderBy: { createdAt: 'desc' },
-        });
+        // Build filter conditions for the final WHERE clause
+        const conditions: string[] = [`status NOT IN ('done', 'canceled')`];
+        const queryParams: any[] = [];
 
-        const map = new Map<string, any>();
-        for (const task of all) {
-            if (map.has(task.key)) continue;
-            if (['done', 'canceled'].includes(task.status)) continue;
-            if (tags.length && !tags.every(t => task.tags.includes(t))) continue;
-            if (contexts.length && !contexts.every(c => task.contexts.includes(c))) continue;
-            if (projects.length && !projects.every(p => task.projects.includes(p))) continue;
-            map.set(task.key, task);
+        if (tags.length > 0) {
+            conditions.push(`tags @> $${queryParams.length + 1}`);
+            queryParams.push(tags);
         }
 
-        const tasks = Array.from(map.values());
-        tasks.sort((a, b) => {
-            const diff = b.createdAt.getTime() - a.createdAt.getTime();
-            if (diff !== 0) return diff;
-            return a.key.localeCompare(b.key);
-        });
+        if (contexts.length > 0) {
+            conditions.push(`contexts @> $${queryParams.length + 1}`);
+            queryParams.push(contexts);
+        }
 
-        if (tasks.length === 0) {
+        if (projects.length > 0) {
+            conditions.push(`projects @> $${queryParams.length + 1}`);
+            queryParams.push(projects);
+        }
+
+        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+        // Use CTE to get latest record for each key, then apply filters
+        const query = `
+            WITH latest_todos AS (
+                SELECT *,
+                       ROW_NUMBER() OVER (PARTITION BY key ORDER BY id DESC) as rn
+                FROM "Todo"
+            )
+            SELECT id, key, content, "createdAt", status, "completedAt", priority, "dueDate", tags, contexts, projects
+            FROM latest_todos
+            WHERE rn = 1 ${whereClause ? 'AND ' + whereClause.replace('WHERE ', '') : ''}
+            ORDER BY "createdAt" DESC, key ASC
+        `;
+
+        const latestTasks = await this.prisma.$queryRaw<Array<{
+            id: number;
+            key: string;
+            content: string;
+            createdAt: Date;
+            status: string;
+            completedAt: Date | null;
+            priority: string | null;
+            dueDate: Date | null;
+            tags: string[];
+            contexts: string[];
+            projects: string[];
+        }>>(query as any, ...queryParams);
+
+        if (latestTasks.length === 0) {
             await ctx.reply('No tasks found');
             return;
         }
 
-        const lines = tasks.map(t => `${t.key} ${t.content}`);
+        const lines = latestTasks.map(t => {
+            let line = `${t.key} ${t.content}`;
+            if (t.dueDate) {
+                line += ` (due: ${format(t.dueDate, 'MMM d, yyyy HH:mm')})`;
+            }
+            return line;
+        });
         await ctx.reply(lines.join('\n'));
     }
 }
