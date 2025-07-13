@@ -227,7 +227,7 @@ export class TaskCommandsService {
         query += ` ORDER BY "createdAt" DESC, key ASC`;
 
         // Use CTE to get latest record for each key, then apply filters
-        const latestTasks = await this.prisma.$queryRaw<Array<{
+        const latestTasks = await this.prisma.$queryRawUnsafe<Array<{
             id: number;
             key: string;
             content: string;
@@ -239,7 +239,7 @@ export class TaskCommandsService {
             tags: string[];
             contexts: string[];
             projects: string[];
-        }>>`${query}`;
+        }>>(query);
 
         if (latestTasks.length === 0) {
             await ctx.reply('No tasks found');
