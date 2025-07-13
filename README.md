@@ -72,6 +72,14 @@ Example:
 /task (B) @work .office !Big Project :2025.07.31 09:00 Prepare report
 ```
 
+### `/tl`
+Lists unfinished todo items. You can filter by the same `@tag`, `.context` and `!project` tokens as in `/task`.
+
+Example:
+```
+/tl @work .office
+```
+
 ### `/help`
 Shows a list of all available commands.
 

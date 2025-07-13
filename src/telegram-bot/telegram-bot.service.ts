@@ -110,6 +110,12 @@ export class TelegramBotService {
             return this.taskCommands.handleTaskCommand(ctx);
         });
 
+        // Task list command
+        this.bot.command(['tl'], (ctx) => {
+            console.log('Получена команда /tl:', ctx.message?.text);
+            return this.taskCommands.handleListCommand(ctx);
+        });
+
         // Help command
         this.bot.command(['help'], (ctx) => {
             console.log('Получена команда /help');
@@ -353,6 +359,7 @@ export class TelegramBotService {
             { name: '/history', description: 'Chat History' },
             { name: '/s', description: 'Serbian Translation' },
             { name: '/t or /task', description: 'Create Todo item' },
+            { name: '/tl', description: 'List Todo items' },
             { name: '/help', description: 'Show this help message' },
         ];
         commands.sort((a, b) => a.name.localeCompare(b.name));
