@@ -1,0 +1,115 @@
+import { Injectable } from '@nestjs/common';
+import { Context } from 'telegraf';
+import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../services/storage.service';
+import { v4 as uuidv4 } from 'uuid';
+import { format } from 'date-fns';
+
+interface TaskRecord {
+    id: number;
+    key: string;
+    content: string;
+    createdAt: Date;
+    status: string;
+    completedAt: Date | null;
+    priority: string | null;
+    dueDate: Date | null;
+    tags: string[];
+    contexts: string[];
+    projects: string[];
+}
+
+@Injectable()
+export class TaskHistoryCommandsService {
+    constructor(
+        private prisma: PrismaService,
+        private storageService: StorageService,
+    ) {}
+
+    async handleTaskHistoryCommand(ctx: Context) {
+        const tasks = await this.prisma.todo.findMany({
+            orderBy: [{ key: 'asc' }, { createdAt: 'asc' }],
+        });
+
+        if (tasks.length === 0) {
+            await ctx.reply('No tasks found');
+            return;
+        }
+
+        const grouped = this.groupTasks(tasks);
+
+        const unfinished = grouped.filter(g => !['done', 'canceled'].includes(g.latest.status));
+        const finished = grouped.filter(g => ['done', 'canceled'].includes(g.latest.status));
+
+        unfinished.sort((a, b) => {
+            const ad = a.latest.dueDate ? new Date(a.latest.dueDate).getTime() : Number.MAX_SAFE_INTEGER;
+            const bd = b.latest.dueDate ? new Date(b.latest.dueDate).getTime() : Number.MAX_SAFE_INTEGER;
+            if (ad !== bd) return ad - bd;
+            return a.key.localeCompare(b.key);
+        });
+
+        finished.sort((a, b) => b.latest.createdAt.getTime() - a.latest.createdAt.getTime());
+
+        const html = this.generateHtml(unfinished, finished);
+        const id = uuidv4();
+        const buffer = Buffer.from(html, 'utf8');
+        const url = await this.storageService.uploadFileWithKey(buffer, 'text/html', `tasks/${id}.html`);
+        await ctx.reply(`Tasks: ${url}`);
+    }
+
+    private groupTasks(tasks: TaskRecord[]) {
+        const map: Record<string, TaskRecord[]> = {};
+        for (const t of tasks) {
+            if (!map[t.key]) map[t.key] = [];
+            map[t.key].push(t);
+        }
+        return Object.entries(map).map(([key, recs]) => {
+            const sorted = recs.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+            return { key, history: sorted, latest: sorted[sorted.length - 1] };
+        });
+    }
+
+    private generateHtml(unfinished: any[], finished: any[]): string {
+        let html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Tasks</title><style>body{font-family:Arial,Helvetica,sans-serif;margin:20px;}h2{color:#333;} .task{border:1px solid #ccc;padding:10px;margin-bottom:10px;border-radius:6px;} .history{margin-top:5px;padding-left:20px;font-size:0.9em;color:#555;}</style></head><body>`;
+        html += '<h1>Tasks</h1>';
+        html += '<h2>Unfinished</h2>';
+        html += this.renderTasks(unfinished);
+        html += '<h2>Finished</h2>';
+        html += this.renderTasks(finished);
+        html += `<p>Generated: ${format(new Date(), 'yyyy-MM-dd HH:mm:ss')}</p>`;
+        html += '</body></html>';
+        return html;
+    }
+
+    private renderTasks(groups: any[]): string {
+        let html = '';
+        for (const g of groups) {
+            const t = g.latest;
+            html += `<div class="task"><strong>${g.key}</strong> - ${this.escapeHtml(t.content)}`;
+            if (t.priority) html += ` [${t.priority}]`;
+            if (t.status) html += ` (${t.status})`;
+            if (t.dueDate) html += ` (due: ${format(new Date(t.dueDate), 'yyyy-MM-dd HH:mm')})`;
+            if (t.tags.length) html += ` tags: ${t.tags.join(', ')}`;
+            if (t.contexts.length) html += ` contexts: ${t.contexts.join(', ')}`;
+            if (t.projects.length) html += ` projects: ${t.projects.join(', ')}`;
+            html += '<div class="history"><ul>';
+            for (const h of g.history) {
+                html += `<li>${format(new Date(h.createdAt), 'yyyy-MM-dd HH:mm')} - ${this.escapeHtml(h.content)}`;
+                if (h.status) html += ` (${h.status})`;
+                if (h.dueDate) html += ` (due: ${format(new Date(h.dueDate), 'yyyy-MM-dd HH:mm')})`;
+                html += '</li>';
+            }
+            html += '</ul></div></div>';
+        }
+        return html;
+    }
+
+    private escapeHtml(text: string): string {
+        return text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+}

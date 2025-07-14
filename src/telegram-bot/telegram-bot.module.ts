@@ -10,6 +10,7 @@ import { StorageService } from '../services/storage.service';
 import { SerbianCommandsService } from './serbian-commands.service';
 import { HistoryCommandsService } from './history-commands.service';
 import { TaskCommandsService } from './task-commands.service';
+import { TaskHistoryCommandsService } from './task-history-commands.service';
 
 @Module({
   imports: [ConfigModule, PrismaModule],
@@ -23,6 +24,7 @@ import { TaskCommandsService } from './task-commands.service';
     SerbianCommandsService,
     HistoryCommandsService,
     TaskCommandsService,
+    TaskHistoryCommandsService,
   ],
   exports: [TelegramBotService]
 })
