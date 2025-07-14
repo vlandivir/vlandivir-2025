@@ -102,4 +102,18 @@ describe('TaskCommandsService', () => {
       expect(ctx.reply).toHaveBeenCalledWith('Task T-20250710-3 updated');
     });
   });
+
+  describe('handleTaskCommand empty', () => {
+    it('should show format message', async () => {
+      const mockPrisma = { todo: { count: jest.fn() } };
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [TaskCommandsService, DateParserService, { provide: PrismaService, useValue: mockPrisma }],
+      }).compile();
+
+      const svc = module.get<TaskCommandsService>(TaskCommandsService);
+      const ctx: any = { message: { text: '/t' }, reply: jest.fn() };
+      await svc.handleTaskCommand(ctx);
+      expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('Format:'));
+    });
+  });
 });
