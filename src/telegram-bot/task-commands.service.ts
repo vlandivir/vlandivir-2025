@@ -24,6 +24,13 @@ export class TaskCommandsService {
     async handleTaskCommand(ctx: Context) {
         const text = this.getCommandText(ctx);
         if (!text) return;
+        
+        const chatId = ctx.chat?.id;
+        if (!chatId) {
+            await ctx.reply('Unable to determine chat context');
+            return;
+        }
+
         const withoutCommand = text.replace(/^\/(t|task)\s*/, '').trim();
         if (!withoutCommand) {
             await ctx.reply(this.getTaskFormatMessage());
@@ -46,7 +53,7 @@ export class TaskCommandsService {
             return;
         }
 
-        const newKey = await this.generateKey();
+        const newKey = await this.generateKey(chatId);
         await this.prisma.todo.create({
             data: {
                 key: newKey,
@@ -57,6 +64,7 @@ export class TaskCommandsService {
                 contexts: parsed.contexts,
                 projects: parsed.projects,
                 status: parsed.status ?? 'new',
+                chatId: chatId,
             },
         });
         await ctx.reply(`Task created with key ${newKey}`);
@@ -167,12 +175,21 @@ export class TaskCommandsService {
     }
 
     private async editTask(ctx: Context, key: string, updates: ParsedTask) {
+        const chatId = ctx.chat?.id;
+        if (!chatId) {
+            await ctx.reply('Unable to determine chat context');
+            return;
+        }
+
         const existing = await this.prisma.todo.findFirst({
-            where: { key },
+            where: { 
+                key,
+                chatId: chatId
+            },
             orderBy: { createdAt: 'desc' },
         });
         if (!existing) {
-            await ctx.reply(`Task with key ${key} not found`);
+            await ctx.reply(`Task with key ${key} not found in this chat`);
             return;
         }
 
@@ -185,17 +202,21 @@ export class TaskCommandsService {
             contexts: Array.from(new Set([...existing.contexts, ...updates.contexts])),
             projects: updates.projects.length > 0 ? updates.projects : existing.projects,
             status: updates.status ?? existing.status,
+            chatId: chatId,
         };
 
         await this.prisma.todo.create({ data });
         await ctx.reply(`Task ${key} updated`);
     }
 
-    private async generateKey(): Promise<string> {
+    private async generateKey(chatId: number): Promise<string> {
         const today = new Date();
         const datePart = format(today, 'yyyyMMdd');
         const count = await this.prisma.todo.count({
-            where: { createdAt: { gte: startOfDay(today), lt: endOfDay(today) } },
+            where: { 
+                createdAt: { gte: startOfDay(today), lt: endOfDay(today) },
+                chatId: chatId
+            },
         });
         return `T-${datePart}-${count + 1}`;
     }
@@ -205,12 +226,19 @@ export class TaskCommandsService {
         const withoutCommand = text.replace(/^\/tl\s*/, '').trim();
         const { tags, contexts, projects } = this.parseFilters(withoutCommand);
 
+        const chatId = ctx.chat?.id;
+        if (!chatId) {
+            await ctx.reply('Unable to determine chat context');
+            return;
+        }
+
         // Build the complete query as a template literal
         let query = `
             WITH latest_todos AS (
                 SELECT *,
                        ROW_NUMBER() OVER (PARTITION BY key ORDER BY id DESC) as rn
                 FROM "Todo"
+                WHERE "chatId" = ${chatId}
             )
             SELECT id, key, content, "createdAt", status, "completedAt", priority, "dueDate", tags, contexts, projects
             FROM latest_todos
@@ -246,7 +274,7 @@ export class TaskCommandsService {
         }>>(query);
 
         if (latestTasks.length === 0) {
-            await ctx.reply('No tasks found');
+            await ctx.reply('No tasks found in this chat');
             return;
         }
 

@@ -27,12 +27,21 @@ export class TaskHistoryCommandsService {
     ) {}
 
     async handleTaskHistoryCommand(ctx: Context) {
+        const chatId = ctx.chat?.id;
+        if (!chatId) {
+            await ctx.reply('Unable to determine chat context');
+            return;
+        }
+
         const tasks = await this.prisma.todo.findMany({
+            where: {
+                chatId: chatId
+            },
             orderBy: [{ key: 'asc' }, { createdAt: 'asc' }],
         });
 
         if (tasks.length === 0) {
-            await ctx.reply('No tasks found');
+            await ctx.reply('No tasks found in this chat');
             return;
         }
 

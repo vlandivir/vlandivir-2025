@@ -61,6 +61,8 @@ model Todo {
   tags         String[]
   contexts     String[]
   projects     String[]
+  chatId       BigInt?
 
   @@index([key])
+  @@index([chatId])
 }
