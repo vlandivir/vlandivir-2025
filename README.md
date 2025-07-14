@@ -83,6 +83,7 @@ Example:
 ### `/th`
 Generates an HTML page with all tasks and their history stored on DigitalOcean Spaces.
 Unfinished tasks are sorted by due date and key, finished tasks by creation date.
+History lines now show only what changed instead of repeating the full task text.
 
 
 ### `/help`
