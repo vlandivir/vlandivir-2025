@@ -93,15 +93,57 @@ export class TaskHistoryCommandsService {
             if (t.contexts.length) html += ` contexts: ${t.contexts.join(', ')}`;
             if (t.projects.length) html += ` projects: ${t.projects.join(', ')}`;
             html += '<div class="history"><ul>';
-            for (const h of g.history) {
-                html += `<li>${format(new Date(h.createdAt), 'yyyy-MM-dd HH:mm')} - ${this.escapeHtml(h.content)}`;
-                if (h.status) html += ` (${h.status})`;
-                if (h.dueDate) html += ` (due: ${format(new Date(h.dueDate), 'yyyy-MM-dd HH:mm')})`;
+            for (let i = 0; i < g.history.length; i++) {
+                const h = g.history[i];
+                html += `<li>${format(new Date(h.createdAt), 'yyyy-MM-dd HH:mm')} - `;
+                if (i === 0) {
+                    html += 'created';
+                } else {
+                    const prev = g.history[i - 1];
+                    const changes = this.describeChanges(prev, h);
+                    html += changes || 'no changes';
+                }
                 html += '</li>';
             }
             html += '</ul></div></div>';
         }
         return html;
+    }
+
+    private describeChanges(prev: TaskRecord, curr: TaskRecord): string {
+        const changes: string[] = [];
+        if (prev.content !== curr.content) {
+            changes.push(`content: ${this.escapeHtml(curr.content)}`);
+        }
+        if (prev.priority !== curr.priority) {
+            changes.push(`priority: ${curr.priority ?? 'none'}`);
+        }
+        if (prev.status !== curr.status) {
+            changes.push(`status: ${curr.status}`);
+        }
+        const prevDue = prev.dueDate ? prev.dueDate.getTime() : 0;
+        const currDue = curr.dueDate ? curr.dueDate.getTime() : 0;
+        if (prevDue !== currDue) {
+            changes.push(`due: ${curr.dueDate ? format(new Date(curr.dueDate), 'yyyy-MM-dd HH:mm') : 'none'}`);
+        }
+        if (!this.arraysEqual(prev.tags, curr.tags)) {
+            changes.push(`tags: ${curr.tags.join(', ')}`);
+        }
+        if (!this.arraysEqual(prev.contexts, curr.contexts)) {
+            changes.push(`contexts: ${curr.contexts.join(', ')}`);
+        }
+        if (!this.arraysEqual(prev.projects, curr.projects)) {
+            changes.push(`projects: ${curr.projects.join(', ')}`);
+        }
+        return changes.join('; ');
+    }
+
+    private arraysEqual(a: string[], b: string[]): boolean {
+        if (a.length !== b.length) return false;
+        for (let i = 0; i < a.length; i++) {
+            if (a[i] !== b[i]) return false;
+        }
+        return true;
     }
 
     private escapeHtml(text: string): string {
