@@ -25,6 +25,10 @@ export class TaskCommandsService {
         const text = this.getCommandText(ctx);
         if (!text) return;
         const withoutCommand = text.replace(/^\/(t|task)\s*/, '').trim();
+        if (!withoutCommand) {
+            await ctx.reply(this.getTaskFormatMessage());
+            return;
+        }
         const parts = withoutCommand.split(/\s+/);
         let key: string | undefined;
         if (parts.length && /^T-\d{8}-\d+$/.test(parts[0])) {
@@ -254,5 +258,13 @@ export class TaskCommandsService {
             return line;
         });
         await ctx.reply(lines.join('\n'));
+    }
+
+    private getTaskFormatMessage(): string {
+        return [
+            'Format:',
+            '/t [T-YYYYMMDD-N] (-status) @tag .context !project (A) :<date> text',
+            'Example: /task (B) @work .office !Big Project :2025.07.31 09:00 Prepare report'
+        ].join('\n');
     }
 }
