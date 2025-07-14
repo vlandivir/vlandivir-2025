@@ -12,6 +12,7 @@ import { StorageService } from '../services/storage.service';
 import { SerbianCommandsService } from './serbian-commands.service';
 import { HistoryCommandsService } from './history-commands.service';
 import { TaskCommandsService } from './task-commands.service';
+import { TaskHistoryCommandsService } from './task-history-commands.service';
 
 type TelegramUpdate = 
     | Update.CallbackQueryUpdate 
@@ -31,6 +32,7 @@ export class TelegramBotService {
         private serbianCommands: SerbianCommandsService,
         private historyCommands: HistoryCommandsService,
         private taskCommands: TaskCommandsService,
+        private taskHistoryCommands: TaskHistoryCommandsService,
     ) {
         const token = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
         if (!token) {
@@ -114,6 +116,12 @@ export class TelegramBotService {
         this.bot.command(['tl'], (ctx) => {
             console.log('Получена команда /tl:', ctx.message?.text);
             return this.taskCommands.handleListCommand(ctx);
+        });
+
+        // Task history HTML command
+        this.bot.command(['th'], (ctx) => {
+            console.log('Получена команда /th:', ctx.message?.text);
+            return this.taskHistoryCommands.handleTaskHistoryCommand(ctx);
         });
 
         // Help command
@@ -360,6 +368,7 @@ export class TelegramBotService {
             { name: '/s', description: 'Serbian Translation' },
             { name: '/t or /task', description: 'Create Todo item' },
             { name: '/tl', description: 'List Todo items' },
+            { name: '/th', description: 'Tasks HTML export' },
             { name: '/help', description: 'Show this help message' },
         ];
         commands.sort((a, b) => a.name.localeCompare(b.name));

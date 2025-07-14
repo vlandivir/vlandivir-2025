@@ -8,6 +8,7 @@ import { StorageService } from '../services/storage.service';
 import { SerbianCommandsService } from './serbian-commands.service';
 import { HistoryCommandsService } from './history-commands.service';
 import { TaskCommandsService } from './task-commands.service';
+import { TaskHistoryCommandsService } from './task-history-commands.service';
 import { Context } from 'telegraf';
 
 describe('TelegramBotService', () => {
@@ -115,6 +116,12 @@ describe('TelegramBotService', () => {
             handleListCommand: jest.fn(),
           },
         },
+        {
+          provide: TaskHistoryCommandsService,
+          useValue: {
+            handleTaskHistoryCommand: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -152,6 +159,7 @@ describe('TelegramBotService', () => {
       '/history - Chat History',
       '/s - Serbian Translation',
       '/t or /task - Create Todo item',
+      '/th - Tasks HTML export',
       '/tl - List Todo items',
     ].join('\n');
     expect(result).toBe(expected);

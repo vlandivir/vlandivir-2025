@@ -80,6 +80,11 @@ Example:
 /tl @work .office
 ```
 
+### `/th`
+Generates an HTML page with all tasks and their history stored on DigitalOcean Spaces.
+Unfinished tasks are sorted by due date and key, finished tasks by creation date.
+
+
 ### `/help`
 Shows a list of all available commands.
 
