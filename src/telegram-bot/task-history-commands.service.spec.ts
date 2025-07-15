@@ -31,9 +31,12 @@ describe('TaskHistoryCommandsService', () => {
   });
 
   it('should reply when no tasks', async () => {
-    const ctx: any = { reply: jest.fn() };
+    const ctx: any = { 
+      chat: { id: 123456 },
+      reply: jest.fn() 
+    };
     mockPrismaService.todo.findMany.mockResolvedValue([]);
     await service.handleTaskHistoryCommand(ctx);
-    expect(ctx.reply).toHaveBeenCalledWith('No tasks found');
+    expect(ctx.reply).toHaveBeenCalledWith('No tasks found in this chat');
   });
 });

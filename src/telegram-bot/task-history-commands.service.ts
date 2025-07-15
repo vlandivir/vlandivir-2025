@@ -14,6 +14,7 @@ interface TaskRecord {
     completedAt: Date | null;
     priority: string | null;
     dueDate: Date | null;
+    snoozedUntil: Date | null;
     tags: string[];
     contexts: string[];
     projects: string[];
@@ -47,7 +48,8 @@ export class TaskHistoryCommandsService {
 
         const grouped = this.groupTasks(tasks);
 
-        const unfinished = grouped.filter(g => !['done', 'canceled'].includes(g.latest.status));
+        const unfinished = grouped.filter(g => !['done', 'canceled', 'snoozed'].includes(g.latest.status));
+        const snoozed = grouped.filter(g => g.latest.status === 'snoozed');
         const finished = grouped.filter(g => ['done', 'canceled'].includes(g.latest.status));
 
         unfinished.sort((a, b) => {
@@ -57,9 +59,16 @@ export class TaskHistoryCommandsService {
             return a.key.localeCompare(b.key);
         });
 
+        snoozed.sort((a, b) => {
+            const ad = a.latest.snoozedUntil ? new Date(a.latest.snoozedUntil).getTime() : Number.MAX_SAFE_INTEGER;
+            const bd = b.latest.snoozedUntil ? new Date(b.latest.snoozedUntil).getTime() : Number.MAX_SAFE_INTEGER;
+            if (ad !== bd) return ad - bd;
+            return a.key.localeCompare(b.key);
+        });
+
         finished.sort((a, b) => b.latest.createdAt.getTime() - a.latest.createdAt.getTime());
 
-        const html = this.generateHtml(unfinished, finished);
+        const html = this.generateHtml(unfinished, snoozed, finished);
         const id = uuidv4();
         const buffer = Buffer.from(html, 'utf8');
         const url = await this.storageService.uploadFileWithKey(buffer, 'text/html', `tasks/${id}.html`);
@@ -78,11 +87,13 @@ export class TaskHistoryCommandsService {
         });
     }
 
-    private generateHtml(unfinished: any[], finished: any[]): string {
+    private generateHtml(unfinished: any[], snoozed: any[], finished: any[]): string {
         let html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Tasks</title><style>body{font-family:Arial,Helvetica,sans-serif;margin:20px;}h2{color:#333;} .task{border:1px solid #ccc;padding:10px;margin-bottom:10px;border-radius:6px;} .history{margin-top:5px;padding-left:20px;font-size:0.9em;color:#555;}</style></head><body>`;
         html += '<h1>Tasks</h1>';
         html += '<h2>Unfinished</h2>';
         html += this.renderTasks(unfinished);
+        html += '<h2>Snoozed</h2>';
+        html += this.renderTasks(snoozed);
         html += '<h2>Finished</h2>';
         html += this.renderTasks(finished);
         html += `<p>Generated: ${format(new Date(), 'yyyy-MM-dd HH:mm:ss')}</p>`;
@@ -98,6 +109,7 @@ export class TaskHistoryCommandsService {
             if (t.priority) html += ` [${t.priority}]`;
             if (t.status) html += ` (${t.status})`;
             if (t.dueDate) html += ` (due: ${format(new Date(t.dueDate), 'yyyy-MM-dd HH:mm')})`;
+            if (t.snoozedUntil) html += ` (snoozed until: ${format(new Date(t.snoozedUntil), 'yyyy-MM-dd HH:mm')})`;
             if (t.tags.length) html += ` tags: ${t.tags.join(', ')}`;
             if (t.contexts.length) html += ` contexts: ${t.contexts.join(', ')}`;
             if (t.projects.length) html += ` projects: ${t.projects.join(', ')}`;
@@ -134,6 +146,11 @@ export class TaskHistoryCommandsService {
         const currDue = curr.dueDate ? curr.dueDate.getTime() : 0;
         if (prevDue !== currDue) {
             changes.push(`due: ${curr.dueDate ? format(new Date(curr.dueDate), 'yyyy-MM-dd HH:mm') : 'none'}`);
+        }
+        const prevSnoozed = prev.snoozedUntil ? prev.snoozedUntil.getTime() : 0;
+        const currSnoozed = curr.snoozedUntil ? curr.snoozedUntil.getTime() : 0;
+        if (prevSnoozed !== currSnoozed) {
+            changes.push(`snoozed until: ${curr.snoozedUntil ? format(new Date(curr.snoozedUntil), 'yyyy-MM-dd HH:mm') : 'none'}`);
         }
         if (!this.arraysEqual(prev.tags, curr.tags)) {
             changes.push(`tags: ${curr.tags.join(', ')}`);

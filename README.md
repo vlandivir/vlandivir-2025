@@ -65,7 +65,8 @@ Creates a new todo item.
 To update an existing task, start the command with its key:
 `/t T-20250710-3 ...`. New tags and contexts are appended while
 projects and due dates are replaced. The text part can be empty.
-Use `-canceled`, `-done`, `-in-progress` or `-started` to set the status.
+Use `-canceled`, `-done`, `-in-progress`, `-started`, or `-snoozed[days]` (e.g., `-snoozed4` or `-snoozed 4`) to set the status.
+Snoozed tasks are hidden from `/tl` until their snooze period expires.
 
 Example:
 ```
@@ -82,8 +83,13 @@ Example:
 
 ### `/th`
 Generates an HTML page with all tasks and their history stored on DigitalOcean Spaces.
-Unfinished tasks are sorted by due date and key, finished tasks by creation date.
-History lines now show only what changed instead of repeating the full task text.
+Tasks are organized into three categories:
+- **Unfinished**: Active tasks sorted by due date and key
+- **Snoozed**: Tasks that are currently snoozed, sorted by snooze expiration date and key  
+- **Finished**: Completed or canceled tasks sorted by creation date
+
+The snoozed until date is displayed for snoozed tasks.
+History lines show only what changed instead of repeating the full task text.
 
 
 ### `/help`
