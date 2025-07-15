@@ -58,6 +58,7 @@ model Todo {
   completedAt  DateTime?
   priority     String?   @db.VarChar(1)
   dueDate      DateTime?
+  snoozedUntil DateTime?
   tags         String[]
   contexts     String[]
   projects     String[]

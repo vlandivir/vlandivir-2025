@@ -49,6 +49,22 @@ describe('TaskCommandsService', () => {
       expect(result.tags).toEqual(['tag']);
       expect(result.content).toBe('example');
     });
+
+    it('should parse snoozed status with days', () => {
+      const today = new Date();
+      const result = (service as any).parseTask('-snoozed4 @tag example task');
+      expect(result.status).toBe('snoozed');
+      expect(result.tags).toEqual(['tag']);
+      expect(result.content).toBe('example task');
+      expect(result.snoozedUntil).toBeInstanceOf(Date);
+      
+      const expectedDate = new Date(today);
+      expectedDate.setDate(expectedDate.getDate() + 4);
+      
+      // Check if the date is close to expected (within 1 minute to account for test execution time)
+      const timeDiff = Math.abs(result.snoozedUntil.getTime() - expectedDate.getTime());
+      expect(timeDiff).toBeLessThan(60000); // less than 1 minute
+    });
   });
 
   describe('parseFilters', () => {
@@ -85,7 +101,11 @@ describe('TaskCommandsService', () => {
       }).compile();
 
       const svc = module.get<TaskCommandsService>(TaskCommandsService);
-      const ctx: any = { message: { text: '/t T-20250710-3 -done @x .y !New :2025.07.31 new text' }, reply: jest.fn() };
+      const ctx: any = { 
+        message: { text: '/t T-20250710-3 -done @x .y !New :2025.07.31 new text' }, 
+        chat: { id: 123456 },
+        reply: jest.fn() 
+      };
       await svc.handleTaskCommand(ctx);
       expect(mockPrisma.todo.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -111,7 +131,11 @@ describe('TaskCommandsService', () => {
       }).compile();
 
       const svc = module.get<TaskCommandsService>(TaskCommandsService);
-      const ctx: any = { message: { text: '/t' }, reply: jest.fn() };
+      const ctx: any = { 
+        message: { text: '/t' }, 
+        chat: { id: 123456 },
+        reply: jest.fn() 
+      };
       await svc.handleTaskCommand(ctx);
       expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('Format:'));
     });

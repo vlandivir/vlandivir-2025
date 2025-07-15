@@ -12,6 +12,7 @@ interface ParsedTask {
     projects: string[];
     dueDate?: Date;
     status?: string;
+    snoozedUntil?: Date;
 }
 
 @Injectable()
@@ -60,6 +61,7 @@ export class TaskCommandsService {
                 content: parsed.content,
                 priority: parsed.priority,
                 dueDate: parsed.dueDate,
+                snoozedUntil: parsed.snoozedUntil,
                 tags: parsed.tags,
                 contexts: parsed.contexts,
                 projects: parsed.projects,
@@ -121,6 +123,7 @@ export class TaskCommandsService {
         let priority: string | undefined;
         let dueDate: Date | undefined;
         let status: string | undefined;
+        let snoozedUntil: Date | undefined;
         const descParts: string[] = [];
         for (let i = 0; i < tokens.length; i++) {
             const token = tokens[i];
@@ -128,6 +131,15 @@ export class TaskCommandsService {
                 const st = token.slice(1);
                 if (['canceled', 'done', 'in-progress', 'started'].includes(st)) {
                     status = st;
+                    continue;
+                }
+                // Handle -snoozed[number] syntax
+                const snoozedMatch = st.match(/^snoozed(\d+)$/);
+                if (snoozedMatch) {
+                    status = 'snoozed';
+                    const days = parseInt(snoozedMatch[1], 10);
+                    snoozedUntil = new Date();
+                    snoozedUntil.setDate(snoozedUntil.getDate() + days);
                     continue;
                 }
             }
@@ -157,6 +169,7 @@ export class TaskCommandsService {
             projects,
             dueDate,
             status,
+            snoozedUntil,
         };
     }
 
@@ -198,6 +211,7 @@ export class TaskCommandsService {
             content: updates.content || existing.content,
             priority: updates.priority ?? existing.priority,
             dueDate: updates.dueDate ?? existing.dueDate,
+            snoozedUntil: updates.snoozedUntil ?? existing.snoozedUntil,
             tags: Array.from(new Set([...existing.tags, ...updates.tags])),
             contexts: Array.from(new Set([...existing.contexts, ...updates.contexts])),
             projects: updates.projects.length > 0 ? updates.projects : existing.projects,
@@ -240,9 +254,11 @@ export class TaskCommandsService {
                 FROM "Todo"
                 WHERE "chatId" = ${chatId}
             )
-            SELECT id, key, content, "createdAt", status, "completedAt", priority, "dueDate", tags, contexts, projects
+            SELECT id, key, content, "createdAt", status, "completedAt", priority, "dueDate", "snoozedUntil", tags, contexts, projects
             FROM latest_todos
-            WHERE rn = 1 AND status NOT IN ('done', 'canceled')`;
+            WHERE rn = 1 
+              AND status NOT IN ('done', 'canceled')
+              AND (status != 'snoozed' OR "snoozedUntil" IS NULL OR "snoozedUntil" <= NOW())`;
 
         if (tags.length > 0) {
             query += ` AND tags @> '${JSON.stringify(tags)}'::jsonb`;
@@ -268,6 +284,7 @@ export class TaskCommandsService {
             completedAt: Date | null;
             priority: string | null;
             dueDate: Date | null;
+            snoozedUntil: Date | null;
             tags: string[];
             contexts: string[];
             projects: string[];
@@ -292,7 +309,9 @@ export class TaskCommandsService {
         return [
             'Format:',
             '/t [T-YYYYMMDD-N] (-status) @tag .context !project (A) :<date> text',
-            'Example: /task (B) @work .office !Big Project :2025.07.31 09:00 Prepare report'
+            'Status options: -done, -canceled, -in-progress, -started, -snoozed[days]',
+            'Example: /task (B) @work .office !Big Project :2025.07.31 09:00 Prepare report',
+            'Snooze example: /task T-20250715-1 -snoozed4 (hides task for 4 days)'
         ].join('\n');
     }
 }
