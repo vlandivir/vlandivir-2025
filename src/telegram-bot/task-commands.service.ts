@@ -133,13 +133,22 @@ export class TaskCommandsService {
                     status = st;
                     continue;
                 }
-                // Handle -snoozed[number] syntax
+                // Handle -snoozed[number] syntax (e.g., -snoozed4)
                 const snoozedMatch = st.match(/^snoozed(\d+)$/);
                 if (snoozedMatch) {
                     status = 'snoozed';
                     const days = parseInt(snoozedMatch[1], 10);
                     snoozedUntil = new Date();
                     snoozedUntil.setDate(snoozedUntil.getDate() + days);
+                    continue;
+                }
+                // Handle -snoozed followed by a separate number token (e.g., -snoozed 4)
+                if (st === 'snoozed' && i + 1 < tokens.length && /^\d+$/.test(tokens[i + 1])) {
+                    status = 'snoozed';
+                    const days = parseInt(tokens[i + 1], 10);
+                    snoozedUntil = new Date();
+                    snoozedUntil.setDate(snoozedUntil.getDate() + days);
+                    i++; // Skip the next token since we consumed it
                     continue;
                 }
             }
@@ -309,9 +318,9 @@ export class TaskCommandsService {
         return [
             'Format:',
             '/t [T-YYYYMMDD-N] (-status) @tag .context !project (A) :<date> text',
-            'Status options: -done, -canceled, -in-progress, -started, -snoozed[days]',
+            'Status options: -done, -canceled, -in-progress, -started, -snoozed[days] or -snoozed [days]',
             'Example: /task (B) @work .office !Big Project :2025.07.31 09:00 Prepare report',
-            'Snooze example: /task T-20250715-1 -snoozed4 (hides task for 4 days)'
+            'Snooze examples: /task T-20250715-1 -snoozed4 or /task T-20250715-1 -snoozed 4'
         ].join('\n');
     }
 }

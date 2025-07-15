@@ -65,6 +65,21 @@ describe('TaskCommandsService', () => {
       const timeDiff = Math.abs(result.snoozedUntil.getTime() - expectedDate.getTime());
       expect(timeDiff).toBeLessThan(60000); // less than 1 minute
     });
+
+    it('should parse snoozed status with space between -snoozed and number', () => {
+      const today = new Date();
+      const result = (service as any).parseTask('-snoozed 3 some task content');
+      expect(result.status).toBe('snoozed');
+      expect(result.content).toBe('some task content');
+      expect(result.snoozedUntil).toBeInstanceOf(Date);
+      
+      const expectedDate = new Date(today);
+      expectedDate.setDate(expectedDate.getDate() + 3);
+      
+      // Check if the date is close to expected (within 1 minute to account for test execution time)
+      const timeDiff = Math.abs(result.snoozedUntil.getTime() - expectedDate.getTime());
+      expect(timeDiff).toBeLessThan(60000); // less than 1 minute
+    });
   });
 
   describe('parseFilters', () => {
