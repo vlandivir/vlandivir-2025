@@ -83,9 +83,10 @@ Example:
 
 ### `/th`
 Generates an HTML page with all tasks and their history stored on DigitalOcean Spaces.
+
 Tasks are organized into three categories:
 - **Unfinished**: Active tasks sorted by due date and key
-- **Snoozed**: Tasks that are currently snoozed, sorted by snooze expiration date and key  
+- **Snoozed**: Tasks that are currently snoozed, sorted by snooze expiration date and key
 - **Finished**: Completed or canceled tasks sorted by creation date
 
 The snoozed until date is displayed for snoozed tasks.

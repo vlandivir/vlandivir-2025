@@ -126,7 +126,7 @@ export class TaskHistoryCommandsService {
                 }
                 html += '</li>';
             }
-            html += '</ul></div></div>';
+            html += '</ul></div></div>\n<br/>';
         }
         return html;
     }
