@@ -107,7 +107,7 @@ async function updateImageDescriptions() {
                         data: { description }
                     });
 
-                    console.log(`  ✅ Updated image ${image.id}: ${description.substring(0, 60)}...`);
+                    console.log(`  ✅ Updated image ${image.id}:\n  ${description}\n`);
                     return { 
                         success: true, 
                         imageId: image.id, 
