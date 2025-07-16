@@ -165,16 +165,6 @@ async function updateImageDescriptions() {
                 console.log(`  - Image ID: ${failed.imageId}, Error: ${failed.error}`);
             });
         }
-
-        // Show some successful descriptions as examples
-        const successfulImages = results.filter(r => r.success).slice(0, 3);
-        if (successfulImages.length > 0) {
-            console.log('\n✅ Example successful descriptions:');
-            successfulImages.forEach(success => {
-                console.log(`  - Image ID: ${success.imageId}: ${success.description}`);
-            });
-        }
-
     } catch (error) {
         console.error('💥 Script error:', error);
     } finally {
