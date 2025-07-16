@@ -9,6 +9,7 @@ import { ru } from 'date-fns/locale';
 import { message, channelPost } from 'telegraf/filters';
 import { DairyCommandsService } from './dairy-commands.service';
 import { StorageService } from '../services/storage.service';
+import { LlmService } from '../services/llm.service';
 import { SerbianCommandsService } from './serbian-commands.service';
 import { HistoryCommandsService } from './history-commands.service';
 import { TaskCommandsService } from './task-commands.service';
@@ -29,6 +30,7 @@ export class TelegramBotService {
         private dateParser: DateParserService,
         private dairyCommands: DairyCommandsService,
         private storageService: StorageService,
+        private llmService: LlmService,
         private serbianCommands: SerbianCommandsService,
         private historyCommands: HistoryCommandsService,
         private taskCommands: TaskCommandsService,
@@ -263,6 +265,9 @@ export class TelegramBotService {
                 ctx.chat.id
             );
 
+            // Get image description from LLM
+            const imageDescription = await this.llmService.describeImage(photoBuffer);
+
             const { date: noteDate, cleanContent } = this.dateParser.extractDateFromFirstLine(caption || '');
             
             // Получаем ID отправителя или создателя канала
@@ -292,6 +297,7 @@ export class TelegramBotService {
                     images: {
                         create: {
                             url: photoUrl,
+                            description: imageDescription,
                         },
                     },
                 },
@@ -303,7 +309,7 @@ export class TelegramBotService {
             if (!silent) {
                 const botResponse = `Фотография сохранена${
                     noteDate ? ` с датой ${format(noteDate, 'd MMMM yyyy', { locale: ru })}` : ''
-                }`;
+                }\n\nОписание: ${imageDescription}`;
                 await ctx.reply(botResponse);
 
                 await this.prisma.botResponse.create({
@@ -327,6 +333,7 @@ export class TelegramBotService {
                         images: {
                             create: {
                                 url: photoUrl,
+                                description: imageDescription,
                             },
                         },
                     },
