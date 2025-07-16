@@ -74,4 +74,32 @@ export class StorageService implements OnModuleInit {
         await upload.done();
         return `${this.endpoint}/${this.bucket}/${key}`;
     }
+
+    async downloadFile(url: string): Promise<Buffer> {
+        try {
+            // Extract key from URL
+            const urlParts = url.split('/');
+            const key = urlParts.slice(urlParts.indexOf(this.bucket) + 1).join('/');
+            
+            const response = await this.s3.getObject({
+                Bucket: this.bucket,
+                Key: key,
+            });
+
+            if (!response.Body) {
+                throw new Error('No body in response');
+            }
+
+            // Convert stream to buffer
+            const chunks: Buffer[] = [];
+            for await (const chunk of response.Body as any) {
+                chunks.push(chunk);
+            }
+            
+            return Buffer.concat(chunks);
+        } catch (error) {
+            console.error('Error downloading file:', error);
+            throw new Error(`Failed to download file: ${error.message}`);
+        }
+    }
 } 
