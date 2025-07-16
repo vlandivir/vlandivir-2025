@@ -63,7 +63,7 @@ Creates a new todo item.
 - `:<date>` or `:<date> HH:MM` — optional due date. `<date>` accepts the same formats as in the note examples above.
 
 To update an existing task, start the command with its key:
-`/t T-20250710-3 ...`. New tags and contexts are appended while
+`/t T-20250710-03 ...`. New tags and contexts are appended while
 projects and due dates are replaced. The text part can be empty.
 Use `-canceled`, `-done`, `-in-progress`, `-started`, or `-snoozed[days]` (e.g., `-snoozed4` or `-snoozed 4`) to set the status.
 Snoozed tasks are hidden from `/tl` until their snooze period expires.
