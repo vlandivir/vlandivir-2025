@@ -90,7 +90,6 @@ export class TelegramBotService {
                 return;
             }
             const update = {
-                ...ctx.update,
                 channel_post: ctx.channelPost
             } as TelegramUpdate;
             await this.handleIncomingMessage(ctx.chat.id, update, true);
@@ -243,6 +242,9 @@ export class TelegramBotService {
         }
         if ('callback_query' in update && update.callback_query.message && 'text' in update.callback_query.message) {
             return update.callback_query.message.text || '';
+        }
+        if ('channel_post' in update && update.channel_post && 'text' in update.channel_post) {
+            return update.channel_post.text || '';
         }
         return '';
     }
