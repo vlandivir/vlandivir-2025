@@ -114,6 +114,11 @@ export class HistoryCommandsService {
             border-radius: 8px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
+        .image-description {
+            margin-top: 4px;
+            font-size: 0.9em;
+            color: #555;
+        }
         .stats {
             background: white;
             padding: 15px;
@@ -153,9 +158,11 @@ export class HistoryCommandsService {
             
             if (message.images && message.images.length > 0) {
                 message.images.forEach((image: any) => {
+                    const description = image.description ? this.escapeHtml(image.description) : 'Изображение';
                     html += `
         <div class="message-image">
-            <img src="${image.url}" alt="Изображение" />
+            <img src="${image.url}" alt="${description}" />
+            ${image.description ? `<div class="image-description">${description}</div>` : ''}
         </div>
 `;
                 });

@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { DateParserService } from '../services/date-parser.service';
 import { DairyCommandsService } from './dairy-commands.service';
 import { StorageService } from '../services/storage.service';
+import { LlmService } from '../services/llm.service';
 import { SerbianCommandsService } from './serbian-commands.service';
 import { HistoryCommandsService } from './history-commands.service';
 import { TaskCommandsService } from './task-commands.service';
@@ -92,9 +93,15 @@ describe('TelegramBotService', () => {
         {
           provide: StorageService,
           useValue: {
-            uploadFile: jest.fn().mockImplementation((buffer, mimeType, chatId) => 
+            uploadFile: jest.fn().mockImplementation((buffer, mimeType, chatId) =>
               Promise.resolve(`https://example.com/chats/${chatId}/images/mock-uuid`)
             ),
+          },
+        },
+        {
+          provide: LlmService,
+          useValue: {
+            describeImage: jest.fn().mockResolvedValue('test description'),
           },
         },
         {
