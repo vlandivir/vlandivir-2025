@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { TaskCommandsService } from './task-commands.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { DateParserService } from '../services/date-parser.service';
+import { format } from 'date-fns';
 
 describe('TaskCommandsService', () => {
   let service: TaskCommandsService;
@@ -89,6 +90,21 @@ describe('TaskCommandsService', () => {
       expect(result.contexts).toEqual(['b']);
       expect(result.projects).toEqual(['Proj rest']);
       expect(result.remaining).toEqual([]);
+    });
+  });
+
+  describe('generateKey', () => {
+    it('pads single digit counts', async () => {
+      const today = new Date();
+      const datePart = format(today, 'yyyyMMdd');
+      const mockPrisma = { todo: { count: jest.fn().mockResolvedValue(0) } };
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [TaskCommandsService, DateParserService, { provide: PrismaService, useValue: mockPrisma }],
+      }).compile();
+
+      const svc = module.get<TaskCommandsService>(TaskCommandsService);
+      const key = await (svc as any).generateKey(123);
+      expect(key).toBe(`T-${datePart}-01`);
     });
   });
 

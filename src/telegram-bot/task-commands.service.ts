@@ -236,12 +236,14 @@ export class TaskCommandsService {
         const today = new Date();
         const datePart = format(today, 'yyyyMMdd');
         const count = await this.prisma.todo.count({
-            where: { 
+            where: {
                 createdAt: { gte: startOfDay(today), lt: endOfDay(today) },
                 chatId: chatId
             },
         });
-        return `T-${datePart}-${count + 1}`;
+        const index = count + 1;
+        const indexStr = index.toString().padStart(2, '0');
+        return `T-${datePart}-${indexStr}`;
     }
 
     async handleListCommand(ctx: Context) {
@@ -317,10 +319,10 @@ export class TaskCommandsService {
     private getTaskFormatMessage(): string {
         return [
             'Format:',
-            '/t [T-YYYYMMDD-N] (-status) @tag .context !project (A) :<date> text',
+            '/t [T-YYYYMMDD-NN] (-status) @tag .context !project (A) :<date> text',
             'Status options: -done, -canceled, -in-progress, -started, -snoozed[days] or -snoozed [days]',
             'Example: /task (B) @work .office !Big Project :2025.07.31 09:00 Prepare report',
-            'Snooze examples: /task T-20250715-1 -snoozed4 or /task T-20250715-1 -snoozed 4'
+            'Snooze examples: /task T-20250715-01 -snoozed4 or /task T-20250715-01 -snoozed 4'
         ].join('\n');
     }
 }
