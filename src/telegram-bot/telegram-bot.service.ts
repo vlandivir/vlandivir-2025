@@ -180,15 +180,22 @@ export class TelegramBotService {
             
             // Если это канал и нет ID отправителя, получаем создателя канала
             if ('channel_post' in update && !fromUserId) {
+                console.log('DEBUG: No fromUserId found, trying to get channel creator');
                 try {
                     const chatInfo = await this.bot.telegram.getChat(chatId);
+                    console.log('DEBUG: Chat info:', chatInfo);
                     if ('creator' in chatInfo) {
                         const admins = await this.bot.telegram.getChatAdministrators(chatId);
+                        console.log('DEBUG: Channel admins:', admins);
                         const creator = admins.find(admin => admin.status === 'creator');
                         if (creator) {
                             fromUserId = creator.user.id;
                             console.log('Найден создатель канала:', fromUserId);
+                        } else {
+                            console.log('DEBUG: No creator found in admins');
                         }
+                    } else {
+                        console.log('DEBUG: Chat info has no creator field');
                     }
                 } catch (error) {
                     console.error('Ошибка при получении информации о создателе канала:', error);
@@ -230,6 +237,8 @@ export class TelegramBotService {
                         noteDate: noteDate || new Date(),
                     }
                 });
+            } else if ('channel_post' in update) {
+                console.log('DEBUG: Channel post detected but not copying. fromUserId:', fromUserId, 'chatId:', chatId);
             }
         } catch (error) {
             console.error('Error processing message:', error);
@@ -365,7 +374,11 @@ export class TelegramBotService {
             return update.callback_query.from.id;
         }
         if ('channel_post' in update && update.channel_post?.from) {
+            console.log('DEBUG: Found from field in channel_post:', update.channel_post.from);
             return update.channel_post.from.id;
+        }
+        if ('channel_post' in update) {
+            console.log('DEBUG: Channel post has no from field:', update.channel_post);
         }
         return undefined;
     }
