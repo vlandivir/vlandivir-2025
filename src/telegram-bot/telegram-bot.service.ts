@@ -219,8 +219,8 @@ export class TelegramBotService {
                 });
             }
 
-            // Если есть ID создателя канала, сохраняем копию в его личный чат
-            if (chatId !== fromUserId && fromUserId) {
+            // Если это канал и есть ID создателя, сохраняем копию в его личный чат
+            if ('channel_post' in update && fromUserId && chatId !== fromUserId) {
                 console.log('Сохраняем копию создателю канала:', fromUserId);
                 await this.prisma.note.create({
                     data: {
@@ -323,9 +323,9 @@ export class TelegramBotService {
                 });
             }
 
-            // Если есть ID создателя канала, сохраняем копию в его личный чат
-            if (ctx.chat.id !== fromUserId && fromUserId) {
-                console.log('Сохраняем копию создателю канала:', fromUserId);
+            // Если это канал и есть ID создателя, сохраняем копию фото в его личный чат
+            if (ctx.chat.type === 'channel' && fromUserId && ctx.chat.id !== fromUserId) {
+                console.log('Сохраняем копию фото создателю канала:', fromUserId);
                 await this.prisma.note.create({
                     data: {
                         content: cleanContent || '',
