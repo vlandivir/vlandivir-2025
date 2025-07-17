@@ -57,6 +57,8 @@ export class TelegramBotService {
         
         // Инициализируем маппинг для известных каналов
         // VlandivirTestChannel -> creator ID 150847737
+        this.addChannelCreatorMapping(-1001594248060, 150847737);
+        this.addChannelCreatorMapping(-1002251325012, 150847737);
         this.addChannelCreatorMapping(-1002259110541, 150847737);
     }
 
