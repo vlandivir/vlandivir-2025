@@ -23,6 +23,9 @@ type TelegramUpdate =
 @Injectable()
 export class TelegramBotService {
     private bot: Telegraf<Context>;
+    
+    // Маппинг каналов к создателям (дополнительный механизм)
+    private channelCreatorMapping: Map<number, number> = new Map();
 
     constructor(
         private configService: ConfigService,
@@ -51,6 +54,10 @@ export class TelegramBotService {
         });
 
         this.setupCommands();
+        
+        // Инициализируем маппинг для известных каналов
+        // VlandivirTestChannel -> creator ID 150847737
+        this.addChannelCreatorMapping(-1002259110541, 150847737);
     }
 
     async startBot() {
@@ -176,29 +183,17 @@ export class TelegramBotService {
             const { date: noteDate, cleanContent } = this.dateParser.extractDateFromFirstLine(messageText);
 
             // Получаем ID отправителя или создателя канала
-            let fromUserId = this.extractSenderId(update);
+            let fromUserId: number | undefined = this.extractSenderId(update);
             
             // Если это канал и нет ID отправителя, получаем создателя канала
             if ('channel_post' in update && !fromUserId) {
                 console.log('DEBUG: No fromUserId found, trying to get channel creator');
-                try {
-                    const chatInfo = await this.bot.telegram.getChat(chatId);
-                    console.log('DEBUG: Chat info:', chatInfo);
-                    if ('creator' in chatInfo) {
-                        const admins = await this.bot.telegram.getChatAdministrators(chatId);
-                        console.log('DEBUG: Channel admins:', admins);
-                        const creator = admins.find(admin => admin.status === 'creator');
-                        if (creator) {
-                            fromUserId = creator.user.id;
-                            console.log('Найден создатель канала:', fromUserId);
-                        } else {
-                            console.log('DEBUG: No creator found in admins');
-                        }
-                    } else {
-                        console.log('DEBUG: Chat info has no creator field');
-                    }
-                } catch (error) {
-                    console.error('Ошибка при получении информации о создателе канала:', error);
+                const creatorId = await this.getChannelCreatorId(chatId);
+                if (creatorId) {
+                    fromUserId = creatorId;
+                    console.log('Найден создатель канала:', fromUserId);
+                } else {
+                    console.log('DEBUG: Could not find channel creator');
                 }
             }
 
@@ -282,19 +277,16 @@ export class TelegramBotService {
             const { date: noteDate, cleanContent } = this.dateParser.extractDateFromFirstLine(caption || '');
             
             // Получаем ID отправителя или создателя канала
-            let fromUserId = ctx.message.from?.id;
+            let fromUserId: number | undefined = ctx.message.from?.id;
             
             // Если это канал и нет ID отправителя, получаем создателя канала
             if (ctx.chat.type === 'channel' && !fromUserId) {
-                try {
-                    const admins = await ctx.telegram.getChatAdministrators(ctx.chat.id);
-                    const creator = admins.find(admin => admin.status === 'creator');
-                    if (creator) {
-                        fromUserId = creator.user.id;
-                        console.log('Найден создатель канала:', fromUserId);
-                    }
-                } catch (error) {
-                    console.error('Ошибка при получении информации о создателе канала:', error);
+                const creatorId = await this.getChannelCreatorId(ctx.chat.id);
+                if (creatorId) {
+                    fromUserId = creatorId;
+                    console.log('Найден создатель канала:', fromUserId);
+                } else {
+                    console.log('DEBUG: Could not find channel creator for photo');
                 }
             }
 
@@ -383,6 +375,32 @@ export class TelegramBotService {
         return undefined;
     }
 
+    private async getChannelCreatorId(chatId: number): Promise<number | undefined> {
+        // Сначала проверяем маппинг
+        if (this.channelCreatorMapping.has(chatId)) {
+            const creatorId = this.channelCreatorMapping.get(chatId);
+            console.log('DEBUG: Found creator in mapping:', creatorId);
+            return creatorId;
+        }
+
+        // Если нет в маппинге, пытаемся получить через API
+        try {
+            const admins = await this.bot.telegram.getChatAdministrators(chatId);
+            const creator = admins.find(admin => admin.status === 'creator');
+            if (creator) {
+                const creatorId = creator.user.id;
+                // Сохраняем в маппинг для будущего использования
+                this.channelCreatorMapping.set(chatId, creatorId);
+                console.log('DEBUG: Found creator via API and saved to mapping:', creatorId);
+                return creatorId;
+            }
+        } catch (error) {
+            console.error('Ошибка при получении информации о создателе канала:', error);
+        }
+        
+        return undefined;
+    }
+
     private getHelpMessage(): string {
         const commands = [
             { name: '/dairy or /d', description: 'Dairy Notes' },
@@ -395,6 +413,12 @@ export class TelegramBotService {
         ];
         commands.sort((a, b) => a.name.localeCompare(b.name));
         return commands.map(c => `${c.name} - ${c.description}`).join('\n');
+    }
+
+    // Метод для добавления маппинга канала к создателю
+    addChannelCreatorMapping(channelId: number, creatorId: number) {
+        this.channelCreatorMapping.set(channelId, creatorId);
+        console.log(`Added channel mapping: ${channelId} -> ${creatorId}`);
     }
 
     // Добавляем метод для обработки webhook-обновлений
