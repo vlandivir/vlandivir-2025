@@ -142,11 +142,11 @@ export class TelegramBotService {
             return ctx.reply(this.getHelpMessage());
         });
 
-        // Collage command - DISABLED
-        // this.bot.command(['collage', 'c'], (ctx) => {
-        //     console.log('Получена команда /collage /c:', ctx.message?.text);
-        //     return this.collageCommands.handleCollageCommand(ctx);
-        // });
+        // Collage command - starts interactive collage creation
+        this.bot.command(['collage', 'c'], (ctx) => {
+            console.log('Получена команда /collage /c:', ctx.message?.text);
+            return this.collageCommands.startConversation(ctx);
+        });
 
         // Обработчик для текстовых сообщений в личных чатах и группах
         this.bot.on(message('text'), async (ctx) => {
@@ -184,6 +184,16 @@ export class TelegramBotService {
             } as unknown as Context<Update>;
             
             await this.handleIncomingPhoto(photoContext, true);
+        });
+
+        // Handle collage inline buttons
+        this.bot.on('callback_query', async (ctx) => {
+            const data = (ctx.callbackQuery as any)?.data;
+            if (data === 'collage_cancel') {
+                await this.collageCommands.cancel(ctx as any);
+            } else if (data === 'collage_generate') {
+                await this.collageCommands.generate(ctx as any);
+            }
         });
     }
 
@@ -272,12 +282,18 @@ export class TelegramBotService {
             
             if (!photos || photos.length === 0 || !ctx.chat) return;
 
-            // Check if this is a collage command - DISABLED
-            // if (caption && (caption.toLowerCase().includes('/collage') || caption.toLowerCase().includes('/c'))) {
-            //     console.log('Collage command detected in photo caption');
-            //     await this.collageCommands.handleCollageCommand(ctx);
-            //     return; // Exit early to prevent saving individual images
-            // }
+            // Check if interactive collage session is active
+            if (this.collageCommands.isActive(ctx.chat.id)) {
+                await this.collageCommands.addImage(ctx as any);
+                return;
+            }
+
+            // Check if this is a collage command via caption
+            if (caption && (caption.toLowerCase().includes('/collage') || caption.toLowerCase().includes('/c'))) {
+                console.log('Collage command detected in photo caption');
+                await this.collageCommands.handleCollageCommand(ctx as any);
+                return; // Exit early to prevent saving individual images
+            }
 
             // Process all photos for database saving (original behavior)
             const photo = photos[photos.length - 1]; // Use the highest quality photo
@@ -427,6 +443,7 @@ export class TelegramBotService {
             { name: '/t or /task', description: 'Create Todo item' },
             { name: '/tl', description: 'List Todo items' },
             { name: '/th', description: 'Tasks HTML export' },
+            { name: '/c or /collage', description: 'Create image collage' },
             { name: '/help', description: 'Show this help message' },
         ];
         commands.sort((a, b) => a.name.localeCompare(b.name));

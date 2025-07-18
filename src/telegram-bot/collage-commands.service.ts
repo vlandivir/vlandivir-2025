@@ -11,6 +11,83 @@ export class CollageCommandsService {
         private storageService: StorageService
     ) {}
 
+    private sessions: Map<number, Buffer[]> = new Map();
+
+    isActive(chatId: number): boolean {
+        return this.sessions.has(chatId);
+    }
+
+    async startConversation(ctx: Context) {
+        const chatId = ctx.chat?.id;
+        if (!chatId) return;
+        this.sessions.set(chatId, []);
+        await ctx.reply('Отправьте изображение 1', {
+            reply_markup: {
+                inline_keyboard: [[{ text: '❌ Отмена', callback_data: 'collage_cancel' }]]
+            }
+        });
+    }
+
+    async addImage(ctx: Context) {
+        const chatId = ctx.chat?.id;
+        if (!chatId || !ctx.message || !('photo' in ctx.message)) return;
+        const session = this.sessions.get(chatId);
+        if (!session) return;
+        const photos = ctx.message.photo;
+        const file = await ctx.telegram.getFile(photos[photos.length - 1].file_id);
+        const buffer = await this.downloadPhoto(file.file_path!);
+        session.push(buffer);
+
+        const buttons = [[{ text: '❌ Отмена', callback_data: 'collage_cancel' }]];
+        if (session.length >= 3) {
+            buttons[0].push({ text: '✅ Сгенерировать', callback_data: 'collage_generate' });
+        }
+
+        await ctx.reply(`Изображение ${session.length} добавлено.`, {
+            reply_markup: { inline_keyboard: buttons }
+        });
+    }
+
+    async cancel(ctx: Context) {
+        const chatId = ctx.chat?.id || (ctx.from as any)?.id;
+        if (!chatId) return;
+        this.sessions.delete(chatId);
+        if ('callbackQuery' in ctx) {
+            await ctx.answerCbQuery();
+            await (ctx as any).editMessageText('Создание коллажа отменено');
+        } else {
+            await (ctx as any).reply('Создание коллажа отменено');
+        }
+    }
+
+    async generate(ctx: Context) {
+        const chatId = ctx.chat?.id || (ctx.from as any)?.id;
+        if (!chatId) return;
+        const images = this.sessions.get(chatId);
+        if (!images || images.length < 2) {
+            await (ctx as any).reply('Нужно минимум 2 изображения');
+            return;
+        }
+
+        await ctx.answerCbQuery();
+        await (ctx as any).editMessageReplyMarkup(undefined);
+        await (ctx as any).reply('Создаю коллаж...');
+        try {
+            const collageBuffer = await this.createCollage(images);
+            const collageUrl = await this.storageService.uploadFile(
+                collageBuffer,
+                'image/jpeg',
+                chatId
+            );
+            await (ctx as any).replyWithPhoto(collageUrl, { caption: 'Коллаж из изображений' });
+        } catch (error) {
+            console.error('Error creating collage:', error);
+            await (ctx as any).reply('Произошла ошибка при создании коллажа');
+        } finally {
+            this.sessions.delete(chatId);
+        }
+    }
+
     async handleCollageCommand(ctx: Context) {
         const chatId = ctx.chat?.id;
         if (!chatId) return;
