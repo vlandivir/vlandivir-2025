@@ -142,11 +142,11 @@ export class TelegramBotService {
             return ctx.reply(this.getHelpMessage());
         });
 
-        // Collage command
-        this.bot.command(['collage', 'c'], (ctx) => {
-            console.log('Получена команда /collage /c:', ctx.message?.text);
-            return this.collageCommands.handleCollageCommand(ctx);
-        });
+        // Collage command - DISABLED
+        // this.bot.command(['collage', 'c'], (ctx) => {
+        //     console.log('Получена команда /collage /c:', ctx.message?.text);
+        //     return this.collageCommands.handleCollageCommand(ctx);
+        // });
 
         // Обработчик для текстовых сообщений в личных чатах и группах
         this.bot.on(message('text'), async (ctx) => {
@@ -272,49 +272,84 @@ export class TelegramBotService {
             
             if (!photos || photos.length === 0 || !ctx.chat) return;
 
-            // Check if this is a collage command
-            if (caption && (caption.toLowerCase().includes('/collage') || caption.toLowerCase().includes('/c'))) {
-                console.log('Collage command detected in photo caption');
-                await this.collageCommands.handleCollageCommand(ctx);
-                return; // Exit early to prevent saving individual images
+            // Check if this is a collage command - DISABLED
+            // if (caption && (caption.toLowerCase().includes('/collage') || caption.toLowerCase().includes('/c'))) {
+            //     console.log('Collage command detected in photo caption');
+            //     await this.collageCommands.handleCollageCommand(ctx);
+            //     return; // Exit early to prevent saving individual images
+            // }
+
+            // Process all photos for database saving (original behavior)
+            const photo = photos[photos.length - 1]; // Use the highest quality photo
+            const file = await ctx.telegram.getFile(photo.file_id);
+            const photoBuffer = await this.downloadPhoto(file.file_path!);
+            const photoUrl = await this.storageService.uploadFile(
+                photoBuffer,
+                'image/jpeg',
+                ctx.chat.id
+            );
+
+            // Get image description from LLM
+            const imageDescription = await this.llmService.describeImage(photoBuffer);
+
+            const { date: noteDate, cleanContent } = this.dateParser.extractDateFromFirstLine(caption || '');
+            
+            // Получаем ID отправителя или создателя канала
+            let fromUserId: number | undefined = ctx.message.from?.id;
+            
+            // Если это канал и нет ID отправителя, получаем создателя канала
+            if (ctx.chat.type === 'channel' && !fromUserId) {
+                const creatorId = await this.getChannelCreatorId(ctx.chat.id);
+                if (creatorId) {
+                    fromUserId = creatorId;
+                    console.log('Найден создатель канала:', fromUserId);
+                } else {
+                    console.log('DEBUG: Could not find channel creator for photo');
+                }
             }
 
-            // Only process single photos for database saving (not collage commands)
-            if (photos.length === 1) {
-                const photo = photos[0];
-                const file = await ctx.telegram.getFile(photo.file_id);
-                const photoBuffer = await this.downloadPhoto(file.file_path!);
-                const photoUrl = await this.storageService.uploadFile(
-                    photoBuffer,
-                    'image/jpeg',
-                    ctx.chat.id
-                );
+            // Сохраняем фото в чат/группу/канал
+            const savedNote = await this.prisma.note.create({
+                data: {
+                    content: cleanContent || '',
+                    rawMessage: JSON.parse(JSON.stringify(ctx.message)),
+                    chatId: ctx.chat.id,
+                    noteDate: noteDate || new Date(),
+                    images: {
+                        create: {
+                            url: photoUrl,
+                            description: imageDescription,
+                        },
+                    },
+                },
+                include: {
+                    images: true,
+                },
+            });
 
-                // Get image description from LLM
-                const imageDescription = await this.llmService.describeImage(photoBuffer);
+            if (!silent) {
+                const botResponse = `Фотография сохранена${
+                    noteDate ? ` с датой ${format(noteDate, 'd MMMM yyyy', { locale: ru })}` : ''
+                }\n\nОписание: ${imageDescription}`;
+                await ctx.reply(botResponse);
 
-                const { date: noteDate, cleanContent } = this.dateParser.extractDateFromFirstLine(caption || '');
-                
-                // Получаем ID отправителя или создателя канала
-                let fromUserId: number | undefined = ctx.message.from?.id;
-                
-                // Если это канал и нет ID отправителя, получаем создателя канала
-                if (ctx.chat.type === 'channel' && !fromUserId) {
-                    const creatorId = await this.getChannelCreatorId(ctx.chat.id);
-                    if (creatorId) {
-                        fromUserId = creatorId;
-                        console.log('Найден создатель канала:', fromUserId);
-                    } else {
-                        console.log('DEBUG: Could not find channel creator for photo');
+                await this.prisma.botResponse.create({
+                    data: {
+                        content: botResponse,
+                        noteId: savedNote.id,
+                        chatId: ctx.chat.id,
                     }
-                }
+                });
+            }
 
-                // Сохраняем фото в чат/группу/канал
-                const savedNote = await this.prisma.note.create({
+            // Если это канал и есть ID создателя, сохраняем копию фото в его личный чат
+            if (ctx.chat.type === 'channel' && fromUserId && ctx.chat.id !== fromUserId) {
+                console.log('Сохраняем копию фото создателю канала:', fromUserId);
+                await this.prisma.note.create({
                     data: {
                         content: cleanContent || '',
                         rawMessage: JSON.parse(JSON.stringify(ctx.message)),
-                        chatId: ctx.chat.id,
+                        chatId: fromUserId,
                         noteDate: noteDate || new Date(),
                         images: {
                             create: {
@@ -323,50 +358,7 @@ export class TelegramBotService {
                             },
                         },
                     },
-                    include: {
-                        images: true,
-                    },
                 });
-
-                if (!silent) {
-                    const botResponse = `Фотография сохранена${
-                        noteDate ? ` с датой ${format(noteDate, 'd MMMM yyyy', { locale: ru })}` : ''
-                    }\n\nОписание: ${imageDescription}`;
-                    await ctx.reply(botResponse);
-
-                    await this.prisma.botResponse.create({
-                        data: {
-                            content: botResponse,
-                            noteId: savedNote.id,
-                            chatId: ctx.chat.id,
-                        }
-                    });
-                }
-
-                // Если это канал и есть ID создателя, сохраняем копию фото в его личный чат
-                if (ctx.chat.type === 'channel' && fromUserId && ctx.chat.id !== fromUserId) {
-                    console.log('Сохраняем копию фото создателю канала:', fromUserId);
-                    await this.prisma.note.create({
-                        data: {
-                            content: cleanContent || '',
-                            rawMessage: JSON.parse(JSON.stringify(ctx.message)),
-                            chatId: fromUserId,
-                            noteDate: noteDate || new Date(),
-                            images: {
-                                create: {
-                                    url: photoUrl,
-                                    description: imageDescription,
-                                },
-                            },
-                        },
-                    });
-                }
-            } else {
-                // Multiple photos without collage command - just acknowledge
-                console.log(`Received ${photos.length} photos without collage command`);
-                if (!silent) {
-                    await ctx.reply(`Получено ${photos.length} изображений. Для создания коллажа добавьте "/collage" в подпись.`);
-                }
             }
         } catch (error) {
             console.error('Error processing photo:', error);
@@ -429,8 +421,7 @@ export class TelegramBotService {
 
     private getHelpMessage(): string {
         const commands = [
-            { name: '/c or /collage', description: 'Create collage from message images' },
-            { name: '/dairy or /d', description: 'Dairy Notes' },
+            { name: '/d or /dairy', description: 'Dairy Notes' },
             { name: '/history', description: 'Chat History' },
             { name: '/s', description: 'Serbian Translation' },
             { name: '/t or /task', description: 'Create Todo item' },
