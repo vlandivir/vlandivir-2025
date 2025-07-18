@@ -24,6 +24,8 @@ export class CollageCommandsService {
                 return;
             }
 
+            console.log(`🎨 Creating collage from ${images.length} images`);
+
             // Create collage
             const collageBuffer = await this.createCollage(images);
             
@@ -52,6 +54,7 @@ export class CollageCommandsService {
         if ('message' in ctx && ctx.message && 'photo' in ctx.message) {
             const photos = ctx.message.photo;
             if (photos && photos.length > 0) {
+                console.log(`📸 Found ${photos.length} photos in message`);
                 // Download all photos from the message
                 for (const photo of photos) {
                     const file = await ctx.telegram.getFile(photo.file_id);
@@ -78,15 +81,45 @@ export class CollageCommandsService {
                 throw new Error('Need at least 2 images for collage');
             }
 
-            // Get metadata of the first image to determine dimensions
-            const firstImageMetadata = await sharp(imageBuffers[0]).metadata();
-            if (!firstImageMetadata.width || !firstImageMetadata.height) {
-                throw new Error('Could not get first image dimensions');
+            // Get metadata of all images to determine optimal dimensions
+            const imageMetadata = await Promise.all(
+                imageBuffers.map(async (buffer, index) => {
+                    const metadata = await sharp(buffer).metadata();
+                    if (!metadata.width || !metadata.height) {
+                        throw new Error(`Could not get metadata for image ${index}`);
+                    }
+                    return { ...metadata, index };
+                })
+            );
+
+            // Find the largest image to use as the main image
+            const largestImage = imageMetadata.reduce((max, current) => {
+                const maxArea = max.width * max.height;
+                const currentArea = current.width * current.height;
+                return currentArea > maxArea ? current : max;
+            });
+
+            console.log(`📐 Largest image (index ${largestImage.index}): ${largestImage.width}x${largestImage.height}`);
+
+            // Use the largest image as the main image, but ensure minimum size
+            const minWidth = 800;
+            const minHeight = 600;
+            
+            let mainImageWidth = Math.max(largestImage.width, minWidth);
+            let mainImageHeight = Math.max(largestImage.height, minHeight);
+            
+            // If the largest image is smaller than minimum, scale it up proportionally
+            if (largestImage.width < minWidth || largestImage.height < minHeight) {
+                const scaleX = minWidth / largestImage.width;
+                const scaleY = minHeight / largestImage.height;
+                const scale = Math.max(scaleX, scaleY);
+                mainImageWidth = Math.round(largestImage.width * scale);
+                mainImageHeight = Math.round(largestImage.height * scale);
             }
 
-            const mainImageWidth = firstImageMetadata.width;
-            const mainImageHeight = firstImageMetadata.height;
             const spacing = 5; // Small gap between images
+
+            console.log(`📐 Final main image dimensions: ${mainImageWidth}x${mainImageHeight}`);
 
             // Calculate dimensions for additional images
             const additionalImagesCount = imageBuffers.length - 1;
@@ -98,23 +131,28 @@ export class CollageCommandsService {
             let maxAdditionalHeight = 0;
             const additionalImageHeights: number[] = [];
 
-            for (let i = 1; i < imageBuffers.length; i++) {
-                // Get original image metadata to calculate aspect ratio
-                const imageMetadata = await sharp(imageBuffers[i]).metadata();
-                if (!imageMetadata.width || !imageMetadata.height) {
-                    throw new Error(`Could not get metadata for image ${i}`);
-                }
+            for (let i = 0; i < imageBuffers.length; i++) {
+                if (i === largestImage.index) continue; // Skip the main image
 
+                const metadata = imageMetadata[i];
                 // Calculate height to preserve aspect ratio
-                const aspectRatio = imageMetadata.width / imageMetadata.height;
+                const aspectRatio = metadata.width / metadata.height;
                 const additionalImageHeight = Math.floor(additionalImageWidth / aspectRatio);
                 additionalImageHeights.push(additionalImageHeight);
                 maxAdditionalHeight = Math.max(maxAdditionalHeight, additionalImageHeight);
+
+                console.log(`📐 Additional image ${i}: ${additionalImageWidth}x${additionalImageHeight} (original: ${metadata.width}x${metadata.height})`);
             }
 
             // Calculate total dimensions
             const totalWidth = mainImageWidth;
             const totalHeight = mainImageHeight + spacing + maxAdditionalHeight;
+
+            console.log(`📐 Collage dimensions: ${totalWidth}x${totalHeight}`);
+            console.log(`📐 Main image: ${mainImageWidth}x${mainImageHeight}`);
+            console.log(`📐 Additional images width: ${additionalImageWidth}`);
+            console.log(`📐 Max additional height: ${maxAdditionalHeight}`);
+            console.log(`📐 Total spacing: ${totalSpacing}px, Available width: ${availableWidth}px`);
 
             // Create canvas
             const canvas = sharp({
@@ -129,26 +167,36 @@ export class CollageCommandsService {
             // Create composite array
             const composite: sharp.OverlayOptions[] = [];
 
-            // Add main image (first image) at the top - keep original size
+            // Add main image (largest image) at the top
+            const mainImageBuffer = await sharp(imageBuffers[largestImage.index])
+                .resize(mainImageWidth, mainImageHeight, { fit: 'inside' })
+                .jpeg({ quality: 80 })
+                .toBuffer();
+
             composite.push({
-                input: imageBuffers[0],
+                input: mainImageBuffer,
                 left: 0,
                 top: 0
             });
 
             // Add additional images in a row below
-            for (let i = 1; i < imageBuffers.length; i++) {
+            let additionalIndex = 0;
+            for (let i = 0; i < imageBuffers.length; i++) {
+                if (i === largestImage.index) continue; // Skip the main image
+
                 const processedImage = await sharp(imageBuffers[i])
-                    .resize(additionalImageWidth, additionalImageHeights[i - 1], { fit: 'inside' })
+                    .resize(additionalImageWidth, additionalImageHeights[additionalIndex], { fit: 'inside' })
                     .jpeg({ quality: 80 })
                     .toBuffer();
 
-                const left = (i - 1) * (additionalImageWidth + spacing);
+                const left = additionalIndex * (additionalImageWidth + spacing);
                 composite.push({
                     input: processedImage,
                     left: left,
                     top: mainImageHeight + spacing
                 });
+
+                additionalIndex++;
             }
 
             // Create final collage
