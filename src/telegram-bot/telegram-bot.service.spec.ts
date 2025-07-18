@@ -10,6 +10,7 @@ import { SerbianCommandsService } from './serbian-commands.service';
 import { HistoryCommandsService } from './history-commands.service';
 import { TaskCommandsService } from './task-commands.service';
 import { TaskHistoryCommandsService } from './task-history-commands.service';
+import { CollageCommandsService } from './collage-commands.service';
 import { Context } from 'telegraf';
 
 describe('TelegramBotService', () => {
@@ -129,6 +130,12 @@ describe('TelegramBotService', () => {
             handleTaskHistoryCommand: jest.fn(),
           },
         },
+        {
+          provide: CollageCommandsService,
+          useValue: {
+            handleCollageCommand: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -161,6 +168,7 @@ describe('TelegramBotService', () => {
   it('should return sorted help message', () => {
     const result = (service as any).getHelpMessage();
     const expected = [
+      '/c or /collage - Create image collage',
       '/dairy or /d - Dairy Notes',
       '/help - Show this help message',
       '/history - Chat History',

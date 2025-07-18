@@ -14,6 +14,7 @@ import { SerbianCommandsService } from './serbian-commands.service';
 import { HistoryCommandsService } from './history-commands.service';
 import { TaskCommandsService } from './task-commands.service';
 import { TaskHistoryCommandsService } from './task-history-commands.service';
+import { CollageCommandsService } from './collage-commands.service';
 
 type TelegramUpdate = 
     | Update.CallbackQueryUpdate 
@@ -38,6 +39,7 @@ export class TelegramBotService {
         private historyCommands: HistoryCommandsService,
         private taskCommands: TaskCommandsService,
         private taskHistoryCommands: TaskHistoryCommandsService,
+        private collageCommands: CollageCommandsService,
     ) {
         const token = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
         if (!token) {
@@ -138,6 +140,12 @@ export class TelegramBotService {
         this.bot.command(['help'], (ctx) => {
             console.log('Получена команда /help');
             return ctx.reply(this.getHelpMessage());
+        });
+
+        // Collage command
+        this.bot.command(['collage', 'c'], (ctx) => {
+            console.log('Получена команда /collage /c:', ctx.message?.text);
+            return this.collageCommands.handleCollageCommand(ctx);
         });
 
         // Обработчик для текстовых сообщений в личных чатах и группах
@@ -405,6 +413,7 @@ export class TelegramBotService {
 
     private getHelpMessage(): string {
         const commands = [
+            { name: '/c or /collage', description: 'Create image collage' },
             { name: '/dairy or /d', description: 'Dairy Notes' },
             { name: '/history', description: 'Chat History' },
             { name: '/s', description: 'Serbian Translation' },
