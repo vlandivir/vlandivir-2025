@@ -168,7 +168,7 @@ describe('TelegramBotService', () => {
   it('should return sorted help message', () => {
     const result = (service as any).getHelpMessage();
     const expected = [
-      '/c or /collage - Create image collage',
+      '/c or /collage - Create collage from message images',
       '/dairy or /d - Dairy Notes',
       '/help - Show this help message',
       '/history - Chat History',

@@ -10,6 +10,7 @@ jest.mock('sharp', () => {
     jpeg: jest.fn().mockReturnThis(),
     toBuffer: jest.fn().mockResolvedValue(Buffer.from('valid-image')),
     composite: jest.fn().mockReturnThis(),
+    metadata: jest.fn().mockResolvedValue({ width: 800, height: 600 }),
   }));
   (sharpMock as any).create = jest.fn(() => ({
     composite: jest.fn().mockReturnThis(),
@@ -27,6 +28,16 @@ describe('CollageCommandsService', () => {
   const mockContext = {
     chat: {
       id: 123456
+    },
+    message: {
+      photo: [
+        { file_id: 'photo1', width: 800, height: 600 },
+        { file_id: 'photo2', width: 400, height: 300 },
+        { file_id: 'photo3', width: 400, height: 300 }
+      ]
+    },
+    telegram: {
+      getFile: jest.fn().mockResolvedValue({ file_path: 'test/path' }),
     },
     reply: jest.fn(),
     replyWithPhoto: jest.fn(),
@@ -64,68 +75,46 @@ describe('CollageCommandsService', () => {
   });
 
   it('should handle collage command with insufficient images', async () => {
-    jest.spyOn(prismaService.image, 'findMany').mockResolvedValue([
-      { 
-        id: 1, 
-        url: 'test-url-1',
-        description: 'test description',
-        noteId: 1,
-        createdAt: new Date(),
-        updatedAt: new Date()
+    const contextWithOnePhoto = {
+      ...mockContext,
+      message: {
+        photo: [{ file_id: 'photo1', width: 800, height: 600 }]
       }
-    ]);
+    } as unknown as Context;
 
-    await service.handleCollageCommand(mockContext);
+    await service.handleCollageCommand(contextWithOnePhoto);
 
     expect(mockContext.reply).toHaveBeenCalledWith(
-      'Для создания коллажа нужно минимум 2 изображения. Отправьте больше изображений.'
+      'Для создания коллажа нужно минимум 2 изображения в одном сообщении.'
     );
   });
 
   it('should handle collage command with sufficient images', async () => {
-    const mockImages = [
-      { 
-        id: 1, 
-        url: 'test-url-1',
-        description: 'test description',
-        noteId: 1,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      },
-      { 
-        id: 2, 
-        url: 'test-url-2',
-        description: 'test description',
-        noteId: 1,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      },
-      { 
-        id: 3, 
-        url: 'test-url-3',
-        description: 'test description',
-        noteId: 1,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      }
-    ];
-
-    jest.spyOn(prismaService.image, 'findMany').mockResolvedValue(mockImages);
-    jest.spyOn(storageService, 'downloadFile').mockResolvedValue(Buffer.from('test-image'));
     jest.spyOn(storageService, 'uploadFile').mockResolvedValue('https://example.com/collage.jpg');
 
     await service.handleCollageCommand(mockContext);
 
     expect(mockContext.replyWithPhoto).toHaveBeenCalledWith(
       'https://example.com/collage.jpg',
-      { caption: 'Коллаж из последних изображений' }
+      { caption: 'Коллаж из изображений' }
     );
   });
 
   it('should handle errors gracefully', async () => {
-    jest.spyOn(prismaService.image, 'findMany').mockRejectedValue(new Error('Database error'));
+    const contextWithError = {
+      ...mockContext,
+      message: {
+        photo: [
+          { file_id: 'photo1', width: 800, height: 600 },
+          { file_id: 'photo2', width: 400, height: 300 }
+        ]
+      },
+      telegram: {
+        getFile: jest.fn().mockRejectedValue(new Error('Network error')),
+      },
+    } as unknown as Context;
 
-    await service.handleCollageCommand(mockContext);
+    await service.handleCollageCommand(contextWithError);
 
     expect(mockContext.reply).toHaveBeenCalledWith(
       'Произошла ошибка при создании коллажа'

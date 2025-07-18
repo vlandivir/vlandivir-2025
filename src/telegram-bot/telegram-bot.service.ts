@@ -272,6 +272,13 @@ export class TelegramBotService {
             
             if (!photos || photos.length === 0 || !ctx.chat) return;
 
+            // Check if this is a collage command
+            if (caption && (caption.toLowerCase().includes('/collage') || caption.toLowerCase().includes('/c'))) {
+                console.log('Collage command detected in photo caption');
+                await this.collageCommands.handleCollageCommand(ctx);
+                return;
+            }
+
             const photo = photos[photos.length - 1];
             const file = await ctx.telegram.getFile(photo.file_id);
             const photoBuffer = await this.downloadPhoto(file.file_path!);
@@ -413,7 +420,7 @@ export class TelegramBotService {
 
     private getHelpMessage(): string {
         const commands = [
-            { name: '/c or /collage', description: 'Create image collage' },
+            { name: '/c or /collage', description: 'Create collage from message images' },
             { name: '/dairy or /d', description: 'Dairy Notes' },
             { name: '/history', description: 'Chat History' },
             { name: '/s', description: 'Serbian Translation' },

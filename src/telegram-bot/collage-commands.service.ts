@@ -16,29 +16,16 @@ export class CollageCommandsService {
         if (!chatId) return;
 
         try {
-            // Get recent images for this chat
-            const recentImages = await this.prisma.image.findMany({
-                where: {
-                    note: {
-                        chatId: chatId
-                    }
-                },
-                orderBy: {
-                    createdAt: 'desc'
-                },
-                take: 10, // Limit to 10 most recent images
-                include: {
-                    note: true
-                }
-            });
-
-            if (recentImages.length < 2) {
-                await ctx.reply('Для создания коллажа нужно минимум 2 изображения. Отправьте больше изображений.');
+            // Get images from the current message
+            const images = await this.getImagesFromMessage(ctx);
+            
+            if (images.length < 2) {
+                await ctx.reply('Для создания коллажа нужно минимум 2 изображения в одном сообщении.');
                 return;
             }
 
             // Create collage
-            const collageBuffer = await this.createCollage(recentImages);
+            const collageBuffer = await this.createCollage(images);
             
             // Upload collage to storage
             const collageUrl = await this.storageService.uploadFile(
@@ -49,7 +36,7 @@ export class CollageCommandsService {
 
             // Send collage
             await ctx.replyWithPhoto(collageUrl, {
-                caption: 'Коллаж из последних изображений'
+                caption: 'Коллаж из изображений'
             });
 
         } catch (error) {
@@ -58,35 +45,57 @@ export class CollageCommandsService {
         }
     }
 
-    private async createCollage(images: any[]): Promise<Buffer> {
+    private async getImagesFromMessage(ctx: Context): Promise<Buffer[]> {
+        const images: Buffer[] = [];
+        
+        // Check if this is a message with multiple photos
+        if ('message' in ctx && ctx.message && 'photo' in ctx.message) {
+            const photos = ctx.message.photo;
+            if (photos && photos.length > 0) {
+                // Download all photos from the message
+                for (const photo of photos) {
+                    const file = await ctx.telegram.getFile(photo.file_id);
+                    const photoBuffer = await this.downloadPhoto(file.file_path!);
+                    images.push(photoBuffer);
+                }
+            }
+        }
+
+        return images;
+    }
+
+    private async downloadPhoto(filePath: string): Promise<Buffer> {
+        const response = await fetch(
+            `https://api.telegram.org/file/bot${process.env.TELEGRAM_BOT_TOKEN}/${filePath}`
+        );
+        const arrayBuffer = await response.arrayBuffer();
+        return Buffer.from(arrayBuffer);
+    }
+
+    private async createCollage(imageBuffers: Buffer[]): Promise<Buffer> {
         try {
-            // Download all images
-            const imageBuffers = await Promise.all(
-                images.map(async (image) => {
-                    const buffer = await this.storageService.downloadFile(image.url);
-                    return buffer;
-                })
-            );
+            if (imageBuffers.length < 2) {
+                throw new Error('Need at least 2 images for collage');
+            }
 
-            // Process images
-            const processedImages = await Promise.all(
-                imageBuffers.map(async (buffer) => {
-                    return await sharp(buffer)
-                        .resize(300, 300, { fit: 'cover' })
-                        .jpeg({ quality: 80 })
-                        .toBuffer();
-                })
-            );
+            // Get metadata of the first image to determine dimensions
+            const firstImageMetadata = await sharp(imageBuffers[0]).metadata();
+            if (!firstImageMetadata.width || !firstImageMetadata.height) {
+                throw new Error('Could not get first image dimensions');
+            }
 
-            // Calculate dimensions
-            const imageWidth = 300;
-            const imageHeight = 300;
+            const mainImageWidth = firstImageMetadata.width;
+            const mainImageHeight = firstImageMetadata.height;
             const spacing = 10; // White line spacing
-            const mainImageHeight = 400; // Main image is larger
 
-            // Calculate total width and height
-            const totalWidth = imageWidth + (processedImages.length - 1) * (imageWidth + spacing);
-            const totalHeight = mainImageHeight + spacing + imageHeight;
+            // Calculate dimensions for additional images
+            const additionalImagesCount = imageBuffers.length - 1;
+            const additionalImageWidth = Math.floor((mainImageWidth - (additionalImagesCount - 1) * spacing) / additionalImagesCount);
+            const additionalImageHeight = 200; // Fixed height for additional images
+
+            // Calculate total dimensions
+            const totalWidth = mainImageWidth;
+            const totalHeight = mainImageHeight + spacing + additionalImageHeight;
 
             // Create canvas
             const canvas = sharp({
@@ -101,25 +110,23 @@ export class CollageCommandsService {
             // Create composite array
             const composite: sharp.OverlayOptions[] = [];
 
-            // Add main image (first image) at the top
-            if (processedImages.length > 0) {
-                const mainImage = await sharp(processedImages[0])
-                    .resize(imageWidth, mainImageHeight, { fit: 'cover' })
+            // Add main image (first image) at the top - keep original size
+            composite.push({
+                input: imageBuffers[0],
+                left: 0,
+                top: 0
+            });
+
+            // Add additional images in a row below
+            for (let i = 1; i < imageBuffers.length; i++) {
+                const processedImage = await sharp(imageBuffers[i])
+                    .resize(additionalImageWidth, additionalImageHeight, { fit: 'cover' })
                     .jpeg({ quality: 80 })
                     .toBuffer();
 
+                const left = (i - 1) * (additionalImageWidth + spacing);
                 composite.push({
-                    input: mainImage,
-                    left: 0,
-                    top: 0
-                });
-            }
-
-            // Add additional images in a row below
-            for (let i = 1; i < processedImages.length; i++) {
-                const left = (i - 1) * (imageWidth + spacing);
-                composite.push({
-                    input: processedImages[i],
+                    input: processedImage,
                     left: left,
                     top: mainImageHeight + spacing
                 });
