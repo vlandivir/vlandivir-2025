@@ -169,29 +169,30 @@ export class CollageCommandsService {
                 })
             );
 
-            // Find the largest image to use as the main image
-            const largestImage = imageMetadata.reduce((max, current) => {
-                const maxArea = max.width * max.height;
-                const currentArea = current.width * current.height;
-                return currentArea > maxArea ? current : max;
-            });
+            // Use the first image as the main image
+            const mainImageMetadata = imageMetadata[0];
 
-            console.log(`📐 Largest image (index ${largestImage.index}): ${largestImage.width}x${largestImage.height}`);
+            console.log(
+                `📐 Main image chosen from index 0: ${mainImageMetadata.width}x${mainImageMetadata.height}`
+            );
 
-            // Use the largest image as the main image, but ensure minimum size
+            // Ensure minimum size for better layout
             const minWidth = 800;
             const minHeight = 600;
-            
-            let mainImageWidth = Math.max(largestImage.width, minWidth);
-            let mainImageHeight = Math.max(largestImage.height, minHeight);
-            
-            // If the largest image is smaller than minimum, scale it up proportionally
-            if (largestImage.width < minWidth || largestImage.height < minHeight) {
-                const scaleX = minWidth / largestImage.width;
-                const scaleY = minHeight / largestImage.height;
+
+            let mainImageWidth = Math.max(mainImageMetadata.width, minWidth);
+            let mainImageHeight = Math.max(mainImageMetadata.height, minHeight);
+
+            // If the first image is smaller than minimum, scale it up proportionally
+            if (
+                mainImageMetadata.width < minWidth ||
+                mainImageMetadata.height < minHeight
+            ) {
+                const scaleX = minWidth / (mainImageMetadata.width as number);
+                const scaleY = minHeight / (mainImageMetadata.height as number);
                 const scale = Math.max(scaleX, scaleY);
-                mainImageWidth = Math.round(largestImage.width * scale);
-                mainImageHeight = Math.round(largestImage.height * scale);
+                mainImageWidth = Math.round((mainImageMetadata.width as number) * scale);
+                mainImageHeight = Math.round((mainImageMetadata.height as number) * scale);
             }
 
             const spacing = 5; // Small gap between images
@@ -208,8 +209,7 @@ export class CollageCommandsService {
             let maxAdditionalHeight = 0;
             const additionalImageHeights: number[] = [];
 
-            for (let i = 0; i < imageBuffers.length; i++) {
-                if (i === largestImage.index) continue; // Skip the main image
+            for (let i = 1; i < imageBuffers.length; i++) {
 
                 const metadata = imageMetadata[i];
                 // Calculate height to preserve aspect ratio
@@ -244,8 +244,8 @@ export class CollageCommandsService {
             // Create composite array
             const composite: sharp.OverlayOptions[] = [];
 
-            // Add main image (largest image) at the top
-            const mainImageBuffer = await sharp(imageBuffers[largestImage.index])
+            // Add main image (first image) at the top
+            const mainImageBuffer = await sharp(imageBuffers[0])
                 .resize(mainImageWidth, mainImageHeight, { fit: 'inside' })
                 .jpeg({ quality: 80 })
                 .toBuffer();
@@ -258,8 +258,7 @@ export class CollageCommandsService {
 
             // Add additional images in a row below
             let additionalIndex = 0;
-            for (let i = 0; i < imageBuffers.length; i++) {
-                if (i === largestImage.index) continue; // Skip the main image
+            for (let i = 1; i < imageBuffers.length; i++) {
 
                 const processedImage = await sharp(imageBuffers[i])
                     .resize(additionalImageWidth, additionalImageHeights[additionalIndex], { fit: 'inside' })
