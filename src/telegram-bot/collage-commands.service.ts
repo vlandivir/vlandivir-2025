@@ -86,16 +86,35 @@ export class CollageCommandsService {
 
             const mainImageWidth = firstImageMetadata.width;
             const mainImageHeight = firstImageMetadata.height;
-            const spacing = 10; // White line spacing
+            const spacing = 5; // Small gap between images
 
             // Calculate dimensions for additional images
             const additionalImagesCount = imageBuffers.length - 1;
-            const additionalImageWidth = Math.floor((mainImageWidth - (additionalImagesCount - 1) * spacing) / additionalImagesCount);
-            const additionalImageHeight = 200; // Fixed height for additional images
+            const totalSpacing = (additionalImagesCount - 1) * spacing;
+            const availableWidth = mainImageWidth - totalSpacing;
+            const additionalImageWidth = Math.floor(availableWidth / additionalImagesCount);
+
+            // Calculate heights for all additional images first
+            let maxAdditionalHeight = 0;
+            const additionalImageHeights: number[] = [];
+
+            for (let i = 1; i < imageBuffers.length; i++) {
+                // Get original image metadata to calculate aspect ratio
+                const imageMetadata = await sharp(imageBuffers[i]).metadata();
+                if (!imageMetadata.width || !imageMetadata.height) {
+                    throw new Error(`Could not get metadata for image ${i}`);
+                }
+
+                // Calculate height to preserve aspect ratio
+                const aspectRatio = imageMetadata.width / imageMetadata.height;
+                const additionalImageHeight = Math.floor(additionalImageWidth / aspectRatio);
+                additionalImageHeights.push(additionalImageHeight);
+                maxAdditionalHeight = Math.max(maxAdditionalHeight, additionalImageHeight);
+            }
 
             // Calculate total dimensions
             const totalWidth = mainImageWidth;
-            const totalHeight = mainImageHeight + spacing + additionalImageHeight;
+            const totalHeight = mainImageHeight + spacing + maxAdditionalHeight;
 
             // Create canvas
             const canvas = sharp({
@@ -120,7 +139,7 @@ export class CollageCommandsService {
             // Add additional images in a row below
             for (let i = 1; i < imageBuffers.length; i++) {
                 const processedImage = await sharp(imageBuffers[i])
-                    .resize(additionalImageWidth, additionalImageHeight, { fit: 'cover' })
+                    .resize(additionalImageWidth, additionalImageHeights[i - 1], { fit: 'inside' })
                     .jpeg({ quality: 80 })
                     .toBuffer();
 
