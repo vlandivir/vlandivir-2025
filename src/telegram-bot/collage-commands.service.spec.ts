@@ -65,6 +65,10 @@ describe('CollageCommandsService', () => {
       ],
     }).compile();
 
+    global.fetch = jest.fn().mockResolvedValue({
+      arrayBuffer: jest.fn().mockResolvedValue(Buffer.from('img')),
+    }) as any;
+
     service = module.get<CollageCommandsService>(CollageCommandsService);
     prismaService = module.get<PrismaService>(PrismaService);
     storageService = module.get<StorageService>(StorageService);

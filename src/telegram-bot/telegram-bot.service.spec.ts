@@ -134,6 +134,11 @@ describe('TelegramBotService', () => {
           provide: CollageCommandsService,
           useValue: {
             handleCollageCommand: jest.fn(),
+            startConversation: jest.fn(),
+            addImage: jest.fn(),
+            cancel: jest.fn(),
+            generate: jest.fn(),
+            isActive: jest.fn().mockReturnValue(false),
           },
         },
       ],
@@ -168,8 +173,8 @@ describe('TelegramBotService', () => {
   it('should return sorted help message', () => {
     const result = (service as any).getHelpMessage();
     const expected = [
-      '/c or /collage - Create collage from message images',
-      '/dairy or /d - Dairy Notes',
+      '/c or /collage - Create image collage',
+      '/d or /dairy - Dairy Notes',
       '/help - Show this help message',
       '/history - Chat History',
       '/s - Serbian Translation',
