@@ -5,6 +5,7 @@
 This project includes a Telegram bot with several useful commands. Notes are saved automatically from any text or photo you send to the bot.
 
 ### Creating a new note
+
 Send a message or a photo caption to save a diary note for today. To store a note for a different date, start the first line with the desired date. The bot understands several common date formats.
 
 ```
@@ -22,39 +23,50 @@ Supported date formats:
 If you omit the date, the note is saved with today's date.
 
 ### `/d` or `/dairy`
+
 Retrieves diary entries for a specific date.
+
 - **date** (optional) — use `DD.MM.YYYY` to show a single day or `DD.MM`/`DD month` to see the same day across years.
 
 Example:
+
 ```
 /d 25.03.2024
 ```
 
 ### `/s`
+
 Provides Serbian translations. Only works in private chats.
+
 - **text** — Serbian word or phrase.
 
 Example:
+
 ```
 /s zdravo
 ```
 
 ### `/history`
+
 Generates an HTML page with all messages longer than 42 characters.
 
 **Features:**
+
 - Filters messages longer than 42 characters
 - Generates a beautiful HTML page with chat history
 - Provides a secret GUID-based link
 - Includes message dates and images
 
 Example:
+
 ```
 /history
 ```
 
 ### `/t` or `/task`
+
 Creates a new todo item.
+
 - **content** — description of the todo item.
 - `@tag` — add tags.
 - `.context` — specify contexts.
@@ -69,22 +81,27 @@ Use `-canceled`, `-done`, `-in-progress`, `-started`, or `-snoozed[days]` (e.g.,
 Snoozed tasks are hidden from `/tl` until their snooze period expires.
 
 Example:
+
 ```
 /task (B) @work .office !Big Project :2025.07.31 09:00 Prepare report
 ```
 
 ### `/tl`
+
 Lists unfinished todo items. You can filter by the same `@tag`, `.context` and `!project` tokens as in `/task`.
 
 Example:
+
 ```
 /tl @work .office
 ```
 
 ### `/th`
+
 Generates an HTML page with all tasks and their history stored on DigitalOcean Spaces.
 
 Tasks are organized into three categories:
+
 - **Unfinished**: Active tasks sorted by due date and key
 - **Snoozed**: Tasks that are currently snoozed, sorted by snooze expiration date and key
 - **Finished**: Completed or canceled tasks sorted by creation date
@@ -92,8 +109,18 @@ Tasks are organized into three categories:
 The snoozed until date is displayed for snoozed tasks.
 History lines show only what changed instead of repeating the full task text.
 
+### `/qa`
+
+Adds a new question for the current chat.
+
+Example:
+
+```
+/qa How many apples do you have?
+```
 
 ### `/help`
+
 Shows a list of all available commands.
 
 ## Project setup
