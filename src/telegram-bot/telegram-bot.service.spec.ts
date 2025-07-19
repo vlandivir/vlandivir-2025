@@ -11,6 +11,7 @@ import { HistoryCommandsService } from './history-commands.service';
 import { TaskCommandsService } from './task-commands.service';
 import { TaskHistoryCommandsService } from './task-history-commands.service';
 import { CollageCommandsService } from './collage-commands.service';
+import { QaCommandsService } from './qa-commands.service';
 import { Context } from 'telegraf';
 
 describe('TelegramBotService', () => {
@@ -19,15 +20,17 @@ describe('TelegramBotService', () => {
   const mockContext = {
     message: {
       text: 'test message',
-      photo: [{
-        file_id: 'test-file-id',
-        width: 100,
-        height: 100
-      }],
-      caption: 'test caption'
+      photo: [
+        {
+          file_id: 'test-file-id',
+          width: 100,
+          height: 100,
+        },
+      ],
+      caption: 'test caption',
     },
     chat: {
-      id: 123456
+      id: 123456,
     },
     telegram: {
       getFile: jest.fn().mockResolvedValue({ file_path: 'test/path' }),
@@ -38,7 +41,7 @@ describe('TelegramBotService', () => {
       id: 123,
       is_bot: true,
       first_name: 'TestBot',
-      username: 'test_bot'
+      username: 'test_bot',
     },
     tg: {
       getFile: jest.fn().mockResolvedValue({ file_path: 'test/path' }),
@@ -47,8 +50,8 @@ describe('TelegramBotService', () => {
       id: 123,
       is_bot: true,
       first_name: 'TestBot',
-      username: 'test_bot'
-    }
+      username: 'test_bot',
+    },
   } as unknown as Context;
 
   beforeEach(async () => {
@@ -67,7 +70,7 @@ describe('TelegramBotService', () => {
             note: {
               create: jest.fn().mockResolvedValue({
                 id: 1,
-                content: 'test content'
+                content: 'test content',
               }),
               findMany: jest.fn(),
             },
@@ -81,7 +84,7 @@ describe('TelegramBotService', () => {
           useValue: {
             extractDateFromFirstLine: jest.fn().mockReturnValue({
               date: new Date(),
-              cleanContent: 'test content'
+              cleanContent: 'test content',
             }),
           },
         },
@@ -94,9 +97,13 @@ describe('TelegramBotService', () => {
         {
           provide: StorageService,
           useValue: {
-            uploadFile: jest.fn().mockImplementation((buffer, mimeType, chatId) =>
-              Promise.resolve(`https://example.com/chats/${chatId}/images/mock-uuid`)
-            ),
+            uploadFile: jest
+              .fn()
+              .mockImplementation((buffer, mimeType, chatId) =>
+                Promise.resolve(
+                  `https://example.com/chats/${chatId}/images/mock-uuid`,
+                ),
+              ),
           },
         },
         {
@@ -141,6 +148,12 @@ describe('TelegramBotService', () => {
             isActive: jest.fn().mockReturnValue(false),
           },
         },
+        {
+          provide: QaCommandsService,
+          useValue: {
+            handleQaCommand: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -161,9 +174,9 @@ describe('TelegramBotService', () => {
       ...mockContext,
       channelPost: {
         ...mockContext.message,
-        chat: { id: -1001234567890, type: 'channel', title: 'Test Channel' }
+        chat: { id: -1001234567890, type: 'channel', title: 'Test Channel' },
       },
-      updateType: 'channel_post'
+      updateType: 'channel_post',
     } as unknown as Context;
 
     await service.handleIncomingPhoto(channelContext);
@@ -177,6 +190,7 @@ describe('TelegramBotService', () => {
       '/d or /dairy - Dairy Notes',
       '/help - Show this help message',
       '/history - Chat History',
+      '/qa - Add question',
       '/s - Serbian Translation',
       '/t or /task - Create Todo item',
       '/th - Tasks HTML export',
