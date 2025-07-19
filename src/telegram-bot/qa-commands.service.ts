@@ -34,6 +34,24 @@ export class QaCommandsService {
     }
   }
 
+  async handleQlCommand(ctx: Context) {
+    const chatId = ctx.chat?.id;
+    if (!chatId) return;
+
+    const questions = await this.prisma.question.findMany({
+      where: { chatId },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    if (questions.length === 0) {
+      await ctx.reply('No questions found in this chat');
+      return;
+    }
+
+    const lines = questions.map((q) => q.questionText);
+    await ctx.reply(lines.join('\n'));
+  }
+
   private getCommandText(ctx: Context): string | undefined {
     if ('message' in ctx && ctx.message && 'text' in ctx.message) {
       return ctx.message.text;
