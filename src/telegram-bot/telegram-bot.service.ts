@@ -151,6 +151,12 @@ export class TelegramBotService {
       return this.qaCommands.handleQaCommand(ctx);
     });
 
+    // List questions command
+    this.bot.command(['ql'], (ctx) => {
+      console.log('Получена команда /ql:', ctx.message?.text);
+      return this.qaCommands.handleQlCommand(ctx);
+    });
+
     // Help command
     this.bot.command(['help'], (ctx) => {
       console.log('Получена команда /help');
@@ -506,6 +512,7 @@ export class TelegramBotService {
       { name: '/tl', description: 'List Todo items' },
       { name: '/th', description: 'Tasks HTML export' },
       { name: '/qa', description: 'Add question' },
+      { name: '/ql', description: 'List questions' },
       { name: '/c or /collage', description: 'Create image collage' },
       { name: '/help', description: 'Show this help message' },
     ];

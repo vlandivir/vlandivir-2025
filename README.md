@@ -119,6 +119,16 @@ Example:
 /qa How many apples do you have?
 ```
 
+### `/ql`
+
+Lists all questions for the current chat.
+
+Example:
+
+```
+/ql
+```
+
 ### `/help`
 
 Shows a list of all available commands.
