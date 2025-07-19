@@ -15,14 +15,14 @@ datasource db {
 }
 
 model Note {
-  id          Int      @id @default(autoincrement())
-  content     String   @db.Text
-  rawMessage  Json    @db.JsonB
-  noteDate    DateTime @default(now())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime? @updatedAt
-  chatId      BigInt
-  images      Image[]
+  id         Int       @id @default(autoincrement())
+  content    String    @db.Text
+  rawMessage Json      @db.JsonB
+  noteDate   DateTime  @default(now())
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime? @updatedAt
+  chatId     BigInt
+  images     Image[]
 
   @@index([chatId])
   @@index([noteDate])
@@ -41,13 +41,13 @@ model BotResponse {
 }
 
 model Image {
-  id           Int      @id @default(autoincrement())
-  url          String
-  description  String?  @db.Text
-  note         Note     @relation(fields: [noteId], references: [id])
-  noteId       Int
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id          Int      @id @default(autoincrement())
+  url         String
+  description String?  @db.Text
+  note        Note     @relation(fields: [noteId], references: [id])
+  noteId      Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model Todo {
@@ -67,4 +67,30 @@ model Todo {
 
   @@index([key])
   @@index([chatId])
+}
+
+model Question {
+  id           Int      @id @default(autoincrement())
+  chatId       BigInt
+  questionText String   @db.Text
+  type         String   @default("text") // "text", "number", "binary"
+  createdAt    DateTime @default(now())
+  Answer       Answer[]
+
+  @@index([chatId])
+  @@index([createdAt])
+}
+
+model Answer {
+  id           Int      @id @default(autoincrement())
+  questionId   Int
+  textAnswer   String?  @db.Text
+  numberAnswer Float?
+  answerDate   DateTime @default(now())
+  createdAt    DateTime @default(now())
+  question     Question @relation(fields: [questionId], references: [id])
+
+  @@index([questionId])
+  @@index([answerDate])
+  @@index([createdAt])
 }
