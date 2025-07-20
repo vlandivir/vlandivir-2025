@@ -41,6 +41,31 @@ describe('TaskCommandsService', () => {
       expect(result?.getMonth()).toBe(0);
       expect(result?.getDate()).toBe(2);
     });
+
+    it('should parse "tomorrow" with time', () => {
+      const result = (service as any).parseDueDate('tomorrow 10:15');
+      const expected = new Date();
+      expected.setDate(expected.getDate() + 1);
+      expected.setHours(10, 15, 0, 0);
+      expect(result?.getFullYear()).toBe(expected.getFullYear());
+      expect(result?.getMonth()).toBe(expected.getMonth());
+      expect(result?.getDate()).toBe(expected.getDate());
+      expect(result?.getHours()).toBe(10);
+      expect(result?.getMinutes()).toBe(15);
+    });
+
+    it('should parse russian day of week', () => {
+      const result = (service as any).parseDueDate('понедельник');
+      expect(result).toBeInstanceOf(Date);
+      const today = new Date();
+      const targetDay = 1; // Monday
+      let diff = (targetDay - today.getDay() + 7) % 7;
+      if (diff === 0) diff = 7;
+      const expected = new Date();
+      expected.setDate(expected.getDate() + diff);
+      expect(result?.getDate()).toBe(expected.getDate());
+      expect(result?.getMonth()).toBe(expected.getMonth());
+    });
   });
 
   describe('parseTask', () => {

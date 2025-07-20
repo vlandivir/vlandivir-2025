@@ -185,7 +185,11 @@ export class TaskCommandsService {
     private parseDueDate(text: string): Date | undefined {
         const timeMatch = text.match(/(\d{1,2}:\d{2})$/);
         const datePart = timeMatch ? text.replace(timeMatch[0], '').trim() : text.trim();
-        const { date } = this.dateParser.extractDateFromFirstLine(datePart);
+
+        let date: Date | undefined = this.dateParser.extractDateFromFirstLine(datePart).date || undefined;
+        if (!date) {
+            date = this.parseRelativeDate(datePart);
+        }
         if (!date) return undefined;
 
         if (timeMatch) {
@@ -194,6 +198,61 @@ export class TaskCommandsService {
         }
 
         return date;
+    }
+
+    private parseRelativeDate(text: string): Date | undefined {
+        const lower = text.toLowerCase();
+        const today = startOfDay(new Date());
+
+        if (['today', 'сегодня'].includes(lower)) {
+            return today;
+        }
+        if (['tomorrow', 'завтра'].includes(lower)) {
+            const d = new Date(today);
+            d.setDate(d.getDate() + 1);
+            return d;
+        }
+
+        const days: Record<string, number> = {
+            sunday: 0,
+            sun: 0,
+            'воскресенье': 0,
+            'вс': 0,
+            monday: 1,
+            mon: 1,
+            'понедельник': 1,
+            'пн': 1,
+            tuesday: 2,
+            tue: 2,
+            'вторник': 2,
+            'вт': 2,
+            wednesday: 3,
+            wed: 3,
+            'среда': 3,
+            'ср': 3,
+            thursday: 4,
+            thu: 4,
+            'четверг': 4,
+            'чт': 4,
+            friday: 5,
+            fri: 5,
+            'пятница': 5,
+            'пт': 5,
+            saturday: 6,
+            sat: 6,
+            'суббота': 6,
+            'сб': 6,
+        };
+
+        if (days[lower] !== undefined) {
+            let diff = (days[lower] - today.getDay() + 7) % 7;
+            if (diff === 0) diff = 7;
+            const d = new Date(today);
+            d.setDate(d.getDate() + diff);
+            return d;
+        }
+
+        return undefined;
     }
 
     private async editTask(ctx: Context, key: string, updates: ParsedTask) {
