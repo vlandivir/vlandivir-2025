@@ -33,13 +33,13 @@ export class HistoryCommandsService {
         },
       });
 
-          // Filter messages that are longer than 21 characters
-    const filteredMessages = messages.filter(
-      (message) => message.content.length > 21,
-    );
+      // Filter messages that are longer than 21 characters
+      const filteredMessages = messages.filter(
+        (message) => message.content.length > 21,
+      );
 
-    if (filteredMessages.length === 0) {
-      await ctx.reply('Нет сообщений длиннее 21 символов в этом чате.');
+      if (filteredMessages.length === 0) {
+        await ctx.reply('Нет сообщений длиннее 21 символов в этом чате.');
         return;
       }
 

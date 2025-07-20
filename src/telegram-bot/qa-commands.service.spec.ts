@@ -28,19 +28,21 @@ describe('QaCommandsService', () => {
   });
 
   it('should reply when no questions', async () => {
-    const ctx: any = { chat: { id: 123 }, reply: jest.fn() };
+    const mockReply = jest.fn();
+    const ctx = { chat: { id: 123 }, reply: mockReply } as unknown as Context;
     mockPrisma.question.findMany.mockResolvedValue([]);
-    await service.handleQlCommand(ctx as unknown as Context);
-    expect(ctx.reply).toHaveBeenCalledWith('No questions found in this chat');
+    await service.handleQlCommand(ctx);
+    expect(mockReply).toHaveBeenCalledWith('No questions found in this chat');
   });
 
   it('should list questions', async () => {
-    const ctx: any = { chat: { id: 123 }, reply: jest.fn() };
+    const mockReply = jest.fn();
+    const ctx = { chat: { id: 123 }, reply: mockReply } as unknown as Context;
     mockPrisma.question.findMany.mockResolvedValue([
       { questionText: 'Q1', createdAt: new Date() },
       { questionText: 'Q2', createdAt: new Date() },
     ]);
-    await service.handleQlCommand(ctx as unknown as Context);
-    expect(ctx.reply).toHaveBeenCalledWith('Q1\nQ2');
+    await service.handleQlCommand(ctx);
+    expect(mockReply).toHaveBeenCalledWith('Q1\nQ2');
   });
 });
