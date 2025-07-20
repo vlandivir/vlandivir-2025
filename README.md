@@ -154,3 +154,7 @@ $ npm run test:e2e
 # test coverage
 $ npm run test:cov
 ```
+
+## Code Style
+
+See [docs/code-style.md](docs/code-style.md) for linting and formatting rules. Code is automatically checked before each commit.
