@@ -33,13 +33,13 @@ export class HistoryCommandsService {
         },
       });
 
-      // Filter messages that are longer than 42 characters
-      const filteredMessages = messages.filter(
-        (message) => message.content.length > 42,
-      );
+          // Filter messages that are longer than 21 characters
+    const filteredMessages = messages.filter(
+      (message) => message.content.length > 21,
+    );
 
-      if (filteredMessages.length === 0) {
-        await ctx.reply('Нет сообщений длиннее 42 символов в этом чате.');
+    if (filteredMessages.length === 0) {
+      await ctx.reply('Нет сообщений длиннее 21 символов в этом чате.');
         return;
       }
 
@@ -141,7 +141,7 @@ export class HistoryCommandsService {
 <body>
     <div class="header">
         <h1>📚 История чата</h1>
-        <p>Все сообщения длиннее 42 символов</p>
+        <p>Все сообщения длиннее 21 символов</p>
     </div>
     
     <div class="stats">

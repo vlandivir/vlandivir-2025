@@ -70,11 +70,11 @@ describe('HistoryCommandsService', () => {
       await service.handleHistoryCommand(mockContext);
 
       expect(mockContext.reply).toHaveBeenCalledWith(
-        'Нет сообщений длиннее 42 символов в этом чате.',
+        'Нет сообщений длиннее 21 символов в этом чате.',
       );
     });
 
-    it('should filter messages longer than 42 characters and upload to DO Space', async () => {
+    it('should filter messages longer than 21 characters and upload to DO Space', async () => {
       const mockContext = {
         chat: { id: 123 },
         reply: jest.fn(),

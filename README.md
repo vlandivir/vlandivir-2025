@@ -48,11 +48,11 @@ Example:
 
 ### `/history`
 
-Generates an HTML page with all messages longer than 42 characters.
+Generates an HTML page with all messages longer than 21 characters.
 
 **Features:**
 
-- Filters messages longer than 42 characters
+- Filters messages longer than 21 characters
 - Generates a beautiful HTML page with chat history
 - Provides a secret GUID-based link
 - Includes message dates and images
