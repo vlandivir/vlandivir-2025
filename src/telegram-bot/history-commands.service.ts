@@ -9,61 +9,65 @@ import { StorageService } from '../services/storage.service';
 
 @Injectable()
 export class HistoryCommandsService {
-    constructor(
-        private prisma: PrismaService,
-        private configService: ConfigService,
-        private storageService: StorageService
-    ) {}
+  constructor(
+    private prisma: PrismaService,
+    private configService: ConfigService,
+    private storageService: StorageService,
+  ) {}
 
-    async handleHistoryCommand(ctx: Context) {
-        const chatId = ctx.chat?.id;
-        if (!chatId) return;
+  async handleHistoryCommand(ctx: Context) {
+    const chatId = ctx.chat?.id;
+    if (!chatId) return;
 
-        try {
-            // Get all messages from the current chat
-            const messages = await this.prisma.note.findMany({
-                where: {
-                    chatId: chatId,
-                },
-                orderBy: {
-                    noteDate: 'asc'
-                },
-                include: {
-                    images: true
-                }
-            });
+    try {
+      // Get all messages from the current chat
+      const messages = await this.prisma.note.findMany({
+        where: {
+          chatId: chatId,
+        },
+        orderBy: {
+          noteDate: 'asc',
+        },
+        include: {
+          images: true,
+        },
+      });
 
-            // Filter messages that are longer than 42 characters
-            const filteredMessages = messages.filter(message => 
-                message.content.length > 42
-            );
+      // Filter messages that are longer than 42 characters
+      const filteredMessages = messages.filter(
+        (message) => message.content.length > 42,
+      );
 
-            if (filteredMessages.length === 0) {
-                await ctx.reply('Нет сообщений длиннее 42 символов в этом чате.');
-                return;
-            }
+      if (filteredMessages.length === 0) {
+        await ctx.reply('Нет сообщений длиннее 42 символов в этом чате.');
+        return;
+      }
 
-            // Generate a unique GUID for the secret link
-            const secretId = uuidv4();
-            // Create HTML content
-            const htmlContent = this.generateHtmlPage(filteredMessages, chatId);
-            // Upload HTML to DO Space
-            const key = `history/${secretId}.html`;
-            const buffer = Buffer.from(htmlContent, 'utf8');
-            const url = await this.storageService.uploadFileWithKey(buffer, 'text/html', key);
-            // Send the public URL as the secret link
-            await ctx.reply(`История чата доступна по ссылке: ${url}`);
-        } catch (error) {
-            console.error('Error handling history command:', error);
-            await ctx.reply('Произошла ошибка при создании истории чата');
-        }
+      // Generate a unique GUID for the secret link
+      const secretId = uuidv4();
+      // Create HTML content
+      const htmlContent = this.generateHtmlPage(filteredMessages, chatId);
+      // Upload HTML to DO Space
+      const key = `history/${secretId}.html`;
+      const buffer = Buffer.from(htmlContent, 'utf8');
+      const url = await this.storageService.uploadFileWithKey(
+        buffer,
+        'text/html',
+        key,
+      );
+      // Send the public URL as the secret link
+      await ctx.reply(`История чата доступна по ссылке: ${url}`);
+    } catch (error) {
+      console.error('Error handling history command:', error);
+      await ctx.reply('Произошла ошибка при создании истории чата');
     }
+  }
 
-    private generateHtmlPage(messages: any[], chatId: number): string {
-        const chatTitle = `Чат ${chatId}`;
-        const messageCount = messages.length;
-        
-        let html = `
+  private generateHtmlPage(messages: any[], chatId: number): string {
+    const chatTitle = `Чат ${chatId}`;
+    const messageCount = messages.length;
+
+    let html = `
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -148,45 +152,49 @@ export class HistoryCommandsService {
     </div>
 `;
 
-        messages.forEach((message, index) => {
-            const date = format(new Date(message.noteDate), 'dd.MM.yyyy HH:mm', { locale: ru });
-            html += `
+    messages.forEach((message, index) => {
+      const date = format(new Date(message.noteDate), 'dd.MM.yyyy HH:mm', {
+        locale: ru,
+      });
+      html += `
     <div class="message">
         <div class="message-date">📅 ${date}</div>
         <div class="message-content">${this.escapeHtml(message.content)}</div>
 `;
-            
-            if (message.images && message.images.length > 0) {
-                message.images.forEach((image: any) => {
-                    const description = image.description ? this.escapeHtml(image.description) : 'Изображение';
-                    html += `
+
+      if (message.images && message.images.length > 0) {
+        message.images.forEach((image: any) => {
+          const description = image.description
+            ? this.escapeHtml(image.description)
+            : 'Изображение';
+          html += `
         <div class="message-image">
             <img src="${image.url}" alt="${description}" />
             ${image.description ? `<div class="image-description">${description}</div>` : ''}
         </div>
 `;
-                });
-            }
-            
-            html += `    </div>`;
         });
+      }
 
-        html += `
+      html += `    </div>`;
+    });
+
+    html += `
     <div class="footer">
         <p>Сгенерировано: ${format(new Date(), 'dd.MM.yyyy HH:mm:ss', { locale: ru })}</p>
     </div>
 </body>
 </html>`;
 
-        return html;
-    }
+    return html;
+  }
 
-    private escapeHtml(text: string): string {
-        return text
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#039;');
-    }
-} 
+  private escapeHtml(text: string): string {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+}

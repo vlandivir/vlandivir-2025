@@ -73,7 +73,9 @@ describe('HistoryCommandsService', () => {
 
       await service.handleHistoryCommand(mockContext);
 
-      expect(mockContext.reply).toHaveBeenCalledWith('Нет сообщений длиннее 42 символов в этом чате.');
+      expect(mockContext.reply).toHaveBeenCalledWith(
+        'Нет сообщений длиннее 42 символов в этом чате.',
+      );
     });
 
     it('should filter messages longer than 42 characters and upload to DO Space', async () => {
@@ -84,35 +86,42 @@ describe('HistoryCommandsService', () => {
 
       const mockMessages = [
         { content: 'Short message', noteDate: new Date(), images: [] },
-        { content: 'This is a much longer message that should be included in the history', noteDate: new Date(), images: [] },
+        {
+          content:
+            'This is a much longer message that should be included in the history',
+          noteDate: new Date(),
+          images: [],
+        },
         { content: 'Another short one', noteDate: new Date(), images: [] },
       ];
 
       mockPrismaService.note.findMany.mockResolvedValue(mockMessages);
-      mockStorageService.uploadFileWithKey.mockResolvedValue('https://fra1.digitaloceanspaces.com/vlandivir-2025/history/test-uuid.html');
+      mockStorageService.uploadFileWithKey.mockResolvedValue(
+        'https://fra1.digitaloceanspaces.com/vlandivir-2025/history/test-uuid.html',
+      );
 
       await service.handleHistoryCommand(mockContext);
 
       expect(mockStorageService.uploadFileWithKey).toHaveBeenCalledWith(
         expect.any(Buffer),
         'text/html',
-        expect.stringMatching(/^history\/[a-f0-9-]+\.html$/)
+        expect.stringMatching(/^history\/[a-f0-9-]+\.html$/),
       );
       expect(mockContext.reply).toHaveBeenCalledWith(
-        expect.stringContaining('История чата доступна по ссылке: https://fra1.digitaloceanspaces.com/vlandivir-2025/history/')
+        expect.stringContaining(
+          'История чата доступна по ссылке: https://fra1.digitaloceanspaces.com/vlandivir-2025/history/',
+        ),
       );
     });
   });
-
-
 
   describe('escapeHtml', () => {
     it('should escape HTML special characters', () => {
       const input = '<script>alert("test")</script>';
       const expected = '&lt;script&gt;alert(&quot;test&quot;)&lt;/script&gt;';
-      
+
       const result = (service as any).escapeHtml(input);
       expect(result).toBe(expected);
     });
   });
-}); 
+});

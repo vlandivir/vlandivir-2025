@@ -12,11 +12,15 @@ async function bootstrap() {
 
   if (environment === 'PROD') {
     let httpsOptions: HttpsOptions;
-    
+
     try {
       httpsOptions = {
-        key: fs.readFileSync(path.join(process.cwd(), '.secret', 'privkey.pem')),
-        cert: fs.readFileSync(path.join(process.cwd(), '.secret', 'fullchain.pem')),
+        key: fs.readFileSync(
+          path.join(process.cwd(), '.secret', 'privkey.pem'),
+        ),
+        cert: fs.readFileSync(
+          path.join(process.cwd(), '.secret', 'fullchain.pem'),
+        ),
       };
     } catch (error) {
       console.error('Ошибка при чтении SSL сертификатов:', error);
