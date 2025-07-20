@@ -82,8 +82,8 @@ export class TelegramBotService {
     console.log('Telegram bot webhook set to:', webhookUrl);
   }
 
-  async stopBot() {
-    await this.bot.stop();
+  stopBot() {
+    this.bot.stop();
   }
 
   private setupCommands() {

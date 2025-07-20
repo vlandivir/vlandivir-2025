@@ -36,7 +36,7 @@ async function testCollageWithCustomImages() {
 
     // Load image buffers
     const imageBuffers = await Promise.all(
-      imageFiles.map(async (file) => {
+      imageFiles.map((file) => {
         const filePath = path.join(customImagesDir, file);
         return fs.readFileSync(filePath);
       }),

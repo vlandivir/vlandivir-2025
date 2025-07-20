@@ -32,11 +32,11 @@ import { QaCommandsService } from './qa-commands.service';
 export class TelegramBotModule implements OnModuleInit, OnModuleDestroy {
   constructor(private botService: TelegramBotService) {}
 
-  async onModuleInit() {
-    await this.botService.startBot();
+  onModuleInit() {
+    this.botService.startBot();
   }
 
-  async onModuleDestroy() {
-    await this.botService.stopBot();
+  onModuleDestroy() {
+    this.botService.stopBot();
   }
 }

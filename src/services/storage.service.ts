@@ -31,7 +31,7 @@ export class StorageService implements OnModuleInit {
     try {
       await this.s3.headBucket({ Bucket: this.bucket });
     } catch (error) {
-      if (error.name === 'NotFound') {
+      if (error instanceof Error && error.name === 'NotFound') {
         await this.s3.createBucket({
           Bucket: this.bucket,
           ACL: 'public-read',

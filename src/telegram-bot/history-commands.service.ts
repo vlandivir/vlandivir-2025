@@ -46,7 +46,7 @@ export class HistoryCommandsService {
       // Generate a unique GUID for the secret link
       const secretId = uuidv4();
       // Create HTML content
-      const htmlContent = this.generateHtmlPage(filteredMessages, chatId);
+      const htmlContent = this.generateHtmlPage(filteredMessages);
       // Upload HTML to DO Space
       const key = `history/${secretId}.html`;
       const buffer = Buffer.from(htmlContent, 'utf8');
@@ -63,7 +63,7 @@ export class HistoryCommandsService {
     }
   }
 
-  private generateHtmlPage(messages: any[], chatId: number): string {
+  private generateHtmlPage(messages: any[]): string {
     const messageCount = messages.length;
 
     let html = `
