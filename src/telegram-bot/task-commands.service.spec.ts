@@ -171,4 +171,28 @@ describe('TaskCommandsService', () => {
       expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('Format:'));
     });
   });
+
+  describe('handleListCommand', () => {
+    it('should sort tasks by due date', async () => {
+      const mockPrisma = {
+        $queryRawUnsafe: jest.fn().mockResolvedValue([]),
+        todo: { count: jest.fn() },
+      };
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [TaskCommandsService, DateParserService, { provide: PrismaService, useValue: mockPrisma }],
+      }).compile();
+
+      const svc = module.get<TaskCommandsService>(TaskCommandsService);
+      const ctx: any = {
+        message: { text: '/tl' },
+        chat: { id: 123456 },
+        reply: jest.fn(),
+      };
+      await svc.handleListCommand(ctx);
+      expect(mockPrisma.$queryRawUnsafe).toHaveBeenCalledWith(
+        expect.stringContaining('ORDER BY "dueDate" IS NULL, "dueDate" ASC')
+      );
+    });
+  });
 });
