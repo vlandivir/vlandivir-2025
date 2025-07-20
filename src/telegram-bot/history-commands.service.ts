@@ -152,7 +152,7 @@ export class HistoryCommandsService {
     </div>
 `;
 
-    messages.forEach((message, index) => {
+    messages.forEach((message) => {
       const date = format(new Date(message.noteDate), 'dd.MM.yyyy HH:mm', {
         locale: ru,
       });
