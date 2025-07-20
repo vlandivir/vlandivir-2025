@@ -24,38 +24,50 @@ describe('TaskCommandsService', () => {
 
   describe('parseDueDate', () => {
     it('should parse full date and time', () => {
-      const result = (service as any).parseDueDate('2025.07.31 09:30');
+      const parseDueDate = (service as any).parseDueDate as (
+        date: string,
+      ) => Date;
+      const result = parseDueDate('2025.07.31 09:30');
       expect(result).toBeInstanceOf(Date);
-      expect(result?.getFullYear()).toBe(2025);
-      expect(result?.getMonth()).toBe(6); // July
-      expect(result?.getDate()).toBe(31);
-      expect(result?.getHours()).toBe(9);
-      expect(result?.getMinutes()).toBe(30);
+      expect(result.getFullYear()).toBe(2025);
+      expect(result.getMonth()).toBe(6); // July
+      expect(result.getDate()).toBe(31);
+      expect(result.getHours()).toBe(9);
+      expect(result.getMinutes()).toBe(30);
     });
 
     it('should parse date without time using parser rules', () => {
-      const result = (service as any).parseDueDate('2 января');
+      const parseDueDate = (service as any).parseDueDate as (
+        date: string,
+      ) => Date;
+      const result = parseDueDate('2 января');
       const year = new Date().getFullYear();
       expect(result).toBeInstanceOf(Date);
-      expect(result?.getFullYear()).toBe(year);
-      expect(result?.getMonth()).toBe(0);
-      expect(result?.getDate()).toBe(2);
+      expect(result.getFullYear()).toBe(year);
+      expect(result.getMonth()).toBe(0);
+      expect(result.getDate()).toBe(2);
     });
 
     it('should parse "tomorrow" with time', () => {
-      const result = (service as any).parseDueDate('tomorrow 10:15');
+      const parseDueDate = (service as any).parseDueDate as (
+        date: string,
+      ) => Date;
+      const result = parseDueDate('tomorrow 10:15');
       const expected = new Date();
       expected.setDate(expected.getDate() + 1);
       expected.setHours(10, 15, 0, 0);
-      expect(result?.getFullYear()).toBe(expected.getFullYear());
-      expect(result?.getMonth()).toBe(expected.getMonth());
-      expect(result?.getDate()).toBe(expected.getDate());
-      expect(result?.getHours()).toBe(10);
-      expect(result?.getMinutes()).toBe(15);
+      expect(result.getFullYear()).toBe(expected.getFullYear());
+      expect(result.getMonth()).toBe(expected.getMonth());
+      expect(result.getDate()).toBe(expected.getDate());
+      expect(result.getHours()).toBe(10);
+      expect(result.getMinutes()).toBe(15);
     });
 
     it('should parse russian day of week', () => {
-      const result = (service as any).parseDueDate('понедельник');
+      const parseDueDate = (service as any).parseDueDate as (
+        date: string,
+      ) => Date;
+      const result = parseDueDate('понедельник');
       expect(result).toBeInstanceOf(Date);
       const today = new Date();
       const targetDay = 1; // Monday
@@ -63,14 +75,19 @@ describe('TaskCommandsService', () => {
       if (diff === 0) diff = 7;
       const expected = new Date();
       expected.setDate(expected.getDate() + diff);
-      expect(result?.getDate()).toBe(expected.getDate());
-      expect(result?.getMonth()).toBe(expected.getMonth());
+      expect(result.getDate()).toBe(expected.getDate());
+      expect(result.getMonth()).toBe(expected.getMonth());
     });
   });
 
   describe('parseTask', () => {
     it('should parse status token', () => {
-      const result = (service as any).parseTask('-done @tag example');
+      const parseTask = (service as any).parseTask as (task: string) => {
+        status: string;
+        tags: string[];
+        content: string;
+      };
+      const result = parseTask('-done @tag example');
       expect(result.status).toBe('done');
       expect(result.tags).toEqual(['tag']);
       expect(result.content).toBe('example');
@@ -78,7 +95,13 @@ describe('TaskCommandsService', () => {
 
     it('should parse snoozed status with days', () => {
       const today = new Date();
-      const result = (service as any).parseTask('-snoozed4 @tag example task');
+      const parseTask = (service as any).parseTask as (task: string) => {
+        status: string;
+        tags: string[];
+        content: string;
+        snoozedUntil: Date;
+      };
+      const result = parseTask('-snoozed4 @tag example task');
       expect(result.status).toBe('snoozed');
       expect(result.tags).toEqual(['tag']);
       expect(result.content).toBe('example task');
@@ -96,7 +119,12 @@ describe('TaskCommandsService', () => {
 
     it('should parse snoozed status with space between -snoozed and number', () => {
       const today = new Date();
-      const result = (service as any).parseTask('-snoozed 3 some task content');
+      const parseTask = (service as any).parseTask as (task: string) => {
+        status: string;
+        content: string;
+        snoozedUntil: Date;
+      };
+      const result = parseTask('-snoozed 3 some task content');
       expect(result.status).toBe('snoozed');
       expect(result.content).toBe('some task content');
       expect(result.snoozedUntil).toBeInstanceOf(Date);
@@ -114,7 +142,15 @@ describe('TaskCommandsService', () => {
 
   describe('parseFilters', () => {
     it('should parse tags contexts and projects', () => {
-      const result = (service as any).parseFilters('@a .b !Proj rest');
+      const parseFilters = (service as any).parseFilters as (
+        filters: string,
+      ) => {
+        tags: string[];
+        contexts: string[];
+        projects: string[];
+        remaining: string[];
+      };
+      const result = parseFilters('@a .b !Proj rest');
       expect(result.tags).toEqual(['a']);
       expect(result.contexts).toEqual(['b']);
       expect(result.projects).toEqual(['Proj rest']);
@@ -136,7 +172,10 @@ describe('TaskCommandsService', () => {
       }).compile();
 
       const svc = module.get<TaskCommandsService>(TaskCommandsService);
-      const key = await (svc as any).generateKey(123);
+      const generateKey = (svc as any).generateKey as (
+        chatId: number,
+      ) => Promise<string>;
+      const key = await generateKey(123);
       expect(key).toBe(`T-${datePart}-01`);
     });
   });
@@ -169,13 +208,14 @@ describe('TaskCommandsService', () => {
       }).compile();
 
       const svc = module.get<TaskCommandsService>(TaskCommandsService);
-      const ctx: any = {
+      const mockReply = jest.fn();
+      const ctx = {
         message: {
           text: '/t T-20250710-3 -done @x .y !New :2025.07.31 new text',
         },
         chat: { id: 123456 },
-        reply: jest.fn(),
-      };
+        reply: mockReply,
+      } as any;
       await svc.handleTaskCommand(ctx);
       expect(mockPrisma.todo.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -189,7 +229,7 @@ describe('TaskCommandsService', () => {
           }),
         }),
       );
-      expect(ctx.reply).toHaveBeenCalledWith('Task T-20250710-3 updated');
+      expect(mockReply).toHaveBeenCalledWith('Task T-20250710-3 updated');
     });
   });
 
@@ -205,13 +245,14 @@ describe('TaskCommandsService', () => {
       }).compile();
 
       const svc = module.get<TaskCommandsService>(TaskCommandsService);
-      const ctx: any = {
+      const mockReply = jest.fn();
+      const ctx = {
         message: { text: '/t' },
         chat: { id: 123456 },
-        reply: jest.fn(),
-      };
+        reply: mockReply,
+      } as any;
       await svc.handleTaskCommand(ctx);
-      expect(ctx.reply).toHaveBeenCalledWith(
+      expect(mockReply).toHaveBeenCalledWith(
         expect.stringContaining('Format:'),
       );
     });
@@ -233,11 +274,12 @@ describe('TaskCommandsService', () => {
       }).compile();
 
       const svc = module.get<TaskCommandsService>(TaskCommandsService);
-      const ctx: any = {
+      const mockReply = jest.fn();
+      const ctx = {
         message: { text: '/tl' },
         chat: { id: 123456 },
-        reply: jest.fn(),
-      };
+        reply: mockReply,
+      } as any;
       await svc.handleListCommand(ctx);
       expect(mockPrisma.$queryRawUnsafe).toHaveBeenCalledWith(
         expect.stringContaining('ORDER BY "dueDate" IS NULL, "dueDate" ASC'),
