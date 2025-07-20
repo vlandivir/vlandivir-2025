@@ -22,7 +22,6 @@ jest.mock('sharp', () => {
 
 describe('CollageCommandsService', () => {
   let service: CollageCommandsService;
-  let prismaService: PrismaService;
   let storageService: StorageService;
 
   const mockContext = {
@@ -70,7 +69,6 @@ describe('CollageCommandsService', () => {
     }) as any;
 
     service = module.get<CollageCommandsService>(CollageCommandsService);
-    prismaService = module.get<PrismaService>(PrismaService);
     storageService = module.get<StorageService>(StorageService);
   });
 

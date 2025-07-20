@@ -64,7 +64,6 @@ export class HistoryCommandsService {
   }
 
   private generateHtmlPage(messages: any[], chatId: number): string {
-    const chatTitle = `Чат ${chatId}`;
     const messageCount = messages.length;
 
     let html = `

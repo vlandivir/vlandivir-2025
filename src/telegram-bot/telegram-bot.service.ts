@@ -68,7 +68,7 @@ export class TelegramBotService {
     this.addChannelCreatorMapping(-1002259110541, 150847737);
   }
 
-  async startBot() {
+  startBot() {
     // Заменяем launch() на webhook
     const webhookUrl = this.configService.get<string>(
       'VLANDIVIR_2025_WEBHOOK_URL',
@@ -78,7 +78,7 @@ export class TelegramBotService {
     }
 
     // Устанавливаем webhook вместо запуска long polling
-    this.bot.telegram.setWebhook(webhookUrl);
+    void this.bot.telegram.setWebhook(webhookUrl);
     console.log('Telegram bot webhook set to:', webhookUrl);
   }
 

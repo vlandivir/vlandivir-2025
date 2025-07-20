@@ -102,14 +102,16 @@ export class StorageService implements OnModuleInit {
 
       // Convert stream to buffer
       const chunks: Buffer[] = [];
-      for await (const chunk of response.Body as any) {
-        chunks.push(chunk);
+      for await (const chunk of response.Body as NodeJS.ReadableStream) {
+        chunks.push(Buffer.from(chunk));
       }
 
       return Buffer.concat(chunks);
     } catch (error) {
       console.error('Error downloading file:', error);
-      throw new Error(`Failed to download file: ${error.message}`);
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to download file: ${errorMessage}`);
     }
   }
 }

@@ -6,8 +6,6 @@ import { StorageService } from '../services/storage.service';
 
 describe('HistoryCommandsService', () => {
   let service: HistoryCommandsService;
-  let prismaService: PrismaService;
-  let configService: ConfigService;
 
   const mockPrismaService = {
     note: {
@@ -43,8 +41,6 @@ describe('HistoryCommandsService', () => {
     }).compile();
 
     service = module.get<HistoryCommandsService>(HistoryCommandsService);
-    prismaService = module.get<PrismaService>(PrismaService);
-    configService = module.get<ConfigService>(ConfigService);
   });
 
   it('should be defined', () => {
