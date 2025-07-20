@@ -7,11 +7,8 @@ WORKDIR /usr/src/app
 # Копируем package.json и package-lock.json
 COPY package*.json ./
 
-# Устанавливаем зависимости
-RUN npm install --production
-
-# Устанавливаем @nestjs/cli и @types/node
-RUN npm install -g @nestjs/cli && npm install --save-dev @types/node
+# Устанавливаем все зависимости (включая dev dependencies для сборки)
+RUN npm ci
 
 # Копируем все файлы приложения
 COPY . .
@@ -21,6 +18,9 @@ RUN npx prisma generate
 
 # Компилируем TypeScript в JavaScript
 RUN npm run build
+
+# Удаляем dev dependencies после сборки для уменьшения размера образа
+RUN npm prune --production
 
 # Declare build args that will be passed as environment variables
 ARG TELEGRAM_BOT_TOKEN
