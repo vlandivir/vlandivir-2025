@@ -342,7 +342,7 @@ export class TaskCommandsService {
             query += ` AND projects @> '${JSON.stringify(projects)}'::jsonb`;
         }
 
-        query += ` ORDER BY "createdAt" DESC, key ASC`;
+        query += ` ORDER BY "dueDate" IS NULL, "dueDate" ASC, "createdAt" DESC, key ASC`;
 
         // Use CTE to get latest record for each key, then apply filters
         const latestTasks = await this.prisma.$queryRawUnsafe<Array<{
