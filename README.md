@@ -73,6 +73,7 @@ Creates a new todo item.
 - `!project` — assign projects (multiword names are allowed).
 - `(A)` — set priority with a letter in parentheses.
 - `:<date>` or `:<date> HH:MM` — optional due date. `<date>` accepts the same formats as in the note examples above.
+- You can also use words like `tomorrow` or day names (`sunday`, `понедельник`, etc.) for the due date.
 
 To update an existing task, start the command with its key:
 `/t T-20250710-03 ...`. New tags and contexts are appended while
