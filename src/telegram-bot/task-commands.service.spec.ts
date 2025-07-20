@@ -83,12 +83,14 @@ describe('TaskCommandsService', () => {
       expect(result.tags).toEqual(['tag']);
       expect(result.content).toBe('example task');
       expect(result.snoozedUntil).toBeInstanceOf(Date);
-      
+
       const expectedDate = new Date(today);
       expectedDate.setDate(expectedDate.getDate() + 4);
-      
+
       // Check if the date is close to expected (within 1 minute to account for test execution time)
-      const timeDiff = Math.abs(result.snoozedUntil.getTime() - expectedDate.getTime());
+      const timeDiff = Math.abs(
+        result.snoozedUntil.getTime() - expectedDate.getTime(),
+      );
       expect(timeDiff).toBeLessThan(60000); // less than 1 minute
     });
 
@@ -98,12 +100,14 @@ describe('TaskCommandsService', () => {
       expect(result.status).toBe('snoozed');
       expect(result.content).toBe('some task content');
       expect(result.snoozedUntil).toBeInstanceOf(Date);
-      
+
       const expectedDate = new Date(today);
       expectedDate.setDate(expectedDate.getDate() + 3);
-      
+
       // Check if the date is close to expected (within 1 minute to account for test execution time)
-      const timeDiff = Math.abs(result.snoozedUntil.getTime() - expectedDate.getTime());
+      const timeDiff = Math.abs(
+        result.snoozedUntil.getTime() - expectedDate.getTime(),
+      );
       expect(timeDiff).toBeLessThan(60000); // less than 1 minute
     });
   });
@@ -124,7 +128,11 @@ describe('TaskCommandsService', () => {
       const datePart = format(today, 'yyyyMMdd');
       const mockPrisma = { todo: { count: jest.fn().mockResolvedValue(0) } };
       const module: TestingModule = await Test.createTestingModule({
-        providers: [TaskCommandsService, DateParserService, { provide: PrismaService, useValue: mockPrisma }],
+        providers: [
+          TaskCommandsService,
+          DateParserService,
+          { provide: PrismaService, useValue: mockPrisma },
+        ],
       }).compile();
 
       const svc = module.get<TaskCommandsService>(TaskCommandsService);
@@ -153,14 +161,20 @@ describe('TaskCommandsService', () => {
       };
 
       const module: TestingModule = await Test.createTestingModule({
-        providers: [TaskCommandsService, DateParserService, { provide: PrismaService, useValue: mockPrisma }],
+        providers: [
+          TaskCommandsService,
+          DateParserService,
+          { provide: PrismaService, useValue: mockPrisma },
+        ],
       }).compile();
 
       const svc = module.get<TaskCommandsService>(TaskCommandsService);
-      const ctx: any = { 
-        message: { text: '/t T-20250710-3 -done @x .y !New :2025.07.31 new text' }, 
+      const ctx: any = {
+        message: {
+          text: '/t T-20250710-3 -done @x .y !New :2025.07.31 new text',
+        },
         chat: { id: 123456 },
-        reply: jest.fn() 
+        reply: jest.fn(),
       };
       await svc.handleTaskCommand(ctx);
       expect(mockPrisma.todo.create).toHaveBeenCalledWith(
@@ -183,17 +197,23 @@ describe('TaskCommandsService', () => {
     it('should show format message', async () => {
       const mockPrisma = { todo: { count: jest.fn() } };
       const module: TestingModule = await Test.createTestingModule({
-        providers: [TaskCommandsService, DateParserService, { provide: PrismaService, useValue: mockPrisma }],
+        providers: [
+          TaskCommandsService,
+          DateParserService,
+          { provide: PrismaService, useValue: mockPrisma },
+        ],
       }).compile();
 
       const svc = module.get<TaskCommandsService>(TaskCommandsService);
-      const ctx: any = { 
-        message: { text: '/t' }, 
+      const ctx: any = {
+        message: { text: '/t' },
         chat: { id: 123456 },
-        reply: jest.fn() 
+        reply: jest.fn(),
       };
       await svc.handleTaskCommand(ctx);
-      expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('Format:'));
+      expect(ctx.reply).toHaveBeenCalledWith(
+        expect.stringContaining('Format:'),
+      );
     });
   });
 
@@ -205,7 +225,11 @@ describe('TaskCommandsService', () => {
       };
 
       const module: TestingModule = await Test.createTestingModule({
-        providers: [TaskCommandsService, DateParserService, { provide: PrismaService, useValue: mockPrisma }],
+        providers: [
+          TaskCommandsService,
+          DateParserService,
+          { provide: PrismaService, useValue: mockPrisma },
+        ],
       }).compile();
 
       const svc = module.get<TaskCommandsService>(TaskCommandsService);
@@ -216,7 +240,7 @@ describe('TaskCommandsService', () => {
       };
       await svc.handleListCommand(ctx);
       expect(mockPrisma.$queryRawUnsafe).toHaveBeenCalledWith(
-        expect.stringContaining('ORDER BY "dueDate" IS NULL, "dueDate" ASC')
+        expect.stringContaining('ORDER BY "dueDate" IS NULL, "dueDate" ASC'),
       );
     });
   });

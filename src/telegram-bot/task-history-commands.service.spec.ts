@@ -23,7 +23,9 @@ describe('TaskHistoryCommandsService', () => {
       ],
     }).compile();
 
-    service = module.get<TaskHistoryCommandsService>(TaskHistoryCommandsService);
+    service = module.get<TaskHistoryCommandsService>(
+      TaskHistoryCommandsService,
+    );
   });
 
   it('should be defined', () => {
@@ -31,9 +33,9 @@ describe('TaskHistoryCommandsService', () => {
   });
 
   it('should reply when no tasks', async () => {
-    const ctx: any = { 
+    const ctx: any = {
       chat: { id: 123456 },
-      reply: jest.fn() 
+      reply: jest.fn(),
     };
     mockPrismaService.todo.findMany.mockResolvedValue([]);
     await service.handleTaskHistoryCommand(ctx);

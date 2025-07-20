@@ -4,7 +4,7 @@ import { Telegraf, Context } from 'telegraf';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { DateParserService } from '../services/date-parser.service';
-import { format, startOfDay, endOfDay } from 'date-fns';
+import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { message, channelPost } from 'telegraf/filters';
 import { DairyCommandsService } from './dairy-commands.service';
@@ -68,7 +68,7 @@ export class TelegramBotService {
     this.addChannelCreatorMapping(-1002259110541, 150847737);
   }
 
-  async startBot() {
+  startBot() {
     // Заменяем launch() на webhook
     const webhookUrl = this.configService.get<string>(
       'VLANDIVIR_2025_WEBHOOK_URL',
@@ -78,7 +78,7 @@ export class TelegramBotService {
     }
 
     // Устанавливаем webhook вместо запуска long polling
-    await this.bot.telegram.setWebhook(webhookUrl);
+    void this.bot.telegram.setWebhook(webhookUrl);
     console.log('Telegram bot webhook set to:', webhookUrl);
   }
 

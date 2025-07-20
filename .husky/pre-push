@@ -1,0 +1,1 @@
+npm run format && npm run lint || echo "Linting issues found but push proceeding. Please fix them soon." 

@@ -35,7 +35,7 @@ describe('LlmService', () => {
   describe('describeImage', () => {
     it('should return error message when API key is not defined', async () => {
       jest.spyOn(configService, 'get').mockReturnValue(undefined);
-      
+
       const result = await service.describeImage(Buffer.from('test'));
       expect(result).toBe('Не удалось описать изображение');
     });
@@ -52,4 +52,4 @@ describe('LlmService', () => {
       expect(result).toBe('Не удалось описать изображение');
     });
   });
-}); 
+});

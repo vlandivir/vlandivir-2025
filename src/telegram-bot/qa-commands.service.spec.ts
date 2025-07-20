@@ -14,7 +14,10 @@ describe('QaCommandsService', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [QaCommandsService, { provide: PrismaService, useValue: mockPrisma }],
+      providers: [
+        QaCommandsService,
+        { provide: PrismaService, useValue: mockPrisma },
+      ],
     }).compile();
 
     service = module.get<QaCommandsService>(QaCommandsService);

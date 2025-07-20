@@ -44,7 +44,7 @@ export class DateParserService {
 
           return { date, cleanContent };
         }
-      } catch (e) {
+      } catch {
         continue;
       }
     }

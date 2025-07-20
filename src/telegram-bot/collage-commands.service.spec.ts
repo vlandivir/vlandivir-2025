@@ -22,19 +22,18 @@ jest.mock('sharp', () => {
 
 describe('CollageCommandsService', () => {
   let service: CollageCommandsService;
-  let prismaService: PrismaService;
   let storageService: StorageService;
 
   const mockContext = {
     chat: {
-      id: 123456
+      id: 123456,
     },
     message: {
       photo: [
         { file_id: 'photo1', width: 800, height: 600 },
         { file_id: 'photo2', width: 400, height: 300 },
-        { file_id: 'photo3', width: 400, height: 300 }
-      ]
+        { file_id: 'photo3', width: 400, height: 300 },
+      ],
     },
     telegram: {
       getFile: jest.fn().mockResolvedValue({ file_path: 'test/path' }),
@@ -70,7 +69,6 @@ describe('CollageCommandsService', () => {
     }) as any;
 
     service = module.get<CollageCommandsService>(CollageCommandsService);
-    prismaService = module.get<PrismaService>(PrismaService);
     storageService = module.get<StorageService>(StorageService);
   });
 
@@ -82,25 +80,27 @@ describe('CollageCommandsService', () => {
     const contextWithOnePhoto = {
       ...mockContext,
       message: {
-        photo: [{ file_id: 'photo1', width: 800, height: 600 }]
-      }
+        photo: [{ file_id: 'photo1', width: 800, height: 600 }],
+      },
     } as unknown as Context;
 
     await service.handleCollageCommand(contextWithOnePhoto);
 
     expect(mockContext.reply).toHaveBeenCalledWith(
-      'Для создания коллажа нужно минимум 2 изображения в одном сообщении.'
+      'Для создания коллажа нужно минимум 2 изображения в одном сообщении.',
     );
   });
 
   it('should handle collage command with sufficient images', async () => {
-    jest.spyOn(storageService, 'uploadFile').mockResolvedValue('https://example.com/collage.jpg');
+    jest
+      .spyOn(storageService, 'uploadFile')
+      .mockResolvedValue('https://example.com/collage.jpg');
 
     await service.handleCollageCommand(mockContext);
 
     expect(mockContext.replyWithPhoto).toHaveBeenCalledWith(
       'https://example.com/collage.jpg',
-      { caption: 'Коллаж из изображений' }
+      { caption: 'Коллаж из изображений' },
     );
   });
 
@@ -110,8 +110,8 @@ describe('CollageCommandsService', () => {
       message: {
         photo: [
           { file_id: 'photo1', width: 800, height: 600 },
-          { file_id: 'photo2', width: 400, height: 300 }
-        ]
+          { file_id: 'photo2', width: 400, height: 300 },
+        ],
       },
       telegram: {
         getFile: jest.fn().mockRejectedValue(new Error('Network error')),
@@ -121,7 +121,7 @@ describe('CollageCommandsService', () => {
     await service.handleCollageCommand(contextWithError);
 
     expect(mockContext.reply).toHaveBeenCalledWith(
-      'Произошла ошибка при создании коллажа'
+      'Произошла ошибка при создании коллажа',
     );
   });
-}); 
+});
