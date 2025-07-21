@@ -26,7 +26,8 @@ describe('TaskCommandsService', () => {
 
   describe('parseDueDate', () => {
     it('should parse full date and time', () => {
-      const result = (service as any).parseDueDate('2025.07.31 09:30') as Date;
+      const svc = service as unknown as { parseDueDate(text: string): Date };
+      const result = svc.parseDueDate('2025.07.31 09:30');
       expect(result).toBeInstanceOf(Date);
       expect(result.getFullYear()).toBe(2025);
       expect(result.getMonth()).toBe(6); // July
@@ -36,7 +37,8 @@ describe('TaskCommandsService', () => {
     });
 
     it('should parse date without time using parser rules', () => {
-      const result = (service as any).parseDueDate('2 января') as Date;
+      const svc = service as unknown as { parseDueDate(text: string): Date };
+      const result = svc.parseDueDate('2 января');
       const year = new Date().getFullYear();
       expect(result).toBeInstanceOf(Date);
       expect(result.getFullYear()).toBe(year);
@@ -45,7 +47,8 @@ describe('TaskCommandsService', () => {
     });
 
     it('should parse "tomorrow" with time', () => {
-      const result = (service as any).parseDueDate('tomorrow 10:15') as Date;
+      const svc = service as unknown as { parseDueDate(text: string): Date };
+      const result = svc.parseDueDate('tomorrow 10:15');
       const expected = new Date();
       expected.setDate(expected.getDate() + 1);
       expected.setHours(10, 15, 0, 0);
@@ -57,7 +60,8 @@ describe('TaskCommandsService', () => {
     });
 
     it('should parse russian day of week', () => {
-      const result = (service as any).parseDueDate('понедельник') as Date;
+      const svc = service as unknown as { parseDueDate(text: string): Date };
+      const result = svc.parseDueDate('понедельник');
       expect(result).toBeInstanceOf(Date);
       const today = new Date();
       const targetDay = 1; // Monday
@@ -72,7 +76,15 @@ describe('TaskCommandsService', () => {
 
   describe('parseTask', () => {
     it('should parse status token', () => {
-      const result = (service as any).parseTask('-done @tag example') as {
+      const svc = service as unknown as {
+        parseTask(text: string): {
+          status?: string;
+          tags: string[];
+          content: string;
+          snoozedUntil?: Date;
+        };
+      };
+      const result = svc.parseTask('-done @tag example') as {
         status: string;
         tags: string[];
         content: string;
@@ -84,9 +96,15 @@ describe('TaskCommandsService', () => {
 
     it('should parse snoozed status with days', () => {
       const today = new Date();
-      const result = (service as any).parseTask(
-        '-snoozed4 @tag example task',
-      ) as {
+      const svc = service as unknown as {
+        parseTask(text: string): {
+          status?: string;
+          tags: string[];
+          content: string;
+          snoozedUntil?: Date;
+        };
+      };
+      const result = svc.parseTask('-snoozed4 @tag example task') as {
         status: string;
         tags: string[];
         content: string;
@@ -109,9 +127,14 @@ describe('TaskCommandsService', () => {
 
     it('should parse snoozed status with space between -snoozed and number', () => {
       const today = new Date();
-      const result = (service as any).parseTask(
-        '-snoozed 3 some task content',
-      ) as {
+      const svc = service as unknown as {
+        parseTask(text: string): {
+          status?: string;
+          content: string;
+          snoozedUntil?: Date;
+        };
+      };
+      const result = svc.parseTask('-snoozed 3 some task content') as {
         status: string;
         content: string;
         snoozedUntil: Date;
@@ -133,7 +156,15 @@ describe('TaskCommandsService', () => {
 
   describe('parseFilters', () => {
     it('should parse tags contexts and projects', () => {
-      const result = (service as any).parseFilters('@a .b !Proj rest') as {
+      const svc = service as unknown as {
+        parseFilters(text: string): {
+          tags: string[];
+          contexts: string[];
+          projects: string[];
+          remaining: string[];
+        };
+      };
+      const result = svc.parseFilters('@a .b !Proj rest') as {
         tags: string[];
         contexts: string[];
         projects: string[];
@@ -160,7 +191,10 @@ describe('TaskCommandsService', () => {
       }).compile();
 
       const svc = module.get<TaskCommandsService>(TaskCommandsService);
-      const key = (await (svc as any).generateKey(123)) as string;
+      const svcWithPriv = svc as unknown as {
+        generateKey(id: number): Promise<string>;
+      };
+      const key = await svcWithPriv.generateKey(123);
       expect(key).toBe(`T-${datePart}-01`);
     });
   });
@@ -194,7 +228,7 @@ describe('TaskCommandsService', () => {
 
       const svc = module.get<TaskCommandsService>(TaskCommandsService);
       const mockReply = jest.fn();
-      const ctx = {
+      const ctx: Context<Update> = {
         message: {
           text: '/t T-20250710-3 -done @x .y !New :2025.07.31 new text',
         },
@@ -203,8 +237,8 @@ describe('TaskCommandsService', () => {
       } as unknown as Context<Update>;
       await svc.handleTaskCommand(ctx);
       expect(mockPrisma.todo.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
+        expect.objectContaining<Record<string, unknown>>({
+          data: expect.objectContaining<Record<string, unknown>>({
             key: 'T-20250710-3',
             status: 'done',
             tags: ['work', 'x'],
@@ -231,7 +265,7 @@ describe('TaskCommandsService', () => {
 
       const svc = module.get<TaskCommandsService>(TaskCommandsService);
       const mockReply = jest.fn();
-      const ctx = {
+      const ctx: Context<Update> = {
         message: { text: '/t' },
         chat: { id: 123456 },
         reply: mockReply,
@@ -260,7 +294,7 @@ describe('TaskCommandsService', () => {
 
       const svc = module.get<TaskCommandsService>(TaskCommandsService);
       const mockReply = jest.fn();
-      const ctx = {
+      const ctx: Context<Update> = {
         message: { text: '/tl' },
         chat: { id: 123456 },
         reply: mockReply,
