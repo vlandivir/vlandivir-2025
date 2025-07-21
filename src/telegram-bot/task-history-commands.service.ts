@@ -150,7 +150,7 @@ export class TaskHistoryCommandsService {
         const h = g.history[i];
         html += `<li>${format(new Date(h.createdAt), 'yyyy-MM-dd HH:mm')} - `;
         if (i === 0) {
-          html += 'created';
+          html += `created: ${this.escapeHtml(h.content)}`;
         } else {
           const prev = g.history[i - 1];
           const changes = this.describeChanges(prev, h);

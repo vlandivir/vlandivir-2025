@@ -108,7 +108,8 @@ Tasks are organized into three categories:
 - **Finished**: Completed or canceled tasks sorted by creation date
 
 The snoozed until date is displayed for snoozed tasks.
-History lines show only what changed instead of repeating the full task text.
+History lines show only what changed instead of repeating the full task text,
+and the first history entry now includes the task title.
 
 ### `/qa`
 
