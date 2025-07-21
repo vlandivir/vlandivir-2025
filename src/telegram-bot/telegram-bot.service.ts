@@ -178,6 +178,11 @@ export class TelegramBotService {
     this.bot.on(message('text'), async (ctx) => {
       console.log('Получено текстовое сообщение:', ctx.message.text);
 
+      if (this.qaCommands.isActive(ctx.chat.id)) {
+        await this.qaCommands.handleText(ctx);
+        return;
+      }
+
       if (!ctx.message.text.startsWith('/')) {
         const isGroup =
           ctx.chat.type === 'group' || ctx.chat.type === 'supergroup';
@@ -214,7 +219,7 @@ export class TelegramBotService {
       await this.handleIncomingPhoto(photoContext, true);
     });
 
-    // Handle collage inline buttons
+    // Handle inline buttons
     this.bot.on('callback_query', async (ctx) => {
       const data = (ctx.callbackQuery as CallbackQuery.DataQuery | undefined)
         ?.data;
@@ -222,6 +227,12 @@ export class TelegramBotService {
         await this.collageCommands.cancel(ctx);
       } else if (data === 'collage_generate') {
         await this.collageCommands.generate(ctx);
+      } else if (
+        data === 'qa_type_string' ||
+        data === 'qa_type_number' ||
+        data === 'qa_type_boolean'
+      ) {
+        await this.qaCommands.handleTypeSelection(ctx);
       }
     });
   }
