@@ -4,7 +4,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import { DateParserService } from '../services/date-parser.service';
 import { format } from 'date-fns';
 import { Context } from 'telegraf';
-import { Update } from 'telegraf/typings/core/types/typegram';
 
 describe('TaskCommandsService', () => {
   let service: TaskCommandsService;

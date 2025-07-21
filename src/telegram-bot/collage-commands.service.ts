@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Context } from 'telegraf';
-import { Update } from 'telegraf/typings/core/types/typegram';
+import { InlineKeyboardMarkup } from 'telegraf/typings/core/types/typegram';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../services/storage.service';
 import * as sharp from 'sharp';
@@ -83,7 +83,7 @@ export class CollageCommandsService {
     await ctx.answerCbQuery();
     await (
       ctx as Context & {
-        editMessageReplyMarkup: (markup: any) => Promise<void>;
+        editMessageReplyMarkup: (markup: InlineKeyboardMarkup | undefined) => Promise<void>;
       }
     ).editMessageReplyMarkup(undefined);
     await (ctx as Context & { reply: (text: string) => Promise<void> }).reply(
@@ -98,7 +98,7 @@ export class CollageCommandsService {
       );
       await (
         ctx as Context & {
-          replyWithPhoto: (url: string, options: any) => Promise<void>;
+          replyWithPhoto: (url: string, options: { caption?: string }) => Promise<void>;
         }
       ).replyWithPhoto(collageUrl, {
         caption: 'Коллаж из изображений',

@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { Context } from 'telegraf';
-import { Update } from 'telegraf/typings/core/types/typegram';
 import { PrismaService } from '../prisma/prisma.service';
 import { DateParserService } from '../services/date-parser.service';
 import { format, startOfDay, endOfDay } from 'date-fns';

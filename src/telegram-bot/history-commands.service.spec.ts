@@ -4,7 +4,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { StorageService } from '../services/storage.service';
 import { Context } from 'telegraf';
-import { Update } from 'telegraf/typings/core/types/typegram';
 
 describe('HistoryCommandsService', () => {
   let service: HistoryCommandsService;

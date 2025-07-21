@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { Context } from 'telegraf';
-import { Update } from 'telegraf/typings/core/types/typegram';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { v4 as uuidv4 } from 'uuid';

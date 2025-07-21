@@ -3,7 +3,6 @@ import { TaskHistoryCommandsService } from './task-history-commands.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../services/storage.service';
 import { Context } from 'telegraf';
-import { Update } from 'telegraf/typings/core/types/typegram';
 
 describe('TaskHistoryCommandsService', () => {
   let service: TaskHistoryCommandsService;
