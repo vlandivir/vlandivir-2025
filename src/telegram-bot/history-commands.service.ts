@@ -1,11 +1,21 @@
 import { Injectable } from '@nestjs/common';
 import { Context } from 'telegraf';
+import { Update } from 'telegraf/typings/core/types/typegram';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { StorageService } from '../services/storage.service';
+
+interface NoteWithImages {
+  content: string;
+  noteDate: Date;
+  images: Array<{
+    url: string;
+    description?: string | null;
+  }>;
+}
 
 @Injectable()
 export class HistoryCommandsService {
@@ -15,7 +25,7 @@ export class HistoryCommandsService {
     private storageService: StorageService,
   ) {}
 
-  async handleHistoryCommand(ctx: Context) {
+  async handleHistoryCommand(ctx: Context<Update>) {
     const chatId = ctx.chat?.id;
     if (!chatId) return;
 
@@ -63,7 +73,7 @@ export class HistoryCommandsService {
     }
   }
 
-  private generateHtmlPage(messages: any[]): string {
+  private generateHtmlPage(messages: NoteWithImages[]): string {
     const messageCount = messages.length;
 
     let html = `
@@ -147,12 +157,12 @@ export class HistoryCommandsService {
     <div class="stats">
         <h3>📊 Статистика</h3>
         <p>Всего сообщений: ${messageCount}</p>
-        <p>Период: ${messages.length > 0 ? format(new Date(messages[0].noteDate), 'dd.MM.yyyy', { locale: ru }) : 'N/A'} - ${messages.length > 0 ? format(new Date(messages[messages.length - 1].noteDate), 'dd.MM.yyyy', { locale: ru }) : 'N/A'}</p>
+        <p>Период: ${messages.length > 0 ? format(messages[0].noteDate, 'dd.MM.yyyy', { locale: ru }) : 'N/A'} - ${messages.length > 0 ? format(messages[messages.length - 1].noteDate, 'dd.MM.yyyy', { locale: ru }) : 'N/A'}</p>
     </div>
 `;
 
     messages.forEach((message) => {
-      const date = format(new Date(message.noteDate), 'dd.MM.yyyy HH:mm', {
+      const date = format(message.noteDate, 'dd.MM.yyyy HH:mm', {
         locale: ru,
       });
       html += `
@@ -162,7 +172,7 @@ export class HistoryCommandsService {
 `;
 
       if (message.images && message.images.length > 0) {
-        message.images.forEach((image: any) => {
+        message.images.forEach((image) => {
           const description = image.description
             ? this.escapeHtml(image.description)
             : 'Изображение';
