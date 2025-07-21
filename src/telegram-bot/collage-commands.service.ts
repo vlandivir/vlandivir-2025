@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Context } from 'telegraf';
+import { Update } from 'telegraf/typings/core/types/typegram';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../services/storage.service';
 import * as sharp from 'sharp';
@@ -17,7 +18,7 @@ export class CollageCommandsService {
     return this.sessions.has(chatId);
   }
 
-  async startConversation(ctx: Context) {
+  async startConversation(ctx: Context<Update>) {
     const chatId = ctx.chat?.id;
     if (!chatId) return;
     this.sessions.set(chatId, []);
@@ -30,7 +31,7 @@ export class CollageCommandsService {
     });
   }
 
-  async addImage(ctx: Context) {
+  async addImage(ctx: Context<Update>) {
     const chatId = ctx.chat?.id;
     if (!chatId || !ctx.message || !('photo' in ctx.message)) return;
     const session = this.sessions.get(chatId);
@@ -53,30 +54,41 @@ export class CollageCommandsService {
     });
   }
 
-  async cancel(ctx: Context) {
-    const chatId = ctx.chat?.id || (ctx.from as any)?.id;
+  async cancel(ctx: Context<Update>) {
+    const chatId = ctx.chat?.id || ctx.from?.id;
     if (!chatId) return;
     this.sessions.delete(chatId);
     if ('callbackQuery' in ctx) {
       await ctx.answerCbQuery();
-      await (ctx as any).editMessageText('Создание коллажа отменено');
+      await ctx.editMessageText('Создание коллажа отменено');
     } else {
-      await (ctx as any).reply('Создание коллажа отменено');
+      // For other context types, we'll use a type assertion
+      await (
+        ctx as Context<Update> & { reply: (text: string) => Promise<void> }
+      ).reply('Создание коллажа отменено');
     }
   }
 
-  async generate(ctx: Context) {
-    const chatId = ctx.chat?.id || (ctx.from as any)?.id;
+  async generate(ctx: Context<Update>) {
+    const chatId = ctx.chat?.id || ctx.from?.id;
     if (!chatId) return;
     const images = this.sessions.get(chatId);
     if (!images || images.length < 2) {
-      await (ctx as any).reply('Нужно минимум 2 изображения');
+      await (
+        ctx as Context<Update> & { reply: (text: string) => Promise<void> }
+      ).reply('Нужно минимум 2 изображения');
       return;
     }
 
     await ctx.answerCbQuery();
-    await (ctx as any).editMessageReplyMarkup(undefined);
-    await (ctx as any).reply('Создаю коллаж...');
+    await (
+      ctx as Context<Update> & {
+        editMessageReplyMarkup: (markup: any) => Promise<void>;
+      }
+    ).editMessageReplyMarkup(undefined);
+    await (
+      ctx as Context<Update> & { reply: (text: string) => Promise<void> }
+    ).reply('Создаю коллаж...');
     try {
       const collageBuffer = await this.createCollage(images);
       const collageUrl = await this.storageService.uploadFile(
@@ -84,18 +96,24 @@ export class CollageCommandsService {
         'image/jpeg',
         chatId,
       );
-      await (ctx as any).replyWithPhoto(collageUrl, {
+      await (
+        ctx as Context<Update> & {
+          replyWithPhoto: (url: string, options: any) => Promise<void>;
+        }
+      ).replyWithPhoto(collageUrl, {
         caption: 'Коллаж из изображений',
       });
     } catch (error) {
       console.error('Error creating collage:', error);
-      await (ctx as any).reply('Произошла ошибка при создании коллажа');
+      await (
+        ctx as Context<Update> & { reply: (text: string) => Promise<void> }
+      ).reply('Произошла ошибка при создании коллажа');
     } finally {
       this.sessions.delete(chatId);
     }
   }
 
-  async handleCollageCommand(ctx: Context) {
+  async handleCollageCommand(ctx: Context<Update>) {
     const chatId = ctx.chat?.id;
     if (!chatId) return;
 
@@ -132,7 +150,7 @@ export class CollageCommandsService {
     }
   }
 
-  private async getImagesFromMessage(ctx: Context): Promise<Buffer[]> {
+  private async getImagesFromMessage(ctx: Context<Update>): Promise<Buffer[]> {
     const images: Buffer[] = [];
 
     // Check if this is a message with multiple photos
