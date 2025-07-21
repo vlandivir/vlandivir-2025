@@ -11,21 +11,21 @@ import { StorageService } from '../services/storage.service';
 interface NoteWithImages {
   content: string;
   noteDate: Date;
-  images: Array<{
+  images: {
     url: string;
     description?: string | null;
-  }>;
+  }[];
 }
 
 @Injectable()
 export class HistoryCommandsService {
   constructor(
-    private prisma: PrismaService,
-    private configService: ConfigService,
-    private storageService: StorageService,
+    private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
+    private readonly storageService: StorageService,
   ) {}
 
-  async handleHistoryCommand(ctx: Context<Update>) {
+  async handleHistoryCommand(ctx: Context) {
     const chatId = ctx.chat?.id;
     if (!chatId) return;
 
@@ -33,7 +33,7 @@ export class HistoryCommandsService {
       // Get all messages from the current chat
       const messages = await this.prisma.note.findMany({
         where: {
-          chatId: chatId,
+          chatId,
         },
         orderBy: {
           noteDate: 'asc',

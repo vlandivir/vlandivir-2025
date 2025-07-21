@@ -30,7 +30,7 @@ import { QaCommandsService } from './qa-commands.service';
   exports: [TelegramBotService],
 })
 export class TelegramBotModule implements OnModuleInit, OnModuleDestroy {
-  constructor(private botService: TelegramBotService) {}
+  constructor(private readonly botService: TelegramBotService) {}
 
   onModuleInit() {
     this.botService.startBot();

@@ -161,7 +161,7 @@ async function createCollage(imageBuffers: Buffer[]): Promise<Buffer> {
       const left = (i - 1) * (additionalImageWidth + spacing);
       composite.push({
         input: processedImage,
-        left: left,
+        left,
         top: mainImageHeight + spacing,
       });
     }

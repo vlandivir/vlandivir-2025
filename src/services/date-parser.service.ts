@@ -16,7 +16,7 @@ interface ParseResult {
 
 @Injectable()
 export class DateParserService {
-  private dateFormats = DATE_PARSER_RULES;
+  private readonly dateFormats = DATE_PARSER_RULES;
 
   extractDateFromFirstLine(text: string): ParseResult {
     if (!text) return { date: null, cleanContent: '' };

@@ -228,13 +228,13 @@ describe('TaskCommandsService', () => {
 
       const svc = module.get<TaskCommandsService>(TaskCommandsService);
       const mockReply = jest.fn();
-      const ctx: Context<Update> = {
+      const ctx: Context = {
         message: {
           text: '/t T-20250710-3 -done @x .y !New :2025.07.31 new text',
         },
         chat: { id: 123456 },
         reply: mockReply,
-      } as unknown as Context<Update>;
+      } as unknown as Context;
       await svc.handleTaskCommand(ctx);
       expect(mockPrisma.todo.create).toHaveBeenCalledWith(
         expect.objectContaining<Record<string, unknown>>({
@@ -265,11 +265,11 @@ describe('TaskCommandsService', () => {
 
       const svc = module.get<TaskCommandsService>(TaskCommandsService);
       const mockReply = jest.fn();
-      const ctx: Context<Update> = {
+      const ctx: Context = {
         message: { text: '/t' },
         chat: { id: 123456 },
         reply: mockReply,
-      } as unknown as Context<Update>;
+      } as unknown as Context;
       await svc.handleTaskCommand(ctx);
       expect(mockReply).toHaveBeenCalledWith(
         expect.stringContaining('Format:'),
@@ -294,11 +294,11 @@ describe('TaskCommandsService', () => {
 
       const svc = module.get<TaskCommandsService>(TaskCommandsService);
       const mockReply = jest.fn();
-      const ctx: Context<Update> = {
+      const ctx: Context = {
         message: { text: '/tl' },
         chat: { id: 123456 },
         reply: mockReply,
-      } as unknown as Context<Update>;
+      } as unknown as Context;
       await svc.handleListCommand(ctx);
       expect(mockPrisma.$queryRawUnsafe).toHaveBeenCalledWith(
         expect.stringContaining('ORDER BY "dueDate" IS NULL, "dueDate" ASC'),

@@ -164,7 +164,7 @@ async function updateImageDescriptions() {
     }
 
     // Final summary
-    console.log('\n' + '='.repeat(50));
+    console.log(`\n${'='.repeat(50)}`);
     console.log('🎉 UPDATE COMPLETE');
     console.log('='.repeat(50));
     console.log(`📊 Total images processed: ${processed}`);

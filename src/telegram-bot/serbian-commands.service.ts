@@ -6,7 +6,7 @@ import { ConfigService } from '@nestjs/config';
 export class SerbianCommandsService {
   private readonly apiKey: string;
 
-  constructor(private configService: ConfigService) {
+  constructor(private readonly configService: ConfigService) {
     this.apiKey = this.configService.get<string>('OPENAI_API_KEY') || '';
     if (!this.apiKey) {
       throw new Error('OPENAI_API_KEY is not defined');
@@ -91,11 +91,11 @@ export class SerbianCommandsService {
       }
 
       const data = (await response.json()) as {
-        choices: Array<{
+        choices: {
           message: {
             content: string;
           };
-        }>;
+        }[];
       };
       return data.choices[0].message.content;
     } catch (error) {

@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class LlmService {
-  constructor(private configService: ConfigService) {}
+  constructor(private readonly configService: ConfigService) {}
 
   async describeImage(imageBuffer: Buffer): Promise<string> {
     try {
@@ -57,11 +57,11 @@ export class LlmService {
       }
 
       const data = (await response.json()) as unknown as {
-        choices: Array<{
+        choices: {
           message: {
             content: string;
           };
-        }>;
+        }[];
       };
       const description = data.choices[0]?.message?.content;
 

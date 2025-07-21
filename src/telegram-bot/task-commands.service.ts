@@ -18,8 +18,8 @@ interface ParsedTask {
 @Injectable()
 export class TaskCommandsService {
   constructor(
-    private prisma: PrismaService,
-    private dateParser: DateParserService,
+    private readonly prisma: PrismaService,
+    private readonly dateParser: DateParserService,
   ) {}
 
   async handleTaskCommand(ctx: Context) {
@@ -66,7 +66,7 @@ export class TaskCommandsService {
         contexts: parsed.contexts,
         projects: parsed.projects,
         status: parsed.status ?? 'new',
-        chatId: chatId,
+        chatId,
       },
     });
     await ctx.reply(`Task created with key ${newKey}`);
@@ -113,7 +113,7 @@ export class TaskCommandsService {
           !tokens[i + 1].startsWith(':') &&
           !/^\([a-zA-Z]\)$/.test(tokens[i + 1])
         ) {
-          project += ' ' + tokens[i + 1];
+          project += ` ${tokens[i + 1]}`;
           i++;
         }
         projects.push(project);
@@ -141,7 +141,7 @@ export class TaskCommandsService {
           continue;
         }
         // Handle -snoozed[number] syntax (e.g., -snoozed4)
-        const snoozedMatch = st.match(/^snoozed(\d+)$/);
+        const snoozedMatch = /^snoozed(\d+)$/.exec(st);
         if (snoozedMatch) {
           status = 'snoozed';
           const days = parseInt(snoozedMatch[1], 10);
@@ -170,7 +170,7 @@ export class TaskCommandsService {
       if (token.startsWith(':')) {
         let dateStr = token.slice(1);
         if (i + 1 < tokens.length && /\d{2}:\d{2}/.test(tokens[i + 1])) {
-          dateStr += ' ' + tokens[i + 1];
+          dateStr += ` ${tokens[i + 1]}`;
           i++;
         }
         const parsed = this.parseDueDate(dateStr);
@@ -194,7 +194,7 @@ export class TaskCommandsService {
   }
 
   private parseDueDate(text: string): Date | undefined {
-    const timeMatch = text.match(/(\d{1,2}:\d{2})$/);
+    const timeMatch = /(\d{1,2}:\d{2})$/.exec(text);
     const datePart = timeMatch
       ? text.replace(timeMatch[0], '').trim()
       : text.trim();
@@ -279,7 +279,7 @@ export class TaskCommandsService {
     const existing = await this.prisma.todo.findFirst({
       where: {
         key,
-        chatId: chatId,
+        chatId,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -301,7 +301,7 @@ export class TaskCommandsService {
       projects:
         updates.projects.length > 0 ? updates.projects : existing.projects,
       status: updates.status ?? existing.status,
-      chatId: chatId,
+      chatId,
     };
 
     await this.prisma.todo.create({ data });
@@ -314,7 +314,7 @@ export class TaskCommandsService {
     const count = await this.prisma.todo.count({
       where: {
         createdAt: { gte: startOfDay(today), lt: endOfDay(today) },
-        chatId: chatId,
+        chatId,
       },
     });
     const index = count + 1;
@@ -363,7 +363,7 @@ export class TaskCommandsService {
 
     // Use CTE to get latest record for each key, then apply filters
     const latestTasks = await this.prisma.$queryRawUnsafe<
-      Array<{
+      {
         id: number;
         key: string;
         content: string;
@@ -376,7 +376,7 @@ export class TaskCommandsService {
         tags: string[];
         contexts: string[];
         projects: string[];
-      }>
+      }[]
     >(query);
 
     if (latestTasks.length === 0) {

@@ -6,11 +6,11 @@ import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class StorageService implements OnModuleInit {
-  private s3: S3;
-  private bucket = 'vlandivir-2025';
-  private endpoint = 'https://fra1.digitaloceanspaces.com';
+  private readonly s3: S3;
+  private readonly bucket = 'vlandivir-2025';
+  private readonly endpoint = 'https://fra1.digitaloceanspaces.com';
 
-  constructor(private configService: ConfigService) {
+  constructor(private readonly configService: ConfigService) {
     this.s3 = new S3({
       endpoint: this.endpoint,
       region: 'fra1',

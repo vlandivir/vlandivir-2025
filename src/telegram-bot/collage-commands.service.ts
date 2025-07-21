@@ -8,17 +8,17 @@ import * as sharp from 'sharp';
 @Injectable()
 export class CollageCommandsService {
   constructor(
-    private prisma: PrismaService,
-    private storageService: StorageService,
+    private readonly prisma: PrismaService,
+    private readonly storageService: StorageService,
   ) {}
 
-  private sessions: Map<number, Buffer[]> = new Map();
+  private readonly sessions: Map<number, Buffer[]> = new Map();
 
   isActive(chatId: number): boolean {
     return this.sessions.has(chatId);
   }
 
-  async startConversation(ctx: Context<Update>) {
+  async startConversation(ctx: Context) {
     const chatId = ctx.chat?.id;
     if (!chatId) return;
     this.sessions.set(chatId, []);
@@ -31,7 +31,7 @@ export class CollageCommandsService {
     });
   }
 
-  async addImage(ctx: Context<Update>) {
+  async addImage(ctx: Context) {
     const chatId = ctx.chat?.id;
     if (!chatId || !ctx.message || !('photo' in ctx.message)) return;
     const session = this.sessions.get(chatId);
@@ -54,7 +54,7 @@ export class CollageCommandsService {
     });
   }
 
-  async cancel(ctx: Context<Update>) {
+  async cancel(ctx: Context) {
     const chatId = ctx.chat?.id || ctx.from?.id;
     if (!chatId) return;
     this.sessions.delete(chatId);
@@ -63,32 +63,32 @@ export class CollageCommandsService {
       await ctx.editMessageText('Создание коллажа отменено');
     } else {
       // For other context types, we'll use a type assertion
-      await (
-        ctx as Context<Update> & { reply: (text: string) => Promise<void> }
-      ).reply('Создание коллажа отменено');
+      await (ctx as Context & { reply: (text: string) => Promise<void> }).reply(
+        'Создание коллажа отменено',
+      );
     }
   }
 
-  async generate(ctx: Context<Update>) {
+  async generate(ctx: Context) {
     const chatId = ctx.chat?.id || ctx.from?.id;
     if (!chatId) return;
     const images = this.sessions.get(chatId);
     if (!images || images.length < 2) {
-      await (
-        ctx as Context<Update> & { reply: (text: string) => Promise<void> }
-      ).reply('Нужно минимум 2 изображения');
+      await (ctx as Context & { reply: (text: string) => Promise<void> }).reply(
+        'Нужно минимум 2 изображения',
+      );
       return;
     }
 
     await ctx.answerCbQuery();
     await (
-      ctx as Context<Update> & {
+      ctx as Context & {
         editMessageReplyMarkup: (markup: any) => Promise<void>;
       }
     ).editMessageReplyMarkup(undefined);
-    await (
-      ctx as Context<Update> & { reply: (text: string) => Promise<void> }
-    ).reply('Создаю коллаж...');
+    await (ctx as Context & { reply: (text: string) => Promise<void> }).reply(
+      'Создаю коллаж...',
+    );
     try {
       const collageBuffer = await this.createCollage(images);
       const collageUrl = await this.storageService.uploadFile(
@@ -97,7 +97,7 @@ export class CollageCommandsService {
         chatId,
       );
       await (
-        ctx as Context<Update> & {
+        ctx as Context & {
           replyWithPhoto: (url: string, options: any) => Promise<void>;
         }
       ).replyWithPhoto(collageUrl, {
@@ -105,15 +105,15 @@ export class CollageCommandsService {
       });
     } catch (error) {
       console.error('Error creating collage:', error);
-      await (
-        ctx as Context<Update> & { reply: (text: string) => Promise<void> }
-      ).reply('Произошла ошибка при создании коллажа');
+      await (ctx as Context & { reply: (text: string) => Promise<void> }).reply(
+        'Произошла ошибка при создании коллажа',
+      );
     } finally {
       this.sessions.delete(chatId);
     }
   }
 
-  async handleCollageCommand(ctx: Context<Update>) {
+  async handleCollageCommand(ctx: Context) {
     const chatId = ctx.chat?.id;
     if (!chatId) return;
 
@@ -150,7 +150,7 @@ export class CollageCommandsService {
     }
   }
 
-  private async getImagesFromMessage(ctx: Context<Update>): Promise<Buffer[]> {
+  private async getImagesFromMessage(ctx: Context): Promise<Buffer[]> {
     const images: Buffer[] = [];
 
     // Check if this is a message with multiple photos
@@ -309,7 +309,7 @@ export class CollageCommandsService {
         const left = additionalIndex * (additionalImageWidth + spacing);
         composite.push({
           input: processedImage,
-          left: left,
+          left,
           top: mainImageHeight + spacing,
         });
 

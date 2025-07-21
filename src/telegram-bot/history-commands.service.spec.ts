@@ -55,7 +55,7 @@ describe('HistoryCommandsService', () => {
       const mockContext = {
         chat: undefined,
         reply: mockReply,
-      } as unknown as Context<Update>;
+      } as unknown as Context;
 
       await service.handleHistoryCommand(mockContext);
 
@@ -67,7 +67,7 @@ describe('HistoryCommandsService', () => {
       const mockContext = {
         chat: { id: 123 },
         reply: mockReply,
-      } as unknown as Context<Update>;
+      } as unknown as Context;
 
       mockPrismaService.note.findMany.mockResolvedValue([]);
 
@@ -83,7 +83,7 @@ describe('HistoryCommandsService', () => {
       const mockContext = {
         chat: { id: 123 },
         reply: mockReply,
-      } as unknown as Context<Update>;
+      } as unknown as Context;
 
       const mockMessages = [
         { content: 'Short message', noteDate: new Date(), images: [] },

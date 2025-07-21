@@ -9,11 +9,11 @@ import { ru } from 'date-fns/locale';
 @Injectable()
 export class DairyCommandsService {
   constructor(
-    private prisma: PrismaService,
-    private dateParser: DateParserService,
+    private readonly prisma: PrismaService,
+    private readonly dateParser: DateParserService,
   ) {}
 
-  async handleDairyCommand(ctx: Context<Update>) {
+  async handleDairyCommand(ctx: Context) {
     const chatId = ctx.chat?.id;
     if (!chatId) return;
 
@@ -73,7 +73,7 @@ export class DairyCommandsService {
     }
   }
 
-  private getCommandText(ctx: Context<Update>): string | undefined {
+  private getCommandText(ctx: Context): string | undefined {
     if ('message' in ctx && ctx.message && 'text' in ctx.message) {
       return ctx.message.text;
     }
@@ -133,7 +133,7 @@ export class DairyCommandsService {
 
     const allNotes = await Promise.all(notesPromises);
 
-    return allNotes.reduce(
+    return allNotes.reduce<Record<number, (typeof allNotes)[0]>>(
       (acc, notes, index) => {
         const year = currentYear - index;
         if (notes.length > 0) {
@@ -141,16 +141,16 @@ export class DairyCommandsService {
         }
         return acc;
       },
-      {} as Record<number, (typeof allNotes)[0]>,
+      {},
     );
   }
 
   private async sendDairyNotes(
-    ctx: Context<Update>,
-    notes: Array<{
+    ctx: Context,
+    notes: {
       content: string | null;
-      images: Array<{ url: string }>;
-    }>,
+      images: { url: string }[];
+    }[],
     dateStr: string,
   ) {
     if (notes.length === 0) {
@@ -172,13 +172,13 @@ export class DairyCommandsService {
   }
 
   private async sendDairyNotesAllYears(
-    ctx: Context<Update>,
+    ctx: Context,
     notesByYear: Record<
       number,
-      Array<{
+      {
         content: string | null;
-        images: Array<{ url: string }>;
-      }>
+        images: { url: string }[];
+      }[]
     >,
     dateStr: string,
   ) {
@@ -192,10 +192,10 @@ export class DairyCommandsService {
     }
 
     for (const year of years) {
-      const notes = notesByYear[year] as Array<{
+      const notes = notesByYear[year] as {
         content: string | null;
-        images: Array<{ url: string }>;
-      }>;
+        images: { url: string }[];
+      }[];
       await ctx.reply(`${dateStr} ${year}:`);
 
       for (const note of notes) {

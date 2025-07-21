@@ -29,24 +29,24 @@ type TelegramUpdate =
 
 @Injectable()
 export class TelegramBotService {
-  private bot: Telegraf<Context>;
+  private readonly bot: Telegraf;
 
   // Маппинг каналов к создателям (дополнительный механизм)
-  private channelCreatorMapping: Map<number, number> = new Map();
+  private readonly channelCreatorMapping: Map<number, number> = new Map();
 
   constructor(
-    private configService: ConfigService,
-    private prisma: PrismaService,
-    private dateParser: DateParserService,
-    private dairyCommands: DairyCommandsService,
-    private storageService: StorageService,
-    private llmService: LlmService,
-    private serbianCommands: SerbianCommandsService,
-    private historyCommands: HistoryCommandsService,
-    private taskCommands: TaskCommandsService,
-    private taskHistoryCommands: TaskHistoryCommandsService,
-    private collageCommands: CollageCommandsService,
-    private qaCommands: QaCommandsService,
+    private readonly configService: ConfigService,
+    private readonly prisma: PrismaService,
+    private readonly dateParser: DateParserService,
+    private readonly dairyCommands: DairyCommandsService,
+    private readonly storageService: StorageService,
+    private readonly llmService: LlmService,
+    private readonly serbianCommands: SerbianCommandsService,
+    private readonly historyCommands: HistoryCommandsService,
+    private readonly taskCommands: TaskCommandsService,
+    private readonly taskHistoryCommands: TaskHistoryCommandsService,
+    private readonly collageCommands: CollageCommandsService,
+    private readonly qaCommands: QaCommandsService,
   ) {
     const token = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
     if (!token) {
@@ -56,7 +56,7 @@ export class TelegramBotService {
 
     // Добавляем middleware для логирования
     this.bot.use((ctx, next) => {
-      const updateType = ctx.updateType;
+      const { updateType } = ctx;
       const chatType = ctx.chat?.type;
       console.log(
         `Получено обновление типа [${updateType}] из чата типа [${chatType}]`,
@@ -209,7 +209,7 @@ export class TelegramBotService {
         tg: ctx.telegram,
         editedMessage: undefined,
         state: {},
-      } as unknown as Context<Update>;
+      } as unknown as Context;
 
       await this.handleIncomingPhoto(photoContext, true);
     });
@@ -229,7 +229,7 @@ export class TelegramBotService {
   async handleIncomingMessage(
     chatId: number,
     update: TelegramUpdate,
-    silent: boolean = false,
+    silent = false,
   ) {
     try {
       const messageText = this.extractMessageText(update);
@@ -260,7 +260,7 @@ export class TelegramBotService {
           rawMessage: JSON.parse(
             JSON.stringify(update),
           ) as unknown as Prisma.InputJsonValue,
-          chatId: chatId,
+          chatId,
           noteDate: noteDate || new Date(),
         },
       });
@@ -274,7 +274,7 @@ export class TelegramBotService {
           data: {
             content: botResponse,
             noteId: savedNote.id,
-            chatId: chatId,
+            chatId,
           },
         });
       }
@@ -326,7 +326,7 @@ export class TelegramBotService {
     return '';
   }
 
-  public async handleIncomingPhoto(ctx: Context, silent: boolean = false) {
+  public async handleIncomingPhoto(ctx: Context, silent = false) {
     try {
       if (!ctx.message) return;
 
