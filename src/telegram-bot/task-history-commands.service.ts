@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Context } from 'telegraf';
+import { Update } from 'telegraf/typings/core/types/typegram';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../services/storage.service';
 import { v4 as uuidv4 } from 'uuid';
@@ -27,7 +28,7 @@ export class TaskHistoryCommandsService {
     private storageService: StorageService,
   ) {}
 
-  async handleTaskHistoryCommand(ctx: Context) {
+  async handleTaskHistoryCommand(ctx: Context<Update>) {
     const chatId = ctx.chat?.id;
     if (!chatId) {
       await ctx.reply('Unable to determine chat context');
@@ -108,9 +109,13 @@ export class TaskHistoryCommandsService {
   }
 
   private generateHtml(
-    unfinished: any[],
-    snoozed: any[],
-    finished: any[],
+    unfinished: Array<{
+      key: string;
+      history: TaskRecord[];
+      latest: TaskRecord;
+    }>,
+    snoozed: Array<{ key: string; history: TaskRecord[]; latest: TaskRecord }>,
+    finished: Array<{ key: string; history: TaskRecord[]; latest: TaskRecord }>,
   ): string {
     let html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Tasks</title><style>body{font-family:Arial,Helvetica,sans-serif;margin:20px;}h2{color:#333;} .task{border:1px solid #ccc;padding:10px;margin-bottom:10px;border-radius:6px;} .history{margin-top:5px;padding-left:20px;font-size:0.9em;color:#555;}</style></head><body>`;
     html += '<h1>Tasks</h1>';
@@ -125,7 +130,9 @@ export class TaskHistoryCommandsService {
     return html;
   }
 
-  private renderTasks(groups: any[]): string {
+  private renderTasks(
+    groups: Array<{ key: string; history: TaskRecord[]; latest: TaskRecord }>,
+  ): string {
     let html = '';
     for (const g of groups) {
       const t = g.latest;

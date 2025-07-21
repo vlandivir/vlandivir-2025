@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Context } from 'telegraf';
+import { Update } from 'telegraf/typings/core/types/typegram';
 import { PrismaService } from '../prisma/prisma.service';
 import { DateParserService } from '../services/date-parser.service';
 import { format, startOfDay, endOfDay } from 'date-fns';
@@ -12,7 +13,7 @@ export class DairyCommandsService {
     private dateParser: DateParserService,
   ) {}
 
-  async handleDairyCommand(ctx: Context) {
+  async handleDairyCommand(ctx: Context<Update>) {
     const chatId = ctx.chat?.id;
     if (!chatId) return;
 
@@ -72,7 +73,7 @@ export class DairyCommandsService {
     }
   }
 
-  private getCommandText(ctx: Context): string | undefined {
+  private getCommandText(ctx: Context<Update>): string | undefined {
     if ('message' in ctx && ctx.message && 'text' in ctx.message) {
       return ctx.message.text;
     }
@@ -144,7 +145,14 @@ export class DairyCommandsService {
     );
   }
 
-  private async sendDairyNotes(ctx: Context, notes: any[], dateStr: string) {
+  private async sendDairyNotes(
+    ctx: Context<Update>,
+    notes: Array<{
+      content: string | null;
+      images: Array<{ url: string }>;
+    }>,
+    dateStr: string,
+  ) {
     if (notes.length === 0) {
       await ctx.reply(`Заметок за ${dateStr} не найдено`);
       return;
@@ -158,14 +166,20 @@ export class DairyCommandsService {
           });
         }
       } else {
-        await ctx.reply(note.content);
+        await ctx.reply(note.content || '');
       }
     }
   }
 
   private async sendDairyNotesAllYears(
-    ctx: Context,
-    notesByYear: Record<number, any[]>,
+    ctx: Context<Update>,
+    notesByYear: Record<
+      number,
+      Array<{
+        content: string | null;
+        images: Array<{ url: string }>;
+      }>
+    >,
     dateStr: string,
   ) {
     const years = Object.keys(notesByYear).sort(
@@ -178,7 +192,10 @@ export class DairyCommandsService {
     }
 
     for (const year of years) {
-      const notes = notesByYear[year];
+      const notes = notesByYear[year] as Array<{
+        content: string | null;
+        images: Array<{ url: string }>;
+      }>;
       await ctx.reply(`${dateStr} ${year}:`);
 
       for (const note of notes) {
@@ -189,7 +206,7 @@ export class DairyCommandsService {
             });
           }
         } else {
-          await ctx.reply(note.content);
+          await ctx.reply(note.content || '');
         }
       }
     }

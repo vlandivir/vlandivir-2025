@@ -3,6 +3,8 @@ import { TaskCommandsService } from './task-commands.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { DateParserService } from '../services/date-parser.service';
 import { format } from 'date-fns';
+import { Context } from 'telegraf';
+import { Update } from 'telegraf/typings/core/types/typegram';
 
 describe('TaskCommandsService', () => {
   let service: TaskCommandsService;
@@ -24,10 +26,7 @@ describe('TaskCommandsService', () => {
 
   describe('parseDueDate', () => {
     it('should parse full date and time', () => {
-      const parseDueDate = (service as any).parseDueDate as (
-        date: string,
-      ) => Date;
-      const result = parseDueDate('2025.07.31 09:30');
+      const result = (service as any).parseDueDate('2025.07.31 09:30') as Date;
       expect(result).toBeInstanceOf(Date);
       expect(result.getFullYear()).toBe(2025);
       expect(result.getMonth()).toBe(6); // July
@@ -37,10 +36,7 @@ describe('TaskCommandsService', () => {
     });
 
     it('should parse date without time using parser rules', () => {
-      const parseDueDate = (service as any).parseDueDate as (
-        date: string,
-      ) => Date;
-      const result = parseDueDate('2 января');
+      const result = (service as any).parseDueDate('2 января') as Date;
       const year = new Date().getFullYear();
       expect(result).toBeInstanceOf(Date);
       expect(result.getFullYear()).toBe(year);
@@ -49,10 +45,7 @@ describe('TaskCommandsService', () => {
     });
 
     it('should parse "tomorrow" with time', () => {
-      const parseDueDate = (service as any).parseDueDate as (
-        date: string,
-      ) => Date;
-      const result = parseDueDate('tomorrow 10:15');
+      const result = (service as any).parseDueDate('tomorrow 10:15') as Date;
       const expected = new Date();
       expected.setDate(expected.getDate() + 1);
       expected.setHours(10, 15, 0, 0);
@@ -64,10 +57,7 @@ describe('TaskCommandsService', () => {
     });
 
     it('should parse russian day of week', () => {
-      const parseDueDate = (service as any).parseDueDate as (
-        date: string,
-      ) => Date;
-      const result = parseDueDate('понедельник');
+      const result = (service as any).parseDueDate('понедельник') as Date;
       expect(result).toBeInstanceOf(Date);
       const today = new Date();
       const targetDay = 1; // Monday
@@ -82,12 +72,11 @@ describe('TaskCommandsService', () => {
 
   describe('parseTask', () => {
     it('should parse status token', () => {
-      const parseTask = (service as any).parseTask as (task: string) => {
+      const result = (service as any).parseTask('-done @tag example') as {
         status: string;
         tags: string[];
         content: string;
       };
-      const result = parseTask('-done @tag example');
       expect(result.status).toBe('done');
       expect(result.tags).toEqual(['tag']);
       expect(result.content).toBe('example');
@@ -95,13 +84,14 @@ describe('TaskCommandsService', () => {
 
     it('should parse snoozed status with days', () => {
       const today = new Date();
-      const parseTask = (service as any).parseTask as (task: string) => {
+      const result = (service as any).parseTask(
+        '-snoozed4 @tag example task',
+      ) as {
         status: string;
         tags: string[];
         content: string;
         snoozedUntil: Date;
       };
-      const result = parseTask('-snoozed4 @tag example task');
       expect(result.status).toBe('snoozed');
       expect(result.tags).toEqual(['tag']);
       expect(result.content).toBe('example task');
@@ -119,12 +109,13 @@ describe('TaskCommandsService', () => {
 
     it('should parse snoozed status with space between -snoozed and number', () => {
       const today = new Date();
-      const parseTask = (service as any).parseTask as (task: string) => {
+      const result = (service as any).parseTask(
+        '-snoozed 3 some task content',
+      ) as {
         status: string;
         content: string;
         snoozedUntil: Date;
       };
-      const result = parseTask('-snoozed 3 some task content');
       expect(result.status).toBe('snoozed');
       expect(result.content).toBe('some task content');
       expect(result.snoozedUntil).toBeInstanceOf(Date);
@@ -142,15 +133,12 @@ describe('TaskCommandsService', () => {
 
   describe('parseFilters', () => {
     it('should parse tags contexts and projects', () => {
-      const parseFilters = (service as any).parseFilters as (
-        filters: string,
-      ) => {
+      const result = (service as any).parseFilters('@a .b !Proj rest') as {
         tags: string[];
         contexts: string[];
         projects: string[];
         remaining: string[];
       };
-      const result = parseFilters('@a .b !Proj rest');
       expect(result.tags).toEqual(['a']);
       expect(result.contexts).toEqual(['b']);
       expect(result.projects).toEqual(['Proj rest']);
@@ -172,10 +160,7 @@ describe('TaskCommandsService', () => {
       }).compile();
 
       const svc = module.get<TaskCommandsService>(TaskCommandsService);
-      const generateKey = (svc as any).generateKey as (
-        chatId: number,
-      ) => Promise<string>;
-      const key = await generateKey(123);
+      const key = (await (svc as any).generateKey(123)) as string;
       expect(key).toBe(`T-${datePart}-01`);
     });
   });
@@ -215,7 +200,7 @@ describe('TaskCommandsService', () => {
         },
         chat: { id: 123456 },
         reply: mockReply,
-      } as any;
+      } as unknown as Context<Update>;
       await svc.handleTaskCommand(ctx);
       expect(mockPrisma.todo.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -250,7 +235,7 @@ describe('TaskCommandsService', () => {
         message: { text: '/t' },
         chat: { id: 123456 },
         reply: mockReply,
-      } as any;
+      } as unknown as Context<Update>;
       await svc.handleTaskCommand(ctx);
       expect(mockReply).toHaveBeenCalledWith(
         expect.stringContaining('Format:'),
@@ -279,7 +264,7 @@ describe('TaskCommandsService', () => {
         message: { text: '/tl' },
         chat: { id: 123456 },
         reply: mockReply,
-      } as any;
+      } as unknown as Context<Update>;
       await svc.handleListCommand(ctx);
       expect(mockPrisma.$queryRawUnsafe).toHaveBeenCalledWith(
         expect.stringContaining('ORDER BY "dueDate" IS NULL, "dueDate" ASC'),
