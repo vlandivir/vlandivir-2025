@@ -83,7 +83,9 @@ export class CollageCommandsService {
     await ctx.answerCbQuery();
     await (
       ctx as Context & {
-        editMessageReplyMarkup: (markup: InlineKeyboardMarkup | undefined) => Promise<void>;
+        editMessageReplyMarkup: (
+          markup: InlineKeyboardMarkup | undefined,
+        ) => Promise<void>;
       }
     ).editMessageReplyMarkup(undefined);
     await (ctx as Context & { reply: (text: string) => Promise<void> }).reply(
@@ -98,7 +100,10 @@ export class CollageCommandsService {
       );
       await (
         ctx as Context & {
-          replyWithPhoto: (url: string, options: { caption?: string }) => Promise<void>;
+          replyWithPhoto: (
+            url: string,
+            options: { caption?: string },
+          ) => Promise<void>;
         }
       ).replyWithPhoto(collageUrl, {
         caption: 'Коллаж из изображений',
