@@ -151,6 +151,23 @@ describe('TaskCommandsService', () => {
       );
       expect(timeDiff).toBeLessThan(60000); // less than 1 minute
     });
+
+    it('should parse due date with single digit hour', () => {
+      const svc = service as unknown as {
+        parseTask(text: string): {
+          content: string;
+          dueDate?: Date;
+        };
+      };
+      const result = svc.parseTask(':2025.07.24 8:30') as {
+        content: string;
+        dueDate?: Date;
+      };
+      expect(result.content).toBe('');
+      expect(result.dueDate).toBeInstanceOf(Date);
+      expect(result.dueDate?.getHours()).toBe(8);
+      expect(result.dueDate?.getMinutes()).toBe(30);
+    });
   });
 
   describe('parseFilters', () => {

@@ -169,7 +169,7 @@ export class TaskCommandsService {
       }
       if (token.startsWith(':')) {
         let dateStr = token.slice(1);
-        if (i + 1 < tokens.length && /\d{2}:\d{2}/.test(tokens[i + 1])) {
+        if (i + 1 < tokens.length && /^\d{1,2}:\d{2}$/.test(tokens[i + 1])) {
           dateStr += ` ${tokens[i + 1]}`;
           i++;
         }
