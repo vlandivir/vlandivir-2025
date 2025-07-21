@@ -16,7 +16,7 @@ jest.mock('sharp', () => {
     composite: jest.fn().mockReturnThis(),
     jpeg: jest.fn().mockReturnThis(),
     toBuffer: jest.fn().mockResolvedValue(Buffer.from('valid-image')),
-  }));
+  })) as any;
   return sharpMock;
 });
 
@@ -24,6 +24,8 @@ describe('CollageCommandsService', () => {
   let service: CollageCommandsService;
   let storageService: StorageService;
 
+  const mockReply = jest.fn();
+  const mockReplyWithPhoto = jest.fn();
   const mockContext = {
     chat: {
       id: 123456,
@@ -38,8 +40,8 @@ describe('CollageCommandsService', () => {
     telegram: {
       getFile: jest.fn().mockResolvedValue({ file_path: 'test/path' }),
     },
-    reply: jest.fn(),
-    replyWithPhoto: jest.fn(),
+    reply: mockReply,
+    replyWithPhoto: mockReplyWithPhoto,
   } as unknown as Context;
 
   beforeEach(async () => {
@@ -66,7 +68,7 @@ describe('CollageCommandsService', () => {
 
     global.fetch = jest.fn().mockResolvedValue({
       arrayBuffer: jest.fn().mockResolvedValue(Buffer.from('img')),
-    }) as any;
+    });
 
     service = module.get<CollageCommandsService>(CollageCommandsService);
     storageService = module.get<StorageService>(StorageService);
@@ -86,7 +88,7 @@ describe('CollageCommandsService', () => {
 
     await service.handleCollageCommand(contextWithOnePhoto);
 
-    expect(mockContext.reply).toHaveBeenCalledWith(
+    expect(mockReply).toHaveBeenCalledWith(
       'Для создания коллажа нужно минимум 2 изображения в одном сообщении.',
     );
   });
@@ -98,7 +100,7 @@ describe('CollageCommandsService', () => {
 
     await service.handleCollageCommand(mockContext);
 
-    expect(mockContext.replyWithPhoto).toHaveBeenCalledWith(
+    expect(mockReplyWithPhoto).toHaveBeenCalledWith(
       'https://example.com/collage.jpg',
       { caption: 'Коллаж из изображений' },
     );
@@ -120,7 +122,7 @@ describe('CollageCommandsService', () => {
 
     await service.handleCollageCommand(contextWithError);
 
-    expect(mockContext.reply).toHaveBeenCalledWith(
+    expect(mockReply).toHaveBeenCalledWith(
       'Произошла ошибка при создании коллажа',
     );
   });

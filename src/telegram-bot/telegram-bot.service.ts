@@ -213,9 +213,9 @@ export class TelegramBotService {
     this.bot.on('callback_query', async (ctx) => {
       const data = (ctx.callbackQuery as any)?.data;
       if (data === 'collage_cancel') {
-        await this.collageCommands.cancel(ctx as any);
+        await this.collageCommands.cancel(ctx);
       } else if (data === 'collage_generate') {
-        await this.collageCommands.generate(ctx as any);
+        await this.collageCommands.generate(ctx);
       }
     });
   }
@@ -327,7 +327,7 @@ export class TelegramBotService {
 
       // Check if interactive collage session is active
       if (this.collageCommands.isActive(ctx.chat.id)) {
-        await this.collageCommands.addImage(ctx as any);
+        await this.collageCommands.addImage(ctx);
         return;
       }
 
@@ -338,7 +338,7 @@ export class TelegramBotService {
           caption.toLowerCase().includes('/c'))
       ) {
         console.log('Collage command detected in photo caption');
-        await this.collageCommands.handleCollageCommand(ctx as any);
+        await this.collageCommands.handleCollageCommand(ctx);
         return; // Exit early to prevent saving individual images
       }
 

@@ -3,6 +3,8 @@ import { HistoryCommandsService } from './history-commands.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { StorageService } from '../services/storage.service';
+import { Context } from 'telegraf';
+import { Update } from 'telegraf/typings/core/types/typegram';
 
 describe('HistoryCommandsService', () => {
   let service: HistoryCommandsService;
@@ -49,36 +51,39 @@ describe('HistoryCommandsService', () => {
 
   describe('handleHistoryCommand', () => {
     it('should return early if no chatId', async () => {
+      const mockReply = jest.fn();
       const mockContext = {
         chat: undefined,
-        reply: jest.fn(),
-      } as any;
+        reply: mockReply,
+      } as unknown as Context<Update>;
 
       await service.handleHistoryCommand(mockContext);
 
-      expect(mockContext.reply).not.toHaveBeenCalled();
+      expect(mockReply).not.toHaveBeenCalled();
     });
 
     it('should handle empty messages', async () => {
+      const mockReply = jest.fn();
       const mockContext = {
         chat: { id: 123 },
-        reply: jest.fn(),
-      } as any;
+        reply: mockReply,
+      } as unknown as Context<Update>;
 
       mockPrismaService.note.findMany.mockResolvedValue([]);
 
       await service.handleHistoryCommand(mockContext);
 
-      expect(mockContext.reply).toHaveBeenCalledWith(
+      expect(mockReply).toHaveBeenCalledWith(
         'Нет сообщений длиннее 21 символов в этом чате.',
       );
     });
 
     it('should filter messages longer than 21 characters and upload to DO Space', async () => {
+      const mockReply = jest.fn();
       const mockContext = {
         chat: { id: 123 },
-        reply: jest.fn(),
-      } as any;
+        reply: mockReply,
+      } as unknown as Context<Update>;
 
       const mockMessages = [
         { content: 'Short message', noteDate: new Date(), images: [] },
@@ -103,7 +108,7 @@ describe('HistoryCommandsService', () => {
         'text/html',
         expect.stringMatching(/^history\/[a-f0-9-]+\.html$/),
       );
-      expect(mockContext.reply).toHaveBeenCalledWith(
+      expect(mockReply).toHaveBeenCalledWith(
         expect.stringContaining(
           'История чата доступна по ссылке: https://fra1.digitaloceanspaces.com/vlandivir-2025/history/',
         ),
@@ -116,7 +121,8 @@ describe('HistoryCommandsService', () => {
       const input = '<script>alert("test")</script>';
       const expected = '&lt;script&gt;alert(&quot;test&quot;)&lt;/script&gt;';
 
-      const result = (service as any).escapeHtml(input);
+      const svc = service as unknown as { escapeHtml(text: string): string };
+      const result = svc.escapeHtml(input);
       expect(result).toBe(expected);
     });
   });

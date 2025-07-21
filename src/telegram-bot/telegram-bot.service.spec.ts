@@ -17,6 +17,7 @@ import { Context } from 'telegraf';
 describe('TelegramBotService', () => {
   let service: TelegramBotService;
 
+  const mockReply = jest.fn();
   const mockContext = {
     message: {
       text: 'test message',
@@ -35,7 +36,7 @@ describe('TelegramBotService', () => {
     telegram: {
       getFile: jest.fn().mockResolvedValue({ file_path: 'test/path' }),
     },
-    reply: jest.fn(),
+    reply: mockReply,
     updateType: 'message',
     me: {
       id: 123,
@@ -167,10 +168,11 @@ describe('TelegramBotService', () => {
 
   it('should handle photo messages', async () => {
     await service.handleIncomingPhoto(mockContext);
-    expect(mockContext.reply).toHaveBeenCalled();
+    expect(mockReply).toHaveBeenCalled();
   });
 
   it('should handle channel posts', async () => {
+    const channelReply = jest.fn();
     const channelContext = {
       ...mockContext,
       channelPost: {
@@ -178,14 +180,16 @@ describe('TelegramBotService', () => {
         chat: { id: -1001234567890, type: 'channel', title: 'Test Channel' },
       },
       updateType: 'channel_post',
+      reply: channelReply,
     } as unknown as Context;
 
     await service.handleIncomingPhoto(channelContext);
-    expect(channelContext.reply).toHaveBeenCalled();
+    expect(channelReply).toHaveBeenCalled();
   });
 
   it('should return sorted help message', () => {
-    const result = (service as any).getHelpMessage();
+    const svc = service as unknown as { getHelpMessage(): string };
+    const result = svc.getHelpMessage();
     const expected = [
       '/c or /collage - Create image collage',
       '/d or /dairy - Dairy Notes',

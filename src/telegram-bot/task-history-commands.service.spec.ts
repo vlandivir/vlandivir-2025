@@ -2,6 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { TaskHistoryCommandsService } from './task-history-commands.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../services/storage.service';
+import { Context } from 'telegraf';
+import { Update } from 'telegraf/typings/core/types/typegram';
 
 describe('TaskHistoryCommandsService', () => {
   let service: TaskHistoryCommandsService;
@@ -33,12 +35,13 @@ describe('TaskHistoryCommandsService', () => {
   });
 
   it('should reply when no tasks', async () => {
-    const ctx: any = {
+    const mockReply = jest.fn();
+    const ctx: Context<Update> = {
       chat: { id: 123456 },
-      reply: jest.fn(),
-    };
+      reply: mockReply,
+    } as unknown as Context<Update>;
     mockPrismaService.todo.findMany.mockResolvedValue([]);
     await service.handleTaskHistoryCommand(ctx);
-    expect(ctx.reply).toHaveBeenCalledWith('No tasks found in this chat');
+    expect(mockReply).toHaveBeenCalledWith('No tasks found in this chat');
   });
 });
