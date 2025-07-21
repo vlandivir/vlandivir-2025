@@ -5,18 +5,22 @@ import { StorageService } from '../services/storage.service';
 import { Context } from 'telegraf';
 
 jest.mock('sharp', () => {
-  const sharpMock = jest.fn(() => ({
-    resize: jest.fn().mockReturnThis(),
-    jpeg: jest.fn().mockReturnThis(),
-    toBuffer: jest.fn().mockResolvedValue(Buffer.from('valid-image')),
-    composite: jest.fn().mockReturnThis(),
-    metadata: jest.fn().mockResolvedValue({ width: 800, height: 600 }),
-  }));
-  (sharpMock as any).create = jest.fn(() => ({
-    composite: jest.fn().mockReturnThis(),
-    jpeg: jest.fn().mockReturnThis(),
-    toBuffer: jest.fn().mockResolvedValue(Buffer.from('valid-image')),
-  })) as any;
+  const sharpMock: jest.Mock & { create: jest.Mock } = Object.assign(
+    jest.fn(() => ({
+      resize: jest.fn().mockReturnThis(),
+      jpeg: jest.fn().mockReturnThis(),
+      toBuffer: jest.fn().mockResolvedValue(Buffer.from('valid-image')),
+      composite: jest.fn().mockReturnThis(),
+      metadata: jest.fn().mockResolvedValue({ width: 800, height: 600 }),
+    })),
+    {
+      create: jest.fn(() => ({
+        composite: jest.fn().mockReturnThis(),
+        jpeg: jest.fn().mockReturnThis(),
+        toBuffer: jest.fn().mockResolvedValue(Buffer.from('valid-image')),
+      })),
+    },
+  );
   return sharpMock;
 });
 

@@ -1,8 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { Update, Message } from 'telegraf/typings/core/types/typegram';
+import {
+  Update,
+  Message,
+  CallbackQuery,
+} from 'telegraf/typings/core/types/typegram';
 import { Telegraf, Context } from 'telegraf';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '../generated/prisma-client';
 import { DateParserService } from '../services/date-parser.service';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -211,7 +216,8 @@ export class TelegramBotService {
 
     // Handle collage inline buttons
     this.bot.on('callback_query', async (ctx) => {
-      const data = (ctx.callbackQuery as any)?.data;
+      const data = (ctx.callbackQuery as CallbackQuery.DataQuery | undefined)
+        ?.data;
       if (data === 'collage_cancel') {
         await this.collageCommands.cancel(ctx);
       } else if (data === 'collage_generate') {
@@ -251,7 +257,9 @@ export class TelegramBotService {
       const savedNote = await this.prisma.note.create({
         data: {
           content: cleanContent,
-          rawMessage: JSON.parse(JSON.stringify(update)),
+          rawMessage: JSON.parse(
+            JSON.stringify(update),
+          ) as unknown as Prisma.InputJsonValue,
           chatId: chatId,
           noteDate: noteDate || new Date(),
         },
@@ -277,7 +285,9 @@ export class TelegramBotService {
         await this.prisma.note.create({
           data: {
             content: cleanContent,
-            rawMessage: JSON.parse(JSON.stringify(update)),
+            rawMessage: JSON.parse(
+              JSON.stringify(update),
+            ) as unknown as Prisma.InputJsonValue,
             chatId: fromUserId,
             noteDate: noteDate || new Date(),
           },
@@ -376,7 +386,9 @@ export class TelegramBotService {
       const savedNote = await this.prisma.note.create({
         data: {
           content: cleanContent || '',
-          rawMessage: JSON.parse(JSON.stringify(ctx.message)),
+          rawMessage: JSON.parse(
+            JSON.stringify(ctx.message),
+          ) as unknown as Prisma.InputJsonValue,
           chatId: ctx.chat.id,
           noteDate: noteDate || new Date(),
           images: {
@@ -418,7 +430,9 @@ export class TelegramBotService {
         await this.prisma.note.create({
           data: {
             content: cleanContent || '',
-            rawMessage: JSON.parse(JSON.stringify(ctx.message)),
+            rawMessage: JSON.parse(
+              JSON.stringify(ctx.message),
+            ) as unknown as Prisma.InputJsonValue,
             chatId: fromUserId,
             noteDate: noteDate || new Date(),
             images: {
