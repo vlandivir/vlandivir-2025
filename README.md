@@ -112,13 +112,10 @@ History lines show only what changed instead of repeating the full task text.
 
 ### `/qa`
 
-Adds a new question for the current chat.
+Starts an interactive flow to add a question.
 
-Example:
-
-```
-/qa How many apples do you have?
-```
+1. Send `/qa` and provide the question text when prompted.
+2. Choose its type (string, number or boolean) using the inline buttons.
 
 ### `/ql`
 
