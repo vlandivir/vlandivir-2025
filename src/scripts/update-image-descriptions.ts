@@ -1,4 +1,4 @@
-import { PrismaClient } from '../generated/prisma-client';
+import { PrismaClient, Prisma } from '../generated/prisma-client';
 import { LlmService } from '../services/llm.service';
 import { StorageService } from '../services/storage.service';
 import { ConfigService } from '@nestjs/config';
@@ -47,7 +47,7 @@ async function updateImageDescriptions() {
     }
 
     // Get images without descriptions, ordered by creation date (newest first)
-    const imagesQuery: any = {
+    const imagesQuery: Prisma.ImageFindManyArgs = {
       where: {
         OR: [{ description: null }, { description: '' }],
       },
@@ -61,7 +61,7 @@ async function updateImageDescriptions() {
 
     // Apply limit if specified
     if (limit) {
-      imagesQuery['take'] = limit;
+      imagesQuery.take = limit;
     }
 
     const imagesWithoutDescriptions = await prisma.image.findMany(imagesQuery);

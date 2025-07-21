@@ -49,14 +49,14 @@ export class LlmService {
       );
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData: unknown = await response.json();
         console.error('OpenAI API error:', errorData);
         throw new Error(
           `OpenAI API error: ${response.status} ${response.statusText}`,
         );
       }
 
-      const data = (await response.json()) as {
+      const data = (await response.json()) as unknown as {
         choices: Array<{
           message: {
             content: string;
