@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { QaCommandsService } from './qa-commands.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { Context } from 'telegraf';
+import { DateParserService } from '../services/date-parser.service';
 
 describe('QaCommandsService', () => {
   let service: QaCommandsService;
@@ -10,12 +11,17 @@ describe('QaCommandsService', () => {
       findMany: jest.fn(),
       create: jest.fn(),
     },
+    answer: {
+      findFirst: jest.fn(),
+      create: jest.fn(),
+    },
   };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         QaCommandsService,
+        DateParserService,
         { provide: PrismaService, useValue: mockPrisma },
       ],
     }).compile();
@@ -44,5 +50,16 @@ describe('QaCommandsService', () => {
     ]);
     await service.handleQlCommand(ctx);
     expect(mockReply).toHaveBeenCalledWith('Q1\nQ2');
+  });
+  it('should start question session', async () => {
+    const mockReply = jest.fn();
+    const ctx = { chat: { id: 1 }, reply: mockReply } as unknown as Context;
+    mockPrisma.question.findMany.mockResolvedValue([
+      { id: 1, questionText: 'Q1', type: 'text', createdAt: new Date() },
+    ]);
+    await service.handleQCommand(ctx);
+    expect(mockReply).toHaveBeenCalledWith('Q1');
+    const sessions = (service as any).askSessions;
+    expect(sessions.get(1)).toBeDefined();
   });
 });
