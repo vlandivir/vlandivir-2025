@@ -6,7 +6,9 @@ import {
 } from 'telegraf/typings/core/types/typegram';
 import { PrismaService } from '../prisma/prisma.service';
 import { DateParserService } from '../services/date-parser.service';
-import { startOfDay, endOfDay } from 'date-fns';
+import { StorageService } from '../services/storage.service';
+import { startOfDay, endOfDay, subDays, format } from 'date-fns';
+import { v4 as uuidv4 } from 'uuid';
 
 interface QaSession {
   step: 'await_question' | 'await_type';
@@ -25,6 +27,7 @@ export class QaCommandsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly dateParser: DateParserService,
+    private readonly storageService: StorageService,
   ) {}
 
   private readonly sessions: Map<number, QaSession> = new Map();
@@ -206,6 +209,54 @@ export class QaCommandsService {
     });
 
     await ctx.reply(lines.join('\n'));
+  }
+
+  async handleQhCommand(ctx: Context) {
+    const chatId = ctx.chat?.id;
+    if (!chatId) return;
+
+    const questions = await this.prisma.question.findMany({
+      where: { chatId },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    if (questions.length === 0) {
+      await ctx.reply('No questions found in this chat');
+      return;
+    }
+
+    const end = endOfDay(new Date());
+    const start = startOfDay(subDays(end, 29));
+
+    const answers = await this.prisma.answer.findMany({
+      where: {
+        questionId: { in: questions.map((q) => q.id) },
+        answerDate: { gte: start, lte: end },
+      },
+      orderBy: { answerDate: 'asc' },
+    });
+
+    const map: Record<string, Record<number, string | number>> = {};
+    for (const a of answers) {
+      const key = format(a.answerDate, 'yyyy-MM-dd');
+      if (!map[key]) map[key] = {};
+      map[key][a.questionId] = a.textAnswer ?? a.numberAnswer ?? '';
+    }
+
+    const dates: string[] = [];
+    for (let i = 29; i >= 0; i--) {
+      dates.push(format(subDays(end, i), 'yyyy-MM-dd'));
+    }
+
+    const html = this.generateHtml(questions, dates, map);
+    const key = `qa-history/${uuidv4()}.html`;
+    const buffer = Buffer.from(html, 'utf8');
+    const url = await this.storageService.uploadFileWithKey(
+      buffer,
+      'text/html',
+      key,
+    );
+    await ctx.reply(`Questions history: ${url}`);
   }
 
   async handleAnswerCallback(ctx: Context) {
@@ -416,6 +467,43 @@ export class QaCommandsService {
     session.awaitingAnswer = true;
     this.askSessions.set(chatId, session);
     await ctx.reply(question.questionText);
+  }
+
+  private generateHtml(
+    questions: { id: number; questionText: string }[],
+    dates: string[],
+    data: Record<string, Record<number, string | number>>,
+  ): string {
+    let html =
+      '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Questions history</title>' +
+      '<style>table{border-collapse:collapse;}th,td{border:1px solid #ccc;padding:4px;}th{background:#f0f0f0;}</style>' +
+      '</head><body>';
+    html += '<table><thead><tr><th>Date</th>';
+    for (const q of questions) {
+      html += `<th>${this.escapeHtml(q.questionText)}</th>`;
+    }
+    html += '</tr></thead><tbody>';
+    for (const d of dates) {
+      html += `<tr><td>${d}</td>`;
+      for (const q of questions) {
+        const val = data[d]?.[q.id];
+        html += `<td>${val !== undefined ? this.escapeHtml(String(val)) : ''}</td>`;
+      }
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+    html += `<p>Generated: ${format(new Date(), 'yyyy-MM-dd HH:mm:ss')}</p>`;
+    html += '</body></html>';
+    return html;
+  }
+
+  private escapeHtml(text: string): string {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
 
   private getCommandText(ctx: Context): string {
