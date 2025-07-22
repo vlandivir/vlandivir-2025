@@ -154,6 +154,7 @@ describe('TelegramBotService', () => {
           useValue: {
             handleQaCommand: jest.fn(),
             handleQlCommand: jest.fn(),
+            handleQhCommand: jest.fn(),
           },
         },
       ],
@@ -197,6 +198,7 @@ describe('TelegramBotService', () => {
       '/history - Chat History',
       '/q - Answer questions',
       '/qa - Add question',
+      '/qh - Questions history HTML export',
       '/ql - List questions',
       '/qq - Questions and answers for a date',
       '/s - Serbian Translation',

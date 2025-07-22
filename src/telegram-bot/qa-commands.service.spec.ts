@@ -3,6 +3,7 @@ import { QaCommandsService } from './qa-commands.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { Context } from 'telegraf';
 import { DateParserService } from '../services/date-parser.service';
+import { StorageService } from '../services/storage.service';
 
 describe('QaCommandsService', () => {
   let service: QaCommandsService;
@@ -13,9 +14,14 @@ describe('QaCommandsService', () => {
     },
     answer: {
       findFirst: jest.fn(),
+      findMany: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
     },
+  };
+
+  const mockStorage = {
+    uploadFileWithKey: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -24,6 +30,7 @@ describe('QaCommandsService', () => {
         QaCommandsService,
         DateParserService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: StorageService, useValue: mockStorage },
       ],
     }).compile();
 
@@ -175,5 +182,33 @@ describe('QaCommandsService', () => {
     ]);
     await service.handleQqCommand(ctx);
     expect(mockReply).toHaveBeenCalledWith('How are you?: fine');
+  });
+
+  it('should generate history html', async () => {
+    const mockReply = jest.fn();
+    const ctx = { chat: { id: 5 }, reply: mockReply } as unknown as Context;
+    mockPrisma.question.findMany.mockResolvedValue([
+      { id: 1, questionText: 'Q1', type: 'text', createdAt: new Date() },
+    ]);
+    mockPrisma.answer.findMany.mockResolvedValue([
+      {
+        questionId: 1,
+        textAnswer: 'ok',
+        numberAnswer: null,
+        answerDate: new Date(),
+      },
+    ]);
+    mockStorage.uploadFileWithKey.mockResolvedValue(
+      'https://example.com/qh.html',
+    );
+    await service.handleQhCommand(ctx);
+    expect(mockStorage.uploadFileWithKey).toHaveBeenCalledWith(
+      expect.any(Buffer),
+      'text/html',
+      expect.stringMatching(/^qa-history\/[a-f0-9-]+\.html$/),
+    );
+    expect(mockReply).toHaveBeenCalledWith(
+      expect.stringContaining('https://example.com/qh.html'),
+    );
   });
 });
