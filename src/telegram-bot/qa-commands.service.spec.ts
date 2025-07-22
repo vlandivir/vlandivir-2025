@@ -14,6 +14,7 @@ describe('QaCommandsService', () => {
     answer: {
       findFirst: jest.fn(),
       create: jest.fn(),
+      update: jest.fn(),
     },
   };
 
@@ -59,7 +60,54 @@ describe('QaCommandsService', () => {
     ]);
     await service.handleQCommand(ctx);
     expect(mockReply).toHaveBeenCalledWith('Q1');
-    const sessions = (service as any).askSessions;
+    const sessions = (
+      service as unknown as {
+        askSessions: Map<number, { awaitingAnswer: boolean }>;
+      }
+    ).askSessions;
     expect(sessions.get(1)).toBeDefined();
+  });
+
+  it('should add to existing numeric answer with plus', async () => {
+    const mockReply = jest.fn();
+    const ctxStart = {
+      chat: { id: 2 },
+      reply: mockReply,
+    } as unknown as Context;
+    mockPrisma.question.findMany.mockResolvedValue([
+      {
+        id: 2,
+        questionText: 'How many?',
+        type: 'number',
+        createdAt: new Date(),
+      },
+    ]);
+    mockPrisma.answer.findFirst.mockResolvedValueOnce({
+      id: 10,
+      numberAnswer: 5,
+    });
+    await service.handleQCommand(ctxStart);
+
+    const sessions = (
+      service as unknown as {
+        askSessions: Map<number, { awaitingAnswer: boolean }>;
+      }
+    ).askSessions;
+    expect(sessions.get(2)?.awaitingAnswer).toBe(true);
+
+    const ctxAnswer = {
+      chat: { id: 2 },
+      message: { text: '+3' },
+      reply: mockReply,
+    } as unknown as Context;
+    mockPrisma.answer.findFirst.mockResolvedValueOnce({
+      id: 10,
+      numberAnswer: 5,
+    });
+    await service.handleAnswerText(ctxAnswer);
+    expect(mockPrisma.answer.update).toHaveBeenCalledWith({
+      where: { id: 10 },
+      data: { numberAnswer: 8 },
+    });
   });
 });

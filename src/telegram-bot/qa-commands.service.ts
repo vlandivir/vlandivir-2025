@@ -218,18 +218,36 @@ export class QaCommandsService {
     const text = ctx.message.text.trim();
 
     if (question.type === 'number') {
-      const num = parseFloat(text);
+      const addMode = text.startsWith('+');
+      const num = parseFloat(addMode ? text.slice(1) : text);
       if (Number.isNaN(num)) {
         await ctx.reply('Please provide a number');
         return;
       }
-      await this.prisma.answer.create({
-        data: {
+      const existing = await this.prisma.answer.findFirst({
+        where: {
           questionId: question.id,
-          numberAnswer: num,
-          answerDate: session.date,
+          answerDate: {
+            gte: startOfDay(session.date),
+            lt: endOfDay(session.date),
+          },
         },
       });
+      const newValue = addMode ? (existing?.numberAnswer ?? 0) + num : num;
+      if (existing) {
+        await this.prisma.answer.update({
+          where: { id: existing.id },
+          data: { numberAnswer: newValue },
+        });
+      } else {
+        await this.prisma.answer.create({
+          data: {
+            questionId: question.id,
+            numberAnswer: newValue,
+            answerDate: session.date,
+          },
+        });
+      }
     } else {
       await this.prisma.answer.create({
         data: {
@@ -288,6 +306,24 @@ export class QaCommandsService {
         });
       }
       session.awaitingAnswer = false;
+      this.askSessions.set(chatId, session);
+      return;
+    }
+
+    if (question.type === 'number') {
+      if (existing) {
+        await ctx.reply(
+          `Q: ${question.questionText}\nCurrent answer: ${existing.numberAnswer}`,
+          {
+            reply_markup: {
+              inline_keyboard: [[{ text: 'Skip', callback_data: 'q_skip' }]],
+            },
+          },
+        );
+      } else {
+        await ctx.reply(question.questionText);
+      }
+      session.awaitingAnswer = true;
       this.askSessions.set(chatId, session);
       return;
     }
