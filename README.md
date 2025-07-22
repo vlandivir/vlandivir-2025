@@ -128,6 +128,17 @@ Example:
 /ql
 ```
 
+### `/qq`
+
+Displays each question with its answer for the given date. If no date is
+provided, today's answers are shown.
+
+Example:
+
+```
+/qq 10.07.2025
+```
+
 ### `/help`
 
 Shows a list of all available commands.

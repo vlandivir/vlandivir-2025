@@ -169,6 +169,59 @@ export class QaCommandsService {
     await this.askNextQuestion(ctx, chatId);
   }
 
+  async handleQqCommand(ctx: Context) {
+    const chatId = ctx.chat?.id;
+    if (!chatId) return;
+
+    const text = this.getCommandText(ctx)
+      .replace(/^\/qq\s*/, '')
+      .trim();
+    const { date } = this.dateParser.extractDateFromFirstLine(text);
+    const targetDate = date || new Date();
+
+    const questions = await this.prisma.question.findMany({
+      where: { chatId },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    if (questions.length === 0) {
+      await ctx.reply('No questions found in this chat');
+      return;
+    }
+
+    const answers = await this.prisma.answer.findMany({
+      where: {
+        questionId: { in: questions.map((q) => q.id) },
+        answerDate: { gte: startOfDay(targetDate), lt: endOfDay(targetDate) },
+      },
+    });
+
+    const map = new Map<
+      number,
+      { textAnswer: string | null; numberAnswer: number | null }
+    >();
+    for (const a of answers) {
+      map.set(a.questionId, {
+        textAnswer: a.textAnswer ?? null,
+        numberAnswer: a.numberAnswer ?? null,
+      });
+    }
+
+    const lines = questions.map((q) => {
+      const a = map.get(q.id);
+      if (!a) return `${q.questionText}: -`;
+      const ans =
+        a.textAnswer !== null
+          ? a.textAnswer
+          : a.numberAnswer !== null
+            ? String(a.numberAnswer)
+            : '-';
+      return `${q.questionText}: ${ans}`;
+    });
+
+    await ctx.reply(lines.join('\n'));
+  }
+
   async handleAnswerCallback(ctx: Context) {
     const chatId = ctx.chat?.id || ctx.from?.id;
     if (!chatId) return;

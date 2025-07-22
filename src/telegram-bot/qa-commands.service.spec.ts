@@ -13,6 +13,7 @@ describe('QaCommandsService', () => {
     },
     answer: {
       findFirst: jest.fn(),
+      findMany: jest.fn(),
       create: jest.fn(),
     },
   };
@@ -59,7 +60,25 @@ describe('QaCommandsService', () => {
     ]);
     await service.handleQCommand(ctx);
     expect(mockReply).toHaveBeenCalledWith('Q1');
-    const sessions = (service as any).askSessions;
+    const sessions = (
+      service as unknown as { askSessions: Map<number, unknown> }
+    ).askSessions;
     expect(sessions.get(1)).toBeDefined();
+  });
+
+  it('should list questions with answers', async () => {
+    const mockReply = jest.fn();
+    const ctx = { chat: { id: 1 }, reply: mockReply } as unknown as Context;
+    mockPrisma.question.findMany.mockResolvedValue([
+      { id: 1, questionText: 'Q1', type: 'text', createdAt: new Date() },
+      { id: 2, questionText: 'Q2', type: 'number', createdAt: new Date() },
+    ]);
+    mockPrisma.answer.findMany = jest
+      .fn()
+      .mockResolvedValue([
+        { questionId: 1, textAnswer: 'A1', numberAnswer: null },
+      ]);
+    await service.handleQqCommand(ctx);
+    expect(mockReply).toHaveBeenCalledWith('Q1: A1\nQ2: -');
   });
 });
