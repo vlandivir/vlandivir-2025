@@ -197,9 +197,25 @@ export class QaCommandsService {
     }
 
     const textAnswer = data === 'q_yes' ? 'yes' : 'no';
-    await this.prisma.answer.create({
-      data: { questionId: question.id, textAnswer, answerDate: session.date },
+    const existing = await this.prisma.answer.findFirst({
+      where: {
+        questionId: question.id,
+        answerDate: {
+          gte: startOfDay(session.date),
+          lt: endOfDay(session.date),
+        },
+      },
     });
+    if (existing) {
+      await this.prisma.answer.update({
+        where: { id: existing.id },
+        data: { textAnswer },
+      });
+    } else {
+      await this.prisma.answer.create({
+        data: { questionId: question.id, textAnswer, answerDate: session.date },
+      });
+    }
     session.index++;
     session.awaitingAnswer = false;
     this.askSessions.set(chatId, session);
@@ -249,13 +265,29 @@ export class QaCommandsService {
         });
       }
     } else {
-      await this.prisma.answer.create({
-        data: {
+      const existing = await this.prisma.answer.findFirst({
+        where: {
           questionId: question.id,
-          textAnswer: text,
-          answerDate: session.date,
+          answerDate: {
+            gte: startOfDay(session.date),
+            lt: endOfDay(session.date),
+          },
         },
       });
+      if (existing) {
+        await this.prisma.answer.update({
+          where: { id: existing.id },
+          data: { textAnswer: text },
+        });
+      } else {
+        await this.prisma.answer.create({
+          data: {
+            questionId: question.id,
+            textAnswer: text,
+            answerDate: session.date,
+          },
+        });
+      }
     }
 
     session.index++;
