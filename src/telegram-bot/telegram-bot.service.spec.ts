@@ -198,6 +198,7 @@ describe('TelegramBotService', () => {
       '/q - Answer questions',
       '/qa - Add question',
       '/ql - List questions',
+      '/qq - Questions and answers for a date',
       '/s - Serbian Translation',
       '/t or /task - Create Todo item',
       '/th - Tasks HTML export',
