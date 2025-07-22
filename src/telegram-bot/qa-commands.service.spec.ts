@@ -110,4 +110,52 @@ describe('QaCommandsService', () => {
       data: { numberAnswer: 8 },
     });
   });
+
+  it('should update existing binary answer', async () => {
+    const mockReply = jest.fn();
+    const ctxStart = {
+      chat: { id: 3 },
+      reply: mockReply,
+    } as unknown as Context;
+    mockPrisma.question.findMany.mockResolvedValue([
+      {
+        id: 3,
+        questionText: 'Done?',
+        type: 'binary',
+        createdAt: new Date(),
+      },
+    ]);
+    // existing answer when listing questions
+    mockPrisma.answer.findFirst.mockResolvedValueOnce({
+      id: 20,
+      textAnswer: 'no',
+    });
+    await service.handleQCommand(ctxStart);
+
+    const sessions = (
+      service as unknown as {
+        askSessions: Map<number, { awaitingAnswer: boolean; index: number }>;
+      }
+    ).askSessions;
+    expect(sessions.get(3)?.awaitingAnswer).toBe(false);
+
+    const ctxAnswer = {
+      chat: { id: 3 },
+      from: { id: 3 },
+      callbackQuery: { data: 'q_yes' },
+      answerCbQuery: jest.fn(),
+      editMessageReplyMarkup: jest.fn(),
+      reply: mockReply,
+    } as unknown as Context;
+    // existing answer when answering
+    mockPrisma.answer.findFirst.mockResolvedValueOnce({
+      id: 20,
+      textAnswer: 'no',
+    });
+    await service.handleAnswerCallback(ctxAnswer);
+    expect(mockPrisma.answer.update).toHaveBeenCalledWith({
+      where: { id: 20 },
+      data: { textAnswer: 'yes' },
+    });
+  });
 });
