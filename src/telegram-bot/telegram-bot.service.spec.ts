@@ -195,6 +195,7 @@ describe('TelegramBotService', () => {
       '/d or /dairy - Dairy Notes',
       '/help - Show this help message',
       '/history - Chat History',
+      '/q - Answer questions',
       '/qa - Add question',
       '/ql - List questions',
       '/s - Serbian Translation',

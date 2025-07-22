@@ -162,6 +162,12 @@ export class TelegramBotService {
       return this.qaCommands.handleQlCommand(ctx);
     });
 
+    // Ask questions command
+    this.bot.command(['q'], (ctx) => {
+      console.log('Получена команда /q:', ctx.message?.text);
+      return this.qaCommands.handleQCommand(ctx);
+    });
+
     // Help command
     this.bot.command(['help'], (ctx) => {
       console.log('Получена команда /help');
@@ -233,6 +239,8 @@ export class TelegramBotService {
         data === 'qa_type_boolean'
       ) {
         await this.qaCommands.handleTypeSelection(ctx);
+      } else if (data === 'q_yes' || data === 'q_no' || data === 'q_skip') {
+        await this.qaCommands.handleAnswerCallback(ctx);
       }
     });
   }
@@ -538,6 +546,7 @@ export class TelegramBotService {
       { name: '/th', description: 'Tasks HTML export' },
       { name: '/qa', description: 'Add question' },
       { name: '/ql', description: 'List questions' },
+      { name: '/q', description: 'Answer questions' },
       { name: '/c or /collage', description: 'Create image collage' },
       { name: '/help', description: 'Show this help message' },
     ];
