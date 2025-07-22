@@ -168,6 +168,12 @@ export class TelegramBotService {
       return this.qaCommands.handleQCommand(ctx);
     });
 
+    // Questions report command
+    this.bot.command(['qq'], (ctx) => {
+      console.log('Получена команда /qq:', ctx.message?.text);
+      return this.qaCommands.handleQqCommand(ctx);
+    });
+
     // Help command
     this.bot.command(['help'], (ctx) => {
       console.log('Получена команда /help');
@@ -546,6 +552,7 @@ export class TelegramBotService {
       { name: '/th', description: 'Tasks HTML export' },
       { name: '/qa', description: 'Add question' },
       { name: '/ql', description: 'List questions' },
+      { name: '/qq', description: 'Questions and answers for a date' },
       { name: '/q', description: 'Answer questions' },
       { name: '/c or /collage', description: 'Create image collage' },
       { name: '/help', description: 'Show this help message' },

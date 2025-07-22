@@ -158,4 +158,22 @@ describe('QaCommandsService', () => {
       data: { textAnswer: 'yes' },
     });
   });
+
+  it('should list questions with answers for a date', async () => {
+    const mockReply = jest.fn();
+    const ctx = { chat: { id: 4 }, reply: mockReply } as unknown as Context;
+    mockPrisma.question.findMany.mockResolvedValue([
+      {
+        id: 30,
+        questionText: 'How are you?',
+        type: 'text',
+        createdAt: new Date(),
+        Answer: [
+          { textAnswer: 'fine', numberAnswer: null, answerDate: new Date() },
+        ],
+      },
+    ]);
+    await service.handleQqCommand(ctx);
+    expect(mockReply).toHaveBeenCalledWith('How are you?: fine');
+  });
 });

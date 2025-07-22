@@ -169,6 +169,45 @@ export class QaCommandsService {
     await this.askNextQuestion(ctx, chatId);
   }
 
+  async handleQqCommand(ctx: Context) {
+    const chatId = ctx.chat?.id;
+    if (!chatId) return;
+
+    const text = this.getCommandText(ctx)
+      .replace(/^\/qq\s*/, '')
+      .trim();
+    const { date } = this.dateParser.extractDateFromFirstLine(text);
+    const targetDate = date || new Date();
+
+    const questions = await this.prisma.question.findMany({
+      where: { chatId },
+      orderBy: { createdAt: 'asc' },
+      include: {
+        Answer: {
+          where: {
+            answerDate: {
+              gte: startOfDay(targetDate),
+              lt: endOfDay(targetDate),
+            },
+          },
+        },
+      },
+    });
+
+    if (questions.length === 0) {
+      await ctx.reply('No questions found in this chat');
+      return;
+    }
+
+    const lines = questions.map((q) => {
+      const ans = q.Answer[0];
+      if (!ans) return `${q.questionText}: -`;
+      return `${q.questionText}: ${ans.textAnswer ?? ans.numberAnswer ?? ''}`;
+    });
+
+    await ctx.reply(lines.join('\n'));
+  }
+
   async handleAnswerCallback(ctx: Context) {
     const chatId = ctx.chat?.id || ctx.from?.id;
     if (!chatId) return;
