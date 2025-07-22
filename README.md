@@ -128,6 +128,17 @@ Example:
 /ql
 ```
 
+### `/q`
+
+Starts an interactive session to answer each stored question for the given date.
+If no date is provided, today's date is used.
+
+Example:
+
+```
+/q 10.07.2025
+```
+
 ### `/qq`
 
 Displays each question with its answer for the given date. If no date is
