@@ -211,4 +211,36 @@ describe('QaCommandsService', () => {
       expect.stringContaining('https://example.com/qh.html'),
     );
   });
+
+  it('should include chart for numeric questions', async () => {
+    const mockReply = jest.fn();
+    const ctx = { chat: { id: 6 }, reply: mockReply } as unknown as Context;
+    const day1 = new Date();
+    day1.setDate(day1.getDate() - 2);
+    const day2 = new Date();
+    day2.setDate(day2.getDate() - 1);
+    mockPrisma.question.findMany.mockResolvedValue([
+      { id: 2, questionText: 'Num', type: 'number', createdAt: new Date() },
+    ]);
+    mockPrisma.answer.findMany.mockResolvedValue([
+      { questionId: 2, textAnswer: null, numberAnswer: 1, answerDate: day1 },
+      { questionId: 2, textAnswer: null, numberAnswer: 2, answerDate: day2 },
+    ]);
+    mockStorage.uploadFileWithKey.mockResolvedValue(
+      'https://example.com/qh.html',
+    );
+    await service.handleQhCommand(ctx);
+    const lastCall =
+      mockStorage.uploadFileWithKey.mock.calls[
+        mockStorage.uploadFileWithKey.mock.calls.length - 1
+      ];
+    const buffer = lastCall[0] as Buffer;
+    const html = buffer.toString();
+    const d1 = day1.toISOString().slice(0, 10);
+    const d2 = day2.toISOString().slice(0, 10);
+    expect(html).toContain(d1);
+    expect(html).toContain(d2);
+    expect(html).toContain('chart.js');
+    expect(html).toContain('<canvas id="chart-2"');
+  });
 });

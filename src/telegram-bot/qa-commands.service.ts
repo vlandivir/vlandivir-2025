@@ -243,10 +243,7 @@ export class QaCommandsService {
       map[key][a.questionId] = a.textAnswer ?? a.numberAnswer ?? '';
     }
 
-    const dates: string[] = [];
-    for (let i = 29; i >= 0; i--) {
-      dates.push(format(subDays(end, i), 'yyyy-MM-dd'));
-    }
+    const dates = Object.keys(map).sort();
 
     const html = this.generateHtml(questions, dates, map);
     const key = `qa-history/${uuidv4()}.html`;
@@ -470,7 +467,7 @@ export class QaCommandsService {
   }
 
   private generateHtml(
-    questions: { id: number; questionText: string }[],
+    questions: { id: number; questionText: string; type: string }[],
     dates: string[],
     data: Record<string, Record<number, string | number>>,
   ): string {
@@ -492,6 +489,33 @@ export class QaCommandsService {
       html += '</tr>';
     }
     html += '</tbody></table>';
+
+    const numericQuestions = questions.filter((q) => q.type === 'number');
+    if (numericQuestions.length > 0) {
+      html += '<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>';
+      for (const q of numericQuestions) {
+        html += `<h3>${this.escapeHtml(q.questionText)}</h3>`;
+        html += `<canvas id="chart-${q.id}" height="200"></canvas>`;
+      }
+      html += '<script>';
+      html += `const labels = ${JSON.stringify(dates)};`;
+      for (const q of numericQuestions) {
+        let cumulative = 0;
+        const values: number[] = [];
+        for (const d of dates) {
+          const val = data[d]?.[q.id];
+          if (typeof val === 'number') {
+            cumulative += val;
+          }
+          values.push(cumulative);
+        }
+        html += `new Chart(document.getElementById('chart-${q.id}'),{type:'line',data:{labels:labels,datasets:[{label:${JSON.stringify(
+          q.questionText,
+        )},data:${JSON.stringify(values)},fill:false,borderColor:'blue',tension:0.1}]}});`;
+      }
+      html += '</script>';
+    }
+
     html += `<p>Generated: ${format(new Date(), 'yyyy-MM-dd HH:mm:ss')}</p>`;
     html += '</body></html>';
     return html;
