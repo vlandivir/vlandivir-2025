@@ -48,6 +48,14 @@ export class CollageCommandsService {
         callback_data: 'collage_generate',
       });
     }
+    if (session.length === 5) {
+      buttons.push([
+        {
+          text: '🌟 Особый коллаж',
+          callback_data: 'collage_generate_special',
+        },
+      ]);
+    }
 
     await ctx.reply(`Изображение ${session.length} добавлено.`, {
       reply_markup: { inline_keyboard: buttons },
@@ -93,6 +101,55 @@ export class CollageCommandsService {
     );
     try {
       const collageBuffer = await this.createCollage(images);
+      const collageUrl = await this.storageService.uploadFile(
+        collageBuffer,
+        'image/jpeg',
+        chatId,
+      );
+      await (
+        ctx as Context & {
+          replyWithPhoto: (
+            url: string,
+            options: { caption?: string },
+          ) => Promise<void>;
+        }
+      ).replyWithPhoto(collageUrl, {
+        caption: 'Коллаж из изображений',
+      });
+    } catch (error) {
+      console.error('Error creating collage:', error);
+      await (ctx as Context & { reply: (text: string) => Promise<void> }).reply(
+        'Произошла ошибка при создании коллажа',
+      );
+    } finally {
+      this.sessions.delete(chatId);
+    }
+  }
+
+  async generateSpecial(ctx: Context) {
+    const chatId = ctx.chat?.id || ctx.from?.id;
+    if (!chatId) return;
+    const images = this.sessions.get(chatId);
+    if (!images || images.length < 5) {
+      await (ctx as Context & { reply: (text: string) => Promise<void> }).reply(
+        'Нужно 5 изображений для этого коллажа',
+      );
+      return;
+    }
+
+    await ctx.answerCbQuery();
+    await (
+      ctx as Context & {
+        editMessageReplyMarkup: (
+          markup: InlineKeyboardMarkup | undefined,
+        ) => Promise<void>;
+      }
+    ).editMessageReplyMarkup(undefined);
+    await (ctx as Context & { reply: (text: string) => Promise<void> }).reply(
+      'Создаю особый коллаж...',
+    );
+    try {
+      const collageBuffer = await this.createSpecialCollage(images);
       const collageUrl = await this.storageService.uploadFile(
         collageBuffer,
         'image/jpeg',
@@ -330,6 +387,81 @@ export class CollageCommandsService {
       return collageBuffer;
     } catch (error) {
       console.error('Error in createCollage:', error);
+      throw error;
+    }
+  }
+
+  private async createSpecialCollage(imageBuffers: Buffer[]): Promise<Buffer> {
+    try {
+      if (imageBuffers.length < 5) {
+        throw new Error('Need 5 images for special collage');
+      }
+
+      const mainMetadata = await sharp(imageBuffers[0]).metadata();
+      if (!mainMetadata.width || !mainMetadata.height) {
+        throw new Error('Could not get main image dimensions');
+      }
+
+      const width = mainMetadata.width;
+      const height = mainMetadata.height;
+      const halfWidth = Math.floor(width / 2);
+      const halfHeight = Math.floor(height / 2);
+
+      const canvas = sharp({
+        create: {
+          width,
+          height,
+          channels: 3,
+          background: { r: 255, g: 255, b: 255 },
+        },
+      });
+
+      const composite: sharp.OverlayOptions[] = [];
+
+      const positions = [
+        { left: 0, top: 0 },
+        { left: halfWidth, top: 0 },
+        { left: 0, top: halfHeight },
+        { left: halfWidth, top: halfHeight },
+      ];
+
+      for (let i = 1; i <= 4; i++) {
+        const processed = await sharp(imageBuffers[i])
+          .resize(halfWidth, halfHeight, { fit: 'cover' })
+          .jpeg({ quality: 80 })
+          .toBuffer();
+        composite.push({
+          input: processed,
+          left: positions[i - 1].left,
+          top: positions[i - 1].top,
+        });
+      }
+
+      const border = 5;
+      const mainResized = await sharp(imageBuffers[0])
+        .resize(halfWidth, halfHeight, { fit: 'inside' })
+        .extend({
+          top: border,
+          bottom: border,
+          left: border,
+          right: border,
+          background: { r: 255, g: 255, b: 255 },
+        })
+        .jpeg({ quality: 90 })
+        .toBuffer();
+
+      const mainLeft = Math.floor((width - halfWidth) / 2) - border;
+      const mainTop = Math.floor((height - halfHeight) / 2) - border;
+
+      composite.push({ input: mainResized, left: mainLeft, top: mainTop });
+
+      const result = await canvas
+        .composite(composite)
+        .jpeg({ quality: 90 })
+        .toBuffer();
+      return result;
+    } catch (error) {
+      console.error('Error in createSpecialCollage:', error);
       throw error;
     }
   }
