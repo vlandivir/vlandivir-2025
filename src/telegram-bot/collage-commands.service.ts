@@ -54,6 +54,10 @@ export class CollageCommandsService {
           text: '🌟 Особый коллаж',
           callback_data: 'collage_generate_special',
         },
+        {
+          text: '⭕ Круглый коллаж',
+          callback_data: 'collage_generate_special2',
+        },
       ]);
     }
 
@@ -150,6 +154,55 @@ export class CollageCommandsService {
     );
     try {
       const collageBuffer = await this.createSpecialCollage(images);
+      const collageUrl = await this.storageService.uploadFile(
+        collageBuffer,
+        'image/jpeg',
+        chatId,
+      );
+      await (
+        ctx as Context & {
+          replyWithPhoto: (
+            url: string,
+            options: { caption?: string },
+          ) => Promise<void>;
+        }
+      ).replyWithPhoto(collageUrl, {
+        caption: 'Коллаж из изображений',
+      });
+    } catch (error) {
+      console.error('Error creating collage:', error);
+      await (ctx as Context & { reply: (text: string) => Promise<void> }).reply(
+        'Произошла ошибка при создании коллажа',
+      );
+    } finally {
+      this.sessions.delete(chatId);
+    }
+  }
+
+  async generateSpecial2(ctx: Context) {
+    const chatId = ctx.chat?.id || ctx.from?.id;
+    if (!chatId) return;
+    const images = this.sessions.get(chatId);
+    if (!images || images.length < 5) {
+      await (ctx as Context & { reply: (text: string) => Promise<void> }).reply(
+        'Нужно 5 изображений для этого коллажа',
+      );
+      return;
+    }
+
+    await ctx.answerCbQuery();
+    await (
+      ctx as Context & {
+        editMessageReplyMarkup: (
+          markup: InlineKeyboardMarkup | undefined,
+        ) => Promise<void>;
+      }
+    ).editMessageReplyMarkup(undefined);
+    await (ctx as Context & { reply: (text: string) => Promise<void> }).reply(
+      'Создаю особый коллаж...',
+    );
+    try {
+      const collageBuffer = await this.createSpecialCollageCircle(images);
       const collageUrl = await this.storageService.uploadFile(
         collageBuffer,
         'image/jpeg',
@@ -466,6 +519,84 @@ export class CollageCommandsService {
       return result;
     } catch (error) {
       console.error('Error in createSpecialCollage:', error);
+      throw error;
+    }
+  }
+
+  private async createSpecialCollageCircle(
+    imageBuffers: Buffer[],
+  ): Promise<Buffer> {
+    try {
+      if (imageBuffers.length < 5) {
+        throw new Error('Need 5 images for special collage');
+      }
+
+      const mainMetadata = await sharp(imageBuffers[0]).metadata();
+      if (!mainMetadata.width || !mainMetadata.height) {
+        throw new Error('Could not get main image dimensions');
+      }
+
+      const width = mainMetadata.width;
+      const height = mainMetadata.height;
+      const spacing = 5;
+      const bgWidth = Math.floor((width - spacing) / 2);
+      const bgHeight = Math.floor((height - spacing) / 2);
+
+      const canvas = sharp({
+        create: {
+          width,
+          height,
+          channels: 3,
+          background: { r: 255, g: 255, b: 255 },
+        },
+      });
+
+      const composite: sharp.OverlayOptions[] = [];
+
+      const positions = [
+        { left: 0, top: 0 },
+        { left: bgWidth + spacing, top: 0 },
+        { left: 0, top: bgHeight + spacing },
+        { left: bgWidth + spacing, top: bgHeight + spacing },
+      ];
+
+      for (let i = 1; i <= 4; i++) {
+        const processed = await sharp(imageBuffers[i])
+          .resize(bgWidth, bgHeight, { fit: 'cover' })
+          .jpeg({ quality: 80 })
+          .toBuffer();
+        composite.push({
+          input: processed,
+          left: positions[i - 1].left,
+          top: positions[i - 1].top,
+        });
+      }
+
+      const diameter = Math.floor(Math.min(width, height) * 0.75);
+      const circleSvg = Buffer.from(
+        `<svg width="${diameter}" height="${diameter}"><circle cx="${
+          diameter / 2
+        }" cy="${diameter / 2}" r="${diameter / 2}" fill="white" /></svg>`,
+      );
+
+      const mainCircle = await sharp(imageBuffers[0])
+        .resize(diameter, diameter, { fit: 'cover', position: 'centre' })
+        .composite([{ input: circleSvg, blend: 'dest-in' }])
+        .png()
+        .toBuffer();
+
+      const mainLeft = Math.floor((width - diameter) / 2);
+      const mainTop = Math.floor((height - diameter) / 2);
+
+      composite.push({ input: mainCircle, left: mainLeft, top: mainTop });
+
+      const result = await canvas
+        .composite(composite)
+        .jpeg({ quality: 90 })
+        .toBuffer();
+      return result;
+    } catch (error) {
+      console.error('Error in createSpecialCollageCircle:', error);
       throw error;
     }
   }
