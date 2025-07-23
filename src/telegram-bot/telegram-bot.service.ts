@@ -245,6 +245,8 @@ export class TelegramBotService {
         await this.collageCommands.cancel(ctx);
       } else if (data === 'collage_generate') {
         await this.collageCommands.generate(ctx);
+      } else if (data === 'collage_generate_special') {
+        await this.collageCommands.generateSpecial(ctx);
       } else if (
         data === 'qa_type_string' ||
         data === 'qa_type_number' ||
