@@ -572,7 +572,7 @@ export class CollageCommandsService {
         });
       }
 
-      const diameter = Math.floor(Math.min(width, height) * 0.75);
+      const diameter = Math.floor(Math.min(width, height) * 0.8);
       const circleSvg = Buffer.from(
         `<svg width="${diameter}" height="${diameter}"><circle cx="${
           diameter / 2
@@ -582,11 +582,18 @@ export class CollageCommandsService {
       const mainCircle = await sharp(imageBuffers[0])
         .resize(diameter, diameter, { fit: 'cover', position: 'centre' })
         .composite([{ input: circleSvg, blend: 'dest-in' }])
+        .extend({
+          top: 5,
+          bottom: 5,
+          left: 5,
+          right: 5,
+          background: { r: 255, g: 255, b: 255 },
+        })
         .png()
         .toBuffer();
 
-      const mainLeft = Math.floor((width - diameter) / 2);
-      const mainTop = Math.floor((height - diameter) / 2);
+      const mainLeft = Math.floor((width - diameter) / 2) - 5;
+      const mainTop = Math.floor((height - diameter) / 2) - 5;
 
       composite.push({ input: mainCircle, left: mainLeft, top: mainTop });
 
