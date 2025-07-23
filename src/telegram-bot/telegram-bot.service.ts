@@ -248,7 +248,16 @@ export class TelegramBotService {
       } else if (data === 'collage_generate_special') {
         await this.collageCommands.generateSpecial(ctx);
       } else if (data === 'collage_generate_special2') {
-        await this.collageCommands.generateSpecial2(ctx);
+        await this.collageCommands.askCircleSize(ctx);
+      } else if (
+        data === 'circle_size_50' ||
+        data === 'circle_size_60' ||
+        data === 'circle_size_70' ||
+        data === 'circle_size_80' ||
+        data === 'circle_size_90'
+      ) {
+        const percent = parseInt(data.replace('circle_size_', ''), 10);
+        await this.collageCommands.generateSpecial2(ctx, percent);
       } else if (
         data === 'qa_type_string' ||
         data === 'qa_type_number' ||

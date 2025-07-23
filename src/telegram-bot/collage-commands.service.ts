@@ -13,6 +13,7 @@ export class CollageCommandsService {
   ) {}
 
   private readonly sessions: Map<number, Buffer[]> = new Map();
+  private readonly awaitingCircleSize: Set<number> = new Set();
 
   isActive(chatId: number): boolean {
     return this.sessions.has(chatId);
@@ -22,6 +23,7 @@ export class CollageCommandsService {
     const chatId = ctx.chat?.id;
     if (!chatId) return;
     this.sessions.set(chatId, []);
+    this.awaitingCircleSize.delete(chatId);
     await ctx.reply('Отправьте изображение 1', {
       reply_markup: {
         inline_keyboard: [
@@ -70,6 +72,7 @@ export class CollageCommandsService {
     const chatId = ctx.chat?.id || ctx.from?.id;
     if (!chatId) return;
     this.sessions.delete(chatId);
+    this.awaitingCircleSize.delete(chatId);
     if ('callbackQuery' in ctx) {
       await ctx.answerCbQuery();
       await ctx.editMessageText('Создание коллажа отменено');
@@ -127,6 +130,7 @@ export class CollageCommandsService {
       );
     } finally {
       this.sessions.delete(chatId);
+      this.awaitingCircleSize.delete(chatId);
     }
   }
 
@@ -179,7 +183,7 @@ export class CollageCommandsService {
     }
   }
 
-  async generateSpecial2(ctx: Context) {
+  async askCircleSize(ctx: Context) {
     const chatId = ctx.chat?.id || ctx.from?.id;
     if (!chatId) return;
     const images = this.sessions.get(chatId);
@@ -198,11 +202,59 @@ export class CollageCommandsService {
         ) => Promise<void>;
       }
     ).editMessageReplyMarkup(undefined);
+
+    this.awaitingCircleSize.add(chatId);
+    await (ctx as Context & { reply: (text: string) => Promise<void> }).reply(
+      'Выберите размер круглого изображения',
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: '50%', callback_data: 'circle_size_50' },
+              { text: '60%', callback_data: 'circle_size_60' },
+              { text: '70%', callback_data: 'circle_size_70' },
+            ],
+            [
+              { text: '80%', callback_data: 'circle_size_80' },
+              { text: '90%', callback_data: 'circle_size_90' },
+            ],
+          ],
+        },
+      },
+    );
+  }
+
+  async generateSpecial2(ctx: Context, sizePercent = 80) {
+    const chatId = ctx.chat?.id || ctx.from?.id;
+    if (!chatId) return;
+    const images = this.sessions.get(chatId);
+    if (!images || images.length < 5) {
+      await (ctx as Context & { reply: (text: string) => Promise<void> }).reply(
+        'Нужно 5 изображений для этого коллажа',
+      );
+      return;
+    }
+
+    if (this.awaitingCircleSize.has(chatId)) {
+      this.awaitingCircleSize.delete(chatId);
+    }
+
+    await ctx.answerCbQuery();
+    await (
+      ctx as Context & {
+        editMessageReplyMarkup: (
+          markup: InlineKeyboardMarkup | undefined,
+        ) => Promise<void>;
+      }
+    ).editMessageReplyMarkup(undefined);
     await (ctx as Context & { reply: (text: string) => Promise<void> }).reply(
       'Создаю особый коллаж...',
     );
     try {
-      const collageBuffer = await this.createSpecialCollageCircle(images);
+      const collageBuffer = await this.createSpecialCollageCircle(
+        images,
+        sizePercent,
+      );
       const collageUrl = await this.storageService.uploadFile(
         collageBuffer,
         'image/jpeg',
@@ -525,6 +577,7 @@ export class CollageCommandsService {
 
   private async createSpecialCollageCircle(
     imageBuffers: Buffer[],
+    sizePercent = 80,
   ): Promise<Buffer> {
     try {
       if (imageBuffers.length < 5) {
@@ -572,7 +625,10 @@ export class CollageCommandsService {
         });
       }
 
-      const diameter = Math.floor(Math.min(width, height) * 0.8);
+      const diameter = Math.floor(
+        Math.min(width, height) *
+          (Math.min(Math.max(sizePercent, 10), 100) / 100),
+      );
       const border = 5;
 
       const circleSvg = Buffer.from(
