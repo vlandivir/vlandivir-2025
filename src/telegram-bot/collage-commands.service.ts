@@ -407,6 +407,10 @@ export class CollageCommandsService {
       const halfWidth = Math.floor(width / 2);
       const halfHeight = Math.floor(height / 2);
 
+      const spacing = 5; // space between background images
+      const bgWidth = Math.floor((width - spacing) / 2);
+      const bgHeight = Math.floor((height - spacing) / 2);
+
       const canvas = sharp({
         create: {
           width,
@@ -420,14 +424,14 @@ export class CollageCommandsService {
 
       const positions = [
         { left: 0, top: 0 },
-        { left: halfWidth, top: 0 },
-        { left: 0, top: halfHeight },
-        { left: halfWidth, top: halfHeight },
+        { left: bgWidth + spacing, top: 0 },
+        { left: 0, top: bgHeight + spacing },
+        { left: bgWidth + spacing, top: bgHeight + spacing },
       ];
 
       for (let i = 1; i <= 4; i++) {
         const processed = await sharp(imageBuffers[i])
-          .resize(halfWidth, halfHeight, { fit: 'cover' })
+          .resize(bgWidth, bgHeight, { fit: 'cover' })
           .jpeg({ quality: 80 })
           .toBuffer();
         composite.push({
