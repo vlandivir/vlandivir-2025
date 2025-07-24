@@ -5,7 +5,7 @@ import { ConfigService } from '@nestjs/config';
 export class LlmService {
   constructor(private readonly configService: ConfigService) {}
 
-  async describeImage(imageBuffer: Buffer): Promise<string> {
+  async describeImage(imageBuffer: Buffer, comment?: string): Promise<string> {
     try {
       const apiKey = this.configService.get<string>('OPENAI_API_KEY');
       if (!apiKey) {
@@ -36,8 +36,11 @@ export class LlmService {
                       'Опиши что видишь на изображении, включая объекты, людей, действия, и контекст.',
                       'Попробуй сделать описание, так чтобы его можно было использовать в журнальной статье.',
                       'Не используй слова "фотография" или "изображение" и вводных конструкций, сразу описывай что видишь.',
-                      'Не делай обобщений о настроении или назначении изображения',
-                    ].join(' '),
+                      'Не делай обобщений о настроении или назначении изображения.',
+                      comment ? `Комментарий пользователя: ${comment}` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' '),
                   },
                   {
                     type: 'image_url',

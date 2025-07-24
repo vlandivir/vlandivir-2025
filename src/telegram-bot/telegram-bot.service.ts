@@ -418,7 +418,10 @@ export class TelegramBotService {
       );
 
       // Get image description from LLM
-      const imageDescription = await this.llmService.describeImage(photoBuffer);
+      const imageDescription = await this.llmService.describeImage(
+        photoBuffer,
+        caption,
+      );
 
       const { date: noteDate, cleanContent } =
         this.dateParser.extractDateFromFirstLine(caption || '');
