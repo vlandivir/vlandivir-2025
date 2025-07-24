@@ -390,19 +390,21 @@ export class TaskCommandsService {
       return;
     }
 
+    const lines: string[] = [];
+    const buttons: { text: string; callback_data: string }[][] = [];
+
     for (const t of latestTasks) {
-      let line = `${t.key} ${t.content}`;
+      let line = `${t.content}`;
       if (t.dueDate) {
         line += ` (due: ${format(t.dueDate, 'MMM d, yyyy HH:mm')})`;
       }
-      await ctx.reply(line, {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: 'Edit', callback_data: `edit_task_${t.key}` }],
-          ],
-        },
-      });
+      lines.push(line);
+      buttons.push([{ text: t.key, callback_data: `edit_task_${t.key}` }]);
     }
+
+    await ctx.reply(lines.join('\n'), {
+      reply_markup: { inline_keyboard: buttons },
+    });
   }
 
   isEditing(chatId: number): boolean {

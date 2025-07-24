@@ -89,7 +89,9 @@ Example:
 
 ### `/tl`
 
-Lists unfinished todo items. You can filter by the same `@tag`, `.context` and `!project` tokens as in `/task`.
+Lists unfinished todo items in a single message. Each task has an inline button
+showing its key so you can quickly start editing. You can filter by the same
+`@tag`, `.context` and `!project` tokens as in `/task`.
 
 Example:
 
