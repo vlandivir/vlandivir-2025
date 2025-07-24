@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Context } from 'telegraf';
+import { InlineKeyboardMarkup } from 'telegraf/typings/core/types/typegram';
 import { PrismaService } from '../prisma/prisma.service';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import { DateParserService } from '../services/date-parser.service';
@@ -21,6 +22,11 @@ export class TaskCommandsService {
     private readonly prisma: PrismaService,
     private readonly dateParser: DateParserService,
   ) {}
+
+  private readonly editSessions: Map<
+    number,
+    { key: string; step: 'await_action' | 'await_snooze_days' }
+  > = new Map();
 
   async handleTaskCommand(ctx: Context) {
     const text = this.getCommandText(ctx);
@@ -384,14 +390,111 @@ export class TaskCommandsService {
       return;
     }
 
-    const lines = latestTasks.map((t) => {
+    for (const t of latestTasks) {
       let line = `${t.key} ${t.content}`;
       if (t.dueDate) {
         line += ` (due: ${format(t.dueDate, 'MMM d, yyyy HH:mm')})`;
       }
-      return line;
+      await ctx.reply(line, {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: 'Edit', callback_data: `edit_task_${t.key}` }],
+          ],
+        },
+      });
+    }
+  }
+
+  isEditing(chatId: number): boolean {
+    return this.editSessions.has(chatId);
+  }
+
+  async startEditConversation(ctx: Context, key: string) {
+    const chatId = ctx.chat?.id || ctx.from?.id;
+    if (!chatId) return;
+    this.editSessions.set(chatId, { key, step: 'await_action' });
+    await ctx.answerCbQuery?.();
+    await (
+      ctx as Context & {
+        editMessageReplyMarkup?: (
+          markup: InlineKeyboardMarkup | undefined,
+        ) => Promise<void>;
+      }
+    ).editMessageReplyMarkup?.(undefined);
+    await ctx.reply(`Editing ${key}. Send updates or choose status`, {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: 'Done', callback_data: 'edit_status_done' },
+            { text: 'Canceled', callback_data: 'edit_status_canceled' },
+          ],
+          [{ text: 'Snooze', callback_data: 'edit_status_snoozed' }],
+        ],
+      },
     });
-    await ctx.reply(lines.join('\n'));
+  }
+
+  async handleEditCallback(ctx: Context, action: string) {
+    const chatId = ctx.chat?.id || ctx.from?.id;
+    if (!chatId) return;
+    const session = this.editSessions.get(chatId);
+    if (!session) return;
+    await ctx.answerCbQuery();
+    await (
+      ctx as Context & {
+        editMessageReplyMarkup?: (
+          markup: InlineKeyboardMarkup | undefined,
+        ) => Promise<void>;
+      }
+    ).editMessageReplyMarkup?.(undefined);
+    if (action === 'done' || action === 'canceled') {
+      await this.editTask(ctx, session.key, {
+        content: '',
+        tags: [],
+        contexts: [],
+        projects: [],
+        status: action,
+      });
+      this.editSessions.delete(chatId);
+      return;
+    }
+    if (action === 'snoozed') {
+      session.step = 'await_snooze_days';
+      this.editSessions.set(chatId, session);
+      await ctx.reply('How many days to snooze?');
+    }
+  }
+
+  async handleEditText(ctx: Context) {
+    const chatId = ctx.chat?.id;
+    if (!chatId) return;
+    const session = this.editSessions.get(chatId);
+    if (!session) return false;
+    if (!ctx.message || !('text' in ctx.message)) return true;
+    const text = ctx.message.text.trim();
+    if (session.step === 'await_snooze_days') {
+      const days = parseInt(text, 10);
+      if (Number.isNaN(days)) {
+        await ctx.reply('Please provide number of days');
+        return true;
+      }
+      const snoozedUntil = new Date();
+      snoozedUntil.setDate(snoozedUntil.getDate() + days);
+      await this.editTask(ctx, session.key, {
+        content: '',
+        tags: [],
+        contexts: [],
+        projects: [],
+        status: 'snoozed',
+        snoozedUntil,
+      });
+      this.editSessions.delete(chatId);
+      return true;
+    }
+    const parsed = this.parseTask(text);
+    await this.editTask(ctx, session.key, parsed);
+    this.editSessions.delete(chatId);
+    return true;
   }
 
   private getTaskFormatMessage(): string {

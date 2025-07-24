@@ -201,6 +201,11 @@ export class TelegramBotService {
         return;
       }
 
+      if (this.taskCommands.isEditing(ctx.chat.id)) {
+        await this.taskCommands.handleEditText(ctx);
+        return;
+      }
+
       if (!ctx.message.text.startsWith('/')) {
         const isGroup =
           ctx.chat.type === 'group' || ctx.chat.type === 'supergroup';
@@ -266,6 +271,12 @@ export class TelegramBotService {
         await this.qaCommands.handleTypeSelection(ctx);
       } else if (data === 'q_yes' || data === 'q_no' || data === 'q_skip') {
         await this.qaCommands.handleAnswerCallback(ctx);
+      } else if (data && data.startsWith('edit_task_')) {
+        const key = data.replace('edit_task_', '');
+        await this.taskCommands.startEditConversation(ctx, key);
+      } else if (data && data.startsWith('edit_status_')) {
+        const action = data.replace('edit_status_', '');
+        await this.taskCommands.handleEditCallback(ctx, action);
       }
     });
   }
