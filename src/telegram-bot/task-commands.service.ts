@@ -392,14 +392,22 @@ export class TaskCommandsService {
 
     const lines: string[] = [];
     const buttons: { text: string; callback_data: string }[][] = [];
+    let row: { text: string; callback_data: string }[] = [];
 
     for (const t of latestTasks) {
-      let line = `${t.content}`;
+      let line = `${t.key} ${t.content}`;
       if (t.dueDate) {
         line += ` (due: ${format(t.dueDate, 'MMM d, yyyy HH:mm')})`;
       }
       lines.push(line);
-      buttons.push([{ text: t.key, callback_data: `edit_task_${t.key}` }]);
+      row.push({ text: t.key, callback_data: `edit_task_${t.key}` });
+      if (row.length === 2) {
+        buttons.push(row);
+        row = [];
+      }
+    }
+    if (row.length > 0) {
+      buttons.push(row);
     }
 
     await ctx.reply(lines.join('\n'), {
