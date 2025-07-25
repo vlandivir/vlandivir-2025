@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Context } from 'telegraf';
 import { InlineKeyboardMarkup } from 'telegraf/typings/core/types/typegram';
 import { PrismaService } from '../prisma/prisma.service';
-import { format, startOfDay, endOfDay } from 'date-fns';
+import { format, startOfDay, endOfDay, isToday } from 'date-fns';
 import { DateParserService } from '../services/date-parser.service';
 
 interface ParsedTask {
@@ -394,8 +394,21 @@ export class TaskCommandsService {
     const buttons: { text: string; callback_data: string }[][] = [];
     let row: { text: string; callback_data: string }[] = [];
 
+    const now = new Date();
+
     for (const t of latestTasks) {
-      let line = `${t.key} ${t.content}`;
+      let prefix = '';
+      if (t.dueDate) {
+        let icon = '📅';
+        if (t.dueDate.getTime() < now.getTime()) {
+          icon = '❗';
+        } else if (isToday(t.dueDate)) {
+          icon = '⏰';
+        }
+        prefix = `${icon} `;
+      }
+
+      let line = `${prefix}${t.key} ${t.content}`;
       if (t.dueDate) {
         line += ` (due: ${format(t.dueDate, 'MMM d, yyyy HH:mm')})`;
       }
