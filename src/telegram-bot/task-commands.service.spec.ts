@@ -320,5 +320,84 @@ describe('TaskCommandsService', () => {
         expect.stringContaining('ORDER BY "dueDate" IS NULL, "dueDate" ASC'),
       );
     });
+
+    it('should add icons for tasks with due dates', async () => {
+      const now = new Date();
+      const past = new Date(now.getTime() - 86400000);
+      const today = new Date(now);
+      today.setHours(23, 59, 0, 0);
+      const future = new Date(now.getTime() + 86400000 * 2);
+
+      const mockPrisma = {
+        $queryRawUnsafe: jest.fn().mockResolvedValue([
+          {
+            id: 1,
+            key: 'T-1',
+            content: 'Past',
+            createdAt: past,
+            status: 'new',
+            completedAt: null,
+            priority: null,
+            dueDate: past,
+            snoozedUntil: null,
+            tags: [],
+            contexts: [],
+            projects: [],
+          },
+          {
+            id: 2,
+            key: 'T-2',
+            content: 'Today',
+            createdAt: now,
+            status: 'new',
+            completedAt: null,
+            priority: null,
+            dueDate: today,
+            snoozedUntil: null,
+            tags: [],
+            contexts: [],
+            projects: [],
+          },
+          {
+            id: 3,
+            key: 'T-3',
+            content: 'Future',
+            createdAt: now,
+            status: 'new',
+            completedAt: null,
+            priority: null,
+            dueDate: future,
+            snoozedUntil: null,
+            tags: [],
+            contexts: [],
+            projects: [],
+          },
+        ]),
+        todo: { count: jest.fn() },
+      };
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          TaskCommandsService,
+          DateParserService,
+          { provide: PrismaService, useValue: mockPrisma },
+        ],
+      }).compile();
+
+      const svc = module.get<TaskCommandsService>(TaskCommandsService);
+      const mockReply = jest.fn();
+      const ctx: Context = {
+        message: { text: '/tl' },
+        chat: { id: 123456 },
+        reply: mockReply,
+      } as unknown as Context;
+
+      await svc.handleListCommand(ctx);
+
+      const replyText = mockReply.mock.calls[0][0] as string;
+      expect(replyText).toContain('❗');
+      expect(replyText).toContain('⏰');
+      expect(replyText).toContain('📅');
+    });
   });
 });
