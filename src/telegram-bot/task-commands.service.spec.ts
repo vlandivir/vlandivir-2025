@@ -425,7 +425,7 @@ describe('TaskCommandsService', () => {
   describe('startEditConversation', () => {
     it('should show notes and add note button', async () => {
       const mockPrisma = {
-        todo: { 
+        todo: {
           count: jest.fn(),
           findFirst: jest.fn().mockResolvedValue({
             key: 'T-1',

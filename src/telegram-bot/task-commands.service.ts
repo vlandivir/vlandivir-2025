@@ -81,14 +81,14 @@ export class TaskCommandsService {
         status: parsed.status ?? 'new',
         chatId,
         images: {
-          create: images.map(img => ({
+          create: images.map((img) => ({
             url: img.url,
             description: img.description,
           })),
         },
       },
     });
-    
+
     let response = `Task created with key ${newKey}`;
     if (images.length > 0) {
       response += `\nImages: ${images.length}`;
@@ -107,16 +107,20 @@ export class TaskCommandsService {
   }
 
   private async downloadPhoto(filePath: string): Promise<Buffer> {
-    const response = await fetch(`https://api.telegram.org/file/bot${process.env.TELEGRAM_BOT_TOKEN}/${filePath}`);
+    const response = await fetch(
+      `https://api.telegram.org/file/bot${process.env.TELEGRAM_BOT_TOKEN}/${filePath}`,
+    );
     if (!response.ok) {
       throw new Error(`Failed to download photo: ${response.statusText}`);
     }
     return Buffer.from(await response.arrayBuffer());
   }
 
-  private async processTaskImages(ctx: Context): Promise<{ url: string; description: string }[]> {
+  private async processTaskImages(
+    ctx: Context,
+  ): Promise<{ url: string; description: string }[]> {
     const images: { url: string; description: string }[] = [];
-    
+
     if (!ctx.message || !('photo' in ctx.message)) {
       return images;
     }
@@ -340,7 +344,12 @@ export class TaskCommandsService {
     return undefined;
   }
 
-  private async editTask(ctx: Context, key: string, updates: ParsedTask, images: { url: string; description: string }[] = []) {
+  private async editTask(
+    ctx: Context,
+    key: string,
+    updates: ParsedTask,
+    images: { url: string; description: string }[] = [],
+  ) {
     const chatId = ctx.chat?.id;
     if (!chatId) {
       await ctx.reply('Unable to determine chat context');
@@ -374,7 +383,7 @@ export class TaskCommandsService {
       status: updates.status ?? existing.status,
       chatId,
       images: {
-        create: images.map(img => ({
+        create: images.map((img) => ({
           url: img.url,
           description: img.description,
         })),
@@ -382,7 +391,7 @@ export class TaskCommandsService {
     };
 
     await this.prisma.todo.create({ data });
-    
+
     let response = `Task ${key} updated`;
     if (images.length > 0) {
       response += `\nImages: ${images.length}`;
@@ -469,7 +478,7 @@ export class TaskCommandsService {
           orderBy: { createdAt: 'asc' },
         });
         return { ...task, images };
-      })
+      }),
     );
 
     if (tasksWithImages.length === 0) {
@@ -534,14 +543,14 @@ export class TaskCommandsService {
         ) => Promise<void>;
       }
     ).editMessageReplyMarkup?.(undefined);
-    
+
     // Get the latest task with images
     const latestTask = await this.prisma.todo.findFirst({
       where: { key, chatId },
       orderBy: { createdAt: 'desc' },
       include: { images: true },
     });
-    
+
     const notes = await this.prisma.taskNote.findMany({
       where: { key, chatId },
       orderBy: { createdAt: 'asc' },
@@ -608,25 +617,30 @@ export class TaskCommandsService {
     if (!chatId) return;
     const session = this.editSessions.get(chatId);
     if (!session) return false;
-    
+
     // Handle photo messages
     if (ctx.message && 'photo' in ctx.message) {
       if (session.step === 'await_action') {
         const images = await this.processTaskImages(ctx);
         if (images.length > 0) {
-          await this.editTask(ctx, session.key, {
-            content: '',
-            tags: [],
-            contexts: [],
-            projects: [],
-          }, images);
+          await this.editTask(
+            ctx,
+            session.key,
+            {
+              content: '',
+              tags: [],
+              contexts: [],
+              projects: [],
+            },
+            images,
+          );
           this.editSessions.delete(chatId);
           return true;
         }
       }
       return true;
     }
-    
+
     // Handle text messages
     if (!ctx.message || !('text' in ctx.message)) return true;
     const text = ctx.message.text.trim();
