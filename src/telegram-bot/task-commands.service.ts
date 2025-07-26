@@ -536,6 +536,10 @@ export class TaskCommandsService {
       this.editSessions.set(chatId, session);
       await ctx.reply('Note added');
       await this.startEditConversation(ctx, session.key);
+      return true; // Explicit return to prevent fallthrough
+    }
+    if (session.step !== 'await_action') {
+      console.warn(`Unknown edit session step: ${session.step}`);
       return true;
     }
     const parsed = this.parseTask(text);
