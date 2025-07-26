@@ -2,6 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { TaskCommandsService } from './task-commands.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { DateParserService } from '../services/date-parser.service';
+import { StorageService } from '../services/storage.service';
+import { LlmService } from '../services/llm.service';
 import { format } from 'date-fns';
 import { Context } from 'telegraf';
 
@@ -16,6 +18,14 @@ describe('TaskCommandsService', () => {
         {
           provide: PrismaService,
           useValue: { todo: { count: jest.fn() } },
+        },
+        {
+          provide: StorageService,
+          useValue: { uploadFile: jest.fn() },
+        },
+        {
+          provide: LlmService,
+          useValue: { describeImage: jest.fn() },
         },
       ],
     }).compile();
@@ -203,6 +213,8 @@ describe('TaskCommandsService', () => {
           TaskCommandsService,
           DateParserService,
           { provide: PrismaService, useValue: mockPrisma },
+          { provide: StorageService, useValue: { uploadFile: jest.fn() } },
+          { provide: LlmService, useValue: { describeImage: jest.fn() } },
         ],
       }).compile();
 
@@ -239,6 +251,8 @@ describe('TaskCommandsService', () => {
           TaskCommandsService,
           DateParserService,
           { provide: PrismaService, useValue: mockPrisma },
+          { provide: StorageService, useValue: { uploadFile: jest.fn() } },
+          { provide: LlmService, useValue: { describeImage: jest.fn() } },
         ],
       }).compile();
 
@@ -276,6 +290,8 @@ describe('TaskCommandsService', () => {
           TaskCommandsService,
           DateParserService,
           { provide: PrismaService, useValue: mockPrisma },
+          { provide: StorageService, useValue: { uploadFile: jest.fn() } },
+          { provide: LlmService, useValue: { describeImage: jest.fn() } },
         ],
       }).compile();
 
@@ -305,6 +321,8 @@ describe('TaskCommandsService', () => {
           TaskCommandsService,
           DateParserService,
           { provide: PrismaService, useValue: mockPrisma },
+          { provide: StorageService, useValue: { uploadFile: jest.fn() } },
+          { provide: LlmService, useValue: { describeImage: jest.fn() } },
         ],
       }).compile();
 
@@ -374,6 +392,7 @@ describe('TaskCommandsService', () => {
           },
         ]),
         todo: { count: jest.fn() },
+        image: { findMany: jest.fn().mockResolvedValue([]) },
       };
 
       const module: TestingModule = await Test.createTestingModule({
@@ -381,6 +400,8 @@ describe('TaskCommandsService', () => {
           TaskCommandsService,
           DateParserService,
           { provide: PrismaService, useValue: mockPrisma },
+          { provide: StorageService, useValue: { uploadFile: jest.fn() } },
+          { provide: LlmService, useValue: { describeImage: jest.fn() } },
         ],
       }).compile();
 
@@ -404,12 +425,20 @@ describe('TaskCommandsService', () => {
   describe('startEditConversation', () => {
     it('should show notes and add note button', async () => {
       const mockPrisma = {
-        todo: { count: jest.fn() },
+        todo: { 
+          count: jest.fn(),
+          findFirst: jest.fn().mockResolvedValue({
+            key: 'T-1',
+            content: 'Test task',
+            images: [],
+          }),
+        },
         taskNote: {
           findMany: jest
             .fn()
             .mockResolvedValue([{ content: 'n1' }, { content: 'n2' }]),
         },
+        image: { findMany: jest.fn().mockResolvedValue([]) },
       };
 
       const module: TestingModule = await Test.createTestingModule({
@@ -417,6 +446,8 @@ describe('TaskCommandsService', () => {
           TaskCommandsService,
           DateParserService,
           { provide: PrismaService, useValue: mockPrisma },
+          { provide: StorageService, useValue: { uploadFile: jest.fn() } },
+          { provide: LlmService, useValue: { describeImage: jest.fn() } },
         ],
       }).compile();
 

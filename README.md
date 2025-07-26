@@ -74,6 +74,7 @@ Creates a new todo item.
 - `(A)` — set priority with a letter in parentheses.
 - `:<date>` or `:<date> HH:MM` — optional due date. `<date>` accepts the same formats as in the note examples above.
 - You can also use words like `tomorrow` or day names (`sunday`, `понедельник`, etc.) for the due date.
+- **Images** — you can send images with your task to add them as notes. Images will be automatically described using AI.
 
 To update an existing task, start the command with its key:
 `/t T-20250710-03 ...`. New tags and contexts are appended while
@@ -90,7 +91,8 @@ Example:
 ### `/tl`
 
 Lists unfinished todo items in a single message. Each task has an inline button
-showing its key so you can quickly start editing. You can filter by the same
+showing its key so you can quickly start editing. Tasks with images show a 📷 icon
+with the number of images. You can filter by the same
 `@tag`, `.context` and `!project` tokens as in `/task`.
 
 Example:

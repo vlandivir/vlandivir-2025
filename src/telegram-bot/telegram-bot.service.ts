@@ -217,6 +217,12 @@ export class TelegramBotService {
     this.bot.on(message('photo'), async (ctx) => {
       console.log('Получено фото из чата/группы');
 
+      // Check if user is in task editing mode
+      if (this.taskCommands.isEditing(ctx.chat.id)) {
+        await this.taskCommands.handleEditText(ctx);
+        return;
+      }
+
       const isGroup =
         ctx.chat.type === 'group' || ctx.chat.type === 'supergroup';
       await this.handleIncomingPhoto(ctx, isGroup);

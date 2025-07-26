@@ -44,8 +44,10 @@ model Image {
   id          Int      @id @default(autoincrement())
   url         String
   description String?  @db.Text
-  note        Note     @relation(fields: [noteId], references: [id])
-  noteId      Int
+  note        Note?    @relation(fields: [noteId], references: [id])
+  noteId      Int?
+  todo        Todo?    @relation(fields: [todoId], references: [id])
+  todoId      Int?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -64,6 +66,7 @@ model Todo {
   contexts     String[]
   projects     String[]
   chatId       BigInt?
+  images       Image[]
 
   @@index([key])
   @@index([chatId])

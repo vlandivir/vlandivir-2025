@@ -4,6 +4,8 @@ import { InlineKeyboardMarkup } from 'telegraf/typings/core/types/typegram';
 import { PrismaService } from '../prisma/prisma.service';
 import { format, startOfDay, endOfDay, isToday } from 'date-fns';
 import { DateParserService } from '../services/date-parser.service';
+import { StorageService } from '../services/storage.service';
+import { LlmService } from '../services/llm.service';
 
 interface ParsedTask {
   content: string;
@@ -21,6 +23,8 @@ export class TaskCommandsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly dateParser: DateParserService,
+    private readonly storageService: StorageService,
+    private readonly llmService: LlmService,
   ) {}
 
   private readonly editSessions: Map<
@@ -50,13 +54,16 @@ export class TaskCommandsService {
     }
     const parsed = this.parseTask(parts.join(' '));
 
+    // Process images if present
+    const images = await this.processTaskImages(ctx);
+
     if (key) {
-      await this.editTask(ctx, key, parsed);
+      await this.editTask(ctx, key, parsed, images);
       return;
     }
 
-    if (!parsed.content) {
-      await ctx.reply('Task text cannot be empty');
+    if (!parsed.content && images.length === 0) {
+      await ctx.reply('Task text cannot be empty and no images provided');
       return;
     }
 
@@ -73,9 +80,20 @@ export class TaskCommandsService {
         projects: parsed.projects,
         status: parsed.status ?? 'new',
         chatId,
+        images: {
+          create: images.map(img => ({
+            url: img.url,
+            description: img.description,
+          })),
+        },
       },
     });
-    await ctx.reply(`Task created with key ${newKey}`);
+    
+    let response = `Task created with key ${newKey}`;
+    if (images.length > 0) {
+      response += `\nImages: ${images.length}`;
+    }
+    await ctx.reply(response);
   }
 
   private getCommandText(ctx: Context): string | undefined {
@@ -86,6 +104,53 @@ export class TaskCommandsService {
       return ctx.channelPost.text;
     }
     return undefined;
+  }
+
+  private async downloadPhoto(filePath: string): Promise<Buffer> {
+    const response = await fetch(`https://api.telegram.org/file/bot${process.env.TELEGRAM_BOT_TOKEN}/${filePath}`);
+    if (!response.ok) {
+      throw new Error(`Failed to download photo: ${response.statusText}`);
+    }
+    return Buffer.from(await response.arrayBuffer());
+  }
+
+  private async processTaskImages(ctx: Context): Promise<{ url: string; description: string }[]> {
+    const images: { url: string; description: string }[] = [];
+    
+    if (!ctx.message || !('photo' in ctx.message)) {
+      return images;
+    }
+
+    const photos = ctx.message.photo;
+    if (!photos || photos.length === 0) {
+      return images;
+    }
+
+    for (const photo of photos) {
+      try {
+        const file = await ctx.telegram.getFile(photo.file_id);
+        const photoBuffer = await this.downloadPhoto(file.file_path!);
+        const photoUrl = await this.storageService.uploadFile(
+          photoBuffer,
+          'image/jpeg',
+          ctx.chat?.id || 0,
+        );
+
+        const imageDescription = await this.llmService.describeImage(
+          photoBuffer,
+          'caption' in ctx.message ? ctx.message.caption : undefined,
+        );
+
+        images.push({
+          url: photoUrl,
+          description: imageDescription,
+        });
+      } catch (error) {
+        console.error('Error processing task image:', error);
+      }
+    }
+
+    return images;
   }
 
   private parseFilters(text: string): {
@@ -275,7 +340,7 @@ export class TaskCommandsService {
     return undefined;
   }
 
-  private async editTask(ctx: Context, key: string, updates: ParsedTask) {
+  private async editTask(ctx: Context, key: string, updates: ParsedTask, images: { url: string; description: string }[] = []) {
     const chatId = ctx.chat?.id;
     if (!chatId) {
       await ctx.reply('Unable to determine chat context');
@@ -308,10 +373,21 @@ export class TaskCommandsService {
         updates.projects.length > 0 ? updates.projects : existing.projects,
       status: updates.status ?? existing.status,
       chatId,
+      images: {
+        create: images.map(img => ({
+          url: img.url,
+          description: img.description,
+        })),
+      },
     };
 
     await this.prisma.todo.create({ data });
-    await ctx.reply(`Task ${key} updated`);
+    
+    let response = `Task ${key} updated`;
+    if (images.length > 0) {
+      response += `\nImages: ${images.length}`;
+    }
+    await ctx.reply(response);
   }
 
   private async generateKey(chatId: number): Promise<string> {
@@ -385,7 +461,18 @@ export class TaskCommandsService {
       }[]
     >(query);
 
-    if (latestTasks.length === 0) {
+    // Get images for each task
+    const tasksWithImages = await Promise.all(
+      latestTasks.map(async (task) => {
+        const images = await this.prisma.image.findMany({
+          where: { todoId: task.id },
+          orderBy: { createdAt: 'asc' },
+        });
+        return { ...task, images };
+      })
+    );
+
+    if (tasksWithImages.length === 0) {
       await ctx.reply('No tasks found in this chat');
       return;
     }
@@ -396,7 +483,7 @@ export class TaskCommandsService {
 
     const now = new Date();
 
-    for (const t of latestTasks) {
+    for (const t of tasksWithImages) {
       let prefix = '';
       if (t.dueDate) {
         let icon = '📅';
@@ -411,6 +498,9 @@ export class TaskCommandsService {
       let line = `${prefix}${t.key} ${t.content}`;
       if (t.dueDate) {
         line += ` (due: ${format(t.dueDate, 'MMM d, yyyy HH:mm')})`;
+      }
+      if (t.images && t.images.length > 0) {
+        line += ` 📷(${t.images.length})`;
       }
       lines.push(line);
       row.push({ text: t.key, callback_data: `edit_task_${t.key}` });
@@ -444,6 +534,14 @@ export class TaskCommandsService {
         ) => Promise<void>;
       }
     ).editMessageReplyMarkup?.(undefined);
+    
+    // Get the latest task with images
+    const latestTask = await this.prisma.todo.findFirst({
+      where: { key, chatId },
+      orderBy: { createdAt: 'desc' },
+      include: { images: true },
+    });
+    
     const notes = await this.prisma.taskNote.findMany({
       where: { key, chatId },
       orderBy: { createdAt: 'asc' },
@@ -452,6 +550,9 @@ export class TaskCommandsService {
     let text = `Editing ${key}. Send updates or choose status`;
     if (notes.length) {
       text += `\n\nNotes:\n${noteLines}`;
+    }
+    if (latestTask?.images && latestTask.images.length > 0) {
+      text += `\n\nImages: ${latestTask.images.length}`;
     }
     await ctx.reply(text, {
       reply_markup: {
@@ -507,6 +608,26 @@ export class TaskCommandsService {
     if (!chatId) return;
     const session = this.editSessions.get(chatId);
     if (!session) return false;
+    
+    // Handle photo messages
+    if (ctx.message && 'photo' in ctx.message) {
+      if (session.step === 'await_action') {
+        const images = await this.processTaskImages(ctx);
+        if (images.length > 0) {
+          await this.editTask(ctx, session.key, {
+            content: '',
+            tags: [],
+            contexts: [],
+            projects: [],
+          }, images);
+          this.editSessions.delete(chatId);
+          return true;
+        }
+      }
+      return true;
+    }
+    
+    // Handle text messages
     if (!ctx.message || !('text' in ctx.message)) return true;
     const text = ctx.message.text.trim();
     if (session.step === 'await_snooze_days') {
@@ -555,6 +676,8 @@ export class TaskCommandsService {
       'Status options: -done, -canceled, -in-progress, -started, -snoozed[days] or -snoozed [days]',
       'Example: /task (B) @work .office !Big Project :2025.07.31 09:00 Prepare report',
       'Snooze examples: /task T-20250715-01 -snoozed4 or /task T-20250715-01 -snoozed 4',
+      '',
+      'You can also send images with your task to add them as notes.',
     ].join('\n');
   }
 }
