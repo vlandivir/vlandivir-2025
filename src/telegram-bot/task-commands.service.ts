@@ -25,7 +25,7 @@ export class TaskCommandsService {
 
   private readonly editSessions: Map<
     number,
-    { key: string; step: 'await_action' | 'await_snooze_days' }
+    { key: string; step: 'await_action' | 'await_snooze_days' | 'await_note' }
   > = new Map();
 
   async handleTaskCommand(ctx: Context) {
@@ -444,7 +444,16 @@ export class TaskCommandsService {
         ) => Promise<void>;
       }
     ).editMessageReplyMarkup?.(undefined);
-    await ctx.reply(`Editing ${key}. Send updates or choose status`, {
+    const notes = await this.prisma.taskNote.findMany({
+      where: { key, chatId },
+      orderBy: { createdAt: 'asc' },
+    });
+    const noteLines = notes.map((n) => `- ${n.content}`).join('\n');
+    let text = `Editing ${key}. Send updates or choose status`;
+    if (notes.length) {
+      text += `\n\nNotes:\n${noteLines}`;
+    }
+    await ctx.reply(text, {
       reply_markup: {
         inline_keyboard: [
           [
@@ -452,6 +461,7 @@ export class TaskCommandsService {
             { text: 'Canceled', callback_data: 'edit_status_canceled' },
           ],
           [{ text: 'Snooze', callback_data: 'edit_status_snoozed' }],
+          [{ text: 'Add note', callback_data: 'edit_add_note' }],
         ],
       },
     });
@@ -485,6 +495,10 @@ export class TaskCommandsService {
       session.step = 'await_snooze_days';
       this.editSessions.set(chatId, session);
       await ctx.reply('How many days to snooze?');
+    } else if (action === 'add_note') {
+      session.step = 'await_note';
+      this.editSessions.set(chatId, session);
+      await ctx.reply('Please send note text');
     }
   }
 
@@ -512,6 +526,16 @@ export class TaskCommandsService {
         snoozedUntil,
       });
       this.editSessions.delete(chatId);
+      return true;
+    }
+    if (session.step === 'await_note') {
+      await this.prisma.taskNote.create({
+        data: { key: session.key, content: text, chatId },
+      });
+      session.step = 'await_action';
+      this.editSessions.set(chatId, session);
+      await ctx.reply('Note added');
+      await this.startEditConversation(ctx, session.key);
       return true;
     }
     const parsed = this.parseTask(text);

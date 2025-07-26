@@ -277,6 +277,8 @@ export class TelegramBotService {
       } else if (data && data.startsWith('edit_status_')) {
         const action = data.replace('edit_status_', '');
         await this.taskCommands.handleEditCallback(ctx, action);
+      } else if (data === 'edit_add_note') {
+        await this.taskCommands.handleEditCallback(ctx, 'add_note');
       }
     });
   }

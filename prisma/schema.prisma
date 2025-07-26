@@ -94,3 +94,14 @@ model Answer {
   @@index([answerDate])
   @@index([createdAt])
 }
+
+model TaskNote {
+  id        Int      @id @default(autoincrement())
+  key       String
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  chatId    BigInt
+
+  @@index([key])
+  @@index([chatId])
+}

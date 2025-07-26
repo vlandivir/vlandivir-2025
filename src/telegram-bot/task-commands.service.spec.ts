@@ -400,4 +400,55 @@ describe('TaskCommandsService', () => {
       expect(replyText).toContain('📅');
     });
   });
+
+  describe('startEditConversation', () => {
+    it('should show notes and add note button', async () => {
+      const mockPrisma = {
+        todo: { count: jest.fn() },
+        taskNote: {
+          findMany: jest
+            .fn()
+            .mockResolvedValue([{ content: 'n1' }, { content: 'n2' }]),
+        },
+      };
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          TaskCommandsService,
+          DateParserService,
+          { provide: PrismaService, useValue: mockPrisma },
+        ],
+      }).compile();
+
+      const svc = module.get<TaskCommandsService>(TaskCommandsService);
+      const mockReply = jest.fn();
+      const ctx: Context & {
+        editMessageReplyMarkup: (m: unknown) => Promise<void>;
+      } = {
+        chat: { id: 1 },
+        answerCbQuery: jest.fn(),
+        editMessageReplyMarkup: jest.fn().mockResolvedValue(undefined),
+        reply: mockReply,
+      } as unknown as Context & {
+        editMessageReplyMarkup: (m: unknown) => Promise<void>;
+      };
+
+      await svc.startEditConversation(ctx, 'T-1');
+
+      expect(mockPrisma.taskNote.findMany).toHaveBeenCalled();
+      expect(mockReply.mock.calls[0][0]).toContain('Notes:');
+      const keyboard = (
+        mockReply.mock.calls[0][1] as {
+          reply_markup: { inline_keyboard: { callback_data?: string }[][] };
+        }
+      ).reply_markup.inline_keyboard;
+      const hasAddButton = keyboard
+        .flat()
+        .some(
+          (b: { callback_data?: string }) =>
+            b.callback_data === 'edit_add_note',
+        );
+      expect(hasAddButton).toBe(true);
+    });
+  });
 });
