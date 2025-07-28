@@ -29,7 +29,7 @@ export class TaskCommandsService {
 
   private readonly editSessions: Map<
     number,
-    { key: string; step: 'await_action' | 'await_snooze_days' | 'await_note' }
+    { key: string; step: 'await_action' | 'await_snooze_days' | 'await_note' | 'await_image' }
   > = new Map();
 
   async handleTaskCommand(ctx: Context) {
@@ -571,7 +571,8 @@ export class TaskCommandsService {
             { text: 'Canceled', callback_data: 'edit_status_canceled' },
           ],
           [{ text: 'Snooze', callback_data: 'edit_status_snoozed' }],
-          [{ text: 'Add note', callback_data: 'edit_add_note' }],
+          [{ text: 'Add task note', callback_data: 'edit_add_todo_note' }],
+          [{ text: 'Add image', callback_data: 'edit_add_todo_image' }],
         ],
       },
     });
@@ -605,10 +606,14 @@ export class TaskCommandsService {
       session.step = 'await_snooze_days';
       this.editSessions.set(chatId, session);
       await ctx.reply('How many days to snooze?');
-    } else if (action === 'add_note') {
+    } else if (action === 'add_todo_note') {
       session.step = 'await_note';
       this.editSessions.set(chatId, session);
       await ctx.reply('Please send note text');
+    } else if (action === 'add_todo_image') {
+      session.step = 'await_image';
+      this.editSessions.set(chatId, session);
+      await ctx.reply('Please send image(s)');
     }
   }
 
@@ -635,6 +640,26 @@ export class TaskCommandsService {
             images,
           );
           this.editSessions.delete(chatId);
+          return true;
+        }
+      } else if (session.step === 'await_image') {
+        const images = await this.processTaskImages(ctx);
+        if (images.length > 0) {
+          await this.editTask(
+            ctx,
+            session.key,
+            {
+              content: '',
+              tags: [],
+              contexts: [],
+              projects: [],
+            },
+            images,
+          );
+          session.step = 'await_action';
+          this.editSessions.set(chatId, session);
+          await ctx.reply('Images added to task');
+          await this.startEditConversation(ctx, session.key);
           return true;
         }
       }

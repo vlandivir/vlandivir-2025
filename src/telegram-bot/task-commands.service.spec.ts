@@ -470,16 +470,40 @@ describe('TaskCommandsService', () => {
       expect(mockReply.mock.calls[0][0]).toContain('Notes:');
       const keyboard = (
         mockReply.mock.calls[0][1] as {
-          reply_markup: { inline_keyboard: { callback_data?: string }[][] };
+          reply_markup: { inline_keyboard: Record<string, unknown>[][] };
         }
       ).reply_markup.inline_keyboard;
-      const hasAddButton = keyboard
+      const hasAddNoteButton = keyboard
         .flat()
         .some(
-          (b: { callback_data?: string }) =>
-            b.callback_data === 'edit_add_note',
+          (b: Record<string, unknown>) =>
+            b.callback_data === 'edit_add_todo_note',
         );
-      expect(hasAddButton).toBe(true);
+      expect(hasAddNoteButton).toBe(true);
+      // Check that the button text is now "Add task note"
+      const addNoteButton = keyboard
+        .flat()
+        .find(
+          (b: Record<string, unknown>) =>
+            b.callback_data === 'edit_add_todo_note',
+        );
+      expect(addNoteButton?.text).toBe('Add task note');
+      
+      // Check that the "Add image" button is present
+      const hasAddImageButton = keyboard
+        .flat()
+        .some(
+          (b: Record<string, unknown>) =>
+            b.callback_data === 'edit_add_todo_image',
+        );
+      expect(hasAddImageButton).toBe(true);
+      const addImageButton = keyboard
+        .flat()
+        .find(
+          (b: Record<string, unknown>) =>
+            b.callback_data === 'edit_add_todo_image',
+        );
+      expect(addImageButton?.text).toBe('Add image');
     });
   });
 });

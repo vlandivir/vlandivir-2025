@@ -283,8 +283,10 @@ export class TelegramBotService {
       } else if (data && data.startsWith('edit_status_')) {
         const action = data.replace('edit_status_', '');
         await this.taskCommands.handleEditCallback(ctx, action);
-      } else if (data === 'edit_add_note') {
-        await this.taskCommands.handleEditCallback(ctx, 'add_note');
+      } else if (data === 'edit_add_todo_note') {
+        await this.taskCommands.handleEditCallback(ctx, 'add_todo_note');
+      } else if (data === 'edit_add_todo_image') {
+        await this.taskCommands.handleEditCallback(ctx, 'add_todo_image');
       }
     });
   }
