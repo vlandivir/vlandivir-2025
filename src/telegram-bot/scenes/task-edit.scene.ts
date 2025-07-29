@@ -160,16 +160,23 @@ export function createTaskEditScene(taskService: TaskCommandsService) {
         ctx.callbackQuery &&
         (ctx.callbackQuery as CallbackQuery.DataQuery).data === 'cancel'
       ) {
+        await ctx.answerCbQuery?.();
         await ctx.scene.leave();
         return;
       }
       if (!ctx.message || !('text' in ctx.message)) return;
       const key = (ctx.wizard.state as { key: string }).key;
+      const chatId = ctx.chat?.id;
+      if (!chatId) {
+        await ctx.reply('Error: Chat ID not available');
+        await ctx.scene.leave();
+        return;
+      }
       await (taskService as any).prisma.taskNote.create({
         data: {
           key,
           content: ctx.message.text.trim(),
-          chatId: ctx.chat?.id || 0,
+          chatId,
         },
       });
       await ctx.reply('Note added');
@@ -180,6 +187,7 @@ export function createTaskEditScene(taskService: TaskCommandsService) {
         ctx.callbackQuery &&
         (ctx.callbackQuery as CallbackQuery.DataQuery).data === 'cancel'
       ) {
+        await ctx.answerCbQuery?.();
         await ctx.scene.leave();
         return;
       }
