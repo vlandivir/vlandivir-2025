@@ -121,6 +121,7 @@ export function createTaskEditScene(taskService: TaskCommandsService) {
         ctx.callbackQuery &&
         (ctx.callbackQuery as CallbackQuery.DataQuery).data === 'cancel'
       ) {
+        await ctx.answerCbQuery?.();
         await ctx.scene.leave();
         return;
       }
