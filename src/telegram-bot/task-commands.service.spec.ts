@@ -227,6 +227,49 @@ describe('TaskCommandsService', () => {
     });
   });
 
+  describe('processTaskImages', () => {
+    it('uses only the highest quality photo', async () => {
+      const mockPrisma = { todo: { count: jest.fn() } };
+      const mockUpload = jest.fn().mockResolvedValue('https://img');
+      const mockDescribe = jest.fn().mockResolvedValue('desc');
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          TaskCommandsService,
+          DateParserService,
+          { provide: PrismaService, useValue: mockPrisma },
+          { provide: StorageService, useValue: { uploadFile: mockUpload } },
+          { provide: LlmService, useValue: { describeImage: mockDescribe } },
+        ],
+      }).compile();
+
+      const svc = module.get<TaskCommandsService>(TaskCommandsService);
+
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        arrayBuffer: jest.fn().mockResolvedValue(Buffer.from('img')),
+      });
+
+      const ctx: Context = {
+        message: {
+          photo: [
+            { file_id: 'a', width: 90, height: 90, file_size: 500 },
+            { file_id: 'b', width: 800, height: 800, file_size: 1000 },
+            { file_id: 'c', width: 400, height: 400, file_size: 700 },
+          ],
+        },
+        chat: { id: 1 },
+        telegram: { getFile: jest.fn().mockResolvedValue({ file_path: 'p' }) },
+      } as unknown as Context;
+
+      const images = await svc.processTaskImages(ctx);
+
+      expect(images).toEqual([{ url: 'https://img', description: 'desc' }]);
+      expect(mockUpload).toHaveBeenCalledTimes(1);
+      expect(mockDescribe).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('handleTaskCommand edit', () => {
     it('should copy existing task and apply updates', async () => {
       const mockPrisma = {
