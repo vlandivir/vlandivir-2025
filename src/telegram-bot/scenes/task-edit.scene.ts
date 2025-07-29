@@ -22,6 +22,30 @@ export function createTaskEditScene(taskService: TaskCommandsService) {
           editMessageReplyMarkup?: (markup: any) => Promise<void>;
         }
       ).editMessageReplyMarkup?.(undefined);
+      const chatId = ctx.chat?.id;
+      if (chatId) {
+        const latest = await taskService.getLatestTask(key, chatId);
+        const notes = await taskService.getTaskNotes(key, chatId);
+        if (latest) {
+          let text = `${latest.key} ${latest.content}`;
+          if (latest.priority) text += ` (${latest.priority})`;
+          if (latest.dueDate) text += `\nDue: ${latest.dueDate.toISOString()}`;
+          if (latest.tags.length) text += `\nTags: ${latest.tags.join(', ')}`;
+          if (latest.contexts.length)
+            text += `\nContexts: ${latest.contexts.join(', ')}`;
+          if (latest.projects.length)
+            text += `\nProjects: ${latest.projects.join(', ')}`;
+          await ctx.reply(text);
+          for (const img of latest.images) {
+            await ctx.replyWithPhoto(img.url, {
+              caption: img.description || undefined,
+            });
+          }
+        }
+        for (const note of notes) {
+          await ctx.reply(note.content);
+        }
+      }
       await ctx.reply(`Choose action for ${key}`, {
         reply_markup: {
           inline_keyboard: [

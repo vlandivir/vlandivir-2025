@@ -133,28 +133,36 @@ export class TaskCommandsService {
       return images;
     }
 
-    for (const photo of photos) {
-      try {
-        const file = await ctx.telegram.getFile(photo.file_id);
-        const photoBuffer = await this.downloadPhoto(file.file_path!);
-        const photoUrl = await this.storageService.uploadFile(
-          photoBuffer,
-          'image/jpeg',
-          ctx.chat?.id || 0,
-        );
+    // Use only the highest quality version to avoid duplicates
+    const photo = photos.reduce(
+      (best, p) => {
+        const bestSize = best.file_size ?? best.width * best.height;
+        const currSize = p.file_size ?? p.width * p.height;
+        return currSize > bestSize ? p : best;
+      },
+      photos[photos.length - 1],
+    );
 
-        const imageDescription = await this.llmService.describeImage(
-          photoBuffer,
-          'caption' in ctx.message ? ctx.message.caption : undefined,
-        );
+    try {
+      const file = await ctx.telegram.getFile(photo.file_id);
+      const photoBuffer = await this.downloadPhoto(file.file_path!);
+      const photoUrl = await this.storageService.uploadFile(
+        photoBuffer,
+        'image/jpeg',
+        ctx.chat?.id || 0,
+      );
 
-        images.push({
-          url: photoUrl,
-          description: imageDescription,
-        });
-      } catch (error) {
-        console.error('Error processing task image:', error);
-      }
+      const imageDescription = await this.llmService.describeImage(
+        photoBuffer,
+        'caption' in ctx.message ? ctx.message.caption : undefined,
+      );
+
+      images.push({
+        url: photoUrl,
+        description: imageDescription,
+      });
+    } catch (error) {
+      console.error('Error processing task image:', error);
     }
 
     return images;
@@ -165,6 +173,13 @@ export class TaskCommandsService {
       where: { key, chatId },
       orderBy: { createdAt: 'desc' },
       include: { images: true },
+    });
+  }
+
+  public async getTaskNotes(key: string, chatId: number) {
+    return this.prisma.taskNote.findMany({
+      where: { key, chatId },
+      orderBy: { createdAt: 'asc' },
     });
   }
 
