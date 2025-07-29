@@ -47,11 +47,13 @@ export function createTaskEditScene(taskService: TaskCommandsService) {
       const key = (ctx.wizard.state as { key: string }).key;
       if (!data) return;
       if (data === 'cancel') {
+        await ctx.answerCbQuery?.();
         await ctx.scene.leave();
         return;
       }
       if (data === 'status_done' || data === 'status_canceled') {
-        await (taskService as any).editTask(ctx, key, {
+        await ctx.answerCbQuery?.();
+        await taskService.editTask(ctx, key, {
           content: '',
           tags: [],
           contexts: [],
@@ -62,17 +64,15 @@ export function createTaskEditScene(taskService: TaskCommandsService) {
         return;
       }
       if (data === 'status_snooze') {
+        await ctx.answerCbQuery?.();
         await ctx.reply('How many days to snooze?');
         return ctx.wizard.selectStep(2);
       }
       if (data === 'action_edit') {
+        await ctx.answerCbQuery?.();
         const chatId = ctx.chat?.id;
         if (chatId) {
-          const latest = await (taskService as any).prisma.todo.findFirst({
-            where: { key, chatId },
-            orderBy: { createdAt: 'desc' },
-            include: { images: true },
-          });
+          const latest = await taskService.getLatestTask(key, chatId);
           if (latest) {
             let text = `${latest.key} ${latest.content}`;
             if (latest.priority) text += ` (${latest.priority})`;
@@ -98,6 +98,7 @@ export function createTaskEditScene(taskService: TaskCommandsService) {
         return;
       }
       if (data === 'action_note') {
+        await ctx.answerCbQuery?.();
         await ctx.reply('Waiting for a note', {
           reply_markup: {
             inline_keyboard: [[{ text: 'Cancel', callback_data: 'cancel' }]],
@@ -106,6 +107,7 @@ export function createTaskEditScene(taskService: TaskCommandsService) {
         return ctx.wizard.selectStep(4);
       }
       if (data === 'action_image') {
+        await ctx.answerCbQuery?.();
         await ctx.reply('Waiting for an image', {
           reply_markup: {
             inline_keyboard: [[{ text: 'Cancel', callback_data: 'cancel' }]],
@@ -131,7 +133,7 @@ export function createTaskEditScene(taskService: TaskCommandsService) {
       const key = (ctx.wizard.state as { key: string }).key;
       const snoozedUntil = new Date();
       snoozedUntil.setDate(snoozedUntil.getDate() + days);
-      await (taskService as any).editTask(ctx, key, {
+      await taskService.editTask(ctx, key, {
         content: '',
         tags: [],
         contexts: [],
@@ -146,13 +148,14 @@ export function createTaskEditScene(taskService: TaskCommandsService) {
         ctx.callbackQuery &&
         (ctx.callbackQuery as CallbackQuery.DataQuery).data === 'cancel'
       ) {
+        await ctx.answerCbQuery?.();
         await ctx.scene.leave();
         return;
       }
       if (!ctx.message || !('text' in ctx.message)) return;
       const key = (ctx.wizard.state as { key: string }).key;
-      const parsed = (taskService as any).parseTask(ctx.message.text.trim());
-      await (taskService as any).editTask(ctx, key, parsed);
+      const parsed = taskService.parseTask(ctx.message.text.trim());
+      await taskService.editTask(ctx, key, parsed);
       await ctx.scene.leave();
     },
     async (ctx) => {
@@ -172,13 +175,7 @@ export function createTaskEditScene(taskService: TaskCommandsService) {
         await ctx.scene.leave();
         return;
       }
-      await (taskService as any).prisma.taskNote.create({
-        data: {
-          key,
-          content: ctx.message.text.trim(),
-          chatId,
-        },
-      });
+      await taskService.createTaskNote(key, ctx.message.text.trim(), chatId);
       await ctx.reply('Note added');
       await ctx.scene.leave();
     },
@@ -193,9 +190,9 @@ export function createTaskEditScene(taskService: TaskCommandsService) {
       }
       if (!ctx.message || !('photo' in ctx.message)) return;
       const key = (ctx.wizard.state as { key: string }).key;
-      const images = await (taskService as any).processTaskImages(ctx);
+      const images = await taskService.processTaskImages(ctx);
       if (images.length > 0) {
-        await (taskService as any).editTask(
+        await taskService.editTask(
           ctx,
           key,
           { content: '', tags: [], contexts: [], projects: [] },

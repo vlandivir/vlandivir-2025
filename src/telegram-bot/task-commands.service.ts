@@ -119,7 +119,7 @@ export class TaskCommandsService {
     return Buffer.from(await response.arrayBuffer());
   }
 
-  private async processTaskImages(
+  public async processTaskImages(
     ctx: Context,
   ): Promise<{ url: string; description: string }[]> {
     const images: { url: string; description: string }[] = [];
@@ -158,6 +158,24 @@ export class TaskCommandsService {
     }
 
     return images;
+  }
+
+  public async getLatestTask(key: string, chatId: number) {
+    return this.prisma.todo.findFirst({
+      where: { key, chatId },
+      orderBy: { createdAt: 'desc' },
+      include: { images: true },
+    });
+  }
+
+  public async createTaskNote(key: string, content: string, chatId: number) {
+    return this.prisma.taskNote.create({
+      data: {
+        key,
+        content,
+        chatId,
+      },
+    });
   }
 
   private parseFilters(text: string): {
@@ -202,7 +220,7 @@ export class TaskCommandsService {
     return { tags, contexts, projects, remaining };
   }
 
-  private parseTask(text: string): ParsedTask {
+  public parseTask(text: string): ParsedTask {
     const { tags, contexts, projects, remaining } = this.parseFilters(text);
     const tokens = remaining;
     let priority: string | undefined;
@@ -347,7 +365,7 @@ export class TaskCommandsService {
     return undefined;
   }
 
-  private async editTask(
+  public async editTask(
     ctx: Context,
     key: string,
     updates: ParsedTask,
