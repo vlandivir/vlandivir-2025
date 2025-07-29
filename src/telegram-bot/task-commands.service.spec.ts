@@ -423,87 +423,28 @@ describe('TaskCommandsService', () => {
   });
 
   describe('startEditConversation', () => {
-    it('should show notes and add note button', async () => {
-      const mockPrisma = {
-        todo: {
-          count: jest.fn(),
-          findFirst: jest.fn().mockResolvedValue({
-            key: 'T-1',
-            content: 'Test task',
-            images: [],
-          }),
-        },
-        taskNote: {
-          findMany: jest
-            .fn()
-            .mockResolvedValue([{ content: 'n1' }, { content: 'n2' }]),
-        },
-        image: { findMany: jest.fn().mockResolvedValue([]) },
-      };
-
+    it('should enter task edit scene', async () => {
       const module: TestingModule = await Test.createTestingModule({
         providers: [
           TaskCommandsService,
           DateParserService,
-          { provide: PrismaService, useValue: mockPrisma },
+          { provide: PrismaService, useValue: {} },
           { provide: StorageService, useValue: { uploadFile: jest.fn() } },
           { provide: LlmService, useValue: { describeImage: jest.fn() } },
         ],
       }).compile();
 
       const svc = module.get<TaskCommandsService>(TaskCommandsService);
-      const mockReply = jest.fn();
-      const ctx: Context & {
-        editMessageReplyMarkup: (m: unknown) => Promise<void>;
-      } = {
+      const ctx: Context & { scene: { enter: jest.Mock } } = {
         chat: { id: 1 },
-        answerCbQuery: jest.fn(),
-        editMessageReplyMarkup: jest.fn().mockResolvedValue(undefined),
-        reply: mockReply,
-      } as unknown as Context & {
-        editMessageReplyMarkup: (m: unknown) => Promise<void>;
-      };
+        scene: { enter: jest.fn() },
+      } as unknown as Context & { scene: { enter: jest.Mock } };
 
       await svc.startEditConversation(ctx, 'T-1');
 
-      expect(mockPrisma.taskNote.findMany).toHaveBeenCalled();
-      expect(mockReply.mock.calls[0][0]).toContain('Notes:');
-      const keyboard = (
-        mockReply.mock.calls[0][1] as {
-          reply_markup: { inline_keyboard: Record<string, unknown>[][] };
-        }
-      ).reply_markup.inline_keyboard;
-      const hasAddNoteButton = keyboard
-        .flat()
-        .some(
-          (b: Record<string, unknown>) =>
-            b.callback_data === 'edit_add_todo_note',
-        );
-      expect(hasAddNoteButton).toBe(true);
-      // Check that the button text is now "Add task note"
-      const addNoteButton = keyboard
-        .flat()
-        .find(
-          (b: Record<string, unknown>) =>
-            b.callback_data === 'edit_add_todo_note',
-        );
-      expect(addNoteButton?.text).toBe('Add task note');
-      
-      // Check that the "Add image" button is present
-      const hasAddImageButton = keyboard
-        .flat()
-        .some(
-          (b: Record<string, unknown>) =>
-            b.callback_data === 'edit_add_todo_image',
-        );
-      expect(hasAddImageButton).toBe(true);
-      const addImageButton = keyboard
-        .flat()
-        .find(
-          (b: Record<string, unknown>) =>
-            b.callback_data === 'edit_add_todo_image',
-        );
-      expect(addImageButton?.text).toBe('Add image');
+      expect(ctx.scene.enter).toHaveBeenCalledWith('taskEditScene', {
+        key: 'T-1',
+      });
     });
   });
 });

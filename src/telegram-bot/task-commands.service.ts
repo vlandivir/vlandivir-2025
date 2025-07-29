@@ -29,7 +29,10 @@ export class TaskCommandsService {
 
   private readonly editSessions: Map<
     number,
-    { key: string; step: 'await_action' | 'await_snooze_days' | 'await_note' | 'await_image' }
+    {
+      key: string;
+      step: 'await_action' | 'await_snooze_days' | 'await_note' | 'await_image';
+    }
   > = new Map();
 
   async handleTaskCommand(ctx: Context) {
@@ -116,7 +119,7 @@ export class TaskCommandsService {
     return Buffer.from(await response.arrayBuffer());
   }
 
-  private async processTaskImages(
+  public async processTaskImages(
     ctx: Context,
   ): Promise<{ url: string; description: string }[]> {
     const images: { url: string; description: string }[] = [];
@@ -155,6 +158,24 @@ export class TaskCommandsService {
     }
 
     return images;
+  }
+
+  public async getLatestTask(key: string, chatId: number) {
+    return this.prisma.todo.findFirst({
+      where: { key, chatId },
+      orderBy: { createdAt: 'desc' },
+      include: { images: true },
+    });
+  }
+
+  public async createTaskNote(key: string, content: string, chatId: number) {
+    return this.prisma.taskNote.create({
+      data: {
+        key,
+        content,
+        chatId,
+      },
+    });
   }
 
   private parseFilters(text: string): {
@@ -199,7 +220,7 @@ export class TaskCommandsService {
     return { tags, contexts, projects, remaining };
   }
 
-  private parseTask(text: string): ParsedTask {
+  public parseTask(text: string): ParsedTask {
     const { tags, contexts, projects, remaining } = this.parseFilters(text);
     const tokens = remaining;
     let priority: string | undefined;
@@ -344,7 +365,7 @@ export class TaskCommandsService {
     return undefined;
   }
 
-  private async editTask(
+  public async editTask(
     ctx: Context,
     key: string,
     updates: ParsedTask,
@@ -532,50 +553,7 @@ export class TaskCommandsService {
   }
 
   async startEditConversation(ctx: Context, key: string) {
-    const chatId = ctx.chat?.id || ctx.from?.id;
-    if (!chatId) return;
-    this.editSessions.set(chatId, { key, step: 'await_action' });
-    await ctx.answerCbQuery?.();
-    await (
-      ctx as Context & {
-        editMessageReplyMarkup?: (
-          markup: InlineKeyboardMarkup | undefined,
-        ) => Promise<void>;
-      }
-    ).editMessageReplyMarkup?.(undefined);
-
-    // Get the latest task with images
-    const latestTask = await this.prisma.todo.findFirst({
-      where: { key, chatId },
-      orderBy: { createdAt: 'desc' },
-      include: { images: true },
-    });
-
-    const notes = await this.prisma.taskNote.findMany({
-      where: { key, chatId },
-      orderBy: { createdAt: 'asc' },
-    });
-    const noteLines = notes.map((n) => `- ${n.content}`).join('\n');
-    let text = `Editing ${key}. Send updates or choose status`;
-    if (notes.length) {
-      text += `\n\nNotes:\n${noteLines}`;
-    }
-    if (latestTask?.images && latestTask.images.length > 0) {
-      text += `\n\nImages: ${latestTask.images.length}`;
-    }
-    await ctx.reply(text, {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: 'Done', callback_data: 'edit_status_done' },
-            { text: 'Canceled', callback_data: 'edit_status_canceled' },
-          ],
-          [{ text: 'Snooze', callback_data: 'edit_status_snoozed' }],
-          [{ text: 'Add task note', callback_data: 'edit_add_todo_note' }],
-          [{ text: 'Add image', callback_data: 'edit_add_todo_image' }],
-        ],
-      },
-    });
+    await (ctx as any).scene?.enter?.('taskEditScene', { key });
   }
 
   async handleEditCallback(ctx: Context, action: string) {

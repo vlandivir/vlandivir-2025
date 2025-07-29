@@ -4,7 +4,7 @@ import {
   Message,
   CallbackQuery,
 } from 'telegraf/typings/core/types/typegram';
-import { Telegraf, Context } from 'telegraf';
+import { Telegraf, Context, Scenes, session } from 'telegraf';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '../generated/prisma-client';
@@ -21,6 +21,10 @@ import { TaskCommandsService } from './task-commands.service';
 import { TaskHistoryCommandsService } from './task-history-commands.service';
 import { CollageCommandsService } from './collage-commands.service';
 import { QaCommandsService } from './qa-commands.service';
+import {
+  createTaskEditScene,
+  TaskEditWizardContext,
+} from './scenes/task-edit.scene';
 
 type TelegramUpdate =
   | Update.CallbackQueryUpdate
@@ -29,7 +33,8 @@ type TelegramUpdate =
 
 @Injectable()
 export class TelegramBotService {
-  private readonly bot: Telegraf;
+  private readonly bot: Telegraf<TaskEditWizardContext>;
+  private readonly stage: Scenes.Stage<TaskEditWizardContext>;
 
   // Маппинг каналов к создателям (дополнительный механизм)
   private readonly channelCreatorMapping: Map<number, number> = new Map();
@@ -52,7 +57,13 @@ export class TelegramBotService {
     if (!token) {
       throw new Error('TELEGRAM_BOT_TOKEN is not defined');
     }
-    this.bot = new Telegraf<Context>(token);
+    this.bot = new Telegraf<TaskEditWizardContext>(token);
+    this.stage = new Scenes.Stage<TaskEditWizardContext>([
+      createTaskEditScene(this.taskCommands),
+    ]);
+
+    this.bot.use(session());
+    this.bot.use(this.stage.middleware());
 
     // Добавляем middleware для логирования
     this.bot.use((ctx, next) => {
@@ -201,8 +212,7 @@ export class TelegramBotService {
         return;
       }
 
-      if (this.taskCommands.isEditing(ctx.chat.id)) {
-        await this.taskCommands.handleEditText(ctx);
+      if (ctx.scene?.session?.current === 'taskEditScene') {
         return;
       }
 
@@ -217,9 +227,7 @@ export class TelegramBotService {
     this.bot.on(message('photo'), async (ctx) => {
       console.log('Получено фото из чата/группы');
 
-      // Check if user is in task editing mode
-      if (this.taskCommands.isEditing(ctx.chat.id)) {
-        await this.taskCommands.handleEditText(ctx);
+      if (ctx.scene?.session?.current === 'taskEditScene') {
         return;
       }
 
@@ -279,14 +287,7 @@ export class TelegramBotService {
         await this.qaCommands.handleAnswerCallback(ctx);
       } else if (data && data.startsWith('edit_task_')) {
         const key = data.replace('edit_task_', '');
-        await this.taskCommands.startEditConversation(ctx, key);
-      } else if (data && data.startsWith('edit_status_')) {
-        const action = data.replace('edit_status_', '');
-        await this.taskCommands.handleEditCallback(ctx, action);
-      } else if (data === 'edit_add_todo_note') {
-        await this.taskCommands.handleEditCallback(ctx, 'add_todo_note');
-      } else if (data === 'edit_add_todo_image') {
-        await this.taskCommands.handleEditCallback(ctx, 'add_todo_image');
+        await ctx.scene.enter('taskEditScene', { key });
       }
     });
   }
