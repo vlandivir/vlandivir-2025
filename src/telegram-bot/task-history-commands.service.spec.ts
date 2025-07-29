@@ -10,12 +10,17 @@ describe('TaskHistoryCommandsService', () => {
     todo: {
       findMany: jest.fn(),
     },
+    taskNote: {
+      findMany: jest.fn(),
+    },
   };
   const mockStorageService = {
     uploadFileWithKey: jest.fn(),
   };
 
   beforeEach(async () => {
+    mockPrismaService.todo.findMany.mockReset();
+    mockPrismaService.taskNote.findMany.mockReset();
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TaskHistoryCommandsService,
@@ -40,6 +45,7 @@ describe('TaskHistoryCommandsService', () => {
       reply: mockReply,
     } as unknown as Context;
     mockPrismaService.todo.findMany.mockResolvedValue([]);
+    mockPrismaService.taskNote.findMany.mockResolvedValue([]);
     await service.handleTaskHistoryCommand(ctx);
     expect(mockReply).toHaveBeenCalledWith('No tasks found in this chat');
   });

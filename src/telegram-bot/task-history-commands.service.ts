@@ -18,6 +18,7 @@ interface TaskRecord {
   tags: string[];
   contexts: string[];
   projects: string[];
+  images: { url: string; description: string | null }[];
 }
 
 @Injectable()
@@ -39,6 +40,7 @@ export class TaskHistoryCommandsService {
         chatId,
       },
       orderBy: [{ key: 'asc' }, { createdAt: 'asc' }],
+      include: { images: true },
     });
 
     if (tasks.length === 0) {
@@ -47,6 +49,20 @@ export class TaskHistoryCommandsService {
     }
 
     const grouped = this.groupTasks(tasks);
+
+    const keys = grouped.map((g) => g.key);
+    const taskNotes = await this.prisma.taskNote.findMany({
+      where: { key: { in: keys }, chatId },
+      orderBy: { createdAt: 'asc' },
+    });
+    const notesByKey = taskNotes.reduce<Record<string, { content: string }[]>>(
+      (acc, note) => {
+        if (!acc[note.key]) acc[note.key] = [];
+        acc[note.key].push({ content: note.content });
+        return acc;
+      },
+      {},
+    );
 
     const unfinished = grouped.filter(
       (g) => !['done', 'canceled', 'snoozed'].includes(g.latest.status),
@@ -82,7 +98,7 @@ export class TaskHistoryCommandsService {
       (a, b) => b.latest.createdAt.getTime() - a.latest.createdAt.getTime(),
     );
 
-    const html = this.generateHtml(unfinished, snoozed, finished);
+    const html = this.generateHtml(unfinished, snoozed, finished, notesByKey);
     const id = uuidv4();
     const buffer = Buffer.from(html, 'utf8');
     const url = await this.storageService.uploadFileWithKey(
@@ -115,15 +131,16 @@ export class TaskHistoryCommandsService {
     }[],
     snoozed: { key: string; history: TaskRecord[]; latest: TaskRecord }[],
     finished: { key: string; history: TaskRecord[]; latest: TaskRecord }[],
+    notesByKey: Record<string, { content: string }[]>,
   ): string {
     let html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Tasks</title><style>body{font-family:Arial,Helvetica,sans-serif;margin:20px;}h2{color:#333;} .task{border:1px solid #ccc;padding:10px;margin-bottom:10px;border-radius:6px;} .history{margin-top:5px;padding-left:20px;font-size:0.9em;color:#555;}</style></head><body>`;
     html += '<h1>Tasks</h1>';
     html += '<h2>Unfinished</h2>';
-    html += this.renderTasks(unfinished);
+    html += this.renderTasks(unfinished, notesByKey);
     html += '<h2>Snoozed</h2>';
-    html += this.renderTasks(snoozed);
+    html += this.renderTasks(snoozed, notesByKey);
     html += '<h2>Finished</h2>';
-    html += this.renderTasks(finished);
+    html += this.renderTasks(finished, notesByKey);
     html += `<p>Generated: ${format(new Date(), 'yyyy-MM-dd HH:mm:ss')}</p>`;
     html += '</body></html>';
     return html;
@@ -131,6 +148,7 @@ export class TaskHistoryCommandsService {
 
   private renderTasks(
     groups: { key: string; history: TaskRecord[]; latest: TaskRecord }[],
+    notesByKey: Record<string, { content: string }[]>,
   ): string {
     let html = '';
     for (const g of groups) {
@@ -145,6 +163,27 @@ export class TaskHistoryCommandsService {
       if (t.tags.length) html += ` tags: ${t.tags.join(', ')}`;
       if (t.contexts.length) html += ` contexts: ${t.contexts.join(', ')}`;
       if (t.projects.length) html += ` projects: ${t.projects.join(', ')}`;
+
+      if (t.images.length) {
+        html += '<div class="images">';
+        for (const img of t.images) {
+          html += `<img src="${img.url}" style="max-width:100%"/>`;
+          if (img.description) {
+            html += `<div>${this.escapeHtml(img.description)}</div>`;
+          }
+        }
+        html += '</div>';
+      }
+
+      const notes = notesByKey[g.key] || [];
+      if (notes.length) {
+        html += '<div class="notes"><ul>';
+        for (const n of notes) {
+          html += `<li>${this.escapeHtml(n.content)}</li>`;
+        }
+        html += '</ul></div>';
+      }
+
       html += '<div class="history"><ul>';
       for (let i = 0; i < g.history.length; i++) {
         const h = g.history[i];

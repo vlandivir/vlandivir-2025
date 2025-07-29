@@ -37,7 +37,7 @@ export function createTaskEditScene(taskService: TaskCommandsService) {
             text += `\nProjects: ${latest.projects.join(', ')}`;
           await ctx.reply(text);
           for (const img of latest.images) {
-            await ctx.replyWithPhoto(img.url, {
+            await ctx.replyWithDocument(img.url, {
               caption: img.description || undefined,
             });
           }
