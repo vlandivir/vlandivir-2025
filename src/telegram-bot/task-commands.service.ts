@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Context } from 'telegraf';
 import { InlineKeyboardMarkup } from 'telegraf/typings/core/types/typegram';
+import { TaskEditWizardContext } from './scenes/task-edit.scene';
 import { PrismaService } from '../prisma/prisma.service';
 import { format, startOfDay, endOfDay, isToday } from 'date-fns';
 import { DateParserService } from '../services/date-parser.service';
@@ -568,7 +569,9 @@ export class TaskCommandsService {
   }
 
   async startEditConversation(ctx: Context, key: string) {
-    await (ctx as any).scene?.enter?.('taskEditScene', { key });
+    await (ctx as TaskEditWizardContext).scene?.enter?.('taskEditScene', {
+      key,
+    });
   }
 
   async handleEditCallback(ctx: Context, action: string) {

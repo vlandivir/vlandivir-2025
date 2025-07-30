@@ -1,5 +1,8 @@
 import { Scenes, Context } from 'telegraf';
-import { CallbackQuery } from 'telegraf/typings/core/types/typegram';
+import {
+  CallbackQuery,
+  InlineKeyboardMarkup,
+} from 'telegraf/typings/core/types/typegram';
 import { TaskCommandsService } from '../task-commands.service';
 
 export interface TaskEditWizardContext extends Context {
@@ -19,7 +22,9 @@ export function createTaskEditScene(taskService: TaskCommandsService) {
       await ctx.answerCbQuery?.();
       await (
         ctx as TaskEditWizardContext & {
-          editMessageReplyMarkup?: (markup: any) => Promise<void>;
+          editMessageReplyMarkup?: (
+            markup: InlineKeyboardMarkup | undefined,
+          ) => Promise<void>;
         }
       ).editMessageReplyMarkup?.(undefined);
       const chatId = ctx.chat?.id;
@@ -37,7 +42,7 @@ export function createTaskEditScene(taskService: TaskCommandsService) {
             text += `\nProjects: ${latest.projects.join(', ')}`;
           await ctx.reply(text);
           for (const img of latest.images) {
-            await ctx.replyWithDocument(img.url, {
+            await ctx.replyWithPhoto(img.url, {
               caption: img.description || undefined,
             });
           }
