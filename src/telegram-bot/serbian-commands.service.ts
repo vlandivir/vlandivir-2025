@@ -40,7 +40,7 @@ export class SerbianCommandsService {
       const translation = await this.getTranslation(query);
       console.log('Получен ответ от ChatGPT:', translation);
 
-      await ctx.reply(translation, { parse_mode: 'Markdown' });
+      await ctx.reply(translation);
     } catch (error) {
       console.error('Error handling Serbian translation:', error);
       await ctx.reply('Произошла ошибка при получении перевода');
