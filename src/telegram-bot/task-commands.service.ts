@@ -20,7 +20,12 @@ interface ParsedTask {
 }
 
 interface TaskImageCreateManyArgs {
-  data: { key: string; chatId: number; url: string; description?: string | null }[];
+  data: {
+    key: string;
+    chatId: number;
+    url: string;
+    description?: string | null;
+  }[];
 }
 
 interface TaskImageFindManyArgs {
@@ -30,7 +35,9 @@ interface TaskImageFindManyArgs {
 
 interface TaskImageModel {
   createMany: (args: TaskImageCreateManyArgs) => Promise<unknown>;
-  findMany: (args: TaskImageFindManyArgs) => Promise<{ url: string; description: string | null }[]>;
+  findMany: (
+    args: TaskImageFindManyArgs,
+  ) => Promise<{ url: string; description: string | null }[]>;
 }
 
 interface ImageFindManyArgs {
@@ -39,7 +46,9 @@ interface ImageFindManyArgs {
 }
 
 interface ImageModel {
-  findMany: (args: ImageFindManyArgs) => Promise<{ url: string; description?: string | null }[]>;
+  findMany: (
+    args: ImageFindManyArgs,
+  ) => Promise<{ url: string; description?: string | null }[]>;
 }
 
 @Injectable()
@@ -494,30 +503,10 @@ export class TaskCommandsService {
           },
         });
 
-        // Copy previous TaskImages to the new version using task key
-        const txTaskImageEdit = (tx as unknown as {
-          taskImage?: TaskImageModel;
-        }).taskImage;
-        if (txTaskImageEdit) {
-          const previousTaskImages = await txTaskImageEdit.findMany({
-            where: { key, chatId },
-            orderBy: { createdAt: 'asc' },
-          });
-          if (previousTaskImages.length > 0) {
-            await txTaskImageEdit.createMany({
-              data: previousTaskImages.map(
-                (img: { url: string; description: string | null }) => ({
-                  key,
-                  chatId,
-                  url: img.url,
-                  description: img.description ?? null,
-                }),
-              ),
-            });
-          }
-        }
-
         // Add new TaskImages for this update
+        const txTaskImageEdit = (
+          tx as unknown as { taskImage?: TaskImageModel }
+        ).taskImage;
         if (images.length > 0 && txTaskImageEdit) {
           await txTaskImageEdit.createMany({
             data: images.map((img) => ({
