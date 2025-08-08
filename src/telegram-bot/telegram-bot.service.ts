@@ -161,6 +161,36 @@ export class TelegramBotService {
       return this.taskHistoryCommands.handleTaskHistoryCommand(ctx);
     });
 
+    // Mini app command
+    this.bot.command(['a'], async (ctx) => {
+      try {
+        const webhookUrl = this.configService.get<string>(
+          'VLANDIVIR_2025_WEBHOOK_URL',
+        );
+        if (!webhookUrl) {
+          await ctx.reply('Mini app URL is not configured');
+          return;
+        }
+        const baseUrl = new URL(webhookUrl).origin;
+        const appUrl = `${baseUrl}/mini-app`;
+        await ctx.reply('Откройте мини‑приложение:', {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: 'Open Mini App',
+                  web_app: { url: appUrl },
+                },
+              ],
+            ],
+          },
+        });
+      } catch (error) {
+        console.error('Error sending mini app button', error);
+        await ctx.reply('Не удалось открыть мини‑приложение');
+      }
+    });
+
     // Add new question command
     this.bot.command(['qa'], (ctx) => {
       console.log('Получена команда /qa:', ctx.message?.text);
@@ -594,6 +624,7 @@ export class TelegramBotService {
       { name: '/t or /task', description: 'Create Todo item' },
       { name: '/tl', description: 'List Todo items' },
       { name: '/th', description: 'Tasks HTML export' },
+      { name: '/a', description: 'Open Mini App' },
       { name: '/qa', description: 'Add question' },
       { name: '/ql', description: 'List questions' },
       { name: '/qq', description: 'Questions and answers for a date' },
