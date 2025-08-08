@@ -186,8 +186,8 @@ export class MiniAppController {
       const buffer = Buffer.from(await imgResp.arrayBuffer());
       res.setHeader('Content-Type', 'image/jpeg');
       res.send(buffer);
-    } catch (err) {
-      res.status(500).send('Error');
+    } catch (e) {
+      res.status(500).send(`Error ${e}`);
     }
   }
 
