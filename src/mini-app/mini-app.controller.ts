@@ -1,7 +1,8 @@
-import { Controller, Get, Header, Query } from '@nestjs/common';
+import { Controller, Get, Header, Query, Res } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import crypto from 'crypto';
+import type { Response } from 'express';
 
 type TelegramInitData = {
   user?: {
@@ -38,29 +39,47 @@ export class MiniAppController {
   <style>
     body { font-family: -apple-system, Inter, Arial, sans-serif; margin: 0; padding: 16px; color: var(--tg-theme-text-color); background: var(--tg-theme-bg-color); }
     h1 { margin: 0 0 8px; font-size: 20px; }
-    pre { white-space: pre-wrap; word-wrap: break-word; background: rgba(0,0,0,0.05); padding: 12px; border-radius: 8px; }
     .card { border-radius: 12px; padding: 16px; background: var(--tg-theme-secondary-bg-color); }
+    .row { display: flex; align-items: center; gap: 12px; }
+    .avatar { width: 64px; height: 64px; border-radius: 50%; background: rgba(0,0,0,0.1); display: inline-flex; align-items: center; justify-content: center; font-weight: 600; }
+    .muted { opacity: 0.7; }
   </style>
 </head>
 <body>
   <h1>Mini App</h1>
-  <div id="content" class="card">Loading...</div>
+  <div id="content" class="card">
+    <div class="row">
+      <img id="avatar" class="avatar" alt="" />
+      <div>
+        <div id="name" style="font-size:16px;font-weight:600"></div>
+        <div id="username" class="muted"></div>
+      </div>
+    </div>
+    <div style="height:12px"></div>
+    <div id="stats">Loading...</div>
+  </div>
   <script>
     const tg = window.Telegram?.WebApp;
     tg?.expand();
+    try { tg?.MainButton?.hide(); } catch {}
     async function load() {
       try {
         const res = await fetch('/mini-app/user?initData=' + encodeURIComponent(tg?.initData || ''));
         const data = await res.json();
-        const el = document.getElementById('content');
-        if (data.error) { el.textContent = 'Error: ' + data.error; return; }
-        el.innerHTML = '<b>User</b>: ' + data.userSummary + '<br/><br/>' +
-          '<b>Notes</b>: ' + data.counts.notes + '\n' +
-          '<br/><b>Todos</b>: ' + data.counts.todos + '\n' +
-          '<br/><b>Questions</b>: ' + data.counts.questions + '\n' +
-          '<br/><b>Answers</b>: ' + data.counts.answers + '\n';
+        if (data.error) { document.getElementById('stats').textContent = 'Error: ' + data.error; tg?.ready?.(); return; }
+        document.getElementById('name').textContent = data.userSummary || 'Unknown user';
+        document.getElementById('username').textContent = data.username ? '@' + data.username : '';
+        const avatar = document.getElementById('avatar');
+        if (data.hasAvatar) { avatar.src = '/mini-app/avatar?userId=' + data.userId; avatar.alt = data.userSummary || ''; }
+        else { avatar.removeAttribute('src'); avatar.alt = ' '; avatar.setAttribute('data-initials', data.initials || '?'); avatar.style.background = 'rgba(0,0,0,0.08)'; }
+        document.getElementById('stats').innerHTML = '<b>Notes</b>: ' + data.counts.notes +
+          '<br/><b>Todos</b>: ' + data.counts.todos +
+          '<br/><b>Questions</b>: ' + data.counts.questions +
+          '<br/><b>Answers</b>: ' + data.counts.answers;
+        tg?.ready?.();
       } catch (e) {
-        document.getElementById('content').textContent = 'Failed to load';
+        document.getElementById('stats').textContent = 'Failed to load';
+        tg?.ready?.();
       }
     }
     load();
@@ -94,13 +113,70 @@ export class MiniAppController {
         .filter(Boolean)
         .join(' ');
 
+      const initials = (
+        (parsed.user?.first_name?.[0] || '') + (parsed.user?.last_name?.[0] || '')
+      ).toUpperCase() || (parsed.user?.username?.slice(0, 2).toUpperCase() || 'U');
+
       return {
         userId,
         userSummary,
+        username: parsed.user?.username || null,
+        initials,
+        hasAvatar: true, // actual presence checked in avatar endpoint; keep true to try load
         counts: { notes, todos, questions, answers },
       };
     } catch (e) {
       return { error: `Invalid initData ${e}` };
+    }
+  }
+
+  @Get('avatar')
+  @Header('Cache-Control', 'public, max-age=300')
+  async avatar(@Query('userId') userIdParam: string, @Res() res: Response) {
+    try {
+      const userId = Number(userIdParam);
+      if (!userId) {
+        res.status(400).send('Bad userId');
+        return;
+      }
+      const token = this.config.get<string>('TELEGRAM_BOT_TOKEN');
+      if (!token) {
+        res.status(500).send('No token');
+        return;
+      }
+      const apiBase = `https://api.telegram.org/bot${token}`;
+      const photosResp = await fetch(
+        `${apiBase}/getUserProfilePhotos?user_id=${userId}&limit=1`,
+      );
+      const photosJson = (await photosResp.json()) as {
+        ok: boolean;
+        result?: { total_count: number; photos: Array<Array<{ file_id: string }>> };
+      };
+      if (!photosJson.ok || !photosJson.result || photosJson.result.total_count === 0) {
+        res.status(404).send('No avatar');
+        return;
+      }
+      const sizes = photosJson.result.photos[0];
+      const fileId = sizes[sizes.length - 1].file_id;
+
+      const fileResp = await fetch(`${apiBase}/getFile?file_id=${fileId}`);
+      const fileJson = (await fileResp.json()) as {
+        ok: boolean;
+        result?: { file_path: string };
+      };
+      if (!fileJson.ok || !fileJson.result) {
+        res.status(404).send('No file');
+        return;
+      }
+      const filePath = fileJson.result.file_path;
+      const imgResp = await fetch(
+        `https://api.telegram.org/file/bot${token}/${filePath}`,
+      );
+      const buffer = Buffer.from(await imgResp.arrayBuffer());
+      res.setHeader('Content-Type', 'image/jpeg');
+      res.send(buffer);
+    } catch (err) {
+      res.status(500).send('Error');
     }
   }
 
