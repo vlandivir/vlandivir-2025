@@ -84,6 +84,8 @@ jobs:
           docker stop vlandivir-2025 || true
           docker rm vlandivir-2025 || true
           docker run -d -p 443:443 -e ENVIRONMENT=PROD \
-            -v /root/.secret:/usr/src/app/.secret:ro \
+            --restart unless-stopped \
+            -v /etc/letsencrypt/live/vlandivir.com/fullchain.pem:/usr/src/app/.secret/fullchain.pem:ro \
+            -v /etc/letsencrypt/live/vlandivir.com/privkey.pem:/usr/src/app/.secret/privkey.pem:ro \
             --name vlandivir-2025 \
-            registry.digitalocean.com/vlandivir-main/vlandivir-2025:${{ steps.tag.outputs.TAG_NAME }} 
+            registry.digitalocean.com/vlandivir-main/vlandivir-2025:${{ steps.tag.outputs.TAG_NAME }}
