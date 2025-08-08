@@ -151,7 +151,7 @@ export class TaskHistoryCommandsService {
     notesByKey: Record<string, { content: string }[]>,
     imagesByKey: Record<string, { url: string; description: string | null }[]>,
   ): string {
-    let html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Tasks</title><style>body{font-family:Arial,Helvetica,sans-serif;margin:20px;}h2{color:#333;} .task{border:1px solid #ccc;padding:10px;margin-bottom:10px;border-radius:6px;} .history{margin-top:5px;padding-left:20px;font-size:0.9em;color:#555;}</style></head><body>`;
+    let html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Tasks</title><style>body{font-family:Arial,Helvetica,sans-serif;margin:20px;}h2{color:#333;} .task{border:1px solid #ccc;padding:10px;margin-bottom:10px;border-radius:6px;} .history{margin-top:5px;padding-left:20px;font-size:0.9em;color:#555;} .images,.notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,400px));gap:10px;margin-top:10px;justify-content:center;} .polaroid{background:#fff;padding:10px;box-shadow:0 2px 5px rgba(0,0,0,0.3);text-align:center;max-width:400px;margin:auto;} .polaroid img{max-width:100%;max-height:400px;height:auto;} .polaroid .caption{margin-top:5px;font-size:0.9em;} .note{white-space:pre-wrap;text-align:left;}</style></head><body>`;
     html += '<h1>Tasks</h1>';
     html += '<h2>Unfinished</h2>';
     html += this.renderTasks(unfinished, notesByKey, imagesByKey);
@@ -200,21 +200,23 @@ export class TaskHistoryCommandsService {
       if (allImages.length) {
         html += '<div class="images">';
         for (const img of allImages) {
-          html += `<img src="${img.url}" style="max-width:100%"/>`;
+          html += '<div class="polaroid">';
+          html += `<img src="${img.url}"/>`;
           if (img.description) {
-            html += `<div>${this.escapeHtml(img.description)}</div>`;
+            html += `<div class="caption">${this.escapeHtml(img.description)}</div>`;
           }
+          html += '</div>';
         }
         html += '</div>';
       }
 
       const notes = notesByKey[g.key] || [];
       if (notes.length) {
-        html += '<div class="notes"><ul>';
+        html += '<div class="notes">';
         for (const n of notes) {
-          html += `<li>${this.escapeHtml(n.content)}</li>`;
+          html += `<div class="polaroid note">${this.escapeHtml(n.content)}</div>`;
         }
-        html += '</ul></div>';
+        html += '</div>';
       }
 
       html += '<div class="history"><ul>';
