@@ -113,9 +113,13 @@ export class MiniAppController {
         .filter(Boolean)
         .join(' ');
 
-      const initials = (
-        (parsed.user?.first_name?.[0] || '') + (parsed.user?.last_name?.[0] || '')
-      ).toUpperCase() || (parsed.user?.username?.slice(0, 2).toUpperCase() || 'U');
+      const initials =
+        (
+          (parsed.user?.first_name?.[0] || '') +
+          (parsed.user?.last_name?.[0] || '')
+        ).toUpperCase() ||
+        parsed.user?.username?.slice(0, 2).toUpperCase() ||
+        'U';
 
       return {
         userId,
@@ -150,9 +154,16 @@ export class MiniAppController {
       );
       const photosJson = (await photosResp.json()) as {
         ok: boolean;
-        result?: { total_count: number; photos: Array<Array<{ file_id: string }>> };
+        result?: {
+          total_count: number;
+          photos: Array<Array<{ file_id: string }>>;
+        };
       };
-      if (!photosJson.ok || !photosJson.result || photosJson.result.total_count === 0) {
+      if (
+        !photosJson.ok ||
+        !photosJson.result ||
+        photosJson.result.total_count === 0
+      ) {
         res.status(404).send('No avatar');
         return;
       }
