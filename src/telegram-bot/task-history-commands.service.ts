@@ -163,10 +163,19 @@ export class TaskHistoryCommandsService {
       if (t.tags.length) html += ` tags: ${t.tags.join(', ')}`;
       if (t.contexts.length) html += ` contexts: ${t.contexts.join(', ')}`;
       if (t.projects.length) html += ` projects: ${t.projects.join(', ')}`;
-
-      if (t.images.length) {
+      // Aggregate all unique images across the task history (by URL)
+      const uniqueImagesByUrl = new Map<string, { url: string; description: string | null }>();
+      for (const rec of g.history) {
+        for (const img of rec.images || []) {
+          if (!uniqueImagesByUrl.has(img.url)) {
+            uniqueImagesByUrl.set(img.url, { url: img.url, description: img.description ?? null });
+          }
+        }
+      }
+      const allImages = Array.from(uniqueImagesByUrl.values());
+      if (allImages.length) {
         html += '<div class="images">';
-        for (const img of t.images) {
+        for (const img of allImages) {
           html += `<img src="${img.url}" style="max-width:100%"/>`;
           if (img.description) {
             html += `<div>${this.escapeHtml(img.description)}</div>`;

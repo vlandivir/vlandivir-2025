@@ -399,35 +399,54 @@ export class TaskCommandsService {
         chatId,
       },
       orderBy: { createdAt: 'desc' },
+      include: { images: true },
     });
     if (!existing) {
       await ctx.reply(`Task with key ${key} not found in this chat`);
       return;
     }
 
-    const data = {
-      key,
-      content: updates.content || existing.content,
-      priority: updates.priority ?? existing.priority,
-      dueDate: updates.dueDate ?? existing.dueDate,
-      snoozedUntil: updates.snoozedUntil ?? existing.snoozedUntil,
-      tags: Array.from(new Set([...existing.tags, ...updates.tags])),
-      contexts: Array.from(
-        new Set([...existing.contexts, ...updates.contexts]),
-      ),
-      projects:
-        updates.projects.length > 0 ? updates.projects : existing.projects,
-      status: updates.status ?? existing.status,
-      chatId,
-      images: {
-        create: images.map((img) => ({
-          url: img.url,
-          description: img.description,
-        })),
-      },
-    };
+    await this.prisma.$transaction(async (tx) => {
+      const newTodo = await tx.todo.create({
+        data: {
+          key,
+          content: updates.content || existing.content,
+          priority: updates.priority ?? existing.priority,
+          dueDate: updates.dueDate ?? existing.dueDate,
+          snoozedUntil: updates.snoozedUntil ?? existing.snoozedUntil,
+          tags: Array.from(new Set([...existing.tags, ...updates.tags])),
+          contexts: Array.from(
+            new Set([...existing.contexts, ...updates.contexts]),
+          ),
+          projects:
+            updates.projects.length > 0 ? updates.projects : existing.projects,
+          status: updates.status ?? existing.status,
+          chatId,
+        },
+      });
 
-    await this.prisma.todo.create({ data });
+      // Copy previous images to the new version (preserve history)
+      if (existing.images && existing.images.length > 0) {
+        await tx.image.createMany({
+          data: existing.images.map((img) => ({
+            url: img.url,
+            description: img.description ?? null,
+            todoId: newTodo.id,
+          })),
+        });
+      }
+
+      // Add new images (if provided in this update)
+      if (images.length > 0) {
+        await tx.image.createMany({
+          data: images.map((img) => ({
+            url: img.url,
+            description: img.description,
+            todoId: newTodo.id,
+          })),
+        });
+      }
+    });
 
     let response = `Task ${key} updated`;
     if (images.length > 0) {
