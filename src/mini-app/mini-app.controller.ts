@@ -100,7 +100,7 @@ export class MiniAppController {
         counts: { notes, todos, questions, answers },
       };
     } catch (e) {
-      return { error: 'Invalid initData' };
+      return { error: `Invalid initData ${e}` };
     }
   }
 
