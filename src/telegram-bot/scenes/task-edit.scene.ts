@@ -31,7 +31,7 @@ export function createTaskEditScene(taskService: TaskCommandsService) {
       if (chatId) {
         const latest = await taskService.getLatestTask(key, chatId);
         const notes = await taskService.getTaskNotes(key, chatId);
-          if (latest) {
+        if (latest) {
           let text = `${latest.key} ${latest.content}`;
           if (latest.priority) text += ` (${latest.priority})`;
           if (latest.dueDate) text += `\nDue: ${latest.dueDate.toISOString()}`;
@@ -41,16 +41,16 @@ export function createTaskEditScene(taskService: TaskCommandsService) {
           if (latest.projects.length)
             text += `\nProjects: ${latest.projects.join(', ')}`;
           await ctx.reply(text);
-            // Load task images by key
-            const images = await taskService.getTaskImagesByKey(
-              latest.key,
-              chatId,
-            );
-            for (const img of images) {
-              await ctx.replyWithPhoto(img.url, {
-                caption: img.description || undefined,
-              });
-            }
+          // Load task images by key
+          const images = await taskService.getTaskImagesByKey(
+            latest.key,
+            chatId,
+          );
+          for (const img of images) {
+            await ctx.replyWithPhoto(img.url, {
+              caption: img.description || undefined,
+            });
+          }
         }
         for (const note of notes) {
           await ctx.reply(note.content);

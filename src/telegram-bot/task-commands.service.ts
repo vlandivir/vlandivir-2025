@@ -88,8 +88,13 @@ export class TaskCommandsService {
             chatId,
           },
         });
-        if (images.length > 0 && (tx as unknown as { taskImage?: unknown }).taskImage) {
-          await (tx as unknown as { taskImage: { createMany: Function } }).taskImage.createMany({
+        if (
+          images.length > 0 &&
+          (tx as unknown as { taskImage?: unknown }).taskImage
+        ) {
+          await (
+            tx as unknown as { taskImage: { createMany: Function } }
+          ).taskImage.createMany({
             data: images.map((img) => ({
               key: newKey,
               chatId,
@@ -114,8 +119,13 @@ export class TaskCommandsService {
           chatId,
         },
       });
-      if (images.length > 0 && (this.prisma as unknown as { taskImage?: unknown }).taskImage) {
-        await (this.prisma as unknown as { taskImage: { createMany: Function } }).taskImage.createMany({
+      if (
+        images.length > 0 &&
+        (this.prisma as unknown as { taskImage?: unknown }).taskImage
+      ) {
+        await (
+          this.prisma as unknown as { taskImage: { createMany: Function } }
+        ).taskImage.createMany({
           data: images.map((img) => ({
             key: newKey,
             chatId,
@@ -438,7 +448,6 @@ export class TaskCommandsService {
         chatId,
       },
       orderBy: { createdAt: 'desc' },
-      
     });
     if (!existing) {
       await ctx.reply(`Task with key ${key} not found in this chat`);
@@ -459,7 +468,9 @@ export class TaskCommandsService {
               new Set([...existing.contexts, ...updates.contexts]),
             ),
             projects:
-              updates.projects.length > 0 ? updates.projects : existing.projects,
+              updates.projects.length > 0
+                ? updates.projects
+                : existing.projects,
             status: updates.status ?? existing.status,
             chatId,
           },
@@ -467,27 +478,38 @@ export class TaskCommandsService {
 
         // Copy previous TaskImages to the new version using task key
         if ((tx as unknown as { taskImage?: unknown }).taskImage) {
-          const previousTaskImages = await (tx as unknown as {
-            taskImage: { findMany: Function };
-          }).taskImage.findMany({
+          const previousTaskImages = await (
+            tx as unknown as {
+              taskImage: { findMany: Function };
+            }
+          ).taskImage.findMany({
             where: { key, chatId },
             orderBy: { createdAt: 'asc' },
           });
           if (previousTaskImages.length > 0) {
-            await (tx as unknown as { taskImage: { createMany: Function } }).taskImage.createMany({
-              data: previousTaskImages.map((img: { url: string; description: string | null }) => ({
-                key,
-                chatId,
-                url: img.url,
-                description: img.description ?? null,
-              })),
+            await (
+              tx as unknown as { taskImage: { createMany: Function } }
+            ).taskImage.createMany({
+              data: previousTaskImages.map(
+                (img: { url: string; description: string | null }) => ({
+                  key,
+                  chatId,
+                  url: img.url,
+                  description: img.description ?? null,
+                }),
+              ),
             });
           }
         }
 
         // Add new TaskImages for this update
-        if (images.length > 0 && (tx as unknown as { taskImage?: unknown }).taskImage) {
-          await (tx as unknown as { taskImage: { createMany: Function } }).taskImage.createMany({
+        if (
+          images.length > 0 &&
+          (tx as unknown as { taskImage?: unknown }).taskImage
+        ) {
+          await (
+            tx as unknown as { taskImage: { createMany: Function } }
+          ).taskImage.createMany({
             data: images.map((img) => ({
               key,
               chatId,
@@ -516,8 +538,13 @@ export class TaskCommandsService {
         },
       });
       // Add new TaskImages for this update (if model is available)
-      if (images.length > 0 && (this.prisma as unknown as { taskImage?: unknown }).taskImage) {
-        await (this.prisma as unknown as { taskImage: { createMany: Function } }).taskImage.createMany({
+      if (
+        images.length > 0 &&
+        (this.prisma as unknown as { taskImage?: unknown }).taskImage
+      ) {
+        await (
+          this.prisma as unknown as { taskImage: { createMany: Function } }
+        ).taskImage.createMany({
           data: images.map((img) => ({
             key,
             chatId,
@@ -610,19 +637,24 @@ export class TaskCommandsService {
     const tasksWithImages = await Promise.all(
       latestTasks.map(async (task) => {
         let images: { url: string; description?: string | null }[] = [];
-        const hasTaskImage = (this.prisma as unknown as { taskImage?: unknown }).taskImage;
+        const hasTaskImage = (this.prisma as unknown as { taskImage?: unknown })
+          .taskImage;
         if (hasTaskImage) {
-          images = await (this.prisma as unknown as {
-            taskImage: { findMany: Function };
-          }).taskImage.findMany({
+          images = await (
+            this.prisma as unknown as {
+              taskImage: { findMany: Function };
+            }
+          ).taskImage.findMany({
             where: { key: task.key, chatId },
             orderBy: { createdAt: 'asc' },
           });
         } else if ((this.prisma as unknown as { image?: unknown }).image) {
           // Fallback for older schema/tests expecting image.findMany by todoId
-          images = await (this.prisma as unknown as {
-            image: { findMany: Function };
-          }).image.findMany({
+          images = await (
+            this.prisma as unknown as {
+              image: { findMany: Function };
+            }
+          ).image.findMany({
             where: { todoId: task.id },
             orderBy: { createdAt: 'asc' },
           });
