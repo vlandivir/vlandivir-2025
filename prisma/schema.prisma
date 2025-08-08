@@ -46,8 +46,6 @@ model Image {
   description String?  @db.Text
   note        Note?    @relation(fields: [noteId], references: [id])
   noteId      Int?
-  todo        Todo?    @relation(fields: [todoId], references: [id])
-  todoId      Int?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -66,7 +64,6 @@ model Todo {
   contexts     String[]
   projects     String[]
   chatId       BigInt?
-  images       Image[]
 
   @@index([key])
   @@index([chatId])
@@ -104,6 +101,19 @@ model TaskNote {
   content   String   @db.Text
   createdAt DateTime @default(now())
   chatId    BigInt
+
+  @@index([key])
+  @@index([chatId])
+}
+
+model TaskImage {
+  id          Int      @id @default(autoincrement())
+  key         String
+  url         String
+  description String?  @db.Text
+  chatId      BigInt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([key])
   @@index([chatId])

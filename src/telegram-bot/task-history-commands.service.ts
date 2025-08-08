@@ -18,7 +18,6 @@ interface TaskRecord {
   tags: string[];
   contexts: string[];
   projects: string[];
-  images: { url: string; description: string | null }[];
 }
 
 @Injectable()
@@ -40,7 +39,6 @@ export class TaskHistoryCommandsService {
         chatId,
       },
       orderBy: [{ key: 'asc' }, { createdAt: 'asc' }],
-      include: { images: true },
     });
 
     if (tasks.length === 0) {
@@ -63,6 +61,19 @@ export class TaskHistoryCommandsService {
       },
       {},
     );
+
+    // Load all task images for these keys in one query
+    const taskImages = await this.prisma.taskImage.findMany({
+      where: { key: { in: keys }, chatId },
+      orderBy: { createdAt: 'asc' },
+    });
+    const imagesByKey = taskImages.reduce<
+      Record<string, { url: string; description: string | null }[]>
+    >((acc, img) => {
+      if (!acc[img.key]) acc[img.key] = [];
+      acc[img.key].push({ url: img.url, description: img.description ?? null });
+      return acc;
+    }, {});
 
     const unfinished = grouped.filter(
       (g) => !['done', 'canceled', 'snoozed'].includes(g.latest.status),
@@ -98,7 +109,13 @@ export class TaskHistoryCommandsService {
       (a, b) => b.latest.createdAt.getTime() - a.latest.createdAt.getTime(),
     );
 
-    const html = this.generateHtml(unfinished, snoozed, finished, notesByKey);
+    const html = this.generateHtml(
+      unfinished,
+      snoozed,
+      finished,
+      notesByKey,
+      imagesByKey,
+    );
     const id = uuidv4();
     const buffer = Buffer.from(html, 'utf8');
     const url = await this.storageService.uploadFileWithKey(
@@ -132,15 +149,16 @@ export class TaskHistoryCommandsService {
     snoozed: { key: string; history: TaskRecord[]; latest: TaskRecord }[],
     finished: { key: string; history: TaskRecord[]; latest: TaskRecord }[],
     notesByKey: Record<string, { content: string }[]>,
+    imagesByKey: Record<string, { url: string; description: string | null }[]>,
   ): string {
     let html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Tasks</title><style>body{font-family:Arial,Helvetica,sans-serif;margin:20px;}h2{color:#333;} .task{border:1px solid #ccc;padding:10px;margin-bottom:10px;border-radius:6px;} .history{margin-top:5px;padding-left:20px;font-size:0.9em;color:#555;}</style></head><body>`;
     html += '<h1>Tasks</h1>';
     html += '<h2>Unfinished</h2>';
-    html += this.renderTasks(unfinished, notesByKey);
+    html += this.renderTasks(unfinished, notesByKey, imagesByKey);
     html += '<h2>Snoozed</h2>';
-    html += this.renderTasks(snoozed, notesByKey);
+    html += this.renderTasks(snoozed, notesByKey, imagesByKey);
     html += '<h2>Finished</h2>';
-    html += this.renderTasks(finished, notesByKey);
+    html += this.renderTasks(finished, notesByKey, imagesByKey);
     html += `<p>Generated: ${format(new Date(), 'yyyy-MM-dd HH:mm:ss')}</p>`;
     html += '</body></html>';
     return html;
@@ -149,6 +167,7 @@ export class TaskHistoryCommandsService {
   private renderTasks(
     groups: { key: string; history: TaskRecord[]; latest: TaskRecord }[],
     notesByKey: Record<string, { content: string }[]>,
+    imagesByKey: Record<string, { url: string; description: string | null }[]>,
   ): string {
     let html = '';
     for (const g of groups) {
@@ -163,13 +182,18 @@ export class TaskHistoryCommandsService {
       if (t.tags.length) html += ` tags: ${t.tags.join(', ')}`;
       if (t.contexts.length) html += ` contexts: ${t.contexts.join(', ')}`;
       if (t.projects.length) html += ` projects: ${t.projects.join(', ')}`;
-      // Aggregate all unique images across the task history (by URL)
-      const uniqueImagesByUrl = new Map<string, { url: string; description: string | null }>();
-      for (const rec of g.history) {
-        for (const img of rec.images || []) {
-          if (!uniqueImagesByUrl.has(img.url)) {
-            uniqueImagesByUrl.set(img.url, { url: img.url, description: img.description ?? null });
-          }
+      // Aggregate all unique images for this task by key (from TaskImage table)
+      const uniqueImagesByUrl = new Map<
+        string,
+        { url: string; description: string | null }
+      >();
+      const imgs = imagesByKey[g.key] || [];
+      for (const img of imgs) {
+        if (!uniqueImagesByUrl.has(img.url)) {
+          uniqueImagesByUrl.set(img.url, {
+            url: img.url,
+            description: img.description ?? null,
+          });
         }
       }
       const allImages = Array.from(uniqueImagesByUrl.values());

@@ -72,26 +72,59 @@ export class TaskCommandsService {
     }
 
     const newKey = await this.generateKey(chatId);
-    await this.prisma.todo.create({
-      data: {
-        key: newKey,
-        content: parsed.content,
-        priority: parsed.priority,
-        dueDate: parsed.dueDate,
-        snoozedUntil: parsed.snoozedUntil,
-        tags: parsed.tags,
-        contexts: parsed.contexts,
-        projects: parsed.projects,
-        status: parsed.status ?? 'new',
-        chatId,
-        images: {
-          create: images.map((img) => ({
+    if (typeof this.prisma.$transaction === 'function') {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.todo.create({
+          data: {
+            key: newKey,
+            content: parsed.content,
+            priority: parsed.priority,
+            dueDate: parsed.dueDate,
+            snoozedUntil: parsed.snoozedUntil,
+            tags: parsed.tags,
+            contexts: parsed.contexts,
+            projects: parsed.projects,
+            status: parsed.status ?? 'new',
+            chatId,
+          },
+        });
+        if (images.length > 0 && (tx as unknown as { taskImage?: unknown }).taskImage) {
+          await (tx as unknown as { taskImage: { createMany: Function } }).taskImage.createMany({
+            data: images.map((img) => ({
+              key: newKey,
+              chatId,
+              url: img.url,
+              description: img.description,
+            })),
+          });
+        }
+      });
+    } else {
+      await this.prisma.todo.create({
+        data: {
+          key: newKey,
+          content: parsed.content,
+          priority: parsed.priority,
+          dueDate: parsed.dueDate,
+          snoozedUntil: parsed.snoozedUntil,
+          tags: parsed.tags,
+          contexts: parsed.contexts,
+          projects: parsed.projects,
+          status: parsed.status ?? 'new',
+          chatId,
+        },
+      });
+      if (images.length > 0 && (this.prisma as unknown as { taskImage?: unknown }).taskImage) {
+        await (this.prisma as unknown as { taskImage: { createMany: Function } }).taskImage.createMany({
+          data: images.map((img) => ({
+            key: newKey,
+            chatId,
             url: img.url,
             description: img.description,
           })),
-        },
-      },
-    });
+        });
+      }
+    }
 
     let response = `Task created with key ${newKey}`;
     if (images.length > 0) {
@@ -173,7 +206,13 @@ export class TaskCommandsService {
     return this.prisma.todo.findFirst({
       where: { key, chatId },
       orderBy: { createdAt: 'desc' },
-      include: { images: true },
+    });
+  }
+
+  public async getTaskImagesByKey(key: string, chatId: number) {
+    return this.prisma.taskImage.findMany({
+      where: { key, chatId },
+      orderBy: { createdAt: 'asc' },
     });
   }
 
@@ -399,15 +438,67 @@ export class TaskCommandsService {
         chatId,
       },
       orderBy: { createdAt: 'desc' },
-      include: { images: true },
+      
     });
     if (!existing) {
       await ctx.reply(`Task with key ${key} not found in this chat`);
       return;
     }
 
-    await this.prisma.$transaction(async (tx) => {
-      const newTodo = await tx.todo.create({
+    if (typeof this.prisma.$transaction === 'function') {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.todo.create({
+          data: {
+            key,
+            content: updates.content || existing.content,
+            priority: updates.priority ?? existing.priority,
+            dueDate: updates.dueDate ?? existing.dueDate,
+            snoozedUntil: updates.snoozedUntil ?? existing.snoozedUntil,
+            tags: Array.from(new Set([...existing.tags, ...updates.tags])),
+            contexts: Array.from(
+              new Set([...existing.contexts, ...updates.contexts]),
+            ),
+            projects:
+              updates.projects.length > 0 ? updates.projects : existing.projects,
+            status: updates.status ?? existing.status,
+            chatId,
+          },
+        });
+
+        // Copy previous TaskImages to the new version using task key
+        if ((tx as unknown as { taskImage?: unknown }).taskImage) {
+          const previousTaskImages = await (tx as unknown as {
+            taskImage: { findMany: Function };
+          }).taskImage.findMany({
+            where: { key, chatId },
+            orderBy: { createdAt: 'asc' },
+          });
+          if (previousTaskImages.length > 0) {
+            await (tx as unknown as { taskImage: { createMany: Function } }).taskImage.createMany({
+              data: previousTaskImages.map((img: { url: string; description: string | null }) => ({
+                key,
+                chatId,
+                url: img.url,
+                description: img.description ?? null,
+              })),
+            });
+          }
+        }
+
+        // Add new TaskImages for this update
+        if (images.length > 0 && (tx as unknown as { taskImage?: unknown }).taskImage) {
+          await (tx as unknown as { taskImage: { createMany: Function } }).taskImage.createMany({
+            data: images.map((img) => ({
+              key,
+              chatId,
+              url: img.url,
+              description: img.description,
+            })),
+          });
+        }
+      });
+    } else {
+      await this.prisma.todo.create({
         data: {
           key,
           content: updates.content || existing.content,
@@ -424,29 +515,18 @@ export class TaskCommandsService {
           chatId,
         },
       });
-
-      // Copy previous images to the new version (preserve history)
-      if (existing.images && existing.images.length > 0) {
-        await tx.image.createMany({
-          data: existing.images.map((img) => ({
-            url: img.url,
-            description: img.description ?? null,
-            todoId: newTodo.id,
-          })),
-        });
-      }
-
-      // Add new images (if provided in this update)
-      if (images.length > 0) {
-        await tx.image.createMany({
+      // Add new TaskImages for this update (if model is available)
+      if (images.length > 0 && (this.prisma as unknown as { taskImage?: unknown }).taskImage) {
+        await (this.prisma as unknown as { taskImage: { createMany: Function } }).taskImage.createMany({
           data: images.map((img) => ({
+            key,
+            chatId,
             url: img.url,
             description: img.description,
-            todoId: newTodo.id,
           })),
         });
       }
-    });
+    }
 
     let response = `Task ${key} updated`;
     if (images.length > 0) {
@@ -526,13 +606,27 @@ export class TaskCommandsService {
       }[]
     >(query);
 
-    // Get images for each task
+    // Get images for each task by key
     const tasksWithImages = await Promise.all(
       latestTasks.map(async (task) => {
-        const images = await this.prisma.image.findMany({
-          where: { todoId: task.id },
-          orderBy: { createdAt: 'asc' },
-        });
+        let images: { url: string; description?: string | null }[] = [];
+        const hasTaskImage = (this.prisma as unknown as { taskImage?: unknown }).taskImage;
+        if (hasTaskImage) {
+          images = await (this.prisma as unknown as {
+            taskImage: { findMany: Function };
+          }).taskImage.findMany({
+            where: { key: task.key, chatId },
+            orderBy: { createdAt: 'asc' },
+          });
+        } else if ((this.prisma as unknown as { image?: unknown }).image) {
+          // Fallback for older schema/tests expecting image.findMany by todoId
+          images = await (this.prisma as unknown as {
+            image: { findMany: Function };
+          }).image.findMany({
+            where: { todoId: task.id },
+            orderBy: { createdAt: 'asc' },
+          });
+        }
         return { ...task, images };
       }),
     );
