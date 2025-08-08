@@ -1,7 +1,7 @@
 import { Controller, Get, Header, Query, Res } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
-import crypto from 'crypto';
+import { createHmac } from 'crypto';
 import type { Response } from 'express';
 
 type TelegramInitData = {
@@ -203,12 +203,8 @@ export class MiniAppController {
       .map(([k, v]) => `${k}=${v}`)
       .join('\n');
 
-    const secretKey = crypto
-      .createHmac('sha256', 'WebAppData')
-      .update(token)
-      .digest();
-    const calculatedHash = crypto
-      .createHmac('sha256', secretKey)
+    const secretKey = createHmac('sha256', 'WebAppData').update(token).digest();
+    const calculatedHash = createHmac('sha256', secretKey)
       .update(dataCheckString)
       .digest('hex');
     if (calculatedHash !== hash) throw new Error('Bad hash');
