@@ -141,5 +141,3 @@ export class MiniAppController {
     return result;
   }
 }
-
-
