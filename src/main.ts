@@ -34,29 +34,23 @@ async function bootstrap() {
       httpsOptions,
     });
     // Serve Mini App static build
-    app.useStaticAssets(path.join(process.cwd(), 'web', 'mini-app', 'dist'), {
-      prefix: '/mini-app',
-    });
-    // Fallback to index.html for SPA routes
+    const miniAppDist = path.join(process.cwd(), 'web', 'mini-app', 'dist');
+    app.useStaticAssets(miniAppDist, { prefix: '/mini-app' });
+    // Fallback to index.html for SPA routes (use RegExp to avoid path-to-regexp issues)
     const instance = app.getHttpAdapter().getInstance();
-    instance.get('/mini-app/*', (_req: unknown, res: Response) => {
-      res.sendFile(
-        path.join(process.cwd(), 'web', 'mini-app', 'dist', 'index.html'),
-      );
+    instance.get(/^\/mini-app(?:\/.*)?$/, (_req: unknown, res: Response) => {
+      res.sendFile(path.join(miniAppDist, 'index.html'));
     });
     await app.listen(443);
   } else {
     // Development mode - HTTP
     const app = await NestFactory.create<NestExpressApplication>(AppModule);
     // Serve Mini App static build in dev too (or use Vite dev server separately)
-    app.useStaticAssets(path.join(process.cwd(), 'web', 'mini-app', 'dist'), {
-      prefix: '/mini-app',
-    });
+    const miniAppDist = path.join(process.cwd(), 'web', 'mini-app', 'dist');
+    app.useStaticAssets(miniAppDist, { prefix: '/mini-app' });
     const instance = app.getHttpAdapter().getInstance();
-    instance.get('/mini-app/*', (_req: unknown, res: Response) => {
-      res.sendFile(
-        path.join(process.cwd(), 'web', 'mini-app', 'dist', 'index.html'),
-      );
+    instance.get(/^\/mini-app(?:\/.*)?$/, (_req: unknown, res: Response) => {
+      res.sendFile(path.join(miniAppDist, 'index.html'));
     });
     await app.listen(port);
     console.log(`Application is running on: http://localhost:${port}`);
