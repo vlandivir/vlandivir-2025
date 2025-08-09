@@ -19,75 +19,14 @@ type TelegramInitData = {
   hash: string;
 };
 
-@Controller('mini-app')
+@Controller('mini-app-api')
 export class MiniAppController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
   ) {}
 
-  @Get()
-  @Header('Content-Type', 'text/html; charset=utf-8')
-  index(): string {
-    const html = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Mini App</title>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <style>
-    body { font-family: -apple-system, Inter, Arial, sans-serif; margin: 0; padding: 16px; color: var(--tg-theme-text-color); background: var(--tg-theme-bg-color); }
-    h1 { margin: 0 0 8px; font-size: 20px; }
-    .card { border-radius: 12px; padding: 16px; background: var(--tg-theme-secondary-bg-color); }
-    .row { display: flex; align-items: center; gap: 12px; }
-    .avatar { width: 64px; height: 64px; border-radius: 50%; background: rgba(0,0,0,0.1); display: inline-flex; align-items: center; justify-content: center; font-weight: 600; }
-    .muted { opacity: 0.7; }
-  </style>
-</head>
-<body>
-  <h1>Mini App</h1>
-  <div id="content" class="card">
-    <div class="row">
-      <img id="avatar" class="avatar" alt="" />
-      <div>
-        <div id="name" style="font-size:16px;font-weight:600"></div>
-        <div id="username" class="muted"></div>
-      </div>
-    </div>
-    <div style="height:12px"></div>
-    <div id="stats">Loading...</div>
-  </div>
-  <script>
-    const tg = window.Telegram?.WebApp;
-    tg?.expand();
-    try { tg?.MainButton?.hide(); } catch {}
-    async function load() {
-      try {
-        const res = await fetch('/mini-app/user?initData=' + encodeURIComponent(tg?.initData || ''));
-        const data = await res.json();
-        if (data.error) { document.getElementById('stats').textContent = 'Error: ' + data.error; tg?.ready?.(); return; }
-        document.getElementById('name').textContent = data.userSummary || 'Unknown user';
-        document.getElementById('username').textContent = data.username ? '@' + data.username : '';
-        const avatar = document.getElementById('avatar');
-        if (data.hasAvatar) { avatar.src = '/mini-app/avatar?userId=' + data.userId; avatar.alt = data.userSummary || ''; }
-        else { avatar.removeAttribute('src'); avatar.alt = ' '; avatar.setAttribute('data-initials', data.initials || '?'); avatar.style.background = 'rgba(0,0,0,0.08)'; }
-        document.getElementById('stats').innerHTML = '<b>Notes</b>: ' + data.counts.notes +
-          '<br/><b>Todos</b>: ' + data.counts.todos +
-          '<br/><b>Questions</b>: ' + data.counts.questions +
-          '<br/><b>Answers</b>: ' + data.counts.answers;
-        tg?.ready?.();
-      } catch (e) {
-        document.getElementById('stats').textContent = 'Failed to load';
-        tg?.ready?.();
-      }
-    }
-    load();
-  </script>
-  </body>
-</html>`;
-    return html;
-  }
+  // Index HTML is now served by static frontend under `/mini-app` via Vite build.
 
   @Get('user')
   async getUser(@Query('initData') initData?: string) {
