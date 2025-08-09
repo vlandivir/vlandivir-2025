@@ -7,6 +7,20 @@ WORKDIR /usr/src/app
 # Копируем package.json и package-lock.json
 COPY package*.json ./
 
+# Системные зависимости для сборки нативных модулей (canvas, sharp и т.п.)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+       python3 \
+       make \
+       g++ \
+       pkg-config \
+       libcairo2-dev \
+       libpango1.0-dev \
+       libjpeg-dev \
+       libgif-dev \
+       librsvg2-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 # Устанавливаем все зависимости (включая dev dependencies для сборки)
 RUN npm ci
 
