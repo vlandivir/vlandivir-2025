@@ -39,7 +39,7 @@ async function bootstrap() {
     });
     // Fallback to index.html for SPA routes
     const instance = app.getHttpAdapter().getInstance();
-    instance.get('/mini-app*', (_req: unknown, res: Response) => {
+    instance.get('/mini-app/*', (_req: unknown, res: Response) => {
       res.sendFile(
         path.join(process.cwd(), 'web', 'mini-app', 'dist', 'index.html'),
       );
@@ -53,7 +53,7 @@ async function bootstrap() {
       prefix: '/mini-app',
     });
     const instance = app.getHttpAdapter().getInstance();
-    instance.get('/mini-app*', (_req: unknown, res: Response) => {
+    instance.get('/mini-app/*', (_req: unknown, res: Response) => {
       res.sendFile(
         path.join(process.cwd(), 'web', 'mini-app', 'dist', 'index.html'),
       );
