@@ -236,10 +236,10 @@ describe('QaCommandsService', () => {
       ];
     const buffer = lastCall[0] as Buffer;
     const html = buffer.toString();
-    const d1 = day1.toISOString().slice(0, 10);
-    const d2 = day2.toISOString().slice(0, 10);
-    expect(html).toContain(d1);
-    expect(html).toContain(d2);
+    const d1 = String(day1.getDate()).padStart(2, '0');
+    const d2 = String(day2.getDate()).padStart(2, '0');
+    expect(html).toContain(`<td>${d1}</td>`);
+    expect(html).toContain(`<td>${d2}</td>`);
     expect(html).toContain('chart.js');
     expect(html).toContain('<canvas id="chart-2"');
   });

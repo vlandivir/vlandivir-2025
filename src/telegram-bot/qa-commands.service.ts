@@ -7,7 +7,15 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { DateParserService } from '../services/date-parser.service';
 import { StorageService } from '../services/storage.service';
-import { startOfDay, endOfDay, subDays, format } from 'date-fns';
+import {
+  startOfDay,
+  endOfDay,
+  format,
+  startOfMonth,
+  endOfMonth,
+  subMonths,
+  getDaysInMonth,
+} from 'date-fns';
 import { v4 as uuidv4 } from 'uuid';
 
 interface QaSession {
@@ -225,27 +233,55 @@ export class QaCommandsService {
       return;
     }
 
-    const end = endOfDay(new Date());
-    const start = startOfDay(subDays(end, 29));
+    // Build comparison for previous and current months by day-of-month
+    const now = new Date();
+    const currentMonthStart = startOfMonth(now);
+    const currentMonthEnd = endOfMonth(now);
+    const previousMonthStart = startOfMonth(subMonths(currentMonthStart, 1));
+    const previousMonthEnd = endOfMonth(previousMonthStart);
+
+    const [prevMonthName, currMonthName] = [
+      format(previousMonthStart, 'LLL'),
+      format(currentMonthStart, 'LLL'),
+    ];
 
     const answers = await this.prisma.answer.findMany({
       where: {
         questionId: { in: questions.map((q) => q.id) },
-        answerDate: { gte: start, lte: end },
+        answerDate: { gte: previousMonthStart, lte: currentMonthEnd },
       },
       orderBy: { answerDate: 'asc' },
     });
 
-    const map: Record<string, Record<number, string | number>> = {};
+    type MonthMap = Record<string, Record<number, string | number>>;
+    const prevMap: MonthMap = {};
+    const currMap: MonthMap = {};
+
     for (const a of answers) {
-      const key = format(a.answerDate, 'yyyy-MM-dd');
-      if (!map[key]) map[key] = {};
-      map[key][a.questionId] = a.textAnswer ?? a.numberAnswer ?? '';
+      const isPrev =
+        a.answerDate >= previousMonthStart && a.answerDate <= previousMonthEnd;
+      const isCurr =
+        a.answerDate >= currentMonthStart && a.answerDate <= currentMonthEnd;
+      const dayKey = String(a.answerDate.getDate()).padStart(2, '0');
+      const value = a.textAnswer ?? a.numberAnswer ?? '';
+      if (isPrev) {
+        if (!prevMap[dayKey]) prevMap[dayKey] = {};
+        prevMap[dayKey][a.questionId] = value;
+      } else if (isCurr) {
+        if (!currMap[dayKey]) currMap[dayKey] = {};
+        currMap[dayKey][a.questionId] = value;
+      }
     }
 
-    const dates = Object.keys(map).sort();
-
-    const html = this.generateHtml(questions, dates, map);
+    const html = this.generateHtmlMonthComparison(
+      questions,
+      prevMonthName,
+      currMonthName,
+      prevMap,
+      currMap,
+      getDaysInMonth(previousMonthStart),
+      getDaysInMonth(currentMonthStart),
+    );
     const key = `qa-history/${uuidv4()}.html`;
     const buffer = Buffer.from(html, 'utf8');
     const url = await this.storageService.uploadFileWithKey(
@@ -466,52 +502,85 @@ export class QaCommandsService {
     await ctx.reply(question.questionText);
   }
 
-  private generateHtml(
+  private generateHtmlMonthComparison(
     questions: { id: number; questionText: string; type: string }[],
-    dates: string[],
-    data: Record<string, Record<number, string | number>>,
+    prevMonthName: string,
+    currMonthName: string,
+    prevData: Record<string, Record<number, string | number>>,
+    currData: Record<string, Record<number, string | number>>,
+    prevMonthDays: number,
+    currMonthDays: number,
   ): string {
+    const dayLabels: string[] = Array.from({ length: 31 }, (_, i) =>
+      String(i + 1).padStart(2, '0'),
+    );
+
     let html =
       '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Questions history</title>' +
-      '<style>table{border-collapse:collapse;}th,td{border:1px solid #ccc;padding:4px;}th{background:#f0f0f0;}</style>' +
+      '<style>table{border-collapse:collapse;}th,td{border:1px solid #ccc;padding:4px;}th{background:#f0f0f0;}thead tr:nth-child(2) th{background:#fafafa;}</style>' +
       '</head><body>';
-    html += '<table><thead><tr><th>Date</th>';
+
+    // Table with two header rows
+    html += '<table><thead>';
+    html += '<tr><th>Day</th>';
     for (const q of questions) {
-      html += `<th>${this.escapeHtml(q.questionText)}</th>`;
+      html += `<th colspan="2">${this.escapeHtml(q.questionText)}</th>`;
+    }
+    html += '</tr>';
+    html += '<tr><th></th>';
+    for (let i = 0; i < questions.length; i++) {
+      html += `<th>${this.escapeHtml(prevMonthName)}</th><th>${this.escapeHtml(currMonthName)}</th>`;
     }
     html += '</tr></thead><tbody>';
-    for (const d of dates) {
+
+    for (const d of dayLabels) {
       html += `<tr><td>${d}</td>`;
       for (const q of questions) {
-        const val = data[d]?.[q.id];
-        html += `<td>${val !== undefined ? this.escapeHtml(String(val)) : ''}</td>`;
+        const prevVal = prevData[d]?.[q.id];
+        const currVal = currData[d]?.[q.id];
+        const showPrev = parseInt(d, 10) <= prevMonthDays ? prevVal : undefined;
+        const showCurr = parseInt(d, 10) <= currMonthDays ? currVal : undefined;
+        html += `<td>${showPrev !== undefined ? this.escapeHtml(String(showPrev)) : ''}</td>`;
+        html += `<td>${showCurr !== undefined ? this.escapeHtml(String(showCurr)) : ''}</td>`;
       }
       html += '</tr>';
     }
     html += '</tbody></table>';
 
+    // Charts for numeric questions: two datasets (prev/current month)
     const numericQuestions = questions.filter((q) => q.type === 'number');
     if (numericQuestions.length > 0) {
       html += '<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>';
       for (const q of numericQuestions) {
         html += `<h3>${this.escapeHtml(q.questionText)}</h3>`;
-        html += `<canvas id="chart-${q.id}" height="200"></canvas>`;
+        html += `<canvas id="chart-${q.id}" height="220"></canvas>`;
       }
+    }
+
+    // Simpler script generation with precomputed arrays per question
+    if (numericQuestions.length > 0) {
       html += '<script>';
-      html += `const labels = ${JSON.stringify(dates)};`;
+      html += `const DAY_LABELS = ${JSON.stringify(dayLabels)};`;
       for (const q of numericQuestions) {
-        let cumulative = 0;
-        const values: number[] = [];
-        for (const d of dates) {
-          const val = data[d]?.[q.id];
-          if (typeof val === 'number') {
-            cumulative += val;
-          }
-          values.push(cumulative);
-        }
-        html += `new Chart(document.getElementById('chart-${q.id}'),{type:'line',data:{labels:labels,datasets:[{label:${JSON.stringify(
-          q.questionText,
-        )},data:${JSON.stringify(values)},fill:false,borderColor:'blue',tension:0.1}]}});`;
+        const dataPrevArr = dayLabels.map((d) => {
+          const val = prevData[d]?.[q.id];
+          const dNum = parseInt(d, 10);
+          return dNum <= prevMonthDays && typeof val === 'number' ? val : null;
+        });
+        const dataCurrArr = dayLabels.map((d) => {
+          const val = currData[d]?.[q.id];
+          const dNum = parseInt(d, 10);
+          return dNum <= currMonthDays && typeof val === 'number' ? val : null;
+        });
+        html += `new Chart(document.getElementById('chart-${q.id}'),{type:'line',data:{labels:DAY_LABELS,datasets:[{label:${JSON.stringify(
+          `${q.questionText} (${prevMonthName})`,
+        )},data:${JSON.stringify(
+          dataPrevArr,
+        )},borderColor:'gray',spanGaps:true,pointRadius:2,fill:false,tension:0.1},{label:${JSON.stringify(
+          `${q.questionText} (${currMonthName})`,
+        )},data:${JSON.stringify(
+          dataCurrArr,
+        )},borderColor:'blue',spanGaps:true,pointRadius:2,fill:false,tension:0.1}]}});`;
       }
       html += '</script>';
     }
