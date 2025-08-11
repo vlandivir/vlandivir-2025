@@ -215,10 +215,22 @@ export class MiniAppController {
       const todo = await this.prisma.todo.findFirst({
         where: { key, chatId },
         orderBy: { id: 'desc' },
-        select: { key: true, content: true, dueDate: true },
+        select: {
+          key: true,
+          content: true,
+          createdAt: true,
+          status: true,
+          completedAt: true,
+          priority: true,
+          dueDate: true,
+          snoozedUntil: true,
+          tags: true,
+          contexts: true,
+          projects: true,
+        },
       });
       if (!todo) return { error: 'Not found' };
-      const [notes, images] = await Promise.all([
+      const [notes, images, history] = await Promise.all([
         this.prisma.taskNote.findMany({
           where: { key, chatId },
           orderBy: { createdAt: 'asc' },
@@ -228,6 +240,24 @@ export class MiniAppController {
           where: { key, chatId },
           orderBy: { createdAt: 'asc' },
           select: { id: true, description: true },
+        }),
+        this.prisma.todo.findMany({
+          where: { key, chatId },
+          orderBy: { createdAt: 'asc' },
+          select: {
+            id: true,
+            key: true,
+            content: true,
+            createdAt: true,
+            status: true,
+            completedAt: true,
+            priority: true,
+            dueDate: true,
+            snoozedUntil: true,
+            tags: true,
+            contexts: true,
+            projects: true,
+          },
         }),
       ]);
       const initEncoded = encodeURIComponent(initData || '');
@@ -239,6 +269,7 @@ export class MiniAppController {
           description: img.description,
           url: `/mini-app-api/image?initData=${initEncoded}&imageId=${img.id}`,
         })),
+        history,
       };
     } catch (e) {
       return { error: `Invalid initData ${e}` };
