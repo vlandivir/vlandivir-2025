@@ -1,5 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { useRawInitData } from '@telegram-apps/sdk-react';
+import {
+  Box,
+  Heading,
+  Flex,
+  Avatar,
+  Text,
+  VStack,
+  Button,
+  Image,
+  Stack,
+} from '@chakra-ui/react';
 
 type Counts = { notes: number; todos: number; questions: number; answers: number };
 type UserData = {
@@ -113,112 +124,96 @@ export default function App() {
   const secondaryBg = 'var(--tg-theme-secondary-bg-color)';
 
   return (
-    <div
-      style={{
-        color: textColor,
-        background: bgColor,
-        minHeight: '100vh',
-        padding: 16,
-        fontFamily: '-apple-system, Inter, Arial, sans-serif',
-      }}
+    <Box
+      color={textColor}
+      bg={bgColor}
+      minH="100vh"
+      p={4}
+      fontFamily="-apple-system, Inter, Arial, sans-serif"
     >
-      <h1 style={{ margin: 0, marginBottom: 8, fontSize: 20 }}>Mini App</h1>
-      <div style={{ borderRadius: 12, padding: 16, background: secondaryBg }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {user?.hasAvatar ? (
-            <img
-              src={user?.userId ? `/mini-app-api/avatar?userId=${user.userId}` : undefined}
-              alt={user?.userSummary || ''}
-              style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover' }}
-            />
-          ) : (
-            <div
-              style={{
-                width: 64,
-                height: 64,
-                borderRadius: '50%',
-                background: 'rgba(0,0,0,0.08)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 600,
-              }}
-            >
-              {user?.initials || '?'}
-            </div>
-          )}
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 600 }}>
+      <Heading as="h1" size="md" mb={2}>
+        Mini App
+      </Heading>
+      <Box borderRadius="lg" p={4} bg={secondaryBg}>
+        <Flex align="center" gap={3}>
+          <Avatar
+            size="xl"
+            name={user?.userSummary || 'Unknown user'}
+            src={user?.hasAvatar && user.userId ? `/mini-app-api/avatar?userId=${user.userId}` : undefined}
+          />
+          <Box>
+            <Text fontSize="lg" fontWeight="semibold">
               {user?.userSummary || 'Unknown user'}
-            </div>
-            <div style={{ opacity: 0.7 }}>
-              {user?.username ? `@${user.username}` : ''}
-            </div>
-          </div>
-        </div>
-        <div style={{ height: 12 }} />
-        <div>
-          {error && <div>Error: {error}</div>}
-          {!error && !user && <div>Loading...</div>}
+            </Text>
+            <Text opacity={0.7}>{user?.username ? `@${user.username}` : ''}</Text>
+          </Box>
+        </Flex>
+        <Box h={3} />
+        <Box>
+          {error && <Text color="red.500">Error: {error}</Text>}
+          {!error && !user && <Text>Loading...</Text>}
           {user && (
-            <div>
-              <b>Notes</b>: {user.counts.notes}
-              <br />
-              <b>Todos</b>: {user.counts.todos}
-              <br />
-              <b>Questions</b>: {user.counts.questions}
-              <br />
-              <b>Answers</b>: {user.counts.answers}
-            </div>
+            <Stack spacing={1}>
+              <Text>
+                <b>Notes</b>: {user.counts.notes}
+              </Text>
+              <Text>
+                <b>Todos</b>: {user.counts.todos}
+              </Text>
+              <Text>
+                <b>Questions</b>: {user.counts.questions}
+              </Text>
+              <Text>
+                <b>Answers</b>: {user.counts.answers}
+              </Text>
+            </Stack>
           )}
-        </div>
-      </div>
+        </Box>
+      </Box>
       {tasks.length > 0 && (
-        <div style={{ marginTop: 16 }}>
+        <VStack align="stretch" spacing={2} mt={4}>
           {tasks.map((t) => (
-            <div key={t.key} style={{ marginBottom: 8 }}>
-              <button onClick={() => loadTask(t.key)}>{`${t.key}: ${t.content}`}</button>
-            </div>
+            <Button key={t.key} onClick={() => loadTask(t.key)} justifyContent="flex-start" variant="outline">
+              {`${t.key}: ${t.content}`}
+            </Button>
           ))}
-        </div>
+        </VStack>
       )}
       {selected && (
-        <div style={{ marginTop: 16 }}>
-          <h2>
+        <Box mt={4}>
+          <Heading as="h2" size="sm">
             {selected.todo.key} {selected.todo.content}
-          </h2>
+          </Heading>
           {selected.todo.dueDate && (
-            <div>Due: {new Date(selected.todo.dueDate).toLocaleString()}</div>
+            <Text mt={1}>Due: {new Date(selected.todo.dueDate).toLocaleString()}</Text>
           )}
           {selected.images.length > 0 && (
-            <div style={{ marginTop: 8 }}>
+            <VStack align="stretch" spacing={2} mt={2}>
               {selected.images.map((img) => (
-                <div key={img.id} style={{ marginBottom: 8 }}>
-                  <img src={img.url} style={{ maxWidth: '100%' }} />
-                  {img.description && <div>{img.description}</div>}
-                </div>
+                <Box key={img.id}>
+                  <Image src={img.url} alt={img.description || ''} maxW="100%" />
+                  {img.description && <Text mt={1}>{img.description}</Text>}
+                </Box>
               ))}
-            </div>
+            </VStack>
           )}
           {selected.notes.length > 0 && (
-            <div style={{ marginTop: 8 }}>
+            <VStack align="stretch" spacing={2} mt={2}>
               {selected.notes.map((n) => (
-                <pre
+                <Box
                   key={n.id}
-                  style={{
-                    background: 'rgba(0,0,0,0.05)',
-                    padding: 8,
-                    whiteSpace: 'pre-wrap',
-                  }}
+                  bg="rgba(0,0,0,0.05)"
+                  p={2}
+                  sx={{ whiteSpace: 'pre-wrap' }}
                 >
                   {n.content}
-                </pre>
+                </Box>
               ))}
-            </div>
+            </VStack>
           )}
-        </div>
+        </Box>
       )}
-    </div>
+    </Box>
   );
 }
 
