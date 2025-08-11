@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { createHmac } from 'crypto';
 import type { Response } from 'express';
+import { StorageService } from '../services/storage.service';
 
 type TelegramInitData = {
   user?: {
@@ -24,6 +25,7 @@ export class MiniAppController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly storage: StorageService,
   ) {}
 
   // Index HTML is now served by static frontend under `/mini-app` via Vite build.
@@ -127,6 +129,119 @@ export class MiniAppController {
       res.send(buffer);
     } catch (e) {
       res.status(500).send(`Error ${e}`);
+    }
+  }
+
+  @Get('image')
+  @Header('Cache-Control', 'public, max-age=300')
+  async image(
+    @Query('initData') initData?: string,
+    @Query('imageId') imageId?: string,
+    @Res() res: Response,
+  ) {
+    try {
+      const parsed = this.parseAndVerifyInitData(initData || '');
+      const userId = parsed.user?.id;
+      if (!userId) {
+        res.status(400).send('No user');
+        return;
+      }
+      const id = Number(imageId);
+      if (!id) {
+        res.status(400).send('Bad imageId');
+        return;
+      }
+      const chatId = BigInt(userId);
+      const image = await this.prisma.taskImage.findFirst({
+        where: { id, chatId },
+      });
+      if (!image) {
+        res.status(404).send('Not found');
+        return;
+      }
+      const buffer = await this.storage.downloadFile(image.url);
+      res.setHeader('Content-Type', 'image/jpeg');
+      res.send(buffer);
+    } catch (e) {
+      res.status(500).send(`Error ${e}`);
+    }
+  }
+
+  @Get('todos')
+  async getTodos(@Query('initData') initData?: string) {
+    try {
+      const parsed = this.parseAndVerifyInitData(initData || '');
+      const userId = parsed.user?.id;
+      if (!userId) return { error: 'No user' };
+      const chatId = BigInt(userId);
+      const query = `
+            WITH latest_todos AS (
+                SELECT *,
+                       ROW_NUMBER() OVER (PARTITION BY key ORDER BY id DESC) as rn
+                FROM "Todo"
+                WHERE "chatId" = ${chatId}
+            )
+            SELECT id, key, content, "dueDate", status, "snoozedUntil"
+            FROM latest_todos
+            WHERE rn = 1
+              AND status NOT IN ('done', 'canceled')
+              AND (status != 'snoozed' OR "snoozedUntil" IS NULL OR "snoozedUntil" <= NOW())
+            ORDER BY "dueDate" IS NULL, "dueDate" ASC, "createdAt" DESC, key ASC`;
+      const tasks = await this.prisma.$queryRawUnsafe<
+        {
+          id: number;
+          key: string;
+          content: string;
+          dueDate: Date | null;
+        }[]
+      >(query);
+      return tasks;
+    } catch (e) {
+      return { error: `Invalid initData ${e}` };
+    }
+  }
+
+  @Get('todo')
+  async getTodo(
+    @Query('initData') initData?: string,
+    @Query('key') key?: string,
+  ) {
+    try {
+      const parsed = this.parseAndVerifyInitData(initData || '');
+      const userId = parsed.user?.id;
+      if (!userId) return { error: 'No user' };
+      if (!key) return { error: 'No key' };
+      const chatId = BigInt(userId);
+      const todo = await this.prisma.todo.findFirst({
+        where: { key, chatId },
+        orderBy: { id: 'desc' },
+        select: { key: true, content: true, dueDate: true },
+      });
+      if (!todo) return { error: 'Not found' };
+      const [notes, images] = await Promise.all([
+        this.prisma.taskNote.findMany({
+          where: { key, chatId },
+          orderBy: { createdAt: 'asc' },
+          select: { id: true, content: true },
+        }),
+        this.prisma.taskImage.findMany({
+          where: { key, chatId },
+          orderBy: { createdAt: 'asc' },
+          select: { id: true, description: true },
+        }),
+      ]);
+      const initEncoded = encodeURIComponent(initData || '');
+      return {
+        todo,
+        notes,
+        images: images.map((img) => ({
+          id: img.id,
+          description: img.description,
+          url: `/mini-app-api/image?initData=${initEncoded}&imageId=${img.id}`,
+        })),
+      };
+    } catch (e) {
+      return { error: `Invalid initData ${e}` };
     }
   }
 
