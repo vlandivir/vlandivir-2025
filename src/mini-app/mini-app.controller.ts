@@ -135,9 +135,9 @@ export class MiniAppController {
   @Get('image')
   @Header('Cache-Control', 'public, max-age=300')
   async image(
+    @Res() res: Response,
     @Query('initData') initData?: string,
     @Query('imageId') imageId?: string,
-    @Res() res: Response,
   ) {
     try {
       const parsed = this.parseAndVerifyInitData(initData || '');
