@@ -72,7 +72,7 @@ export class SerbianCommandsService {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'gpt-4o-mini',
+            model: 'gpt-5-mini',
             messages: [
               {
                 role: 'user',
