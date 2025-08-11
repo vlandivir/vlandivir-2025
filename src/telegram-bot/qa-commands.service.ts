@@ -557,21 +557,29 @@ export class QaCommandsService {
       }
     }
 
-    // Simpler script generation with precomputed arrays per question
+    // Simpler script generation with precomputed arrays per question (cumulative per month)
     if (numericQuestions.length > 0) {
       html += '<script>';
       html += `const DAY_LABELS = ${JSON.stringify(dayLabels)};`;
       for (const q of numericQuestions) {
+        let cumPrev = 0;
         const dataPrevArr = dayLabels.map((d) => {
+          const dNum = parseInt(d, 10);
+          if (dNum > prevMonthDays) return null;
           const val = prevData[d]?.[q.id];
-          const dNum = parseInt(d, 10);
-          return dNum <= prevMonthDays && typeof val === 'number' ? val : null;
+          if (typeof val === 'number') cumPrev += val;
+          return cumPrev;
         });
+
+        let cumCurr = 0;
         const dataCurrArr = dayLabels.map((d) => {
-          const val = currData[d]?.[q.id];
           const dNum = parseInt(d, 10);
-          return dNum <= currMonthDays && typeof val === 'number' ? val : null;
+          if (dNum > currMonthDays) return null;
+          const val = currData[d]?.[q.id];
+          if (typeof val === 'number') cumCurr += val;
+          return cumCurr;
         });
+
         html += `new Chart(document.getElementById('chart-${q.id}'),{type:'line',data:{labels:DAY_LABELS,datasets:[{label:${JSON.stringify(
           `${q.questionText} (${prevMonthName})`,
         )},data:${JSON.stringify(
