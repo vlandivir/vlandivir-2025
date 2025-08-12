@@ -79,7 +79,6 @@ export class SerbianCommandsService {
                 content: prompt,
               },
             ],
-            temperature: 0.7,
           }),
         },
       );
