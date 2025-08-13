@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { createHmac } from 'crypto';
 import type { Response } from 'express';
 import { StorageService } from '../services/storage.service';
+import { formatInTimeZone } from 'date-fns-tz';
 
 type TelegramInitData = {
   user?: {
@@ -168,7 +169,10 @@ export class MiniAppController {
   }
 
   @Get('todos')
-  async getTodos(@Query('initData') initData?: string) {
+  async getTodos(
+    @Query('initData') initData?: string,
+    @Query('tz') tz?: string,
+  ) {
     try {
       const parsed = this.parseAndVerifyInitData(initData || '');
       const userId = parsed.user?.id;
@@ -195,7 +199,20 @@ export class MiniAppController {
           dueDate: Date | null;
         }[]
       >(query);
-      return tasks;
+      const timeZone = tz || 'UTC';
+      return tasks.map((t) => ({
+        ...t,
+        dueDate: t.dueDate
+          ? formatInTimeZone(t.dueDate, timeZone, "yyyy-MM-dd'T'HH:mm:ssXXX")
+          : null,
+        snoozedUntil: t.snoozedUntil
+          ? formatInTimeZone(
+              t.snoozedUntil,
+              timeZone,
+              "yyyy-MM-dd'T'HH:mm:ssXXX",
+            )
+          : null,
+      }));
     } catch (e) {
       return { error: `Invalid initData ${e}` };
     }
@@ -205,6 +222,7 @@ export class MiniAppController {
   async getTodo(
     @Query('initData') initData?: string,
     @Query('key') key?: string,
+    @Query('tz') tz?: string,
   ) {
     try {
       const parsed = this.parseAndVerifyInitData(initData || '');
@@ -261,15 +279,45 @@ export class MiniAppController {
         }),
       ]);
       const initEncoded = encodeURIComponent(initData || '');
+      const timeZone = tz || 'UTC';
+      const mapRecord = (r: {
+        [key: string]: unknown;
+        createdAt?: Date | null;
+        completedAt?: Date | null;
+        dueDate?: Date | null;
+        snoozedUntil?: Date | null;
+      }) => ({
+        ...r,
+        createdAt: r.createdAt
+          ? formatInTimeZone(r.createdAt, timeZone, "yyyy-MM-dd'T'HH:mm:ssXXX")
+          : null,
+        completedAt: r.completedAt
+          ? formatInTimeZone(
+              r.completedAt,
+              timeZone,
+              "yyyy-MM-dd'T'HH:mm:ssXXX",
+            )
+          : null,
+        dueDate: r.dueDate
+          ? formatInTimeZone(r.dueDate, timeZone, "yyyy-MM-dd'T'HH:mm:ssXXX")
+          : null,
+        snoozedUntil: r.snoozedUntil
+          ? formatInTimeZone(
+              r.snoozedUntil,
+              timeZone,
+              "yyyy-MM-dd'T'HH:mm:ssXXX",
+            )
+          : null,
+      });
       return {
-        todo,
+        todo: mapRecord(todo),
         notes,
         images: images.map((img) => ({
           id: img.id,
           description: img.description,
           url: `/mini-app-api/image?initData=${initEncoded}&imageId=${img.id}`,
         })),
-        history,
+        history: history.map(mapRecord),
       };
     } catch (e) {
       return { error: `Invalid initData ${e}` };

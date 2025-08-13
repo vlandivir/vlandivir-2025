@@ -3,7 +3,9 @@ import { Context } from 'telegraf';
 import { InlineKeyboardMarkup } from 'telegraf/typings/core/types/typegram';
 import { TaskEditWizardContext } from './scenes/task-edit.scene';
 import { PrismaService } from '../prisma/prisma.service';
-import { format, startOfDay, endOfDay, isToday } from 'date-fns';
+import { format, startOfDay, endOfDay, isSameDay } from 'date-fns';
+import { fromZonedTime, toZonedTime, formatInTimeZone } from 'date-fns-tz';
+import { getUserTimeZone } from '../utils/timezone';
 import { DateParserService } from '../services/date-parser.service';
 import { StorageService } from '../services/storage.service';
 import { LlmService } from '../services/llm.service';
@@ -89,6 +91,10 @@ export class TaskCommandsService {
       key = parts.shift() as string;
     }
     const parsed = this.parseTask(parts.join(' '));
+    const tz = getUserTimeZone(ctx);
+    const parsedDueUtc = parsed.dueDate
+      ? fromZonedTime(parsed.dueDate, tz)
+      : undefined;
 
     // Process images if present
     const images = await this.processTaskImages(ctx);
@@ -111,7 +117,7 @@ export class TaskCommandsService {
             key: newKey,
             content: parsed.content,
             priority: parsed.priority,
-            dueDate: parsed.dueDate,
+            dueDate: parsedDueUtc,
             snoozedUntil: parsed.snoozedUntil,
             tags: parsed.tags,
             contexts: parsed.contexts,
@@ -139,7 +145,7 @@ export class TaskCommandsService {
           key: newKey,
           content: parsed.content,
           priority: parsed.priority,
-          dueDate: parsed.dueDate,
+          dueDate: parsedDueUtc,
           snoozedUntil: parsed.snoozedUntil,
           tags: parsed.tags,
           contexts: parsed.contexts,
@@ -481,6 +487,11 @@ export class TaskCommandsService {
       return;
     }
 
+    const tz = getUserTimeZone(ctx);
+    const dueUtc = updates.dueDate
+      ? fromZonedTime(updates.dueDate, tz)
+      : undefined;
+
     if (typeof this.prisma.$transaction === 'function') {
       await this.prisma.$transaction(async (tx) => {
         await tx.todo.create({
@@ -488,7 +499,7 @@ export class TaskCommandsService {
             key,
             content: updates.content || existing.content,
             priority: updates.priority ?? existing.priority,
-            dueDate: updates.dueDate ?? existing.dueDate,
+            dueDate: dueUtc ?? existing.dueDate,
             snoozedUntil: updates.snoozedUntil ?? existing.snoozedUntil,
             tags: Array.from(new Set([...existing.tags, ...updates.tags])),
             contexts: Array.from(
@@ -524,7 +535,7 @@ export class TaskCommandsService {
           key,
           content: updates.content || existing.content,
           priority: updates.priority ?? existing.priority,
-          dueDate: updates.dueDate ?? existing.dueDate,
+          dueDate: dueUtc ?? existing.dueDate,
           snoozedUntil: updates.snoozedUntil ?? existing.snoozedUntil,
           tags: Array.from(new Set([...existing.tags, ...updates.tags])),
           contexts: Array.from(
@@ -664,23 +675,31 @@ export class TaskCommandsService {
     const buttons: { text: string; callback_data: string }[][] = [];
     let row: { text: string; callback_data: string }[] = [];
 
-    const now = new Date();
+    const tz = getUserTimeZone(ctx);
+    const now = toZonedTime(new Date(), tz);
 
     for (const t of tasksWithImages) {
       let prefix = '';
       if (t.dueDate) {
         let icon = '📅';
-        if (t.dueDate.getTime() < now.getTime()) {
+        if (t.dueDate.getTime() < new Date().getTime()) {
           icon = '❗';
-        } else if (isToday(t.dueDate)) {
-          icon = '⏰';
+        } else {
+          const dueLocal = toZonedTime(t.dueDate, tz);
+          if (isSameDay(dueLocal, now)) {
+            icon = '⏰';
+          }
         }
         prefix = `${icon} `;
       }
 
       let line = `${prefix}${t.key} ${t.content}`;
       if (t.dueDate) {
-        line += ` (due: ${format(t.dueDate, 'MMM d, yyyy HH:mm')})`;
+        line += ` (due: ${formatInTimeZone(
+          t.dueDate,
+          tz,
+          'MMM d, yyyy HH:mm',
+        )})`;
       }
       if (t.images && t.images.length > 0) {
         line += ` 📷(${t.images.length})`;
