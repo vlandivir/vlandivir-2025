@@ -9,6 +9,7 @@ import { getUserTimeZone } from '../utils/timezone';
 import { DateParserService } from '../services/date-parser.service';
 import { StorageService } from '../services/storage.service';
 import { LlmService } from '../services/llm.service';
+import { TimeZoneCacheService } from '../services/timezone-cache.service';
 
 interface ParsedTask {
   content: string;
@@ -60,6 +61,7 @@ export class TaskCommandsService {
     private readonly dateParser: DateParserService,
     private readonly storageService: StorageService,
     private readonly llmService: LlmService,
+    private readonly tzCache: TimeZoneCacheService,
   ) {}
 
   private readonly editSessions: Map<
@@ -90,7 +92,10 @@ export class TaskCommandsService {
     if (parts.length && /^T-\d{8}-\d+$/.test(parts[0])) {
       key = parts.shift() as string;
     }
-    const tz = getUserTimeZone(ctx);
+    const chatOrUserId = ctx.chat?.id || ctx.from?.id;
+    const cachedTz = this.tzCache.getTimeZone(chatOrUserId);
+    const tz = cachedTz || getUserTimeZone(ctx);
+    if (chatOrUserId && !cachedTz) this.tzCache.setTimeZone(chatOrUserId, tz);
     const parsed = this.parseTask(parts.join(' '), tz);
     const parsedDueUtc = parsed.dueDate
       ? fromZonedTime(parsed.dueDate, tz)
@@ -521,7 +526,8 @@ export class TaskCommandsService {
       return;
     }
 
-    const tz = getUserTimeZone(ctx);
+    const chatOrUserId = ctx.chat?.id || ctx.from?.id;
+    const tz = this.tzCache.getTimeZone(chatOrUserId) || getUserTimeZone(ctx);
     const dueUtc = updates.dueDate
       ? fromZonedTime(updates.dueDate, tz)
       : undefined;
@@ -709,7 +715,8 @@ export class TaskCommandsService {
     const buttons: { text: string; callback_data: string }[][] = [];
     let row: { text: string; callback_data: string }[] = [];
 
-    const tz = getUserTimeZone(ctx);
+    const chatOrUserId = ctx.chat?.id || ctx.from?.id;
+    const tz = this.tzCache.getTimeZone(chatOrUserId) || getUserTimeZone(ctx);
     const now = toZonedTime(new Date(), tz);
 
     for (const t of tasksWithImages) {

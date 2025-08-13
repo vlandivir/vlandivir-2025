@@ -62,7 +62,7 @@ export default function App() {
 
   useEffect(() => {
     const initData = rawInitData ?? getInitDataString();
-    const url = `/mini-app-api/user?initData=${encodeURIComponent(initData)}`;
+    const url = `/mini-app-api/user?initData=${encodeURIComponent(initData)}&tz=${encodeURIComponent(tz)}`;
     let cancelled = false;
     fetch(url)
       .then((r) => r.json())
@@ -243,6 +243,11 @@ export default function App() {
               <Text>
                 <b>Answers</b>: {user.counts.answers}
               </Text>
+              {'timeZone' in user && (
+                <Text>
+                  <b>Time zone</b>: {(user as any).timeZone} (UTC{(user as any).utcOffset}) — source: {(user as any).timeZoneSource}
+                </Text>
+              )}
             </Stack>
           )}
         </Box>

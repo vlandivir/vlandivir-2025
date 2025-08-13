@@ -1,25 +1,13 @@
 import { Controller, Get, Header, Query, Res } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
-import { createHmac } from 'crypto';
+import { validate, parse } from '@telegram-apps/init-data-node';
 import type { Response } from 'express';
 import { StorageService } from '../services/storage.service';
+import { TimeZoneCacheService } from '../services/timezone-cache.service';
 import { formatInTimeZone } from 'date-fns-tz';
 
-type TelegramInitData = {
-  user?: {
-    id: number;
-    first_name?: string;
-    last_name?: string;
-    username?: string;
-    language_code?: string;
-    is_premium?: boolean;
-  };
-  chat_type?: string;
-  chat_instance?: string;
-  auth_date?: string;
-  hash: string;
-};
+type TelegramInitData = ReturnType<typeof parse>;
 
 @Controller('mini-app-api')
 export class MiniAppController {
@@ -27,12 +15,16 @@ export class MiniAppController {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly storage: StorageService,
+    private readonly tzCache: TimeZoneCacheService,
   ) {}
 
   // Index HTML is now served by static frontend under `/mini-app` via Vite build.
 
   @Get('user')
-  async getUser(@Query('initData') initData?: string) {
+  async getUser(
+    @Query('initData') initData?: string,
+    @Query('tz') tz?: string,
+  ) {
     try {
       const parsed = this.parseAndVerifyInitData(initData || '');
       const userId = parsed.user?.id;
@@ -48,8 +40,8 @@ export class MiniAppController {
       ]);
 
       const userSummary = [
-        parsed.user?.first_name,
-        parsed.user?.last_name,
+        parsed.user?.firstName,
+        parsed.user?.lastName,
         parsed.user?.username ? '(' + parsed.user?.username + ')' : undefined,
       ]
         .filter(Boolean)
@@ -57,12 +49,30 @@ export class MiniAppController {
 
       const initials =
         (
-          (parsed.user?.first_name?.[0] || '') +
-          (parsed.user?.last_name?.[0] || '')
+          (parsed.user?.firstName?.[0] || '') +
+          (parsed.user?.lastName?.[0] || '')
         ).toUpperCase() ||
         parsed.user?.username?.slice(0, 2).toUpperCase() ||
         'U';
 
+      const tzFromUser = undefined;
+      let resolvedTz = 'UTC';
+      let tzSource: 'web' | 'telegram' | 'cache' | 'default' = 'default';
+      if (tz) {
+        resolvedTz = tz;
+        tzSource = 'web';
+      } else if (tzFromUser) {
+        resolvedTz = tzFromUser;
+        tzSource = 'telegram';
+      } else {
+        const cached = this.tzCache.getTimeZone(userId);
+        if (cached) {
+          resolvedTz = cached;
+          tzSource = 'cache';
+        }
+      }
+      if (userId && resolvedTz) this.tzCache.setTimeZone(userId, resolvedTz);
+      const utcOffset = formatInTimeZone(new Date(), resolvedTz, 'XXX');
       return {
         userId,
         userSummary,
@@ -70,6 +80,9 @@ export class MiniAppController {
         initials,
         hasAvatar: true, // actual presence checked in avatar endpoint; keep true to try load
         counts: { notes, todos, questions, answers },
+        timeZone: resolvedTz,
+        timeZoneSource: tzSource,
+        utcOffset,
       };
     } catch (e) {
       return { error: `Invalid initData ${e}` };
@@ -201,7 +214,8 @@ export class MiniAppController {
           snoozedUntil: Date | null;
         }[]
       >(query);
-      const timeZone = tz || 'UTC';
+      const cachedTz = this.tzCache.getTimeZone(userId);
+      const timeZone = tz || cachedTz || 'UTC';
       return tasks.map((t) => ({
         ...t,
         dueDate: t.dueDate
@@ -281,7 +295,8 @@ export class MiniAppController {
         }),
       ]);
       const initEncoded = encodeURIComponent(initData || '');
-      const timeZone = tz || 'UTC';
+      const cachedTz = this.tzCache.getTimeZone(userId);
+      const timeZone = tz || cachedTz || 'UTC';
       const mapRecord = (r: {
         [key: string]: unknown;
         createdAt?: Date | null;
@@ -327,35 +342,10 @@ export class MiniAppController {
   }
 
   private parseAndVerifyInitData(raw: string): TelegramInitData {
-    // Based on https://core.telegram.org/bots/webapps#validating-data-received-via-the-web-app
     const token = this.config.get<string>('TELEGRAM_BOT_TOKEN');
     if (!token) throw new Error('No token');
-    const urlParams = new URLSearchParams(raw);
-    const hash = urlParams.get('hash') || '';
-    const dataCheckString = Array.from(urlParams.entries())
-      .filter(([key]) => key !== 'hash')
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([k, v]) => `${k}=${v}`)
-      .join('\n');
-
-    const secretKey = createHmac('sha256', 'WebAppData').update(token).digest();
-    const calculatedHash = createHmac('sha256', secretKey)
-      .update(dataCheckString)
-      .digest('hex');
-    if (calculatedHash !== hash) throw new Error('Bad hash');
-
-    const result: TelegramInitData = { hash } as TelegramInitData;
-    const userString = urlParams.get('user');
-    if (userString) {
-      try {
-        result.user = JSON.parse(userString);
-      } catch {
-        // ignore
-      }
-    }
-    result.auth_date = urlParams.get('auth_date') || undefined;
-    result.chat_type = urlParams.get('chat_type') || undefined;
-    result.chat_instance = urlParams.get('chat_instance') || undefined;
-    return result;
+    // Validate signature (throws on invalid/expired by default)
+    validate(raw, token);
+    return parse(raw);
   }
 }
