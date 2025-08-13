@@ -58,6 +58,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [tasks, setTasks] = useState<TaskSummary[]>([]);
   const [selected, setSelected] = useState<TaskDetails | null>(null);
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   useEffect(() => {
     const initData = rawInitData ?? getInitDataString();
@@ -89,7 +90,9 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     const initData = rawInitData ?? getInitDataString();
-    const url = `/mini-app-api/todos?initData=${encodeURIComponent(initData)}`;
+    const url = `/mini-app-api/todos?initData=${encodeURIComponent(
+      initData,
+    )}&tz=${encodeURIComponent(tz)}`;
     let cancelled = false;
     fetch(url)
       .then((r) => r.json())
@@ -111,13 +114,13 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [user, rawInitData]);
+  }, [user, rawInitData, tz]);
 
   const loadTask = (key: string) => {
     const initData = rawInitData ?? getInitDataString();
     const url = `/mini-app-api/todo?initData=${encodeURIComponent(
       initData,
-    )}&key=${encodeURIComponent(key)}`;
+    )}&key=${encodeURIComponent(key)}&tz=${encodeURIComponent(tz)}`;
     fetch(url)
       .then((r) => r.json())
       .then((data: unknown) => {

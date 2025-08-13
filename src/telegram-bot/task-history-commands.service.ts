@@ -3,7 +3,8 @@ import { Context } from 'telegraf';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../services/storage.service';
 import { v4 as uuidv4 } from 'uuid';
-import { format } from 'date-fns';
+import { formatInTimeZone } from 'date-fns-tz';
+import { getUserTimeZone } from '../utils/timezone';
 
 interface TaskRecord {
   id: number;
@@ -109,12 +110,14 @@ export class TaskHistoryCommandsService {
       (a, b) => b.latest.createdAt.getTime() - a.latest.createdAt.getTime(),
     );
 
+    const tz = getUserTimeZone(ctx);
     const html = this.generateHtml(
       unfinished,
       snoozed,
       finished,
       notesByKey,
       imagesByKey,
+      tz,
     );
     const id = uuidv4();
     const buffer = Buffer.from(html, 'utf8');
@@ -150,16 +153,17 @@ export class TaskHistoryCommandsService {
     finished: { key: string; history: TaskRecord[]; latest: TaskRecord }[],
     notesByKey: Record<string, { content: string }[]>,
     imagesByKey: Record<string, { url: string; description: string | null }[]>,
+    timeZone: string,
   ): string {
     let html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Tasks</title><style>body{font-family:Arial,Helvetica,sans-serif;margin:20px;}h2{color:#333;} .task{border:1px solid #ccc;padding:10px;margin-bottom:10px;border-radius:6px;} .history{margin-top:5px;padding-left:20px;font-size:0.9em;color:#555;} .images{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,400px));gap:10px;margin-top:10px;justify-content:center;} .notes{column-width:400px;column-gap:10px;margin-top:10px;} .polaroid{background:#fff;padding:10px;box-shadow:0 2px 5px rgba(0,0,0,0.3);text-align:center;} .images .polaroid{max-width:400px;margin:auto;} .notes .polaroid{display:inline-block;width:400px;margin:0 0 10px;} .polaroid img{max-width:100%;max-height:400px;height:auto;} .polaroid .caption{margin-top:5px;font-size:0.9em;} .note{white-space:pre-wrap;text-align:left;}</style></head><body>`;
     html += '<h1>Tasks</h1>';
     html += '<h2>Unfinished</h2>';
-    html += this.renderTasks(unfinished, notesByKey, imagesByKey);
+    html += this.renderTasks(unfinished, notesByKey, imagesByKey, timeZone);
     html += '<h2>Snoozed</h2>';
-    html += this.renderTasks(snoozed, notesByKey, imagesByKey);
+    html += this.renderTasks(snoozed, notesByKey, imagesByKey, timeZone);
     html += '<h2>Finished</h2>';
-    html += this.renderTasks(finished, notesByKey, imagesByKey);
-    html += `<p>Generated: ${format(new Date(), 'yyyy-MM-dd HH:mm:ss')}</p>`;
+    html += this.renderTasks(finished, notesByKey, imagesByKey, timeZone);
+    html += `<p>Generated: ${formatInTimeZone(new Date(), timeZone, 'yyyy-MM-dd HH:mm:ss')}</p>`;
     html += '</body></html>';
     return html;
   }
@@ -168,6 +172,7 @@ export class TaskHistoryCommandsService {
     groups: { key: string; history: TaskRecord[]; latest: TaskRecord }[],
     notesByKey: Record<string, { content: string }[]>,
     imagesByKey: Record<string, { url: string; description: string | null }[]>,
+    timeZone: string,
   ): string {
     let html = '';
     for (const g of groups) {
@@ -176,9 +181,17 @@ export class TaskHistoryCommandsService {
       if (t.priority) html += ` [${t.priority}]`;
       if (t.status) html += ` (${t.status})`;
       if (t.dueDate)
-        html += ` (due: ${format(new Date(t.dueDate), 'yyyy-MM-dd HH:mm')})`;
+        html += ` (due: ${formatInTimeZone(
+          new Date(t.dueDate),
+          timeZone,
+          'yyyy-MM-dd HH:mm',
+        )})`;
       if (t.snoozedUntil)
-        html += ` (snoozed until: ${format(new Date(t.snoozedUntil), 'yyyy-MM-dd HH:mm')})`;
+        html += ` (snoozed until: ${formatInTimeZone(
+          new Date(t.snoozedUntil),
+          timeZone,
+          'yyyy-MM-dd HH:mm',
+        )})`;
       if (t.tags.length) html += ` tags: ${t.tags.join(', ')}`;
       if (t.contexts.length) html += ` contexts: ${t.contexts.join(', ')}`;
       if (t.projects.length) html += ` projects: ${t.projects.join(', ')}`;
@@ -222,12 +235,16 @@ export class TaskHistoryCommandsService {
       html += '<div class="history"><ul>';
       for (let i = 0; i < g.history.length; i++) {
         const h = g.history[i];
-        html += `<li>${format(new Date(h.createdAt), 'yyyy-MM-dd HH:mm')} - `;
+        html += `<li>${formatInTimeZone(
+          new Date(h.createdAt),
+          timeZone,
+          'yyyy-MM-dd HH:mm',
+        )} - `;
         if (i === 0) {
           html += `created: ${this.escapeHtml(h.content)}`;
         } else {
           const prev = g.history[i - 1];
-          const changes = this.describeChanges(prev, h);
+          const changes = this.describeChanges(prev, h, timeZone);
           html += changes || 'no changes';
         }
         html += '</li>';
@@ -237,7 +254,11 @@ export class TaskHistoryCommandsService {
     return html;
   }
 
-  private describeChanges(prev: TaskRecord, curr: TaskRecord): string {
+  private describeChanges(
+    prev: TaskRecord,
+    curr: TaskRecord,
+    timeZone: string,
+  ): string {
     const changes: string[] = [];
     if (prev.content !== curr.content) {
       changes.push(`content: ${this.escapeHtml(curr.content)}`);
@@ -252,14 +273,30 @@ export class TaskHistoryCommandsService {
     const currDue = curr.dueDate ? curr.dueDate.getTime() : 0;
     if (prevDue !== currDue) {
       changes.push(
-        `due: ${curr.dueDate ? format(new Date(curr.dueDate), 'yyyy-MM-dd HH:mm') : 'none'}`,
+        `due: ${
+          curr.dueDate
+            ? formatInTimeZone(
+                new Date(curr.dueDate),
+                timeZone,
+                'yyyy-MM-dd HH:mm',
+              )
+            : 'none'
+        }`,
       );
     }
     const prevSnoozed = prev.snoozedUntil ? prev.snoozedUntil.getTime() : 0;
     const currSnoozed = curr.snoozedUntil ? curr.snoozedUntil.getTime() : 0;
     if (prevSnoozed !== currSnoozed) {
       changes.push(
-        `snoozed until: ${curr.snoozedUntil ? format(new Date(curr.snoozedUntil), 'yyyy-MM-dd HH:mm') : 'none'}`,
+        `snoozed until: ${
+          curr.snoozedUntil
+            ? formatInTimeZone(
+                new Date(curr.snoozedUntil),
+                timeZone,
+                'yyyy-MM-dd HH:mm',
+              )
+            : 'none'
+        }`,
       );
     }
     if (!this.arraysEqual(prev.tags, curr.tags)) {
