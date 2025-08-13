@@ -197,6 +197,8 @@ export class MiniAppController {
           key: string;
           content: string;
           dueDate: Date | null;
+          status: string;
+          snoozedUntil: Date | null;
         }[]
       >(query);
       const timeZone = tz || 'UTC';
