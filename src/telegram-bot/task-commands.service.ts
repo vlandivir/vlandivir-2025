@@ -716,7 +716,20 @@ export class TaskCommandsService {
     let row: { text: string; callback_data: string }[] = [];
 
     const chatOrUserId = ctx.chat?.id || ctx.from?.id;
-    const tz = this.tzCache.getTimeZone(chatOrUserId) || getUserTimeZone(ctx);
+    const from = (ctx as Context & { from?: { time_zone?: string } }).from;
+    const cached = this.tzCache.getTimeZone(chatOrUserId);
+    const envTz = process.env.USER_TIME_ZONE;
+    const tz = cached || from?.time_zone || envTz || 'UTC';
+    const source = cached
+      ? 'cache'
+      : from?.time_zone
+        ? 'telegram'
+        : envTz
+          ? 'env'
+          : 'default';
+    if (!cached && chatOrUserId && from?.time_zone) {
+      this.tzCache.setTimeZone(chatOrUserId, tz);
+    }
     const now = toZonedTime(new Date(), tz);
 
     for (const t of tasksWithImages) {
@@ -756,6 +769,8 @@ export class TaskCommandsService {
       buttons.push(row);
     }
 
+    const offset = formatInTimeZone(new Date(), tz, 'XXX');
+    lines.push('', `Time zone: ${tz} (UTC${offset}) — source: ${source}`);
     await ctx.reply(lines.join('\n'), {
       reply_markup: { inline_keyboard: buttons },
     });
