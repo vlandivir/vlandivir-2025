@@ -90,10 +90,13 @@ export class TaskCommandsService {
     if (parts.length && /^T-\d{8}-\d+$/.test(parts[0])) {
       key = parts.shift() as string;
     }
-    const parsed = this.parseTask(parts.join(' '));
     const tz = getUserTimeZone(ctx);
+    const parsed = this.parseTask(parts.join(' '), tz);
     const parsedDueUtc = parsed.dueDate
       ? fromZonedTime(parsed.dueDate, tz)
+      : undefined;
+    const snoozedUntilUtc = parsed.snoozedUntil
+      ? fromZonedTime(parsed.snoozedUntil, tz)
       : undefined;
 
     // Process images if present
@@ -118,7 +121,7 @@ export class TaskCommandsService {
             content: parsed.content,
             priority: parsed.priority,
             dueDate: parsedDueUtc,
-            snoozedUntil: parsed.snoozedUntil,
+            snoozedUntil: snoozedUntilUtc,
             tags: parsed.tags,
             contexts: parsed.contexts,
             projects: parsed.projects,
@@ -146,7 +149,7 @@ export class TaskCommandsService {
           content: parsed.content,
           priority: parsed.priority,
           dueDate: parsedDueUtc,
-          snoozedUntil: parsed.snoozedUntil,
+          snoozedUntil: snoozedUntilUtc,
           tags: parsed.tags,
           contexts: parsed.contexts,
           projects: parsed.projects,
@@ -318,7 +321,7 @@ export class TaskCommandsService {
     return { tags, contexts, projects, remaining };
   }
 
-  public parseTask(text: string): ParsedTask {
+  public parseTask(text: string, timeZone?: string): ParsedTask {
     const { tags, contexts, projects, remaining } = this.parseFilters(text);
     const tokens = remaining;
     let priority: string | undefined;
@@ -339,8 +342,19 @@ export class TaskCommandsService {
         if (snoozedMatch) {
           status = 'snoozed';
           const days = parseInt(snoozedMatch[1], 10);
-          snoozedUntil = new Date();
-          snoozedUntil.setDate(snoozedUntil.getDate() + days);
+          const tz = timeZone || 'UTC';
+          const nowZoned = toZonedTime(new Date(), tz);
+          const localNow = new Date(
+            nowZoned.getFullYear(),
+            nowZoned.getMonth(),
+            nowZoned.getDate(),
+            nowZoned.getHours(),
+            nowZoned.getMinutes(),
+            nowZoned.getSeconds(),
+            nowZoned.getMilliseconds(),
+          );
+          localNow.setDate(localNow.getDate() + days);
+          snoozedUntil = localNow;
           continue;
         }
         // Handle -snoozed followed by a separate number token (e.g., -snoozed 4)
@@ -351,8 +365,19 @@ export class TaskCommandsService {
         ) {
           status = 'snoozed';
           const days = parseInt(tokens[i + 1], 10);
-          snoozedUntil = new Date();
-          snoozedUntil.setDate(snoozedUntil.getDate() + days);
+          const tz = timeZone || 'UTC';
+          const nowZoned = toZonedTime(new Date(), tz);
+          const localNow = new Date(
+            nowZoned.getFullYear(),
+            nowZoned.getMonth(),
+            nowZoned.getDate(),
+            nowZoned.getHours(),
+            nowZoned.getMinutes(),
+            nowZoned.getSeconds(),
+            nowZoned.getMilliseconds(),
+          );
+          localNow.setDate(localNow.getDate() + days);
+          snoozedUntil = localNow;
           i++; // Skip the next token since we consumed it
           continue;
         }
@@ -367,7 +392,7 @@ export class TaskCommandsService {
           dateStr += ` ${tokens[i + 1]}`;
           i++;
         }
-        const parsed = this.parseDueDate(dateStr);
+        const parsed = this.parseDueDate(dateStr, timeZone || 'UTC');
         if (parsed) {
           dueDate = parsed;
         }
@@ -387,7 +412,7 @@ export class TaskCommandsService {
     };
   }
 
-  private parseDueDate(text: string): Date | undefined {
+  private parseDueDate(text: string, timeZone: string): Date | undefined {
     const timeMatch = /(\d{1,2}:\d{2})$/.exec(text);
     const datePart = timeMatch
       ? text.replace(timeMatch[0], '').trim()
@@ -396,7 +421,7 @@ export class TaskCommandsService {
     let date: Date | undefined =
       this.dateParser.extractDateFromFirstLine(datePart).date || undefined;
     if (!date) {
-      date = this.parseRelativeDate(datePart);
+      date = this.parseRelativeDate(datePart, timeZone);
     }
     if (!date) return undefined;
 
@@ -408,9 +433,18 @@ export class TaskCommandsService {
     return date;
   }
 
-  private parseRelativeDate(text: string): Date | undefined {
+  private parseRelativeDate(text: string, timeZone: string): Date | undefined {
     const lower = text.toLowerCase();
-    const today = startOfDay(new Date());
+    const nowZoned = toZonedTime(new Date(), timeZone);
+    const today = new Date(
+      nowZoned.getFullYear(),
+      nowZoned.getMonth(),
+      nowZoned.getDate(),
+      0,
+      0,
+      0,
+      0,
+    );
 
     if (['today', 'сегодня'].includes(lower)) {
       return today;
@@ -453,7 +487,7 @@ export class TaskCommandsService {
     };
 
     if (days[lower] !== undefined) {
-      let diff = (days[lower] - today.getDay() + 7) % 7;
+      let diff = (days[lower] - nowZoned.getDay() + 7) % 7;
       if (diff === 0) diff = 7;
       const d = new Date(today);
       d.setDate(d.getDate() + diff);
@@ -827,7 +861,17 @@ export class TaskCommandsService {
         await ctx.reply('Please provide number of days');
         return true;
       }
-      const snoozedUntil = new Date();
+      const tz = getUserTimeZone(ctx);
+      const nowZoned = toZonedTime(new Date(), tz);
+      const snoozedUntil = new Date(
+        nowZoned.getFullYear(),
+        nowZoned.getMonth(),
+        nowZoned.getDate(),
+        nowZoned.getHours(),
+        nowZoned.getMinutes(),
+        nowZoned.getSeconds(),
+        nowZoned.getMilliseconds(),
+      );
       snoozedUntil.setDate(snoozedUntil.getDate() + days);
       await this.editTask(ctx, session.key, {
         content: '',
@@ -854,7 +898,8 @@ export class TaskCommandsService {
       console.warn(`Unknown edit session step: ${session.step}`);
       return true;
     }
-    const parsed = this.parseTask(text);
+    const tz = getUserTimeZone(ctx);
+    const parsed = this.parseTask(text, tz);
     await this.editTask(ctx, session.key, parsed);
     this.editSessions.delete(chatId);
     return true;
