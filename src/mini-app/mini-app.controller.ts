@@ -4,7 +4,6 @@ import { ConfigService } from '@nestjs/config';
 import { validate, parse } from '@telegram-apps/init-data-node';
 import type { Response } from 'express';
 import { StorageService } from '../services/storage.service';
-import { TimeZoneCacheService } from '../services/timezone-cache.service';
 import { formatInTimeZone } from 'date-fns-tz';
 
 type TelegramInitData = ReturnType<typeof parse>;
@@ -15,7 +14,6 @@ export class MiniAppController {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly storage: StorageService,
-    private readonly tzCache: TimeZoneCacheService,
   ) {}
 
   // Index HTML is now served by static frontend under `/mini-app` via Vite build.
@@ -57,21 +55,14 @@ export class MiniAppController {
 
       const tzFromUser = undefined;
       let resolvedTz = 'UTC';
-      let tzSource: 'web' | 'telegram' | 'cache' | 'default' = 'default';
+      let tzSource: 'web' | 'telegram' | 'default' = 'default';
       if (tz) {
         resolvedTz = tz;
         tzSource = 'web';
       } else if (tzFromUser) {
         resolvedTz = tzFromUser;
         tzSource = 'telegram';
-      } else {
-        const cached = this.tzCache.getTimeZone(userId);
-        if (cached) {
-          resolvedTz = cached;
-          tzSource = 'cache';
-        }
       }
-      if (userId && resolvedTz) this.tzCache.setTimeZone(userId, resolvedTz);
       const utcOffset = formatInTimeZone(new Date(), resolvedTz, 'XXX');
       return {
         userId,
@@ -214,8 +205,7 @@ export class MiniAppController {
           snoozedUntil: Date | null;
         }[]
       >(query);
-      const cachedTz = this.tzCache.getTimeZone(userId);
-      const timeZone = tz || cachedTz || 'UTC';
+      const timeZone = tz || 'UTC';
       return tasks.map((t) => ({
         ...t,
         dueDate: t.dueDate
@@ -295,8 +285,7 @@ export class MiniAppController {
         }),
       ]);
       const initEncoded = encodeURIComponent(initData || '');
-      const cachedTz = this.tzCache.getTimeZone(userId);
-      const timeZone = tz || cachedTz || 'UTC';
+      const timeZone = tz || 'UTC';
       const mapRecord = (r: {
         [key: string]: unknown;
         createdAt?: Date | null;
