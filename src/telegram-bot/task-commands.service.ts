@@ -709,11 +709,51 @@ export class TaskCommandsService {
     const buttons: { text: string; callback_data: string }[][] = [];
     let row: { text: string; callback_data: string }[] = [];
 
-    const from = (ctx as Context & { from?: { time_zone?: string } }).from;
-    const envTz = process.env.USER_TIME_ZONE;
-    const tz = from?.time_zone || envTz || 'UTC';
-    const source = from?.time_zone ? 'telegram' : envTz ? 'env' : 'default';
-    const now = toZonedTime(new Date(), tz);
+    // Optional tz override in command: /tl tz=Europe/Belgrade
+    const tzMatch = withoutCommand.match(/\btz=([A-Za-z_+\-0-9/]+)\b/);
+    let tz: string | undefined;
+    let source: 'cmd' | 'guess' | 'default' = 'default';
+    if (tzMatch && tzMatch[1]) {
+      const candidate = tzMatch[1];
+      try {
+        // Validate tz
+        formatInTimeZone(new Date(), candidate, 'XXX');
+        tz = candidate;
+        source = 'cmd';
+      } catch {
+        // ignore invalid tz, fall back
+      }
+    }
+    // If no explicit tz, try to guess user offset from message timestamp vs server time (UTC)
+    let guessedOffsetMin: number | undefined;
+    if (!tz) {
+      const msgDateSec =
+        ('message' in ctx &&
+          (ctx as Context & { message?: { date?: number } }).message?.date) ||
+        ('channelPost' in ctx &&
+          (ctx as Context & { channelPost?: { date?: number } }).channelPost
+            ?.date) ||
+        undefined;
+      if (typeof msgDateSec === 'number' && Number.isFinite(msgDateSec)) {
+        const nowSec = Math.floor(Date.now() / 1000);
+        const diffSec = nowSec - msgDateSec;
+        // Heuristic: clamp to plausible TZ range (-12..+14 hours) and round to 30 minutes
+        const roundedMin = Math.round(diffSec / 60 / 30) * 30;
+        const clampedMin = Math.max(-12 * 60, Math.min(14 * 60, roundedMin));
+        // Treat very small diffs as 0 (most real-time messages)
+        guessedOffsetMin = Math.abs(clampedMin) <= 15 ? 0 : clampedMin;
+        source = 'guess';
+      }
+    }
+
+    if (!tz && guessedOffsetMin === undefined) {
+      tz = 'UTC';
+      source = 'default';
+    }
+
+    const now = tz
+      ? toZonedTime(new Date(), tz)
+      : new Date(Date.now() + (guessedOffsetMin || 0) * 60_000);
 
     for (const t of tasksWithImages) {
       let prefix = '';
@@ -722,7 +762,9 @@ export class TaskCommandsService {
         if (t.dueDate.getTime() < new Date().getTime()) {
           icon = '❗';
         } else {
-          const dueLocal = toZonedTime(t.dueDate, tz);
+          const dueLocal = tz
+            ? toZonedTime(t.dueDate, tz)
+            : new Date(t.dueDate.getTime() + (guessedOffsetMin || 0) * 60_000);
           if (isSameDay(dueLocal, now)) {
             icon = '⏰';
           }
@@ -732,11 +774,13 @@ export class TaskCommandsService {
 
       let line = `${prefix}${t.key} ${t.content}`;
       if (t.dueDate) {
-        line += ` (due: ${formatInTimeZone(
-          t.dueDate,
-          tz,
-          'MMM d, yyyy HH:mm',
-        )})`;
+        const formatted = tz
+          ? formatInTimeZone(t.dueDate, tz, 'MMM d, yyyy HH:mm')
+          : format(
+              new Date(t.dueDate.getTime() + (guessedOffsetMin || 0) * 60_000),
+              'MMM d, yyyy HH:mm',
+            );
+        line += ` (due: ${formatted})`;
       }
       if (t.images && t.images.length > 0) {
         line += ` 📷(${t.images.length})`;
@@ -752,8 +796,16 @@ export class TaskCommandsService {
       buttons.push(row);
     }
 
-    const offset = formatInTimeZone(new Date(), tz, 'XXX');
-    lines.push('', `Time zone: ${tz} (UTC${offset}) — source: ${source}`);
+    if (tz) {
+      const offset = formatInTimeZone(new Date(), tz, 'XXX');
+      lines.push('', `Time zone: ${tz} (UTC${offset}) — source: ${source}`);
+    } else {
+      const sign = (guessedOffsetMin || 0) >= 0 ? '+' : '-';
+      const absMin = Math.abs(guessedOffsetMin || 0);
+      const hh = String(Math.floor(absMin / 60)).padStart(2, '0');
+      const mm = String(absMin % 60).padStart(2, '0');
+      lines.push('', `Time zone: UTC${sign}${hh}:${mm} — source: ${source}`);
+    }
     await ctx.reply(lines.join('\n'), {
       reply_markup: { inline_keyboard: buttons },
     });
