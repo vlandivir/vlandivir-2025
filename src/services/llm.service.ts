@@ -51,7 +51,7 @@ export class LlmService {
                 ],
               },
             ],
-            max_tokens: 400,
+            max_completion_tokens: 400,
           }),
         },
       );
