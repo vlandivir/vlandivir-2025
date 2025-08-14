@@ -5,7 +5,6 @@ import { StorageService } from '../services/storage.service';
 import { v4 as uuidv4 } from 'uuid';
 import { formatInTimeZone } from 'date-fns-tz';
 import { getUserTimeZone } from '../utils/timezone';
-import { TimeZoneCacheService } from '../services/timezone-cache.service';
 
 interface TaskRecord {
   id: number;
@@ -27,7 +26,6 @@ export class TaskHistoryCommandsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
-    private readonly tzCache: TimeZoneCacheService,
   ) {}
 
   async handleTaskHistoryCommand(ctx: Context) {
@@ -112,8 +110,7 @@ export class TaskHistoryCommandsService {
       (a, b) => b.latest.createdAt.getTime() - a.latest.createdAt.getTime(),
     );
 
-    const chatOrUserId = ctx.chat?.id || ctx.from?.id;
-    const tz = this.tzCache.getTimeZone(chatOrUserId) || getUserTimeZone(ctx);
+    const tz = getUserTimeZone(ctx);
     const html = this.generateHtml(
       unfinished,
       snoozed,
