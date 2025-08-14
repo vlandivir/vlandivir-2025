@@ -724,36 +724,13 @@ export class TaskCommandsService {
         // ignore invalid tz, fall back
       }
     }
-    // If no explicit tz, try to guess user offset from message timestamp vs server time (UTC)
-    let guessedOffsetMin: number | undefined;
+    // Default to UTC if no explicit tz
     if (!tz) {
-      const msgDateSec =
-        ('message' in ctx &&
-          (ctx as Context & { message?: { date?: number } }).message?.date) ||
-        ('channelPost' in ctx &&
-          (ctx as Context & { channelPost?: { date?: number } }).channelPost
-            ?.date) ||
-        undefined;
-      if (typeof msgDateSec === 'number' && Number.isFinite(msgDateSec)) {
-        const nowSec = Math.floor(Date.now() / 1000);
-        const diffSec = nowSec - msgDateSec;
-        // Heuristic: clamp to plausible TZ range (-12..+14 hours) and round to 30 minutes
-        const roundedMin = Math.round(diffSec / 60 / 30) * 30;
-        const clampedMin = Math.max(-12 * 60, Math.min(14 * 60, roundedMin));
-        // Treat very small diffs as 0 (most real-time messages)
-        guessedOffsetMin = Math.abs(clampedMin) <= 15 ? 0 : clampedMin;
-        source = 'guess';
-      }
-    }
-
-    if (!tz && guessedOffsetMin === undefined) {
       tz = 'UTC';
       source = 'default';
     }
 
-    const now = tz
-      ? toZonedTime(new Date(), tz)
-      : new Date(Date.now() + (guessedOffsetMin || 0) * 60_000);
+    const now = toZonedTime(new Date(), tz);
 
     for (const t of tasksWithImages) {
       let prefix = '';
@@ -762,9 +739,7 @@ export class TaskCommandsService {
         if (t.dueDate.getTime() < new Date().getTime()) {
           icon = '❗';
         } else {
-          const dueLocal = tz
-            ? toZonedTime(t.dueDate, tz)
-            : new Date(t.dueDate.getTime() + (guessedOffsetMin || 0) * 60_000);
+          const dueLocal = toZonedTime(t.dueDate, tz);
           if (isSameDay(dueLocal, now)) {
             icon = '⏰';
           }
@@ -774,12 +749,7 @@ export class TaskCommandsService {
 
       let line = `${prefix}${t.key} ${t.content}`;
       if (t.dueDate) {
-        const formatted = tz
-          ? formatInTimeZone(t.dueDate, tz, 'MMM d, yyyy HH:mm')
-          : format(
-              new Date(t.dueDate.getTime() + (guessedOffsetMin || 0) * 60_000),
-              'MMM d, yyyy HH:mm',
-            );
+        const formatted = formatInTimeZone(t.dueDate, tz, 'MMM d, yyyy HH:mm');
         line += ` (due: ${formatted})`;
       }
       if (t.images && t.images.length > 0) {
@@ -796,16 +766,8 @@ export class TaskCommandsService {
       buttons.push(row);
     }
 
-    if (tz) {
-      const offset = formatInTimeZone(new Date(), tz, 'XXX');
-      lines.push('', `Time zone: ${tz} (UTC${offset}) — source: ${source}`);
-    } else {
-      const sign = (guessedOffsetMin || 0) >= 0 ? '+' : '-';
-      const absMin = Math.abs(guessedOffsetMin || 0);
-      const hh = String(Math.floor(absMin / 60)).padStart(2, '0');
-      const mm = String(absMin % 60).padStart(2, '0');
-      lines.push('', `Time zone: UTC${sign}${hh}:${mm} — source: ${source}`);
-    }
+    const offset = formatInTimeZone(new Date(), tz, 'XXX');
+    lines.push('', `Time zone: ${tz} (UTC${offset}) — source: ${source}`);
     await ctx.reply(lines.join('\n'), {
       reply_markup: { inline_keyboard: buttons },
     });
@@ -969,6 +931,9 @@ export class TaskCommandsService {
       'Status options: -done, -canceled, -in-progress, -started, -snoozed[days] or -snoozed [days]',
       'Example: /task (B) @work .office !Big Project :2025.07.31 09:00 Prepare report',
       'Snooze examples: /task T-20250715-01 -snoozed4 or /task T-20250715-01 -snoozed 4',
+      '',
+      'Set timezone: /tz <IANA tz or UTC±HH[:MM]>, e.g., /tz Europe/Belgrade or /tz UTC+2',
+      'One-off override for list: /tl tz=<IANA tz>',
       '',
       'You can also send images with your task to add them as notes.',
     ].join('\n');

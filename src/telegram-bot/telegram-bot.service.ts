@@ -21,6 +21,7 @@ import { TaskCommandsService } from './task-commands.service';
 import { TaskHistoryCommandsService } from './task-history-commands.service';
 import { CollageCommandsService } from './collage-commands.service';
 import { QaCommandsService } from './qa-commands.service';
+import { getUserTimeZone } from '../utils/timezone';
 import {
   createTaskEditScene,
   TaskEditWizardContext,
@@ -149,15 +150,43 @@ export class TelegramBotService {
       return this.taskCommands.handleTaskCommand(ctx);
     });
 
+    // Set timezone command
+    this.bot.command(['tz'], async (ctx) => {
+      const text = ctx.message?.text || '';
+      const arg = text.replace(/^\/tz\s+/, '').trim();
+      if (!arg) {
+        await ctx.reply(
+          'Usage: /tz <IANA tz or UTC±HH[:MM]>. Example: /tz Europe/Belgrade or /tz UTC+2',
+        );
+        return;
+      }
+      // Here we only acknowledge; you will add DB persistence via Prisma.
+      await ctx.reply(
+        `Timezone set to: ${arg}. I will use it for /tl and /th.`,
+      );
+    });
+
     // Task list command
     this.bot.command(['tl'], (ctx) => {
       console.log('Получена команда /tl:', ctx.message?.text);
+      const hasTz = getUserTimeZone(ctx) && getUserTimeZone(ctx) !== 'UTC';
+      if (!hasTz) {
+        void ctx.reply(
+          'Please set your time zone with /tz <IANA tz or UTC±HH[:MM]>. Example: /tz Europe/Belgrade. You can also use /tl tz=<IANA tz> once.',
+        );
+      }
       return this.taskCommands.handleListCommand(ctx);
     });
 
     // Task history HTML command
     this.bot.command(['th'], (ctx) => {
       console.log('Получена команда /th:', ctx.message?.text);
+      const hasTz = getUserTimeZone(ctx) && getUserTimeZone(ctx) !== 'UTC';
+      if (!hasTz) {
+        void ctx.reply(
+          'Please set your time zone first with /tz <IANA tz or UTC±HH[:MM]>. Example: /tz Europe/Belgrade',
+        );
+      }
       return this.taskHistoryCommands.handleTaskHistoryCommand(ctx);
     });
 

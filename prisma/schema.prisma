@@ -118,3 +118,10 @@ model TaskImage {
   @@index([key])
   @@index([chatId])
 }
+
+model ChatSettings {
+  chatId    BigInt   @id
+  timeZone  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
