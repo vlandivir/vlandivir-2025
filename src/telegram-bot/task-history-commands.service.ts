@@ -172,7 +172,13 @@ export class TaskHistoryCommandsService {
     html += this.renderTasks(snoozed, notesByKey, imagesByKey, timeZone);
     html += '<h2>Finished</h2>';
     html += this.renderTasks(finished, notesByKey, imagesByKey, timeZone);
-    html += `<p>Generated: ${formatInTimeZone(new Date(), timeZone, 'yyyy-MM-dd HH:mm:ss')}</p>`;
+    let generated = '';
+    try {
+      generated = formatInTimeZone(new Date(), timeZone, 'yyyy-MM-dd HH:mm:ss');
+    } catch {
+      generated = '';
+    }
+    html += `<p>Generated: ${generated}</p>`;
     html += '</body></html>';
     return html;
   }
@@ -190,28 +196,30 @@ export class TaskHistoryCommandsService {
       if (t.priority) html += ` [${t.priority}]`;
       if (t.status) html += ` (${t.status})`;
 
-      try {
-        console.log(t.dueDate, timeZone);
-        if (t.dueDate)
-          html += ` (due: ${formatInTimeZone(
-            new Date(t.dueDate),
-            timeZone,
-            'yyyy-MM-dd HH:mm',
-          )})`;
-      } catch (e) {
-        console.error('Error formatting due date', e);
+      if (t.dueDate) {
+        try {
+          const d = new Date(t.dueDate);
+          if (!Number.isNaN(d.getTime())) {
+            html += ` (due: ${formatInTimeZone(d, timeZone, 'yyyy-MM-dd HH:mm')})`;
+          }
+        } catch (e) {
+          console.error('Error formatting due date', e);
+        }
       }
 
-      try {
-        console.log(t.snoozedUntil, timeZone);
-        if (t.snoozedUntil)
-          html += ` (snoozed until: ${formatInTimeZone(
-            new Date(t.snoozedUntil),
-            timeZone,
-            'yyyy-MM-dd HH:mm',
-          )})`;
-      } catch (e) {
-        console.error('Error formatting snoozed until date', e);
+      if (t.snoozedUntil) {
+        try {
+          const s = new Date(t.snoozedUntil);
+          if (!Number.isNaN(s.getTime())) {
+            html += ` (snoozed until: ${formatInTimeZone(
+              s,
+              timeZone,
+              'yyyy-MM-dd HH:mm',
+            )})`;
+          }
+        } catch (e) {
+          console.error('Error formatting snoozed until date', e);
+        }
       }
 
       if (t.tags.length) html += ` tags: ${t.tags.join(', ')}`;
@@ -257,11 +265,16 @@ export class TaskHistoryCommandsService {
       html += '<div class="history"><ul>';
       for (let i = 0; i < g.history.length; i++) {
         const h = g.history[i];
-        html += `<li>${formatInTimeZone(
-          new Date(h.createdAt),
-          timeZone,
-          'yyyy-MM-dd HH:mm',
-        )} - `;
+        let when = '';
+        try {
+          const c = new Date(h.createdAt);
+          if (!Number.isNaN(c.getTime())) {
+            when = formatInTimeZone(c, timeZone, 'yyyy-MM-dd HH:mm');
+          }
+        } catch {
+          when = '';
+        }
+        html += `<li>${when} - `;
         if (i === 0) {
           html += `created: ${this.escapeHtml(h.content)}`;
         } else {
