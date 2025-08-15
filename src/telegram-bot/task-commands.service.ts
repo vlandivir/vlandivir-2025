@@ -724,6 +724,20 @@ export class TaskCommandsService {
         // ignore invalid tz, fall back
       }
     }
+    // Load saved tz from DB if not provided via command
+    if (!tz) {
+      try {
+        const rec = await this.prisma.chatSettings.findUnique({
+          where: { chatId: BigInt(ctx.chat?.id || 0) },
+        });
+        if (rec?.timeZone) {
+          tz = rec.timeZone;
+          source = 'cmd';
+        }
+      } catch {
+        // ignore
+      }
+    }
     // Default to UTC if no explicit tz
     if (!tz) {
       tz = 'UTC';

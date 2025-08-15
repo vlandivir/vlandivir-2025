@@ -4,7 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../services/storage.service';
 import { v4 as uuidv4 } from 'uuid';
 import { formatInTimeZone } from 'date-fns-tz';
-import { getUserTimeZone } from '../utils/timezone';
+// import { getUserTimeZone } from '../utils/timezone';
 
 interface TaskRecord {
   id: number;
@@ -110,7 +110,16 @@ export class TaskHistoryCommandsService {
       (a, b) => b.latest.createdAt.getTime() - a.latest.createdAt.getTime(),
     );
 
-    const tz = getUserTimeZone(ctx);
+    // Load tz from stored settings; default to UTC
+    let tz = 'UTC';
+    try {
+      const rec = await this.prisma.chatSettings.findUnique({
+        where: { chatId: BigInt(chatId) },
+      });
+      if (rec?.timeZone) tz = rec.timeZone;
+    } catch {
+      // ignore
+    }
     const html = this.generateHtml(
       unfinished,
       snoozed,

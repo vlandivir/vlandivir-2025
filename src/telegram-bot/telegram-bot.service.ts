@@ -160,10 +160,51 @@ export class TelegramBotService {
         );
         return;
       }
-      // Here we only acknowledge; you will add DB persistence via Prisma.
-      await ctx.reply(
-        `Timezone set to: ${arg}. I will use it for /tl and /th.`,
-      );
+      // Normalize and validate timezone
+      const normalized = (() => {
+        const m = /^UTC([+-])(\d{1,2})(?::?(\d{2}))?$/i.exec(arg);
+        if (m) {
+          const sign = m[1];
+          const hh = String(
+            Math.min(14, Math.max(0, parseInt(m[2], 10))),
+          ).padStart(2, '0');
+          const mm = String(
+            Math.min(59, Math.max(0, m[3] ? parseInt(m[3], 10) : 0)),
+          ).padStart(2, '0');
+          return `UTC${sign}${hh}:${mm}`;
+        }
+        try {
+          // simple validation using Intl; fall back to date-fns-tz in strict mode if needed
+          Intl.DateTimeFormat(undefined, { timeZone: arg });
+          return arg;
+        } catch {
+          return null;
+        }
+      })();
+      if (!normalized) {
+        await ctx.reply(
+          'Invalid timezone. Use IANA tz (e.g., Europe/Belgrade) or UTC±HH[:MM].',
+        );
+        return;
+      }
+      const chatId = ctx.chat?.id;
+      if (!chatId) {
+        await ctx.reply('Unable to determine chat.');
+        return;
+      }
+      try {
+        await this.prisma.chatSettings.upsert({
+          where: { chatId: BigInt(chatId) },
+          update: { timeZone: normalized },
+          create: { chatId: BigInt(chatId), timeZone: normalized },
+        });
+        await ctx.reply(
+          `Timezone set to: ${normalized}. I will use it for /tl and /th.`,
+        );
+      } catch (e) {
+        console.error('Failed to save timezone', e);
+        await ctx.reply('Failed to save timezone. Please try again later.');
+      }
     });
 
     // Task list command
