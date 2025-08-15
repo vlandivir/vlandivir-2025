@@ -5,7 +5,7 @@ import { TaskEditWizardContext } from './scenes/task-edit.scene';
 import { PrismaService } from '../prisma/prisma.service';
 import { format, startOfDay, endOfDay, isSameDay } from 'date-fns';
 import { fromZonedTime, toZonedTime, formatInTimeZone } from 'date-fns-tz';
-import { getUserTimeZone } from '../utils/timezone';
+// import { getUserTimeZone } from '../utils/timezone';
 import { DateParserService } from '../services/date-parser.service';
 import { StorageService } from '../services/storage.service';
 import { LlmService } from '../services/llm.service';
@@ -90,7 +90,17 @@ export class TaskCommandsService {
     if (parts.length && /^T-\d{8}-\d+$/.test(parts[0])) {
       key = parts.shift() as string;
     }
-    const tz = getUserTimeZone(ctx);
+    // For parsing input when creating/editing, we still need a tz.
+    // Load from DB if present, else default to UTC.
+    let tz: string = 'UTC';
+    try {
+      const rec = await this.prisma.chatSettings.findUnique({
+        where: { chatId: BigInt(chatId) },
+      });
+      if (rec?.timeZone) tz = rec.timeZone;
+    } catch {
+      // ignore
+    }
     const parsed = this.parseTask(parts.join(' '), tz);
     const parsedDueUtc = parsed.dueDate
       ? fromZonedTime(parsed.dueDate, tz)
@@ -521,7 +531,15 @@ export class TaskCommandsService {
       return;
     }
 
-    const tz = getUserTimeZone(ctx);
+    let tz: string = 'UTC';
+    try {
+      const rec = await this.prisma.chatSettings.findUnique({
+        where: { chatId: BigInt(chatId) },
+      });
+      if (rec?.timeZone) tz = rec.timeZone;
+    } catch {
+      // ignore
+    }
     const dueUtc = updates.dueDate
       ? fromZonedTime(updates.dueDate, tz)
       : undefined;
@@ -931,7 +949,15 @@ export class TaskCommandsService {
         await ctx.reply('Please provide number of days');
         return true;
       }
-      const tz = getUserTimeZone(ctx);
+      let tz: string = 'UTC';
+      try {
+        const rec = await this.prisma.chatSettings.findUnique({
+          where: { chatId: BigInt(chatId) },
+        });
+        if (rec?.timeZone) tz = rec.timeZone;
+      } catch {
+        // ignore
+      }
       const nowZoned = toZonedTime(new Date(), tz);
       const snoozedUntil = new Date(
         nowZoned.getFullYear(),
@@ -968,7 +994,15 @@ export class TaskCommandsService {
       console.warn(`Unknown edit session step: ${session.step}`);
       return true;
     }
-    const tz = getUserTimeZone(ctx);
+    let tz: string = 'UTC';
+    try {
+      const rec = await this.prisma.chatSettings.findUnique({
+        where: { chatId: BigInt(chatId) },
+      });
+      if (rec?.timeZone) tz = rec.timeZone;
+    } catch {
+      // ignore
+    }
     const parsed = this.parseTask(text, tz);
     await this.editTask(ctx, session.key, parsed);
     this.editSessions.delete(chatId);

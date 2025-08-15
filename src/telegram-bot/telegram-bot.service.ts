@@ -21,7 +21,7 @@ import { TaskCommandsService } from './task-commands.service';
 import { TaskHistoryCommandsService } from './task-history-commands.service';
 import { CollageCommandsService } from './collage-commands.service';
 import { QaCommandsService } from './qa-commands.service';
-import { getUserTimeZone } from '../utils/timezone';
+// import { getUserTimeZone } from '../utils/timezone';
 import {
   createTaskEditScene,
   TaskEditWizardContext,
@@ -208,24 +208,42 @@ export class TelegramBotService {
     });
 
     // Task list command
-    this.bot.command(['tl'], (ctx) => {
+    this.bot.command(['tl'], async (ctx) => {
       console.log('Получена команда /tl:', ctx.message?.text);
-      const hasTz = getUserTimeZone(ctx) && getUserTimeZone(ctx) !== 'UTC';
-      if (!hasTz) {
-        void ctx.reply(
-          'Please set your time zone with /tz <IANA tz or UTC±HH[:MM]>. Example: /tz Europe/Belgrade. You can also use /tl tz=<IANA tz> once.',
+      try {
+        const rec = await this.prisma.chatSettings.findUnique({
+          where: { chatId: BigInt(ctx.chat?.id || 0) },
+        });
+        if (!rec?.timeZone) {
+          await ctx.reply(
+            'Please set your time zone with /tz <IANA tz or UTC±HH[:MM]>. Example: /tz Europe/Belgrade. You can also use /tl tz=<IANA tz> once.',
+          );
+        }
+      } catch (e) {
+        console.error('Error reading chat settings', e);
+        await ctx.reply(
+          'Error reading timezone settings. Please try again later.',
         );
       }
       return this.taskCommands.handleListCommand(ctx);
     });
 
     // Task history HTML command
-    this.bot.command(['th'], (ctx) => {
+    this.bot.command(['th'], async (ctx) => {
       console.log('Получена команда /th:', ctx.message?.text);
-      const hasTz = getUserTimeZone(ctx) && getUserTimeZone(ctx) !== 'UTC';
-      if (!hasTz) {
-        void ctx.reply(
-          'Please set your time zone first with /tz <IANA tz or UTC±HH[:MM]>. Example: /tz Europe/Belgrade',
+      try {
+        const rec = await this.prisma.chatSettings.findUnique({
+          where: { chatId: BigInt(ctx.chat?.id || 0) },
+        });
+        if (!rec?.timeZone) {
+          await ctx.reply(
+            'Please set your time zone first with /tz <IANA tz or UTC±HH[:MM]>. Example: /tz Europe/Belgrade',
+          );
+        }
+      } catch (e) {
+        console.error('Error reading chat settings', e);
+        await ctx.reply(
+          'Error reading timezone settings. Please try again later.',
         );
       }
       return this.taskHistoryCommands.handleTaskHistoryCommand(ctx);
