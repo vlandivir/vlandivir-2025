@@ -225,7 +225,12 @@ export class TelegramBotService {
           'Error reading timezone settings. Please try again later.',
         );
       }
-      return this.taskCommands.handleListCommand(ctx);
+      try {
+        return this.taskCommands.handleListCommand(ctx);
+      } catch (e) {
+        console.error('Error handling list command', e);
+        await ctx.reply('Error handling list command. Please try again later.');
+      }
     });
 
     // Task history HTML command
@@ -246,7 +251,14 @@ export class TelegramBotService {
           'Error reading timezone settings. Please try again later.',
         );
       }
-      return this.taskHistoryCommands.handleTaskHistoryCommand(ctx);
+      try {
+        return this.taskHistoryCommands.handleTaskHistoryCommand(ctx);
+      } catch (e) {
+        console.error('Error handling task history command', e);
+        await ctx.reply(
+          'Error handling task history command. Please try again later.',
+        );
+      }
     });
 
     // Mini app command
