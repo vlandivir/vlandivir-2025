@@ -744,7 +744,20 @@ export class TaskCommandsService {
       source = 'default';
     }
 
-    const now = toZonedTime(new Date(), tz);
+    const parseUtcOffset = (tzString: string): number | null => {
+      const m = /^UTC([+-])(\d{2}):(\d{2})$/.exec(tzString);
+      if (!m) return null;
+      const sign = m[1] === '-' ? -1 : 1;
+      const hours = parseInt(m[2], 10);
+      const mins = parseInt(m[3], 10);
+      return sign * (hours * 60 + mins);
+    };
+
+    const offsetMin = parseUtcOffset(tz);
+    const now =
+      offsetMin !== null
+        ? new Date(Date.now() + offsetMin * 60_000)
+        : toZonedTime(new Date(), tz);
 
     const toDate = (value: Date | string | null | undefined): Date | null => {
       if (!value) return null;
@@ -760,7 +773,10 @@ export class TaskCommandsService {
         if (due.getTime() < Date.now()) {
           icon = '❗';
         } else {
-          const dueLocal = toZonedTime(due, tz);
+          const dueLocal =
+            offsetMin !== null
+              ? new Date(due.getTime() + offsetMin * 60_000)
+              : toZonedTime(due, tz);
           if (isSameDay(dueLocal, now)) {
             icon = '⏰';
           }
@@ -770,7 +786,13 @@ export class TaskCommandsService {
 
       let line = `${prefix}${t.key} ${t.content}`;
       if (due) {
-        const formatted = formatInTimeZone(due, tz, 'MMM d, yyyy HH:mm');
+        const formatted =
+          offsetMin !== null
+            ? format(
+                new Date(due.getTime() + offsetMin * 60_000),
+                'MMM d, yyyy HH:mm',
+              )
+            : formatInTimeZone(due, tz, 'MMM d, yyyy HH:mm');
         line += ` (due: ${formatted})`;
       }
       if (t.images && t.images.length > 0) {
@@ -787,8 +809,16 @@ export class TaskCommandsService {
       buttons.push(row);
     }
 
-    const offset = formatInTimeZone(new Date(), tz, 'XXX');
-    lines.push('', `Time zone: ${tz} (UTC${offset}) — source: ${source}`);
+    if (offsetMin !== null) {
+      const sign = offsetMin >= 0 ? '+' : '-';
+      const absMin = Math.abs(offsetMin);
+      const hh = String(Math.floor(absMin / 60)).padStart(2, '0');
+      const mm = String(absMin % 60).padStart(2, '0');
+      lines.push('', `Time zone: UTC${sign}${hh}:${mm} — source: ${source}`);
+    } else {
+      const offset = formatInTimeZone(new Date(), tz, 'XXX');
+      lines.push('', `Time zone: ${tz} (UTC${offset}) — source: ${source}`);
+    }
     await ctx.reply(lines.join('\n'), {
       reply_markup: { inline_keyboard: buttons },
     });
