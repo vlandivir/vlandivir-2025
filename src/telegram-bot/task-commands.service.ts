@@ -663,12 +663,12 @@ export class TaskCommandsService {
         id: number;
         key: string;
         content: string;
-        createdAt: Date;
+        createdAt: Date | string;
         status: string;
-        completedAt: Date | null;
+        completedAt: Date | string | null;
         priority: string | null;
-        dueDate: Date | null;
-        snoozedUntil: Date | null;
+        dueDate: Date | string | null;
+        snoozedUntil: Date | string | null;
         tags: string[];
         contexts: string[];
         projects: string[];
@@ -746,14 +746,21 @@ export class TaskCommandsService {
 
     const now = toZonedTime(new Date(), tz);
 
+    const toDate = (value: Date | string | null | undefined): Date | null => {
+      if (!value) return null;
+      const d = typeof value === 'string' ? new Date(value) : value;
+      return Number.isNaN(d.getTime()) ? null : d;
+    };
+
     for (const t of tasksWithImages) {
       let prefix = '';
-      if (t.dueDate) {
+      const due = toDate(t.dueDate);
+      if (due) {
         let icon = '📅';
-        if (t.dueDate.getTime() < new Date().getTime()) {
+        if (due.getTime() < Date.now()) {
           icon = '❗';
         } else {
-          const dueLocal = toZonedTime(t.dueDate, tz);
+          const dueLocal = toZonedTime(due, tz);
           if (isSameDay(dueLocal, now)) {
             icon = '⏰';
           }
@@ -762,8 +769,8 @@ export class TaskCommandsService {
       }
 
       let line = `${prefix}${t.key} ${t.content}`;
-      if (t.dueDate) {
-        const formatted = formatInTimeZone(t.dueDate, tz, 'MMM d, yyyy HH:mm');
+      if (due) {
+        const formatted = formatInTimeZone(due, tz, 'MMM d, yyyy HH:mm');
         line += ` (due: ${formatted})`;
       }
       if (t.images && t.images.length > 0) {
