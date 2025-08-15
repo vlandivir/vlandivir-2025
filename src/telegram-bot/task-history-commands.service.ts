@@ -189,18 +189,31 @@ export class TaskHistoryCommandsService {
       html += `<div class="task"><strong>${g.key}</strong> - ${this.escapeHtml(t.content)}`;
       if (t.priority) html += ` [${t.priority}]`;
       if (t.status) html += ` (${t.status})`;
-      if (t.dueDate)
-        html += ` (due: ${formatInTimeZone(
-          new Date(t.dueDate),
-          timeZone,
-          'yyyy-MM-dd HH:mm',
-        )})`;
-      if (t.snoozedUntil)
-        html += ` (snoozed until: ${formatInTimeZone(
-          new Date(t.snoozedUntil),
-          timeZone,
-          'yyyy-MM-dd HH:mm',
-        )})`;
+
+      try {
+        console.log(t.dueDate, timeZone);
+        if (t.dueDate)
+          html += ` (due: ${formatInTimeZone(
+            new Date(t.dueDate),
+            timeZone,
+            'yyyy-MM-dd HH:mm',
+          )})`;
+      } catch (e) {
+        console.error('Error formatting due date', e);
+      }
+
+      try {
+        console.log(t.snoozedUntil, timeZone);
+        if (t.snoozedUntil)
+          html += ` (snoozed until: ${formatInTimeZone(
+            new Date(t.snoozedUntil),
+            timeZone,
+            'yyyy-MM-dd HH:mm',
+          )})`;
+      } catch (e) {
+        console.error('Error formatting snoozed until date', e);
+      }
+
       if (t.tags.length) html += ` tags: ${t.tags.join(', ')}`;
       if (t.contexts.length) html += ` contexts: ${t.contexts.join(', ')}`;
       if (t.projects.length) html += ` projects: ${t.projects.join(', ')}`;
