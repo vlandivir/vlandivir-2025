@@ -7,6 +7,7 @@ import { DairyCommandsService } from './dairy-commands.service';
 import { StorageService } from '../services/storage.service';
 import { LlmService } from '../services/llm.service';
 import { SerbianCommandsService } from './serbian-commands.service';
+import { ForeignCommandsService } from './foreign-commands.service';
 import { HistoryCommandsService } from './history-commands.service';
 import { TaskCommandsService } from './task-commands.service';
 import { TaskHistoryCommandsService } from './task-history-commands.service';
@@ -120,6 +121,12 @@ describe('TelegramBotService', () => {
           },
         },
         {
+          provide: ForeignCommandsService,
+          useValue: {
+            handleForeignCommand: jest.fn(),
+          },
+        },
+        {
           provide: HistoryCommandsService,
           useValue: {
             handleHistoryCommand: jest.fn(),
@@ -195,6 +202,7 @@ describe('TelegramBotService', () => {
       '/a - Open Mini App',
       '/c or /collage - Create image collage',
       '/d or /dairy - Dairy Notes',
+      '/f - Translate between RU/EN/SR',
       '/help - Show this help message',
       '/history - Chat History',
       '/q - Answer questions',
