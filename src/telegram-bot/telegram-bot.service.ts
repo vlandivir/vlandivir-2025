@@ -16,6 +16,7 @@ import { DairyCommandsService } from './dairy-commands.service';
 import { StorageService } from '../services/storage.service';
 import { LlmService } from '../services/llm.service';
 import { SerbianCommandsService } from './serbian-commands.service';
+import { ForeignCommandsService } from './foreign-commands.service';
 import { HistoryCommandsService } from './history-commands.service';
 import { TaskCommandsService } from './task-commands.service';
 import { TaskHistoryCommandsService } from './task-history-commands.service';
@@ -48,6 +49,7 @@ export class TelegramBotService {
     private readonly storageService: StorageService,
     private readonly llmService: LlmService,
     private readonly serbianCommands: SerbianCommandsService,
+    private readonly foreignCommands: ForeignCommandsService,
     private readonly historyCommands: HistoryCommandsService,
     private readonly taskCommands: TaskCommandsService,
     private readonly taskHistoryCommands: TaskHistoryCommandsService,
@@ -136,6 +138,12 @@ export class TelegramBotService {
     this.bot.command(['s'], (ctx) => {
       console.log('Получена команда /s:', ctx.message?.text);
       return this.serbianCommands.handleSerbianCommand(ctx);
+    });
+
+    // Add the new foreign translation command
+    this.bot.command(['f'], (ctx) => {
+      console.log('Получена команда /f:', ctx.message?.text);
+      return this.foreignCommands.handleForeignCommand(ctx);
     });
 
     // Add the new history command
@@ -721,6 +729,7 @@ export class TelegramBotService {
       { name: '/d or /dairy', description: 'Dairy Notes' },
       { name: '/history', description: 'Chat History' },
       { name: '/s', description: 'Serbian Translation' },
+      { name: '/f', description: 'Translate between RU/EN/SR' },
       { name: '/t or /task', description: 'Create Todo item' },
       { name: '/tl', description: 'List Todo items' },
       { name: '/th', description: 'Tasks HTML export' },

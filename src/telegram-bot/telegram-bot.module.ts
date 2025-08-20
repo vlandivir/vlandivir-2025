@@ -7,6 +7,7 @@ import { ServicesModule } from '../services/services.module';
 import { DairyCommandsService } from './dairy-commands.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SerbianCommandsService } from './serbian-commands.service';
+import { ForeignCommandsService } from './foreign-commands.service';
 import { HistoryCommandsService } from './history-commands.service';
 import { TaskCommandsService } from './task-commands.service';
 import { TaskHistoryCommandsService } from './task-history-commands.service';
@@ -21,6 +22,7 @@ import { QaCommandsService } from './qa-commands.service';
     DairyCommandsService,
     PrismaService,
     SerbianCommandsService,
+    ForeignCommandsService,
     HistoryCommandsService,
     TaskCommandsService,
     TaskHistoryCommandsService,

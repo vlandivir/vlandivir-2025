@@ -46,6 +46,18 @@ Example:
 /s zdravo
 ```
 
+### `/f`
+
+Translates a phrase between Russian, English and Serbian. Detects the input language and returns two translation variants for each of the other two languages. Only works in private chats.
+
+- **text** — phrase in Russian, English or Serbian.
+
+Example:
+
+```
+/f hello world
+```
+
 ### `/history`
 
 Generates an HTML page with all messages longer than 21 characters.
