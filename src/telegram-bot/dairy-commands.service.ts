@@ -93,6 +93,7 @@ export class DairyCommandsService {
       },
       include: {
         images: true,
+        videos: true,
       },
       orderBy: {
         noteDate: 'asc',
@@ -123,6 +124,7 @@ export class DairyCommandsService {
         },
         include: {
           images: true,
+          videos: true,
         },
         orderBy: {
           noteDate: 'asc',
@@ -149,6 +151,7 @@ export class DairyCommandsService {
     notes: {
       content: string | null;
       images: { url: string }[];
+      videos: { url: string }[];
     }[],
     dateStr: string,
   ) {
@@ -158,13 +161,24 @@ export class DairyCommandsService {
     }
 
     for (const note of notes) {
+      let hasMedia = false;
       if (note.images && note.images.length > 0) {
+        hasMedia = true;
         for (const image of note.images) {
           await ctx.replyWithPhoto(image.url, {
             caption: note.content || undefined,
           });
         }
-      } else {
+      }
+      if (note.videos && note.videos.length > 0) {
+        hasMedia = true;
+        for (const video of note.videos) {
+          await ctx.replyWithVideo(video.url, {
+            caption: note.content || undefined,
+          });
+        }
+      }
+      if (!hasMedia) {
         await ctx.reply(note.content || '');
       }
     }
@@ -177,6 +191,7 @@ export class DairyCommandsService {
       {
         content: string | null;
         images: { url: string }[];
+        videos: { url: string }[];
       }[]
     >,
     dateStr: string,
@@ -194,17 +209,29 @@ export class DairyCommandsService {
       const notes = notesByYear[year] as {
         content: string | null;
         images: { url: string }[];
+        videos: { url: string }[];
       }[];
       await ctx.reply(`${dateStr} ${year}:`);
 
       for (const note of notes) {
+        let hasMedia = false;
         if (note.images && note.images.length > 0) {
+          hasMedia = true;
           for (const image of note.images) {
             await ctx.replyWithPhoto(image.url, {
               caption: note.content || undefined,
             });
           }
-        } else {
+        }
+        if (note.videos && note.videos.length > 0) {
+          hasMedia = true;
+          for (const video of note.videos) {
+            await ctx.replyWithVideo(video.url, {
+              caption: note.content || undefined,
+            });
+          }
+        }
+        if (!hasMedia) {
           await ctx.reply(note.content || '');
         }
       }
