@@ -66,6 +66,28 @@ export class StorageService implements OnModuleInit {
     return `${this.endpoint}/${this.bucket}/${key}`;
   }
 
+  async uploadVideo(
+    buffer: Buffer,
+    mimeType: string,
+    chatId: number,
+  ): Promise<string> {
+    const key = `chats/${chatId}/videos/${uuidv4()}`;
+
+    const upload = new Upload({
+      client: this.s3,
+      params: {
+        Bucket: this.bucket,
+        Key: key,
+        Body: buffer,
+        ContentType: mimeType,
+        ACL: 'public-read',
+      },
+    });
+
+    await upload.done();
+    return `${this.endpoint}/${this.bucket}/${key}`;
+  }
+
   async uploadFileWithKey(
     buffer: Buffer,
     mimeType: string,

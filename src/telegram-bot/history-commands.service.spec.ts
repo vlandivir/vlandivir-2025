@@ -85,14 +85,25 @@ describe('HistoryCommandsService', () => {
       } as unknown as Context;
 
       const mockMessages = [
-        { content: 'Short message', noteDate: new Date(), images: [] },
+        {
+          content: 'Short message',
+          noteDate: new Date(),
+          images: [],
+          videos: [],
+        },
         {
           content:
             'This is a much longer message that should be included in the history',
           noteDate: new Date(),
           images: [],
+          videos: [],
         },
-        { content: 'Another short one', noteDate: new Date(), images: [] },
+        {
+          content: 'Another short one',
+          noteDate: new Date(),
+          images: [],
+          videos: [],
+        },
       ];
 
       mockPrismaService.note.findMany.mockResolvedValue(mockMessages);

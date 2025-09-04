@@ -19,20 +19,10 @@ describe('TelegramBotService', () => {
   let service: TelegramBotService;
 
   const mockReply = jest.fn();
-  const mockContext = {
-    message: {
-      text: 'test message',
-      photo: [
-        {
-          file_id: 'test-file-id',
-          width: 100,
-          height: 100,
-        },
-      ],
-      caption: 'test caption',
-    },
+  const baseContext = {
     chat: {
       id: 123456,
+      type: 'private',
     },
     telegram: {
       getFile: jest.fn().mockResolvedValue({ file_path: 'test/path' }),
@@ -53,6 +43,34 @@ describe('TelegramBotService', () => {
       is_bot: true,
       first_name: 'TestBot',
       username: 'test_bot',
+    },
+  };
+
+  const mockPhotoContext = {
+    ...baseContext,
+    message: {
+      text: 'test message',
+      photo: [
+        {
+          file_id: 'test-file-id',
+          width: 100,
+          height: 100,
+        },
+      ],
+      caption: 'test caption',
+    },
+  } as unknown as Context;
+
+  const mockVideoContext = {
+    ...baseContext,
+    message: {
+      video: {
+        file_id: 'test-video-id',
+        width: 100,
+        height: 100,
+        duration: 1,
+      },
+      caption: 'video caption',
     },
   } as unknown as Context;
 
@@ -104,6 +122,13 @@ describe('TelegramBotService', () => {
               .mockImplementation((buffer, mimeType, chatId) =>
                 Promise.resolve(
                   `https://example.com/chats/${chatId}/images/mock-uuid`,
+                ),
+              ),
+            uploadVideo: jest
+              .fn()
+              .mockImplementation((buffer, mimeType, chatId) =>
+                Promise.resolve(
+                  `https://example.com/chats/${chatId}/videos/mock-uuid`,
                 ),
               ),
           },
@@ -175,16 +200,16 @@ describe('TelegramBotService', () => {
   });
 
   it('should handle photo messages', async () => {
-    await service.handleIncomingPhoto(mockContext);
+    await service.handleIncomingPhoto(mockPhotoContext);
     expect(mockReply).toHaveBeenCalled();
   });
 
   it('should handle channel posts', async () => {
     const channelReply = jest.fn();
     const channelContext = {
-      ...mockContext,
+      ...mockPhotoContext,
       channelPost: {
-        ...mockContext.message,
+        ...mockPhotoContext.message,
         chat: { id: -1001234567890, type: 'channel', title: 'Test Channel' },
       },
       updateType: 'channel_post',
@@ -193,6 +218,11 @@ describe('TelegramBotService', () => {
 
     await service.handleIncomingPhoto(channelContext);
     expect(channelReply).toHaveBeenCalled();
+  });
+
+  it('should handle video messages', async () => {
+    await service.handleIncomingVideo(mockVideoContext);
+    expect(mockReply).toHaveBeenCalled();
   });
 
   it('should return sorted help message', () => {
