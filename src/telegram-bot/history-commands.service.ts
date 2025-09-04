@@ -7,12 +7,15 @@ import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { StorageService } from '../services/storage.service';
 
-interface NoteWithImages {
+interface NoteWithMedia {
   content: string;
   noteDate: Date;
   images: {
     url: string;
     description?: string | null;
+  }[];
+  videos: {
+    url: string;
   }[];
 }
 
@@ -39,6 +42,7 @@ export class HistoryCommandsService {
         },
         include: {
           images: true,
+          videos: true,
         },
       });
 
@@ -72,7 +76,7 @@ export class HistoryCommandsService {
     }
   }
 
-  private generateHtmlPage(messages: NoteWithImages[]): string {
+  private generateHtmlPage(messages: NoteWithMedia[]): string {
     const messageCount = messages.length;
 
     let html = `
@@ -181,6 +185,15 @@ export class HistoryCommandsService {
             ${image.description ? `<div class="image-description">${description}</div>` : ''}
         </div>
 `;
+        });
+      }
+
+      if (message.videos && message.videos.length > 0) {
+        message.videos.forEach((video) => {
+          html += `
+        <div class="message-image">
+            <video src="${video.url}" controls></video>
+        </div>`;
         });
       }
 

@@ -394,6 +394,39 @@ export class TelegramBotService {
       await this.handleIncomingPhoto(photoContext, true);
     });
 
+    // Обработчик для видео в личных чатах и группах
+    this.bot.on(message('video'), async (ctx) => {
+      console.log('Получено видео из чата/группы');
+
+      if (ctx.scene?.session?.current === 'taskEditScene') {
+        return;
+      }
+
+      const isGroup =
+        ctx.chat.type === 'group' || ctx.chat.type === 'supergroup';
+      await this.handleIncomingVideo(ctx, isGroup);
+    });
+
+    // Обработчик видео из каналов
+    this.bot.on(channelPost('video'), async (ctx) => {
+      console.log('Получено видео из канала');
+
+      if (!ctx.channelPost) return;
+
+      const videoContext = {
+        ...ctx,
+        message: ctx.channelPost,
+        chat: ctx.chat,
+        updateType: 'message',
+        me: ctx.botInfo,
+        tg: ctx.telegram,
+        editedMessage: undefined,
+        state: {},
+      } as unknown as Context;
+
+      await this.handleIncomingVideo(videoContext, true);
+    });
+
     // Handle inline buttons
     this.bot.on('callback_query', async (ctx) => {
       const data = (ctx.callbackQuery as CallbackQuery.DataQuery | undefined)
@@ -559,7 +592,7 @@ export class TelegramBotService {
       // Process all photos for database saving (original behavior)
       const photo = photos[photos.length - 1]; // Use the highest quality photo
       const file = await ctx.telegram.getFile(photo.file_id);
-      const photoBuffer = await this.downloadPhoto(file.file_path!);
+      const photoBuffer = await this.downloadFile(file.file_path!);
       const photoUrl = await this.storageService.uploadFile(
         photoBuffer,
         'image/jpeg',
@@ -659,7 +692,107 @@ export class TelegramBotService {
     }
   }
 
-  private async downloadPhoto(filePath: string): Promise<Buffer> {
+  public async handleIncomingVideo(ctx: Context, silent = false) {
+    try {
+      if (!ctx.message) return;
+
+      const video = 'video' in ctx.message ? ctx.message.video : null;
+      const caption = 'caption' in ctx.message ? ctx.message.caption : '';
+
+      if (!video || !ctx.chat) return;
+
+      const file = await ctx.telegram.getFile(video.file_id);
+      const videoBuffer = await this.downloadFile(file.file_path!);
+      const videoUrl = await this.storageService.uploadVideo(
+        videoBuffer,
+        'video/mp4',
+        ctx.chat.id,
+      );
+
+      const { date: noteDate, cleanContent } =
+        this.dateParser.extractDateFromFirstLine(caption || '');
+
+      let fromUserId: number | undefined = ctx.message.from?.id;
+
+      if (ctx.chat.type === 'channel' && !fromUserId) {
+        const creatorId = await this.getChannelCreatorId(ctx.chat.id);
+        if (creatorId) {
+          fromUserId = creatorId;
+          console.log('Найден создатель канала:', fromUserId);
+        } else {
+          console.log('DEBUG: Could not find channel creator for video');
+        }
+      }
+
+      const savedNote = await this.prisma.note.create({
+        data: {
+          content: cleanContent || '',
+          rawMessage: JSON.parse(
+            JSON.stringify(ctx.message),
+          ) as unknown as Prisma.InputJsonValue,
+          chatId: ctx.chat.id,
+          noteDate: noteDate || new Date(),
+          videos: {
+            create: {
+              url: videoUrl,
+              description: caption || null,
+            },
+          },
+        },
+        include: {
+          videos: true,
+        },
+      });
+
+      if (!silent) {
+        const botResponse = `Видео сохранено${
+          noteDate
+            ? ` с датой ${format(noteDate, 'd MMMM yyyy', { locale: ru })}`
+            : ''
+        }`;
+        await ctx.reply(botResponse);
+
+        await this.prisma.botResponse.create({
+          data: {
+            content: botResponse,
+            noteId: savedNote.id,
+            chatId: ctx.chat.id,
+          },
+        });
+      }
+
+      if (
+        ctx.chat.type === 'channel' &&
+        fromUserId &&
+        ctx.chat.id !== fromUserId
+      ) {
+        console.log('Сохраняем копию видео создателю канала:', fromUserId);
+        await this.prisma.note.create({
+          data: {
+            content: cleanContent || '',
+            rawMessage: JSON.parse(
+              JSON.stringify(ctx.message),
+            ) as unknown as Prisma.InputJsonValue,
+            chatId: fromUserId,
+            noteDate: noteDate || new Date(),
+            videos: {
+              create: {
+                url: videoUrl,
+                description: caption || null,
+              },
+            },
+          },
+        });
+      }
+    } catch (error) {
+      console.error('Error processing video:', error);
+      if (!silent) {
+        await ctx.reply('Произошла ошибка при сохранении видео');
+      }
+    }
+  }
+
+  private async downloadFile(filePath: string): Promise<Buffer> {
     const response = await fetch(
       `https://api.telegram.org/file/bot${this.configService.get('TELEGRAM_BOT_TOKEN')}/${filePath}`,
     );

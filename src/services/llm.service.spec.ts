@@ -37,7 +37,7 @@ describe('LlmService', () => {
       jest.spyOn(configService, 'get').mockReturnValue(undefined);
 
       const result = await service.describeImage(Buffer.from('test'));
-      expect(result).toBe('Не удалось описать изображение');
+      expect(result).toBe('Ошибка конфигурации API ключа');
     });
 
     it('should handle API errors gracefully', async () => {
@@ -49,7 +49,7 @@ describe('LlmService', () => {
       });
 
       const result = await service.describeImage(Buffer.from('test'));
-      expect(result).toBe('Не удалось описать изображение');
+      expect(result).toBe('Ошибка API OpenAI');
     });
   });
 });
