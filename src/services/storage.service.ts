@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { S3 } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import { v4 as uuidv4 } from 'uuid';
+import { Readable } from 'stream';
 
 @Injectable()
 export class StorageService implements OnModuleInit {
@@ -79,6 +80,28 @@ export class StorageService implements OnModuleInit {
         Bucket: this.bucket,
         Key: key,
         Body: buffer,
+        ContentType: mimeType,
+        ACL: 'public-read',
+      },
+    });
+
+    await upload.done();
+    return `${this.endpoint}/${this.bucket}/${key}`;
+  }
+
+  async uploadVideoStream(
+    stream: Readable,
+    mimeType: string,
+    chatId: number,
+  ): Promise<string> {
+    const key = `chats/${chatId}/videos/${uuidv4()}`;
+
+    const upload = new Upload({
+      client: this.s3,
+      params: {
+        Bucket: this.bucket,
+        Key: key,
+        Body: stream,
         ContentType: mimeType,
         ACL: 'public-read',
       },

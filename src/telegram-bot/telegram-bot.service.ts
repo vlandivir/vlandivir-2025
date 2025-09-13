@@ -27,6 +27,10 @@ import {
   createTaskEditScene,
   TaskEditWizardContext,
 } from './scenes/task-edit.scene';
+import { Readable } from 'stream';
+
+// Telegram Bot API limitation: bots cannot download files larger than ~20 MB via getFile
+const MAX_TELEGRAM_FILE_DOWNLOAD_BYTES = 20 * 1024 * 1024;
 
 type TelegramUpdate =
   | Update.CallbackQueryUpdate
@@ -327,6 +331,34 @@ export class TelegramBotService {
     this.bot.command(['qh'], (ctx) => {
       console.log('Получена команда /qh:', ctx.message?.text);
       return this.qaCommands.handleQhCommand(ctx);
+    });
+
+    // Save video by direct URL (workaround for >20MB Telegram getFile limit)
+    this.bot.command(['v', 'video'], async (ctx) => {
+      try {
+        const text = ctx.message?.text || '';
+        const args = text.replace(/^\/(v|video)\s*/i, '').trim();
+        if (!args) {
+          await ctx.reply('Usage: /v <direct video URL> [optional caption]');
+          return;
+        }
+        const parts = args.split(/\s+/);
+        const urlCandidate = parts[0];
+        let videoUrlInput: URL;
+        try {
+          videoUrlInput = new URL(urlCandidate);
+        } catch {
+          await ctx.reply(
+            'Invalid URL. Usage: /v <direct video URL> [caption]',
+          );
+          return;
+        }
+        const caption = parts.slice(1).join(' ');
+        await this.handleVideoByUrl(ctx, videoUrlInput.toString(), caption);
+      } catch (e) {
+        console.error('Error in /v command', e);
+        await ctx.reply('Ошибка при сохранении видео по ссылке');
+      }
     });
 
     // Help command
@@ -701,11 +733,79 @@ export class TelegramBotService {
 
       if (!video || !ctx.chat) return;
 
+      // Pre-check size to avoid Telegram "file is too big" errors on getFile
+      const fileSize =
+        typeof video.file_size === 'number' ? video.file_size : 0;
+      if (fileSize > MAX_TELEGRAM_FILE_DOWNLOAD_BYTES) {
+        console.warn(
+          `Video too large to download via Telegram getFile: ${fileSize} bytes > ${MAX_TELEGRAM_FILE_DOWNLOAD_BYTES}`,
+        );
+
+        const { date: tooBigNoteDate, cleanContent: tooBigCleanContent } =
+          this.dateParser.extractDateFromFirstLine(caption || '');
+
+        // Save only the text/caption and raw message without video
+        const savedNoteTooBig = await this.prisma.note.create({
+          data: {
+            content: tooBigCleanContent || '',
+            rawMessage: JSON.parse(
+              JSON.stringify(ctx.message),
+            ) as unknown as Prisma.InputJsonValue,
+            chatId: ctx.chat.id,
+            noteDate: tooBigNoteDate || new Date(),
+          },
+        });
+
+        if (!silent) {
+          const mb = (fileSize / (1024 * 1024)).toFixed(1);
+          await ctx.reply(
+            `Видео не сохранено: файл слишком большой для скачивания ботом (${mb} MB). Ограничение Telegram ≈ 20 MB. Сократите/сожмите видео или пришлите ссылку. Описание заметки сохранено${
+              tooBigNoteDate
+                ? ` с датой ${format(tooBigNoteDate, 'd MMMM yyyy', { locale: ru })}`
+                : ''
+            }`,
+          );
+
+          await this.prisma.botResponse.create({
+            data: {
+              content: `Видео не сохранено: превышен лимит Telegram на скачивание файлов ботом.`,
+              noteId: savedNoteTooBig.id,
+              chatId: ctx.chat.id,
+            },
+          });
+        }
+
+        // If this is a channel post, also save a copy for the creator (text only)
+        let channelCreatorId: number | undefined = ctx.message.from?.id;
+        if (ctx.chat.type === 'channel' && !channelCreatorId) {
+          channelCreatorId = await this.getChannelCreatorId(ctx.chat.id);
+        }
+        if (
+          ctx.chat.type === 'channel' &&
+          channelCreatorId &&
+          ctx.chat.id !== channelCreatorId
+        ) {
+          await this.prisma.note.create({
+            data: {
+              content: savedNoteTooBig.content,
+              rawMessage: JSON.parse(
+                JSON.stringify(ctx.message),
+              ) as unknown as Prisma.InputJsonValue,
+              chatId: channelCreatorId,
+              noteDate: savedNoteTooBig.noteDate,
+            },
+          });
+        }
+
+        return; // Stop further processing for oversized videos
+      }
+
+      // Normal flow for acceptable sizes
       const file = await ctx.telegram.getFile(video.file_id);
       const videoBuffer = await this.downloadFile(file.file_path!);
       const videoUrl = await this.storageService.uploadVideo(
         videoBuffer,
-        'video/mp4',
+        video.mime_type || 'video/mp4',
         ctx.chat.id,
       );
 
@@ -785,11 +885,143 @@ export class TelegramBotService {
         });
       }
     } catch (error) {
+      // Gracefully handle Telegram "file is too big" error if it occurs despite checks
+      const maybeTelegramError = error as unknown as {
+        response?: { description?: string };
+      };
+      if (
+        maybeTelegramError?.response?.description &&
+        maybeTelegramError.response.description
+          .toLowerCase()
+          .includes('file is too big')
+      ) {
+        if (!silent) {
+          await ctx.reply(
+            'Видео не сохранено: файл слишком большой для скачивания ботом (лимит Telegram ≈ 20 MB). Сократите/сожмите видео или пришлите прямую ссылку и используйте команду /v <url> [описание] для сохранения.',
+          );
+        }
+        return;
+      }
       console.error('Error processing video:', error);
       if (!silent) {
         await ctx.reply('Произошла ошибка при сохранении видео');
       }
     }
+  }
+
+  private async handleVideoByUrl(
+    ctx: Context,
+    url: string,
+    caption: string,
+  ): Promise<void> {
+    if (!ctx.chat) return;
+    const { stream, mimeType } = await this.createStreamFromUrl(url);
+
+    const uploadedUrl = await this.storageService.uploadVideoStream(
+      stream,
+      mimeType,
+      ctx.chat.id,
+    );
+
+    const { date: noteDate, cleanContent } =
+      this.dateParser.extractDateFromFirstLine(caption || '');
+
+    const savedNote = await this.prisma.note.create({
+      data: {
+        content: cleanContent || '',
+        rawMessage: JSON.parse(
+          JSON.stringify({ url, caption }),
+        ) as unknown as Prisma.InputJsonValue,
+        chatId: ctx.chat.id,
+        noteDate: noteDate || new Date(),
+        videos: {
+          create: {
+            url: uploadedUrl,
+            description: caption || null,
+          },
+        },
+      },
+      include: { videos: true },
+    });
+
+    await ctx.reply(
+      `Видео сохранено по ссылке${
+        noteDate
+          ? ` с датой ${format(noteDate, 'd MMMM yyyy', { locale: ru })}`
+          : ''
+      }`,
+    );
+
+    await this.prisma.botResponse.create({
+      data: {
+        content: 'Видео сохранено по ссылке',
+        noteId: savedNote.id,
+        chatId: ctx.chat.id,
+      },
+    });
+
+    // If post came from a channel, save a copy to creator as well (text + video)
+    let fromUserId: number | undefined =
+      ctx.message && 'from' in ctx.message ? ctx.message.from?.id : undefined;
+    if (ctx.chat.type === 'channel' && !fromUserId) {
+      fromUserId = await this.getChannelCreatorId(ctx.chat.id);
+    }
+    if (
+      ctx.chat.type === 'channel' &&
+      fromUserId &&
+      ctx.chat.id !== fromUserId
+    ) {
+      await this.prisma.note.create({
+        data: {
+          content: cleanContent || '',
+          rawMessage: JSON.parse(
+            JSON.stringify({ url, caption }),
+          ) as unknown as Prisma.InputJsonValue,
+          chatId: fromUserId,
+          noteDate: noteDate || new Date(),
+          videos: {
+            create: {
+              url: uploadedUrl,
+              description: caption || null,
+            },
+          },
+        },
+      });
+    }
+  }
+
+  private async createStreamFromUrl(
+    url: string,
+  ): Promise<{ stream: Readable; mimeType: string }> {
+    const response = await fetch(url);
+    if (!response.ok || !response.body) {
+      throw new Error(
+        `Failed to fetch video: ${response.status} ${response.statusText}`,
+      );
+    }
+    const contentType = response.headers.get('content-type') || 'video/mp4';
+
+    // Convert Web ReadableStream to Node.js Readable without using any type assertions
+    async function* chunkGenerator(stream: ReadableStream<Uint8Array>) {
+      const reader = stream.getReader();
+      try {
+         
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) {
+            yield Buffer.from(value);
+          }
+        }
+      } finally {
+        reader.releaseLock();
+      }
+    }
+
+    // response.body is a Web ReadableStream<Uint8Array> in Node 18+
+    const webStream = response.body as unknown as ReadableStream<Uint8Array>;
+    const nodeReadable = Readable.from(chunkGenerator(webStream));
+    return { stream: nodeReadable, mimeType: contentType };
   }
 
   private async downloadFile(filePath: string): Promise<Buffer> {
