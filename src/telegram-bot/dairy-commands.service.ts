@@ -183,8 +183,8 @@ export class DairyCommandsService {
               e,
             );
             const caption = note.content
-              ? `${note.content}\n\n(Ссылка на видео: ${video.url})`
-              : `Ссылка на видео: ${video.url}`;
+              ? `⚠️ ${note.content}\n\n(Ссылка на видео: ${video.url})`
+              : `⚠️ Ссылка на видео: ${video.url}`;
             await ctx.reply(caption);
           }
         }
@@ -247,8 +247,8 @@ export class DairyCommandsService {
                 e,
               );
               const caption = note.content
-                ? `${note.content}\n\n(Ссылка на видео: ${video.url})`
-                : `Ссылка на видео: ${video.url}`;
+                ? `⚠️ ${note.content}\n\n(Ссылка на видео: ${video.url})`
+                : `⚠️ Ссылка на видео: ${video.url}`;
               await ctx.reply(caption);
             }
           }

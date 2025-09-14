@@ -134,6 +134,18 @@ export class HistoryCommandsService {
             border-radius: 8px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
+        .message-video {
+            margin-top: 10px;
+            text-align: center;
+        }
+        .message-video video {
+            width: 100%;
+            max-width: 360px;
+            height: auto;
+            max-height: 420px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
         .image-description {
             margin-top: 4px;
             font-size: 0.9em;
@@ -195,7 +207,7 @@ export class HistoryCommandsService {
       if (message.videos && message.videos.length > 0) {
         message.videos.forEach((video) => {
           html += `
-        <div class="message-image">
+        <div class="message-video">
             <video src="${video.url}" controls></video>
         </div>`;
         });
