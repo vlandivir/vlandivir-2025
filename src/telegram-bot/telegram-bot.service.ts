@@ -1005,7 +1005,6 @@ export class TelegramBotService {
     async function* chunkGenerator(stream: ReadableStream<Uint8Array>) {
       const reader = stream.getReader();
       try {
-         
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
