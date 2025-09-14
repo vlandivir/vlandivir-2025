@@ -237,9 +237,20 @@ export class DairyCommandsService {
         if (note.videos && note.videos.length > 0) {
           hasMedia = true;
           for (const video of note.videos) {
-            await ctx.replyWithVideo(video.url, {
-              caption: note.content || undefined,
-            });
+            try {
+              await ctx.replyWithVideo(video.url, {
+                caption: note.content || undefined,
+              });
+            } catch (e) {
+              console.warn(
+                'Failed to send video via Telegram (all years), falling back to URL',
+                e,
+              );
+              const caption = note.content
+                ? `${note.content}\n\n(Ссылка на видео: ${video.url})`
+                : `Ссылка на видео: ${video.url}`;
+              await ctx.reply(caption);
+            }
           }
         }
         if (!hasMedia) {
