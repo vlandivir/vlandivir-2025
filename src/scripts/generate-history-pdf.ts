@@ -3,7 +3,7 @@ import * as path from 'path';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { PrismaClient } from '../generated/prisma-client';
-import PDFDocument from 'pdfkit';
+import * as PDFDocument from 'pdfkit';
 import sizeOf from 'image-size';
 
 interface NoteWithMedia {
