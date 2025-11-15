@@ -12,7 +12,6 @@ import { HistoryCommandsService } from './history-commands.service';
 import { TaskCommandsService } from './task-commands.service';
 import { TaskHistoryCommandsService } from './task-history-commands.service';
 import { CollageCommandsService } from './collage-commands.service';
-import { QaCommandsService } from './qa-commands.service';
 
 @Module({
   imports: [ConfigModule, PrismaModule, ServicesModule],
@@ -27,7 +26,6 @@ import { QaCommandsService } from './qa-commands.service';
     TaskCommandsService,
     TaskHistoryCommandsService,
     CollageCommandsService,
-    QaCommandsService,
   ],
   exports: [TelegramBotService],
 })

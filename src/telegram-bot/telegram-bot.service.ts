@@ -21,7 +21,6 @@ import { HistoryCommandsService } from './history-commands.service';
 import { TaskCommandsService } from './task-commands.service';
 import { TaskHistoryCommandsService } from './task-history-commands.service';
 import { CollageCommandsService } from './collage-commands.service';
-import { QaCommandsService } from './qa-commands.service';
 // import { getUserTimeZone } from '../utils/timezone';
 import {
   createTaskEditScene,
@@ -58,7 +57,6 @@ export class TelegramBotService {
     private readonly taskCommands: TaskCommandsService,
     private readonly taskHistoryCommands: TaskHistoryCommandsService,
     private readonly collageCommands: CollageCommandsService,
-    private readonly qaCommands: QaCommandsService,
   ) {
     const token = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
     if (!token) {
@@ -303,36 +301,6 @@ export class TelegramBotService {
       }
     });
 
-    // Add new question command
-    this.bot.command(['qa'], (ctx) => {
-      console.log('Получена команда /qa:', ctx.message?.text);
-      return this.qaCommands.handleQaCommand(ctx);
-    });
-
-    // List questions command
-    this.bot.command(['ql'], (ctx) => {
-      console.log('Получена команда /ql:', ctx.message?.text);
-      return this.qaCommands.handleQlCommand(ctx);
-    });
-
-    // Ask questions command
-    this.bot.command(['q'], (ctx) => {
-      console.log('Получена команда /q:', ctx.message?.text);
-      return this.qaCommands.handleQCommand(ctx);
-    });
-
-    // Questions report command
-    this.bot.command(['qq'], (ctx) => {
-      console.log('Получена команда /qq:', ctx.message?.text);
-      return this.qaCommands.handleQqCommand(ctx);
-    });
-
-    // Questions history command
-    this.bot.command(['qh'], (ctx) => {
-      console.log('Получена команда /qh:', ctx.message?.text);
-      return this.qaCommands.handleQhCommand(ctx);
-    });
-
     // Save video by direct URL (workaround for >20MB Telegram getFile limit)
     this.bot.command(['v', 'video'], async (ctx) => {
       try {
@@ -376,11 +344,6 @@ export class TelegramBotService {
     // Обработчик для текстовых сообщений в личных чатах и группах
     this.bot.on(message('text'), async (ctx) => {
       console.log('Получено текстовое сообщение:', ctx.message.text);
-
-      if (this.qaCommands.isActive(ctx.chat.id)) {
-        await this.qaCommands.handleText(ctx);
-        return;
-      }
 
       if (ctx.scene?.session?.current === 'taskEditScene') {
         return;
@@ -480,14 +443,6 @@ export class TelegramBotService {
       ) {
         const percent = parseInt(data.replace('circle_size_', ''), 10);
         await this.collageCommands.generateSpecial2(ctx, percent);
-      } else if (
-        data === 'qa_type_string' ||
-        data === 'qa_type_number' ||
-        data === 'qa_type_boolean'
-      ) {
-        await this.qaCommands.handleTypeSelection(ctx);
-      } else if (data === 'q_yes' || data === 'q_no' || data === 'q_skip') {
-        await this.qaCommands.handleAnswerCallback(ctx);
       } else if (data && data.startsWith('edit_task_')) {
         const key = data.replace('edit_task_', '');
         await ctx.scene.enter('taskEditScene', { key });
@@ -1098,11 +1053,6 @@ export class TelegramBotService {
       { name: '/tl', description: 'List Todo items' },
       { name: '/th', description: 'Tasks HTML export' },
       { name: '/a', description: 'Open Mini App' },
-      { name: '/qa', description: 'Add question' },
-      { name: '/ql', description: 'List questions' },
-      { name: '/qq', description: 'Questions and answers for a date' },
-      { name: '/qh', description: 'Questions history HTML export' },
-      { name: '/q', description: 'Answer questions' },
       { name: '/c or /collage', description: 'Create image collage' },
       { name: '/help', description: 'Show this help message' },
     ];

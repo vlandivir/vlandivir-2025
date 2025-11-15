@@ -127,33 +127,6 @@ The snoozed until date is displayed for snoozed tasks.
 History lines show only what changed instead of repeating the full task text,
 and the first history entry now includes the task title.
 
-### `/qa`
-
-Starts an interactive flow to add a question.
-
-1. Send `/qa` and provide the question text when prompted.
-2. Choose its type (string, number or boolean) using the inline buttons.
-
-### `/ql`
-
-Lists all questions for the current chat.
-
-Example:
-
-```
-/ql
-```
-
-### `/qq`
-
-Shows the list of questions with their answers for the specified date (or today if no date is given).
-
-Example:
-
-```
-/qq 02.01.2025
-```
-
 ### `/help`
 
 Shows a list of all available commands.

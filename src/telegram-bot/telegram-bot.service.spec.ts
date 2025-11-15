@@ -12,7 +12,6 @@ import { HistoryCommandsService } from './history-commands.service';
 import { TaskCommandsService } from './task-commands.service';
 import { TaskHistoryCommandsService } from './task-history-commands.service';
 import { CollageCommandsService } from './collage-commands.service';
-import { QaCommandsService } from './qa-commands.service';
 import { Context } from 'telegraf';
 
 describe('TelegramBotService', () => {
@@ -181,14 +180,6 @@ describe('TelegramBotService', () => {
             isActive: jest.fn().mockReturnValue(false),
           },
         },
-        {
-          provide: QaCommandsService,
-          useValue: {
-            handleQaCommand: jest.fn(),
-            handleQlCommand: jest.fn(),
-            handleQhCommand: jest.fn(),
-          },
-        },
       ],
     }).compile();
 
@@ -235,11 +226,6 @@ describe('TelegramBotService', () => {
       '/f - Translate between RU/EN/SR',
       '/help - Show this help message',
       '/history - Chat History',
-      '/q - Answer questions',
-      '/qa - Add question',
-      '/qh - Questions history HTML export',
-      '/ql - List questions',
-      '/qq - Questions and answers for a date',
       '/s - Serbian Translation',
       '/t or /task - Create Todo item',
       '/th - Tasks HTML export',
