@@ -85,3 +85,25 @@ If you like Certbot, please consider supporting our work by:
 
 sudo cp -r /etc/letsencrypt/live/vlandivir.com/. ./.secret
 sudo chmod 644 ./.secret/privkey.pem
+
+
+docker stop vlandivir-2025
+certbot certonly --standalone -d vlandivir.com --agree-tos -m vladimir.rybakov@gmail.com --non-interactive --preferred-challenges http --force-renewal
+docker start vlandivir-2025
+docker logs -f vlandivir-2025
+
+Saving debug log to /var/log/letsencrypt/letsencrypt.log
+Renewing an existing certificate for vlandivir.com
+
+Successfully received certificate.
+Certificate is saved at: /etc/letsencrypt/live/vlandivir.com/fullchain.pem
+Key is saved at:         /etc/letsencrypt/live/vlandivir.com/privkey.pem
+This certificate expires on 2026-05-06.
+These files will be updated when the certificate renews.
+Certbot has set up a scheduled task to automatically renew this certificate in the background.
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+If you like Certbot, please consider supporting our work by:
+ * Donating to ISRG / Let's Encrypt:   https://letsencrypt.org/donate
+ * Donating to EFF:                    https://eff.org/donate-le
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

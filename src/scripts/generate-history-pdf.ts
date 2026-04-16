@@ -170,9 +170,31 @@ async function main() {
     const outDir = path.join(projectRoot, 'pdf');
     if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
     const timestamp = format(new Date(), 'yyyyMMdd-HHmmss');
+
+    // 1) Обычная версия (по времени: год-месяц-день)
     const outPath = path.join(outDir, `history-${chatId}-${timestamp}.pdf`);
     await renderPdf(filtered, outPath);
     console.log(`Saved PDF → ${outPath}`);
+
+    // 2) Версия с сортировкой: сначала день/месяц, потом год
+    const dayFirst = [...filtered].sort((a, b) => {
+      const ma = a.noteDate.getMonth();
+      const mb = b.noteDate.getMonth();
+      if (ma !== mb) return ma - mb;
+      const da = a.noteDate.getDate();
+      const db = b.noteDate.getDate();
+      if (da !== db) return da - db;
+      const ya = a.noteDate.getFullYear();
+      const yb = b.noteDate.getFullYear();
+      if (ya !== yb) return ya - yb;
+      return a.noteDate.getTime() - b.noteDate.getTime();
+    });
+    const outPathDayFirst = path.join(
+      outDir,
+      `history-day-first-${chatId}-${timestamp}.pdf`,
+    );
+    await renderPdf(dayFirst, outPathDayFirst);
+    console.log(`Saved day-first PDF → ${outPathDayFirst}`);
   } catch (err) {
     console.error('Error generating PDF:', err);
     process.exitCode = 1;
