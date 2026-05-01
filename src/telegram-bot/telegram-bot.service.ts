@@ -326,39 +326,42 @@ export class TelegramBotService {
         location.longitude,
         BAR_PIVSKI_ZABAVNIK.latitude,
         BAR_PIVSKI_ZABAVNIK.longitude,
+        distanceKm,
       );
+      const directionsLink =
+        `https://www.google.com/maps/dir/?api=1` +
+        `&origin=${location.latitude},${location.longitude}` +
+        `&destination=${BAR_PIVSKI_ZABAVNIK.latitude},${BAR_PIVSKI_ZABAVNIK.longitude}`;
       try {
         const staticMapBuffer =
           await this.downloadFirstAvailableBinary(staticMapUrls);
         await ctx.replyWithPhoto(
           { source: staticMapBuffer, filename: 'bar-map.png' },
           {
-            caption: 'Карта: вы и Pivski Zabavnik',
+            caption:
+              `Карта: вы и ${BAR_PIVSKI_ZABAVNIK.name}\n` +
+              `Расстояние до бара: ${distanceKm.toFixed(2)} км`,
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: 'Открыть маршрут', url: directionsLink }],
+              ],
+            },
           },
         );
       } catch (error) {
         console.error('Failed to render/send static map', error);
-        await ctx.reply('Не удалось загрузить карту с двумя точками.');
-      }
-
-      const userMapLink = `https://maps.google.com/?q=${location.latitude},${location.longitude}`;
-      const barMapLink = `https://maps.google.com/?q=${BAR_PIVSKI_ZABAVNIK.latitude},${BAR_PIVSKI_ZABAVNIK.longitude}`;
-      const directionsLink =
-        `https://www.google.com/maps/dir/?api=1` +
-        `&origin=${location.latitude},${location.longitude}` +
-        `&destination=${BAR_PIVSKI_ZABAVNIK.latitude},${BAR_PIVSKI_ZABAVNIK.longitude}`;
-      await ctx.reply(
-        `Расстояние до ${BAR_PIVSKI_ZABAVNIK.name}: ${distanceKm.toFixed(2)} км\n` +
-          `Вы: ${userMapLink}\n` +
-          `Бар: ${barMapLink}`,
-        {
-          reply_markup: {
-            inline_keyboard: [
-              [{ text: 'Открыть маршрут', url: directionsLink }],
-            ],
+        await ctx.reply(
+          `Не удалось загрузить карту с двумя точками.\n` +
+            `Расстояние до бара: ${distanceKm.toFixed(2)} км`,
+          {
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: 'Открыть маршрут', url: directionsLink }],
+              ],
+            },
           },
-        },
-      );
+        );
+      }
     });
 
     // Обработчик видео из каналов
@@ -1072,12 +1075,14 @@ export class TelegramBotService {
     userLon: number,
     barLat: number,
     barLon: number,
+    distanceKm: number,
   ): string[] {
     const centerLat = (userLat + barLat) / 2;
     const centerLon = (userLon + barLon) / 2;
+    const zoom = this.getBarMapZoom(distanceKm);
     const osmParams = new URLSearchParams({
       center: `${centerLat},${centerLon}`,
-      zoom: '13',
+      zoom: String(zoom),
       size: '900x540',
       mlat0: String(userLat),
       mlon0: String(userLon),
@@ -1092,7 +1097,7 @@ export class TelegramBotService {
     const yandexParams = new URLSearchParams({
       lang: 'en_US',
       l: 'map',
-      z: '13',
+      z: String(zoom),
       size: '650,450',
       ll: `${centerLon},${centerLat}`,
       pt: `${userLon},${userLat},pm2rdm~${barLon},${barLat},pm2blm`,
@@ -1100,6 +1105,17 @@ export class TelegramBotService {
     const yandexUrl = `https://static-maps.yandex.ru/1.x/?${yandexParams.toString()}`;
 
     return [osmUrl, yandexUrl];
+  }
+
+  private getBarMapZoom(distanceKm: number): number {
+    // Higher zoom for short distances, so points appear closer to map edges.
+    if (distanceKm <= 0.4) return 17;
+    if (distanceKm <= 0.8) return 16;
+    if (distanceKm <= 1.5) return 15;
+    if (distanceKm <= 3) return 14;
+    if (distanceKm <= 7) return 13;
+    if (distanceKm <= 15) return 12;
+    return 11;
   }
 
   // Добавляем метод для обработки webhook-обновлений
