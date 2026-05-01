@@ -3,8 +3,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { validate, parse } from '@telegram-apps/init-data-node';
 import type { Response } from 'express';
-import { StorageService } from '../services/storage.service';
-import { formatInTimeZone } from 'date-fns-tz';
 
 type TelegramInitData = ReturnType<typeof parse>;
 
@@ -13,16 +11,12 @@ export class MiniAppController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
-    private readonly storage: StorageService,
   ) {}
 
   // Index HTML is now served by static frontend under `/mini-app` via Vite build.
 
   @Get('user')
-  async getUser(
-    @Query('initData') initData?: string,
-    @Query('tz') tz?: string,
-  ) {
+  async getUser(@Query('initData') initData?: string) {
     try {
       const parsed = this.parseAndVerifyInitData(initData || '');
       const userId = parsed.user?.id;
@@ -30,9 +24,8 @@ export class MiniAppController {
 
       // userId is number; in DB chatId is BigInt. Use BigInt for filtering
       const chatId = BigInt(userId);
-      const [notes, todos, questions, answers] = await Promise.all([
+      const [notes, questions, answers] = await Promise.all([
         this.prisma.note.count({ where: { chatId } }),
-        this.prisma.todo.count({ where: { chatId } }),
         this.prisma.question.count({ where: { chatId } }),
         this.prisma.answer.count(),
       ]);
@@ -52,28 +45,13 @@ export class MiniAppController {
         ).toUpperCase() ||
         parsed.user?.username?.slice(0, 2).toUpperCase() ||
         'U';
-
-      const tzFromUser = undefined;
-      let resolvedTz = 'UTC';
-      let tzSource: 'web' | 'telegram' | 'default' = 'default';
-      if (tz) {
-        resolvedTz = tz;
-        tzSource = 'web';
-      } else if (tzFromUser) {
-        resolvedTz = tzFromUser;
-        tzSource = 'telegram';
-      }
-      const utcOffset = formatInTimeZone(new Date(), resolvedTz, 'XXX');
       return {
         userId,
         userSummary,
         username: parsed.user?.username || null,
         initials,
         hasAvatar: true, // actual presence checked in avatar endpoint; keep true to try load
-        counts: { notes, todos, questions, answers },
-        timeZone: resolvedTz,
-        timeZoneSource: tzSource,
-        utcOffset,
+        counts: { notes, questions, answers },
       };
     } catch (e) {
       return { error: `Invalid initData ${e}` };
@@ -134,199 +112,6 @@ export class MiniAppController {
       res.send(buffer);
     } catch (e) {
       res.status(500).send(`Error ${e}`);
-    }
-  }
-
-  @Get('image')
-  @Header('Cache-Control', 'public, max-age=300')
-  async image(
-    @Res() res: Response,
-    @Query('initData') initData?: string,
-    @Query('imageId') imageId?: string,
-  ) {
-    try {
-      const parsed = this.parseAndVerifyInitData(initData || '');
-      const userId = parsed.user?.id;
-      if (!userId) {
-        res.status(400).send('No user');
-        return;
-      }
-      const id = Number(imageId);
-      if (!id) {
-        res.status(400).send('Bad imageId');
-        return;
-      }
-      const chatId = BigInt(userId);
-      const image = await this.prisma.taskImage.findFirst({
-        where: { id, chatId },
-      });
-      if (!image) {
-        res.status(404).send('Not found');
-        return;
-      }
-      const buffer = await this.storage.downloadFile(image.url);
-      res.setHeader('Content-Type', 'image/jpeg');
-      res.send(buffer);
-    } catch (e) {
-      res.status(500).send(`Error ${e}`);
-    }
-  }
-
-  @Get('todos')
-  async getTodos(
-    @Query('initData') initData?: string,
-    @Query('tz') tz?: string,
-  ) {
-    try {
-      const parsed = this.parseAndVerifyInitData(initData || '');
-      const userId = parsed.user?.id;
-      if (!userId) return { error: 'No user' };
-      const chatId = BigInt(userId);
-      const query = `
-            WITH latest_todos AS (
-                SELECT *,
-                       ROW_NUMBER() OVER (PARTITION BY key ORDER BY id DESC) as rn
-                FROM "Todo"
-                WHERE "chatId" = ${chatId}
-            )
-            SELECT id, key, content, "dueDate", status, "snoozedUntil"
-            FROM latest_todos
-            WHERE rn = 1
-              AND status NOT IN ('done', 'canceled')
-              AND (status != 'snoozed' OR "snoozedUntil" IS NULL OR "snoozedUntil" <= NOW())
-            ORDER BY "dueDate" IS NULL, "dueDate" ASC, "createdAt" DESC, key ASC`;
-      const tasks = await this.prisma.$queryRawUnsafe<
-        {
-          id: number;
-          key: string;
-          content: string;
-          dueDate: Date | null;
-          status: string;
-          snoozedUntil: Date | null;
-        }[]
-      >(query);
-      const timeZone = tz || 'UTC';
-      return tasks.map((t) => ({
-        ...t,
-        dueDate: t.dueDate
-          ? formatInTimeZone(t.dueDate, timeZone, "yyyy-MM-dd'T'HH:mm:ssXXX")
-          : null,
-        snoozedUntil: t.snoozedUntil
-          ? formatInTimeZone(
-              t.snoozedUntil,
-              timeZone,
-              "yyyy-MM-dd'T'HH:mm:ssXXX",
-            )
-          : null,
-      }));
-    } catch (e) {
-      return { error: `Invalid initData ${e}` };
-    }
-  }
-
-  @Get('todo')
-  async getTodo(
-    @Query('initData') initData?: string,
-    @Query('key') key?: string,
-    @Query('tz') tz?: string,
-  ) {
-    try {
-      const parsed = this.parseAndVerifyInitData(initData || '');
-      const userId = parsed.user?.id;
-      if (!userId) return { error: 'No user' };
-      if (!key) return { error: 'No key' };
-      const chatId = BigInt(userId);
-      const todo = await this.prisma.todo.findFirst({
-        where: { key, chatId },
-        orderBy: { id: 'desc' },
-        select: {
-          key: true,
-          content: true,
-          createdAt: true,
-          status: true,
-          completedAt: true,
-          priority: true,
-          dueDate: true,
-          snoozedUntil: true,
-          tags: true,
-          contexts: true,
-          projects: true,
-        },
-      });
-      if (!todo) return { error: 'Not found' };
-      const [notes, images, history] = await Promise.all([
-        this.prisma.taskNote.findMany({
-          where: { key, chatId },
-          orderBy: { createdAt: 'asc' },
-          select: { id: true, content: true },
-        }),
-        this.prisma.taskImage.findMany({
-          where: { key, chatId },
-          orderBy: { createdAt: 'asc' },
-          select: { id: true, description: true },
-        }),
-        this.prisma.todo.findMany({
-          where: { key, chatId },
-          orderBy: { createdAt: 'asc' },
-          select: {
-            id: true,
-            key: true,
-            content: true,
-            createdAt: true,
-            status: true,
-            completedAt: true,
-            priority: true,
-            dueDate: true,
-            snoozedUntil: true,
-            tags: true,
-            contexts: true,
-            projects: true,
-          },
-        }),
-      ]);
-      const initEncoded = encodeURIComponent(initData || '');
-      const timeZone = tz || 'UTC';
-      const mapRecord = (r: {
-        [key: string]: unknown;
-        createdAt?: Date | null;
-        completedAt?: Date | null;
-        dueDate?: Date | null;
-        snoozedUntil?: Date | null;
-      }) => ({
-        ...r,
-        createdAt: r.createdAt
-          ? formatInTimeZone(r.createdAt, timeZone, "yyyy-MM-dd'T'HH:mm:ssXXX")
-          : null,
-        completedAt: r.completedAt
-          ? formatInTimeZone(
-              r.completedAt,
-              timeZone,
-              "yyyy-MM-dd'T'HH:mm:ssXXX",
-            )
-          : null,
-        dueDate: r.dueDate
-          ? formatInTimeZone(r.dueDate, timeZone, "yyyy-MM-dd'T'HH:mm:ssXXX")
-          : null,
-        snoozedUntil: r.snoozedUntil
-          ? formatInTimeZone(
-              r.snoozedUntil,
-              timeZone,
-              "yyyy-MM-dd'T'HH:mm:ssXXX",
-            )
-          : null,
-      });
-      return {
-        todo: mapRecord(todo),
-        notes,
-        images: images.map((img) => ({
-          id: img.id,
-          description: img.description,
-          url: `/mini-app-api/image?initData=${initEncoded}&imageId=${img.id}`,
-        })),
-        history: history.map(mapRecord),
-      };
-    } catch (e) {
-      return { error: `Invalid initData ${e}` };
     }
   }
 
