@@ -1041,13 +1041,18 @@ export class TelegramBotService {
   ): string {
     const centerLat = (userLat + barLat) / 2;
     const centerLon = (userLon + barLon) / 2;
-    const markers = `${userLat},${userLon},red-pushpin|${barLat},${barLon},blue-pushpin`;
+    const params = new URLSearchParams({
+      center: `${centerLat},${centerLon}`,
+      zoom: '13',
+      size: '900x540',
+      mlat0: String(userLat),
+      mlon0: String(userLon),
+      mlat1: String(barLat),
+      mlon1: String(barLon),
+    });
     return (
       `https://staticmap.openstreetmap.de/staticmap.php` +
-      `?center=${centerLat},${centerLon}` +
-      `&zoom=13` +
-      `&size=900x540` +
-      `&markers=${encodeURIComponent(markers)}`
+      `?${params.toString()}`
     );
   }
 
