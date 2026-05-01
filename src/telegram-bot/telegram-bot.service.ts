@@ -321,14 +321,15 @@ export class TelegramBotService {
         },
       );
 
-      const staticMapUrl = this.buildTwoPinsStaticMapUrl(
+      const staticMapUrls = this.buildTwoPinsStaticMapUrls(
         location.latitude,
         location.longitude,
         BAR_PIVSKI_ZABAVNIK.latitude,
         BAR_PIVSKI_ZABAVNIK.longitude,
       );
       try {
-        const staticMapBuffer = await this.downloadBinary(staticMapUrl);
+        const staticMapBuffer =
+          await this.downloadFirstAvailableBinary(staticMapUrls);
         await ctx.replyWithPhoto(
           { source: staticMapBuffer, filename: 'bar-map.png' },
           {
@@ -952,6 +953,19 @@ export class TelegramBotService {
     return Buffer.from(arrayBuffer);
   }
 
+  private async downloadFirstAvailableBinary(urls: string[]): Promise<Buffer> {
+    let lastError: unknown;
+    for (const url of urls) {
+      try {
+        return await this.downloadBinary(url);
+      } catch (error) {
+        lastError = error;
+        console.warn('Static map provider failed:', url, error);
+      }
+    }
+    throw lastError ?? new Error('No static map providers available');
+  }
+
   private extractSenderId(update: TelegramUpdate): number | undefined {
     if ('message' in update && update.message?.from) {
       return update.message.from.id;
@@ -1053,15 +1067,15 @@ export class TelegramBotService {
     return (value * Math.PI) / 180;
   }
 
-  private buildTwoPinsStaticMapUrl(
+  private buildTwoPinsStaticMapUrls(
     userLat: number,
     userLon: number,
     barLat: number,
     barLon: number,
-  ): string {
+  ): string[] {
     const centerLat = (userLat + barLat) / 2;
     const centerLon = (userLon + barLon) / 2;
-    const params = new URLSearchParams({
+    const osmParams = new URLSearchParams({
       center: `${centerLat},${centerLon}`,
       zoom: '13',
       size: '900x540',
@@ -1070,10 +1084,22 @@ export class TelegramBotService {
       mlat1: String(barLat),
       mlon1: String(barLon),
     });
-    return (
+    const osmUrl =
       `https://staticmap.openstreetmap.de/staticmap.php` +
-      `?${params.toString()}`
-    );
+      `?${osmParams.toString()}`;
+
+    // Yandex static maps uses lon,lat order in `ll` and `pt`.
+    const yandexParams = new URLSearchParams({
+      lang: 'en_US',
+      l: 'map',
+      z: '13',
+      size: '650,450',
+      ll: `${centerLon},${centerLat}`,
+      pt: `${userLon},${userLat},pm2rdm~${barLon},${barLat},pm2blm`,
+    });
+    const yandexUrl = `https://static-maps.yandex.ru/1.x/?${yandexParams.toString()}`;
+
+    return [osmUrl, yandexUrl];
   }
 
   // Добавляем метод для обработки webhook-обновлений
