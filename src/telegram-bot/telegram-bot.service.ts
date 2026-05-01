@@ -27,8 +27,8 @@ const MAX_TELEGRAM_FILE_DOWNLOAD_BYTES = 20 * 1024 * 1024;
 const BAR_PIVSKI_ZABAVNIK = {
   name: 'Pivski Zabavnik',
   city: 'Belgrade',
-  latitude: 44.81103,
-  longitude: 20.4633,
+  latitude: 44.8031894,
+  longitude: 20.4801984,
 };
 
 type TelegramUpdate =
@@ -321,19 +321,33 @@ export class TelegramBotService {
         },
       );
 
-      // Telegram map shows one point per message, so we send both points consecutively.
-      await ctx.replyWithLocation(location.latitude, location.longitude);
-      await ctx.replyWithLocation(
+      const staticMapUrl = this.buildTwoPinsStaticMapUrl(
+        location.latitude,
+        location.longitude,
         BAR_PIVSKI_ZABAVNIK.latitude,
         BAR_PIVSKI_ZABAVNIK.longitude,
       );
+      await ctx.replyWithPhoto(staticMapUrl, {
+        caption: 'Карта: вы и Pivski Zabavnik',
+      });
 
       const userMapLink = `https://maps.google.com/?q=${location.latitude},${location.longitude}`;
       const barMapLink = `https://maps.google.com/?q=${BAR_PIVSKI_ZABAVNIK.latitude},${BAR_PIVSKI_ZABAVNIK.longitude}`;
+      const directionsLink =
+        `https://www.google.com/maps/dir/?api=1` +
+        `&origin=${location.latitude},${location.longitude}` +
+        `&destination=${BAR_PIVSKI_ZABAVNIK.latitude},${BAR_PIVSKI_ZABAVNIK.longitude}`;
       await ctx.reply(
         `Расстояние до ${BAR_PIVSKI_ZABAVNIK.name}: ${distanceKm.toFixed(2)} км\n` +
           `Вы: ${userMapLink}\n` +
           `Бар: ${barMapLink}`,
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: 'Открыть маршрут', url: directionsLink }],
+            ],
+          },
+        },
       );
     });
 
@@ -1017,6 +1031,24 @@ export class TelegramBotService {
 
   private toRadians(value: number): number {
     return (value * Math.PI) / 180;
+  }
+
+  private buildTwoPinsStaticMapUrl(
+    userLat: number,
+    userLon: number,
+    barLat: number,
+    barLon: number,
+  ): string {
+    const centerLat = (userLat + barLat) / 2;
+    const centerLon = (userLon + barLon) / 2;
+    const markers = `${userLat},${userLon},red-pushpin|${barLat},${barLon},blue-pushpin`;
+    return (
+      `https://staticmap.openstreetmap.de/staticmap.php` +
+      `?center=${centerLat},${centerLon}` +
+      `&zoom=13` +
+      `&size=900x540` +
+      `&markers=${encodeURIComponent(markers)}`
+    );
   }
 
   // Добавляем метод для обработки webhook-обновлений
