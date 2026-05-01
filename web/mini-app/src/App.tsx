@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useRawInitData } from '@telegram-apps/sdk-react';
 import { Box, Heading, Flex, Avatar, Text, Stack } from '@chakra-ui/react';
 
-type Counts = { notes: number; questions: number; answers: number };
+type Counts = { notes: number };
 type UserData = {
   userId: number;
   userSummary: string | null;
@@ -86,12 +86,6 @@ export default function App() {
             <Stack spacing={1}>
               <Text>
                 <b>Notes</b>: {user.counts.notes}
-              </Text>
-              <Text>
-                <b>Questions</b>: {user.counts.questions}
-              </Text>
-              <Text>
-                <b>Answers</b>: {user.counts.answers}
               </Text>
             </Stack>
           )}

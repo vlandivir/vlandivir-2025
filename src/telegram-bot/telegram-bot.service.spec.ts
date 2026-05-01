@@ -205,12 +205,13 @@ describe('TelegramBotService', () => {
     const svc = service as unknown as { getHelpMessage(): string };
     const result = svc.getHelpMessage();
     const expected = [
-      '/a - Open Mini App',
+      '/a - Open App',
+      '/bar - Distance to Pivski Zabavnik',
       '/c or /collage - Create image collage',
       '/d or /dairy - Dairy Notes',
-      '/f - Translate between RU/EN/SR',
       '/help - Show this help message',
       '/history - Chat History',
+      '/p or /phrase - Translate between RU/EN/SR',
       '/s - Serbian Translation',
     ].join('\n');
     expect(result).toBe(expected);

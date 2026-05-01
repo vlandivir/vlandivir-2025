@@ -24,11 +24,7 @@ export class MiniAppController {
 
       // userId is number; in DB chatId is BigInt. Use BigInt for filtering
       const chatId = BigInt(userId);
-      const [notes, questions, answers] = await Promise.all([
-        this.prisma.note.count({ where: { chatId } }),
-        this.prisma.question.count({ where: { chatId } }),
-        this.prisma.answer.count(),
-      ]);
+      const notes = await this.prisma.note.count({ where: { chatId } });
 
       const userSummary = [
         parsed.user?.firstName,
@@ -51,7 +47,7 @@ export class MiniAppController {
         username: parsed.user?.username || null,
         initials,
         hasAvatar: true, // actual presence checked in avatar endpoint; keep true to try load
-        counts: { notes, questions, answers },
+        counts: { notes },
       };
     } catch (e) {
       return { error: `Invalid initData ${e}` };

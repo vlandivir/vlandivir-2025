@@ -163,7 +163,7 @@ export class TelegramBotService {
             inline_keyboard: [
               [
                 {
-                  text: 'Open Mini App',
+                  text: 'Open App',
                   web_app: { url: appUrl },
                 },
               ],
@@ -981,7 +981,7 @@ export class TelegramBotService {
       { name: '/history', description: 'Chat History' },
       { name: '/s', description: 'Serbian Translation' },
       { name: '/p or /phrase', description: 'Translate between RU/EN/SR' },
-      { name: '/a', description: 'Open Mini App' },
+      { name: '/a', description: 'Open App' },
       { name: '/bar', description: 'Distance to Pivski Zabavnik' },
       { name: '/c or /collage', description: 'Create image collage' },
       { name: '/help', description: 'Show this help message' },
