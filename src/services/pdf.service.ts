@@ -4,11 +4,11 @@ import { Injectable } from '@nestjs/common';
 export class PdfService {
   async renderPdfFromHtml(html: string): Promise<Buffer> {
     const puppeteer = await import('puppeteer');
-    const browser = await puppeteer.launch({ headless: 'new' });
+    const browser = await puppeteer.launch({ headless: true });
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: 'networkidle0' });
     const pdf = await page.pdf({ format: 'A4', printBackground: true });
     await browser.close();
-    return pdf;
+    return Buffer.from(pdf);
   }
 }
