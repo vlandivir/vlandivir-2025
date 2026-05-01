@@ -46,7 +46,7 @@ Example:
 /s zdravo
 ```
 
-### `/f`
+### `/p` or `/phrase`
 
 Translates a phrase between Russian, English and Serbian. Detects the input language and returns two translation variants for each of the other two languages. Only works in private chats.
 
@@ -55,7 +55,7 @@ Translates a phrase between Russian, English and Serbian. Detects the input lang
 Example:
 
 ```
-/f hello world
+/p hello world
 ```
 
 ### `/history`

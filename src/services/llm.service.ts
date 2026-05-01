@@ -36,7 +36,7 @@ export class LlmService {
               Authorization: `Bearer ${apiKey}`,
             },
             body: JSON.stringify({
-              model: 'gpt-4o-mini',
+              model: 'gpt-5',
               messages: [
                 {
                   role: 'user',

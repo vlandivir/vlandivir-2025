@@ -24,6 +24,12 @@ import { Readable } from 'stream';
 
 // Telegram Bot API limitation: bots cannot download files larger than ~20 MB via getFile
 const MAX_TELEGRAM_FILE_DOWNLOAD_BYTES = 20 * 1024 * 1024;
+const BAR_PIVSKI_ZABAVNIK = {
+  name: 'Pivski Zabavnik',
+  city: 'Belgrade',
+  latitude: 44.81103,
+  longitude: 20.4633,
+};
 
 type TelegramUpdate =
   | Update.CallbackQueryUpdate
@@ -36,6 +42,7 @@ export class TelegramBotService {
 
   // Маппинг каналов к создателям (дополнительный механизм)
   private readonly channelCreatorMapping: Map<number, number> = new Map();
+  private readonly awaitingBarLocationChats: Set<number> = new Set();
 
   constructor(
     private readonly configService: ConfigService,
@@ -127,9 +134,9 @@ export class TelegramBotService {
       return this.serbianCommands.handleSerbianCommand(ctx);
     });
 
-    // Add the new foreign translation command
-    this.bot.command(['f'], (ctx) => {
-      console.log('Получена команда /f:', ctx.message?.text);
+    // Add the foreign translation command
+    this.bot.command(['p', 'phrase'], (ctx) => {
+      console.log('Получена команда /p /phrase:', ctx.message?.text);
       return this.foreignCommands.handleForeignCommand(ctx);
     });
 
@@ -203,6 +210,39 @@ export class TelegramBotService {
       return ctx.reply(this.getHelpMessage());
     });
 
+    // Bar command: ask user for location, then show user/bar points and distance
+    this.bot.command(['bar'], async (ctx) => {
+      if (ctx.chat?.type !== 'private') {
+        await ctx.reply(
+          'Команда /bar доступна только в личных сообщениях с ботом',
+        );
+        return;
+      }
+
+      const chatId = ctx.chat?.id;
+      if (!chatId) {
+        await ctx.reply('Unable to determine chat.');
+        return;
+      }
+
+      this.awaitingBarLocationChats.add(chatId);
+      const locationButton = {
+        text: '📍 Поделиться геолокацией',
+        request_location: true,
+      };
+
+      await ctx.reply(
+        `Отправьте вашу геолокацию, и я покажу расстояние до бара ${BAR_PIVSKI_ZABAVNIK.name} (${BAR_PIVSKI_ZABAVNIK.city}).`,
+        {
+          reply_markup: {
+            keyboard: [[locationButton]],
+            one_time_keyboard: true,
+            resize_keyboard: true,
+          },
+        },
+      );
+    });
+
     // Collage command - starts interactive collage creation
     this.bot.command(['collage', 'c'], (ctx) => {
       console.log('Получена команда /collage /c:', ctx.message?.text);
@@ -256,6 +296,45 @@ export class TelegramBotService {
       const isGroup =
         ctx.chat.type === 'group' || ctx.chat.type === 'supergroup';
       await this.handleIncomingVideo(ctx, isGroup);
+    });
+
+    // Handle location shares for /bar flow
+    this.bot.on(message('location'), async (ctx) => {
+      const chatId = ctx.chat?.id;
+      if (!chatId || !this.awaitingBarLocationChats.has(chatId)) {
+        return;
+      }
+
+      this.awaitingBarLocationChats.delete(chatId);
+      const location = ctx.message.location;
+      const distanceKm = this.calculateDistanceKm(
+        location.latitude,
+        location.longitude,
+        BAR_PIVSKI_ZABAVNIK.latitude,
+        BAR_PIVSKI_ZABAVNIK.longitude,
+      );
+
+      await ctx.reply(
+        `Спасибо! Вы на карте и ${BAR_PIVSKI_ZABAVNIK.name} (${BAR_PIVSKI_ZABAVNIK.city}) отмечены ниже.`,
+        {
+          reply_markup: { remove_keyboard: true },
+        },
+      );
+
+      // Telegram map shows one point per message, so we send both points consecutively.
+      await ctx.replyWithLocation(location.latitude, location.longitude);
+      await ctx.replyWithLocation(
+        BAR_PIVSKI_ZABAVNIK.latitude,
+        BAR_PIVSKI_ZABAVNIK.longitude,
+      );
+
+      const userMapLink = `https://maps.google.com/?q=${location.latitude},${location.longitude}`;
+      const barMapLink = `https://maps.google.com/?q=${BAR_PIVSKI_ZABAVNIK.latitude},${BAR_PIVSKI_ZABAVNIK.longitude}`;
+      await ctx.reply(
+        `Расстояние до ${BAR_PIVSKI_ZABAVNIK.name}: ${distanceKm.toFixed(2)} км\n` +
+          `Вы: ${userMapLink}\n` +
+          `Бар: ${barMapLink}`,
+      );
     });
 
     // Обработчик видео из каналов
@@ -901,8 +980,9 @@ export class TelegramBotService {
       { name: '/d or /dairy', description: 'Dairy Notes' },
       { name: '/history', description: 'Chat History' },
       { name: '/s', description: 'Serbian Translation' },
-      { name: '/f', description: 'Translate between RU/EN/SR' },
+      { name: '/p or /phrase', description: 'Translate between RU/EN/SR' },
       { name: '/a', description: 'Open Mini App' },
+      { name: '/bar', description: 'Distance to Pivski Zabavnik' },
       { name: '/c or /collage', description: 'Create image collage' },
       { name: '/help', description: 'Show this help message' },
     ];
@@ -914,6 +994,29 @@ export class TelegramBotService {
   addChannelCreatorMapping(channelId: number, creatorId: number) {
     this.channelCreatorMapping.set(channelId, creatorId);
     console.log(`Added channel mapping: ${channelId} -> ${creatorId}`);
+  }
+
+  private calculateDistanceKm(
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number,
+  ): number {
+    const earthRadiusKm = 6371;
+    const dLat = this.toRadians(lat2 - lat1);
+    const dLon = this.toRadians(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(this.toRadians(lat1)) *
+        Math.cos(this.toRadians(lat2)) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return earthRadiusKm * c;
+  }
+
+  private toRadians(value: number): number {
+    return (value * Math.PI) / 180;
   }
 
   // Добавляем метод для обработки webhook-обновлений
