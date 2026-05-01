@@ -75,58 +75,6 @@ Example:
 /history
 ```
 
-### `/t` or `/task`
-
-Creates a new todo item.
-
-- **content** — description of the todo item.
-- `@tag` — add tags.
-- `.context` — specify contexts.
-- `!project` — assign projects (multiword names are allowed).
-- `(A)` — set priority with a letter in parentheses.
-- `:<date>` or `:<date> HH:MM` — optional due date. `<date>` accepts the same formats as in the note examples above.
-- You can also use words like `tomorrow` or day names (`sunday`, `понедельник`, etc.) for the due date.
-- **Images** — you can send images with your task to add them as notes. Images will be automatically described using AI.
-
-To update an existing task, start the command with its key:
-`/t T-20250710-03 ...`. New tags and contexts are appended while
-projects and due dates are replaced. The text part can be empty.
-Use `-canceled`, `-done`, `-in-progress`, `-started`, or `-snoozed[days]` (e.g., `-snoozed4` or `-snoozed 4`) to set the status.
-Snoozed tasks are hidden from `/tl` until their snooze period expires.
-
-Example:
-
-```
-/task (B) @work .office !Big Project :2025.07.31 09:00 Prepare report
-```
-
-### `/tl`
-
-Lists unfinished todo items in a single message. Each task has an inline button
-showing its key so you can quickly start editing. Tasks with images show a 📷 icon
-with the number of images. You can filter by the same
-`@tag`, `.context` and `!project` tokens as in `/task`.
-
-Example:
-
-```
-/tl @work .office
-```
-
-### `/th`
-
-Generates an HTML page with all tasks and their history stored on DigitalOcean Spaces.
-
-Tasks are organized into three categories:
-
-- **Unfinished**: Active tasks sorted by due date and key
-- **Snoozed**: Tasks that are currently snoozed, sorted by snooze expiration date and key
-- **Finished**: Completed or canceled tasks sorted by creation date
-
-The snoozed until date is displayed for snoozed tasks.
-History lines show only what changed instead of repeating the full task text,
-and the first history entry now includes the task title.
-
 ### `/help`
 
 Shows a list of all available commands.

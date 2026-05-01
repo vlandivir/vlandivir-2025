@@ -4,7 +4,7 @@ import {
   Message,
   CallbackQuery,
 } from 'telegraf/typings/core/types/typegram';
-import { Telegraf, Context, Scenes, session } from 'telegraf';
+import { Telegraf, Context } from 'telegraf';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '../generated/prisma-client';
@@ -18,14 +18,8 @@ import { LlmService } from '../services/llm.service';
 import { SerbianCommandsService } from './serbian-commands.service';
 import { ForeignCommandsService } from './foreign-commands.service';
 import { HistoryCommandsService } from './history-commands.service';
-import { TaskCommandsService } from './task-commands.service';
-import { TaskHistoryCommandsService } from './task-history-commands.service';
 import { CollageCommandsService } from './collage-commands.service';
 // import { getUserTimeZone } from '../utils/timezone';
-import {
-  createTaskEditScene,
-  TaskEditWizardContext,
-} from './scenes/task-edit.scene';
 import { Readable } from 'stream';
 
 // Telegram Bot API limitation: bots cannot download files larger than ~20 MB via getFile
@@ -38,8 +32,7 @@ type TelegramUpdate =
 
 @Injectable()
 export class TelegramBotService {
-  private readonly bot: Telegraf<TaskEditWizardContext>;
-  private readonly stage: Scenes.Stage<TaskEditWizardContext>;
+  private readonly bot: Telegraf<Context>;
 
   // Маппинг каналов к создателям (дополнительный механизм)
   private readonly channelCreatorMapping: Map<number, number> = new Map();
@@ -54,21 +47,13 @@ export class TelegramBotService {
     private readonly serbianCommands: SerbianCommandsService,
     private readonly foreignCommands: ForeignCommandsService,
     private readonly historyCommands: HistoryCommandsService,
-    private readonly taskCommands: TaskCommandsService,
-    private readonly taskHistoryCommands: TaskHistoryCommandsService,
     private readonly collageCommands: CollageCommandsService,
   ) {
     const token = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
     if (!token) {
       throw new Error('TELEGRAM_BOT_TOKEN is not defined');
     }
-    this.bot = new Telegraf<TaskEditWizardContext>(token);
-    this.stage = new Scenes.Stage<TaskEditWizardContext>([
-      createTaskEditScene(this.taskCommands),
-    ]);
-
-    this.bot.use(session());
-    this.bot.use(this.stage.middleware());
+    this.bot = new Telegraf<Context>(token);
 
     // Добавляем middleware для логирования
     this.bot.use((ctx, next) => {
@@ -154,123 +139,6 @@ export class TelegramBotService {
       return this.historyCommands.handleHistoryCommand(ctx);
     });
 
-    // Add the new task command
-    this.bot.command(['t', 'task'], (ctx) => {
-      console.log('Получена команда /t /task:', ctx.message?.text);
-      return this.taskCommands.handleTaskCommand(ctx);
-    });
-
-    // Set timezone command
-    this.bot.command(['tz'], async (ctx) => {
-      const text = ctx.message?.text || '';
-      const arg = text.replace(/^\/tz\s+/, '').trim();
-      if (!arg) {
-        await ctx.reply(
-          'Usage: /tz <IANA tz or UTC±HH[:MM]>. Example: /tz Europe/Belgrade or /tz UTC+2',
-        );
-        return;
-      }
-      // Normalize and validate timezone
-      const normalized = (() => {
-        const m = /^UTC([+-])(\d{1,2})(?::?(\d{2}))?$/i.exec(arg);
-        if (m) {
-          const sign = m[1];
-          const hh = String(
-            Math.min(14, Math.max(0, parseInt(m[2], 10))),
-          ).padStart(2, '0');
-          const mm = String(
-            Math.min(59, Math.max(0, m[3] ? parseInt(m[3], 10) : 0)),
-          ).padStart(2, '0');
-          return `UTC${sign}${hh}:${mm}`;
-        }
-        try {
-          // simple validation using Intl; fall back to date-fns-tz in strict mode if needed
-          Intl.DateTimeFormat(undefined, { timeZone: arg });
-          return arg;
-        } catch {
-          return null;
-        }
-      })();
-      if (!normalized) {
-        await ctx.reply(
-          'Invalid timezone. Use IANA tz (e.g., Europe/Belgrade) or UTC±HH[:MM].',
-        );
-        return;
-      }
-      const chatId = ctx.chat?.id;
-      if (!chatId) {
-        await ctx.reply('Unable to determine chat.');
-        return;
-      }
-      try {
-        await this.prisma.chatSettings.upsert({
-          where: { chatId: BigInt(chatId) },
-          update: { timeZone: normalized },
-          create: { chatId: BigInt(chatId), timeZone: normalized },
-        });
-        await ctx.reply(
-          `Timezone set to: ${normalized}. I will use it for /tl and /th.`,
-        );
-      } catch (e) {
-        console.error('Failed to save timezone', e);
-        await ctx.reply('Failed to save timezone. Please try again later.');
-      }
-    });
-
-    // Task list command
-    this.bot.command(['tl'], async (ctx) => {
-      console.log('Получена команда /tl:', ctx.message?.text);
-      try {
-        const rec = await this.prisma.chatSettings.findUnique({
-          where: { chatId: BigInt(ctx.chat?.id || 0) },
-        });
-        if (!rec?.timeZone) {
-          await ctx.reply(
-            'Please set your time zone with /tz <IANA tz or UTC±HH[:MM]>. Example: /tz Europe/Belgrade. You can also use /tl tz=<IANA tz> once.',
-          );
-        }
-      } catch (e) {
-        console.error('Error reading chat settings', e);
-        await ctx.reply(
-          'Error reading timezone settings. Please try again later.',
-        );
-      }
-      try {
-        return this.taskCommands.handleListCommand(ctx);
-      } catch (e) {
-        console.error('Error handling list command', e);
-        await ctx.reply('Error handling list command. Please try again later.');
-      }
-    });
-
-    // Task history HTML command
-    this.bot.command(['th'], async (ctx) => {
-      console.log('Получена команда /th:', ctx.message?.text);
-      try {
-        const rec = await this.prisma.chatSettings.findUnique({
-          where: { chatId: BigInt(ctx.chat?.id || 0) },
-        });
-        if (!rec?.timeZone) {
-          await ctx.reply(
-            'Please set your time zone first with /tz <IANA tz or UTC±HH[:MM]>. Example: /tz Europe/Belgrade',
-          );
-        }
-      } catch (e) {
-        console.error('Error reading chat settings', e);
-        await ctx.reply(
-          'Error reading timezone settings. Please try again later.',
-        );
-      }
-      try {
-        return this.taskHistoryCommands.handleTaskHistoryCommand(ctx);
-      } catch (e) {
-        console.error('Error handling task history command', e);
-        await ctx.reply(
-          'Error handling task history command. Please try again later.',
-        );
-      }
-    });
-
     // Mini app command
     this.bot.command(['a'], async (ctx) => {
       try {
@@ -345,10 +213,6 @@ export class TelegramBotService {
     this.bot.on(message('text'), async (ctx) => {
       console.log('Получено текстовое сообщение:', ctx.message.text);
 
-      if (ctx.scene?.session?.current === 'taskEditScene') {
-        return;
-      }
-
       if (!ctx.message.text.startsWith('/')) {
         const isGroup =
           ctx.chat.type === 'group' || ctx.chat.type === 'supergroup';
@@ -359,10 +223,6 @@ export class TelegramBotService {
     // Обработчик для фото в личных чатах и группах
     this.bot.on(message('photo'), async (ctx) => {
       console.log('Получено фото из чата/группы');
-
-      if (ctx.scene?.session?.current === 'taskEditScene') {
-        return;
-      }
 
       const isGroup =
         ctx.chat.type === 'group' || ctx.chat.type === 'supergroup';
@@ -392,10 +252,6 @@ export class TelegramBotService {
     // Обработчик для видео в личных чатах и группах
     this.bot.on(message('video'), async (ctx) => {
       console.log('Получено видео из чата/группы');
-
-      if (ctx.scene?.session?.current === 'taskEditScene') {
-        return;
-      }
 
       const isGroup =
         ctx.chat.type === 'group' || ctx.chat.type === 'supergroup';
@@ -443,9 +299,6 @@ export class TelegramBotService {
       ) {
         const percent = parseInt(data.replace('circle_size_', ''), 10);
         await this.collageCommands.generateSpecial2(ctx, percent);
-      } else if (data && data.startsWith('edit_task_')) {
-        const key = data.replace('edit_task_', '');
-        await ctx.scene.enter('taskEditScene', { key });
       }
     });
   }
@@ -1049,9 +902,6 @@ export class TelegramBotService {
       { name: '/history', description: 'Chat History' },
       { name: '/s', description: 'Serbian Translation' },
       { name: '/f', description: 'Translate between RU/EN/SR' },
-      { name: '/t or /task', description: 'Create Todo item' },
-      { name: '/tl', description: 'List Todo items' },
-      { name: '/th', description: 'Tasks HTML export' },
       { name: '/a', description: 'Open Mini App' },
       { name: '/c or /collage', description: 'Create image collage' },
       { name: '/help', description: 'Show this help message' },

@@ -9,8 +9,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SerbianCommandsService } from './serbian-commands.service';
 import { ForeignCommandsService } from './foreign-commands.service';
 import { HistoryCommandsService } from './history-commands.service';
-import { TaskCommandsService } from './task-commands.service';
-import { TaskHistoryCommandsService } from './task-history-commands.service';
 import { CollageCommandsService } from './collage-commands.service';
 
 @Module({
@@ -23,8 +21,6 @@ import { CollageCommandsService } from './collage-commands.service';
     SerbianCommandsService,
     ForeignCommandsService,
     HistoryCommandsService,
-    TaskCommandsService,
-    TaskHistoryCommandsService,
     CollageCommandsService,
   ],
   exports: [TelegramBotService],
