@@ -327,9 +327,18 @@ export class TelegramBotService {
         BAR_PIVSKI_ZABAVNIK.latitude,
         BAR_PIVSKI_ZABAVNIK.longitude,
       );
-      await ctx.replyWithPhoto(staticMapUrl, {
-        caption: 'Карта: вы и Pivski Zabavnik',
-      });
+      try {
+        const staticMapBuffer = await this.downloadBinary(staticMapUrl);
+        await ctx.replyWithPhoto(
+          { source: staticMapBuffer, filename: 'bar-map.png' },
+          {
+            caption: 'Карта: вы и Pivski Zabavnik',
+          },
+        );
+      } catch (error) {
+        console.error('Failed to render/send static map', error);
+        await ctx.reply('Не удалось загрузить карту с двумя точками.');
+      }
 
       const userMapLink = `https://maps.google.com/?q=${location.latitude},${location.longitude}`;
       const barMapLink = `https://maps.google.com/?q=${BAR_PIVSKI_ZABAVNIK.latitude},${BAR_PIVSKI_ZABAVNIK.longitude}`;
@@ -928,6 +937,17 @@ export class TelegramBotService {
     const response = await fetch(
       `https://api.telegram.org/file/bot${this.configService.get('TELEGRAM_BOT_TOKEN')}/${filePath}`,
     );
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  }
+
+  private async downloadBinary(url: string): Promise<Buffer> {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(
+        `Failed to download binary: ${response.status} ${response.statusText}`,
+      );
+    }
     const arrayBuffer = await response.arrayBuffer();
     return Buffer.from(arrayBuffer);
   }
