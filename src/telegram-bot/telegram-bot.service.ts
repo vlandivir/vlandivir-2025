@@ -19,6 +19,7 @@ import { SerbianCommandsService } from './serbian-commands.service';
 import { ForeignCommandsService } from './foreign-commands.service';
 import { HistoryCommandsService } from './history-commands.service';
 import { CollageCommandsService } from './collage-commands.service';
+import { DebugLogService } from '../services/debug-log.service';
 // import { getUserTimeZone } from '../utils/timezone';
 import { Readable } from 'stream';
 
@@ -55,6 +56,7 @@ export class TelegramBotService {
     private readonly foreignCommands: ForeignCommandsService,
     private readonly historyCommands: HistoryCommandsService,
     private readonly collageCommands: CollageCommandsService,
+    private readonly debugLogService: DebugLogService,
   ) {
     const token = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
     if (!token) {
@@ -69,6 +71,47 @@ export class TelegramBotService {
       console.log(
         `Получено обновление типа [${updateType}] из чата типа [${chatType}]`,
       );
+      this.debugLogService.info('telegram-update', 'Incoming update', {
+        updateType,
+        chatType,
+        hasMessage: !!ctx.message,
+        hasVideo: !!(ctx.message && 'video' in ctx.message),
+        hasVideoNote: !!(ctx.message && 'video_note' in ctx.message),
+      });
+      // #region agent log
+      fetch(
+        'http://127.0.0.1:7651/ingest/2258b12e-88c5-48b5-93f6-d9873e1c1f96',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Debug-Session-Id': '1f338d',
+          },
+          body: JSON.stringify({
+            sessionId: '1f338d',
+            runId: 'pre-fix',
+            hypothesisId: 'H1',
+            location: 'telegram-bot.service.ts:73',
+            message: 'Incoming Telegram update shape',
+            data: {
+              updateType,
+              chatType,
+              hasMessage: !!ctx.message,
+              hasVideo: !!(ctx.message && 'video' in ctx.message),
+              hasVideoNote: !!(ctx.message && 'video_note' in ctx.message),
+              hasChannelPost: !!ctx.channelPost,
+              hasChannelVideo: !!(
+                ctx.channelPost && 'video' in ctx.channelPost
+              ),
+              hasChannelVideoNote: !!(
+                ctx.channelPost && 'video_note' in ctx.channelPost
+              ),
+            },
+            timestamp: Date.now(),
+          }),
+        },
+      ).catch(() => {});
+      // #endregion
       return next();
     });
 
@@ -204,6 +247,32 @@ export class TelegramBotService {
       }
     });
 
+    // Export in-memory debug logs to storage as text file
+    this.bot.command(['debuglog', 'dl'], async (ctx) => {
+      try {
+        const chatId = ctx.chat?.id;
+        if (!chatId) return;
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const key = `chats/${chatId}/debug/debug-log-${timestamp}.txt`;
+        const text = this.debugLogService.toText();
+        const body = Buffer.from(
+          text || 'No debug logs collected in current process.',
+          'utf-8',
+        );
+        const url = await this.storageService.uploadFileWithKey(
+          body,
+          'text/plain; charset=utf-8',
+          key,
+        );
+        await ctx.reply(
+          `Лог сохранен в storage (${this.debugLogService.count()} записей): ${url}`,
+        );
+      } catch (error) {
+        console.error('Error exporting debug logs', error);
+        await ctx.reply('Не удалось выгрузить debug-лог');
+      }
+    });
+
     // Help command
     this.bot.command(['help'], (ctx) => {
       console.log('Получена команда /help');
@@ -298,6 +367,19 @@ export class TelegramBotService {
       await this.handleIncomingVideo(ctx, isGroup);
     });
 
+    // Handler for Telegram video notes ("circles")
+    this.bot.on(message('video_note'), async (ctx) => {
+      console.log('Получен video_note (кружок) из чата/группы');
+      this.debugLogService.info(
+        'video-note-handler',
+        'Received message(video_note)',
+        { chatId: ctx.chat?.id },
+      );
+      const isGroup =
+        ctx.chat.type === 'group' || ctx.chat.type === 'supergroup';
+      await this.handleIncomingVideo(ctx, isGroup);
+    });
+
     // Handle location shares for /bar flow
     this.bot.on(message('location'), async (ctx) => {
       const chatId = ctx.chat?.id;
@@ -382,6 +464,28 @@ export class TelegramBotService {
       } as unknown as Context;
 
       await this.handleIncomingVideo(videoContext, true);
+    });
+
+    // Channel handler for Telegram video notes
+    this.bot.on(channelPost('video_note'), async (ctx) => {
+      console.log('Получен video_note (кружок) из канала');
+      if (!ctx.channelPost) return;
+      this.debugLogService.info(
+        'video-note-handler',
+        'Received channelPost(video_note)',
+        { chatId: ctx.chat?.id },
+      );
+      const videoNoteContext = {
+        ...ctx,
+        message: ctx.channelPost,
+        chat: ctx.chat,
+        updateType: 'message',
+        me: ctx.botInfo,
+        tg: ctx.telegram,
+        editedMessage: undefined,
+        state: {},
+      } as unknown as Context;
+      await this.handleIncomingVideo(videoNoteContext, true);
     });
 
     // Handle inline buttons
@@ -643,13 +747,50 @@ export class TelegramBotService {
       if (!ctx.message) return;
 
       const video = 'video' in ctx.message ? ctx.message.video : null;
+      const videoNote =
+        'video_note' in ctx.message ? ctx.message.video_note : null;
       const caption = 'caption' in ctx.message ? ctx.message.caption : '';
+      const media = video ?? videoNote;
+      const mediaType = video ? 'video' : videoNote ? 'video_note' : 'none';
+      this.debugLogService.info('video-ingest', 'Entered handleIncomingVideo', {
+        chatId: ctx.chat?.id,
+        mediaType,
+        hasVideo: !!video,
+        hasVideoNote: !!videoNote,
+        captionLength: caption?.length || 0,
+      });
+      // #region agent log
+      fetch(
+        'http://127.0.0.1:7651/ingest/2258b12e-88c5-48b5-93f6-d9873e1c1f96',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Debug-Session-Id': '1f338d',
+          },
+          body: JSON.stringify({
+            sessionId: '1f338d',
+            runId: 'pre-fix',
+            hypothesisId: 'H2',
+            location: 'telegram-bot.service.ts:650',
+            message: 'Entered handleIncomingVideo',
+            data: {
+              chatId: ctx.chat?.id,
+              hasVideo: !!video,
+              hasVideoNote: !!('video_note' in ctx.message),
+              captionLength: caption?.length || 0,
+            },
+            timestamp: Date.now(),
+          }),
+        },
+      ).catch(() => {});
+      // #endregion
 
-      if (!video || !ctx.chat) return;
+      if (!media || !ctx.chat) return;
 
       // Pre-check size to avoid Telegram "file is too big" errors on getFile
       const fileSize =
-        typeof video.file_size === 'number' ? video.file_size : 0;
+        typeof media.file_size === 'number' ? media.file_size : 0;
       if (fileSize > MAX_TELEGRAM_FILE_DOWNLOAD_BYTES) {
         console.warn(
           `Video too large to download via Telegram getFile: ${fileSize} bytes > ${MAX_TELEGRAM_FILE_DOWNLOAD_BYTES}`,
@@ -715,13 +856,47 @@ export class TelegramBotService {
       }
 
       // Normal flow for acceptable sizes
-      const file = await ctx.telegram.getFile(video.file_id);
+      const file = await ctx.telegram.getFile(media.file_id);
       const videoBuffer = await this.downloadFile(file.file_path!);
       const videoUrl = await this.storageService.uploadVideo(
         videoBuffer,
-        video.mime_type || 'video/mp4',
+        video?.mime_type || 'video/mp4',
         ctx.chat.id,
       );
+      this.debugLogService.info('video-ingest', 'Uploaded media to storage', {
+        chatId: ctx.chat.id,
+        mediaType,
+        fileSize,
+        videoUrl,
+      });
+      // #region agent log
+      fetch(
+        'http://127.0.0.1:7651/ingest/2258b12e-88c5-48b5-93f6-d9873e1c1f96',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Debug-Session-Id': '1f338d',
+          },
+          body: JSON.stringify({
+            sessionId: '1f338d',
+            runId: 'pre-fix',
+            hypothesisId: 'H4',
+            location: 'telegram-bot.service.ts:732',
+            message: 'Video uploaded to storage',
+            data: {
+              chatId: ctx.chat.id,
+              mimeType: video?.mime_type || 'video/mp4',
+              fileSize:
+                typeof media.file_size === 'number' ? media.file_size : null,
+              videoUrl,
+              mediaType,
+            },
+            timestamp: Date.now(),
+          }),
+        },
+      ).catch(() => {});
+      // #endregion
 
       const { date: noteDate, cleanContent } =
         this.dateParser.extractDateFromFirstLine(caption || '');
@@ -757,6 +932,37 @@ export class TelegramBotService {
           videos: true,
         },
       });
+      this.debugLogService.info('video-ingest', 'Saved note with video', {
+        chatId: ctx.chat.id,
+        noteId: savedNote.id,
+        mediaType,
+        videosCount: savedNote.videos.length,
+      });
+      // #region agent log
+      fetch(
+        'http://127.0.0.1:7651/ingest/2258b12e-88c5-48b5-93f6-d9873e1c1f96',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Debug-Session-Id': '1f338d',
+          },
+          body: JSON.stringify({
+            sessionId: '1f338d',
+            runId: 'pre-fix',
+            hypothesisId: 'H3',
+            location: 'telegram-bot.service.ts:767',
+            message: 'Video note persisted',
+            data: {
+              noteId: savedNote.id,
+              chatId: ctx.chat.id,
+              videosCount: savedNote.videos?.length || 0,
+            },
+            timestamp: Date.now(),
+          }),
+        },
+      ).catch(() => {});
+      // #endregion
 
       if (!silent) {
         const botResponse = `Видео сохранено${
@@ -1035,6 +1241,7 @@ export class TelegramBotService {
       { name: '/a', description: 'Open App' },
       { name: '/bar', description: 'Distance to Pivski Zabavnik' },
       { name: '/c or /collage', description: 'Create image collage' },
+      { name: '/dl or /debuglog', description: 'Export in-memory debug log' },
       { name: '/help', description: 'Show this help message' },
     ];
     commands.sort((a, b) => a.name.localeCompare(b.name));

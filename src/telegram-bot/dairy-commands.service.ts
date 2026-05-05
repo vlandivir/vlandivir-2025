@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Context } from 'telegraf';
 import { PrismaService } from '../prisma/prisma.service';
 import { DateParserService } from '../services/date-parser.service';
+import { DebugLogService } from '../services/debug-log.service';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import { ru } from 'date-fns/locale';
 
@@ -10,6 +11,7 @@ export class DairyCommandsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly dateParser: DateParserService,
+    private readonly debugLogService: DebugLogService,
   ) {}
 
   async handleDairyCommand(ctx: Context) {
@@ -172,12 +174,75 @@ export class DairyCommandsService {
       }
       if (note.videos && note.videos.length > 0) {
         hasMedia = true;
+        this.debugLogService.info('dairy-send', 'Sending videos from /d', {
+          chatId: ctx.chat?.id,
+          videosCount: note.videos.length,
+        });
+        // #region agent log
+        fetch(
+          'http://127.0.0.1:7651/ingest/2258b12e-88c5-48b5-93f6-d9873e1c1f96',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Debug-Session-Id': '1f338d',
+            },
+            body: JSON.stringify({
+              sessionId: '1f338d',
+              runId: 'pre-fix',
+              hypothesisId: 'H5',
+              location: 'dairy-commands.service.ts:176',
+              message: 'Sending videos in /d output',
+              data: {
+                chatId: ctx.chat?.id,
+                videosCount: note.videos.length,
+                hasText: !!note.content,
+              },
+              timestamp: Date.now(),
+            }),
+          },
+        ).catch(() => {});
+        // #endregion
         for (const video of note.videos) {
           try {
             await ctx.replyWithVideo(video.url, {
               caption: note.content || undefined,
             });
           } catch (e) {
+            this.debugLogService.warn(
+              'dairy-send',
+              'replyWithVideo failed, falling back to URL',
+              {
+                chatId: ctx.chat?.id,
+                videoUrl: video.url,
+                error: e instanceof Error ? e.message : 'unknown',
+              },
+            );
+            // #region agent log
+            fetch(
+              'http://127.0.0.1:7651/ingest/2258b12e-88c5-48b5-93f6-d9873e1c1f96',
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-Debug-Session-Id': '1f338d',
+                },
+                body: JSON.stringify({
+                  sessionId: '1f338d',
+                  runId: 'pre-fix',
+                  hypothesisId: 'H5',
+                  location: 'dairy-commands.service.ts:186',
+                  message: 'replyWithVideo failed, fallback to URL',
+                  data: {
+                    chatId: ctx.chat?.id,
+                    videoUrl: video.url,
+                    error: e instanceof Error ? e.message : 'unknown',
+                  },
+                  timestamp: Date.now(),
+                }),
+              },
+            ).catch(() => {});
+            // #endregion
             console.warn(
               'Failed to send video via Telegram, falling back to URL',
               e,
