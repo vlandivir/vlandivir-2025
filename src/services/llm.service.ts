@@ -1,9 +1,43 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { DebugLogService } from './debug-log.service';
+
+/** OpenAI assistant message.content may be a string or an array of text/refusal parts. */
+function extractTextFromAssistantContent(content: unknown): {
+  text: string | null;
+  refusals: string[];
+} {
+  const refusals: string[] = [];
+  if (content === null || content === undefined) {
+    return { text: null, refusals };
+  }
+  if (typeof content === 'string') {
+    const t = content.trim();
+    return { text: t.length > 0 ? t : null, refusals };
+  }
+  if (!Array.isArray(content)) {
+    return { text: null, refusals };
+  }
+  const texts: string[] = [];
+  for (const part of content) {
+    if (!part || typeof part !== 'object') continue;
+    const p = part as { type?: string; text?: string; refusal?: string };
+    if (p.type === 'text' && typeof p.text === 'string') {
+      texts.push(p.text);
+    } else if (p.type === 'refusal' && typeof p.refusal === 'string') {
+      refusals.push(p.refusal);
+    }
+  }
+  const joined = texts.join('').trim();
+  return { text: joined.length > 0 ? joined : null, refusals };
+}
 
 @Injectable()
 export class LlmService {
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    @Optional() private readonly debugLogService?: DebugLogService,
+  ) {}
 
   async describeImage(imageBuffer: Buffer, comment?: string): Promise<string> {
     try {
@@ -11,6 +45,15 @@ export class LlmService {
       if (!apiKey) {
         throw new Error('OPENAI_API_KEY is not defined');
       }
+
+      this.debugLogService?.info(
+        'llm.describeImage',
+        'Starting image description',
+        {
+          imageBytes: imageBuffer.length,
+          hasComment: Boolean(comment && comment.trim()),
+        },
+      );
 
       // Convert buffer to base64
       const base64Image = imageBuffer.toString('base64');
@@ -75,8 +118,23 @@ export class LlmService {
         }
 
         if (!response.ok) {
-          const errorData: unknown = await response.json();
-          console.error('OpenAI API error:', errorData);
+          let errorBody: unknown;
+          const raw = await response.text();
+          try {
+            errorBody = raw ? JSON.parse(raw) : null;
+          } catch {
+            errorBody = raw?.slice(0, 2000) ?? null;
+          }
+          console.error('OpenAI API error:', errorBody);
+          this.debugLogService?.error(
+            'llm.describeImage',
+            'OpenAI HTTP error',
+            {
+              status: response.status,
+              statusText: response.statusText,
+              body: errorBody,
+            },
+          );
           throw new Error(
             `OpenAI API error: ${response.status} ${response.statusText}`,
           );
@@ -105,6 +163,11 @@ export class LlmService {
             'OpenAI API error in response body:',
             responseData.error,
           );
+          this.debugLogService?.error(
+            'llm.describeImage',
+            'OpenAI error field in 200 body',
+            { error: responseData.error },
+          );
           throw new Error('OpenAI API returned an error');
         }
 
@@ -120,21 +183,83 @@ export class LlmService {
             'Unexpected OpenAI response structure - no choices array or empty choices:',
             responseData,
           );
+          this.debugLogService?.error(
+            'llm.describeImage',
+            'No choices in OpenAI response',
+            {
+              keys:
+                data && typeof data === 'object'
+                  ? Object.keys(data as object)
+                  : [],
+            },
+          );
           throw new Error(
             'Invalid response structure from OpenAI - no choices available',
           );
         }
 
-        const choice = responseData.choices[0];
+        const choice = responseData.choices[0] as {
+          finish_reason?: string;
+          message?: { content?: unknown };
+        };
         if (!choice || !choice.message) {
           console.error('Unexpected choice structure:', choice);
+          this.debugLogService?.error(
+            'llm.describeImage',
+            'Missing message on choice',
+            {
+              choiceKeys: choice ? Object.keys(choice) : [],
+            },
+          );
           throw new Error('Invalid choice structure from OpenAI');
         }
 
-        const description = choice.message.content;
+        const rawContent = choice.message.content;
+        const { text: description, refusals } =
+          extractTextFromAssistantContent(rawContent);
 
-        if (!description || typeof description !== 'string') {
-          console.error('No valid description content received:', description);
+        this.debugLogService?.info(
+          'llm.describeImage',
+          'Parsed assistant content',
+          {
+            finishReason: choice.finish_reason,
+            contentKind: Array.isArray(rawContent)
+              ? 'array'
+              : rawContent === null || rawContent === undefined
+                ? 'null'
+                : typeof rawContent,
+            contentParts: Array.isArray(rawContent)
+              ? rawContent.length
+              : undefined,
+            refusalCount: refusals.length,
+            hasText: Boolean(description && description.length > 0),
+          },
+        );
+
+        if (refusals.length > 0 && !description) {
+          console.error('OpenAI refusal (no text):', refusals);
+          this.debugLogService?.warn(
+            'llm.describeImage',
+            'Model refusal only',
+            {
+              refusals,
+            },
+          );
+          throw new Error('OpenAI model refused to describe the image');
+        }
+
+        if (!description) {
+          console.error('No valid description content received:', rawContent);
+          this.debugLogService?.error(
+            'llm.describeImage',
+            'No extractable text from assistant content',
+            {
+              rawContentPreview:
+                typeof rawContent === 'string'
+                  ? rawContent.slice(0, 500)
+                  : JSON.stringify(rawContent)?.slice(0, 1500),
+            },
+          );
           throw new Error('No description received from OpenAI');
         }
 
@@ -148,6 +273,10 @@ export class LlmService {
           'Successfully received description:',
           description.substring(0, 100) + '...',
         );
+
+        this.debugLogService?.info('llm.describeImage', 'Description OK', {
+          previewLen: Math.min(description.length, 120),
+        });
 
         return description.trim();
       } catch (error) {
@@ -174,6 +303,9 @@ export class LlmService {
           }
           if (error.message.includes('No description received')) {
             return 'Не удалось получить описание от OpenAI';
+          }
+          if (error.message.includes('OpenAI model refused')) {
+            return 'Модель отказалась описать изображение';
           }
           if (error.message.includes('Failed to parse')) {
             return 'Ошибка при обработке ответа от OpenAI';

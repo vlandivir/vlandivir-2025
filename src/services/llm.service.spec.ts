@@ -45,11 +45,32 @@ describe('LlmService', () => {
         ok: false,
         status: 400,
         statusText: 'Bad Request',
-        json: () => Promise.resolve({ error: 'Invalid API key' }),
+        text: () =>
+          Promise.resolve(JSON.stringify({ error: 'Invalid API key' })),
       });
 
       const result = await service.describeImage(Buffer.from('test'));
       expect(result).toBe('Ошибка API OpenAI');
+    });
+
+    it('should accept assistant content as array of text parts (newer models)', async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            choices: [
+              {
+                finish_reason: 'stop',
+                message: {
+                  content: [{ type: 'text', text: '  Краткое описание  ' }],
+                },
+              },
+            ],
+          }),
+      });
+
+      const result = await service.describeImage(Buffer.from('test'));
+      expect(result).toBe('Краткое описание');
     });
   });
 });
