@@ -42,7 +42,7 @@
   let currentState = null; // { points, thinned, distance, source, bbox, fileName }
   let currentTheme = 'paper';
   let waypointCounter = 0;
-  const DEFAULT_ROUTE_LINE_WIDTH = 9;
+  const DEFAULT_ROUTE_LINE_WIDTH = 14;
 
   const LABEL_FONTS = {
     satoshi: '"Satoshi", sans-serif',
@@ -176,7 +176,7 @@
       : 'montserrat';
     const labelSize = Math.max(28, Math.min(72, Number.parseInt(labelSizeInput.value, 10) || 48));
     const lineWidth = Math.max(3, Math.min(24, Number.parseInt(lineWidthInput.value, 10) || DEFAULT_ROUTE_LINE_WIDTH));
-    const pointScale = Math.max(2, Math.min(10, Number.parseFloat(pointScaleInput.value) || 4));
+    const pointScale = Math.max(2, Math.min(10, Number.parseFloat(pointScaleInput.value) || 3));
     const minDistanceMeters = Math.max(50, Math.min(500, Number.parseInt(minDistanceInput.value, 10) || MIN_DIST_M));
 
     return {
@@ -279,7 +279,6 @@
       paperGrain: 'rgba(120,100,60,0.06)',
       contour: 'rgba(78,107,74,0.10)',
       line: '#C95A2B',
-      lineShadow: 'rgba(166,69,31,0.25)',
       ink: '#1A2A24',
       inkMuted: '#6B776F',
       dot: '#1A2A24',
@@ -291,7 +290,6 @@
       paperGrain: 'rgba(255,255,255,0.025)',
       contour: 'rgba(120,160,200,0.08)',
       line: '#E8A36B',
-      lineShadow: 'rgba(232,163,107,0.35)',
       ink: '#EDE6D4',
       inkMuted: '#8A98AC',
       dot: '#EDE6D4',
@@ -303,7 +301,6 @@
       paperGrain: 'rgba(255,255,255,0.025)',
       contour: 'rgba(180,200,140,0.07)',
       line: '#E8C765',
-      lineShadow: 'rgba(232,199,101,0.30)',
       ink: '#F2EAD3',
       inkMuted: '#A8B59B',
       dot: '#F2EAD3',
@@ -362,18 +359,6 @@
     const pts = fitted.points.map((p) => ({ x: p.x + routeArea.x0, y: p.y + routeArea.y0 }));
     const controls = getPosterControls();
 
-    // Underlay glow
-    ctx.save();
-    ctx.shadowColor = theme.lineShadow;
-    ctx.shadowBlur = 24;
-    ctx.strokeStyle = theme.line;
-    ctx.lineWidth = controls.lineWidth + 3;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    drawCatmullRom(ctx, pts, 0.5);
-    ctx.restore();
-
-    // Main line
     ctx.save();
     ctx.strokeStyle = theme.line;
     ctx.lineWidth = controls.lineWidth;
@@ -582,29 +567,37 @@
       .slice(0, 4);
   }
 
-  function drawTrackLabel(ctx, marker, theme, side, controls = getPosterControls(), normal = null, routePoints = null) {
-    const clean = marker.name.trim();
-    if (!clean) return;
+  function roundPx(value) {
+    return Math.round(value * 10) / 10;
+  }
 
-    ctx.save();
+  /**
+   * Same geometry as drawTrackLabel; used for canvas export and for AI prompt text.
+   * @returns {null | { lines: string[], textX: number, firstLineY: number, lineHeight: number, fontSize: number, fontWeight: number, fontFamily: string, color: string }}
+   */
+  function computeTrackLabelLayout(marker, theme, side, controls, normal, routePoints, measureCtx) {
+    const clean = marker.name.trim();
+    if (!clean) return null;
+
     const fontSize = controls.labelSize;
     const weight = 700;
-    ctx.font = `${weight} ${fontSize}px ${controls.labelFontFamily}`;
-    ctx.textBaseline = 'middle';
+    measureCtx.save();
+    measureCtx.font = `${weight} ${fontSize}px ${controls.labelFontFamily}`;
+    measureCtx.textBaseline = 'middle';
     const maxWidth = Math.max(240, Math.min(390, fontSize * 14));
     const lines = splitLabelLines(clean).map((line) => {
       let label = line;
-      while (ctx.measureText(label).width > maxWidth && label.length > 8) {
+      while (measureCtx.measureText(label).width > maxWidth && label.length > 8) {
         label = label.slice(0, -2).trim() + '…';
       }
       return label;
     });
     if (!lines.length) {
-      ctx.restore();
-      return;
+      measureCtx.restore();
+      return null;
     }
 
-    const labelW = Math.max(...lines.map((line) => ctx.measureText(line).width));
+    const labelW = Math.max(...lines.map((line) => measureCtx.measureText(line).width));
     const lineHeight = fontSize * 1.14;
     const labelH = lineHeight * lines.length;
     const markerRadius = (controls.lineWidth * controls.pointScale) / 2;
@@ -628,10 +621,31 @@
     textX = Math.max(64, Math.min(CANVAS_W - 64 - labelW, textX));
     textY = Math.max(286, Math.min(CANVAS_H - 430, textY));
 
-    ctx.fillStyle = theme.line;
     const firstLineY = textY - ((lines.length - 1) * lineHeight) / 2;
-    lines.forEach((line, i) => {
-      ctx.fillText(line, textX, firstLineY + i * lineHeight);
+    measureCtx.restore();
+
+    return {
+      lines,
+      textX,
+      firstLineY,
+      lineHeight,
+      fontSize,
+      fontWeight: weight,
+      fontFamily: controls.labelFontFamily,
+      color: theme.line,
+    };
+  }
+
+  function drawTrackLabel(ctx, marker, theme, side, controls = getPosterControls(), normal = null, routePoints = null) {
+    const layout = computeTrackLabelLayout(marker, theme, side, controls, normal, routePoints, ctx);
+    if (!layout) return;
+
+    ctx.save();
+    ctx.font = `${layout.fontWeight} ${layout.fontSize}px ${layout.fontFamily}`;
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = layout.color;
+    layout.lines.forEach((line, i) => {
+      ctx.fillText(line, layout.textX, layout.firstLineY + i * layout.lineHeight);
     });
     ctx.restore();
   }
@@ -758,38 +772,146 @@
     statBbox.textContent = wKm.toFixed(1) + ' × ' + hKm.toFixed(1) + ' км';
   }
 
-  function updateAIDescription() {
-    const controls = getPosterControls();
-    const title = titleInput.value.trim() || (currentState?.fileName || 'GPX route poster');
+  /**
+   * Geometry of the route overlay in poster canvas space (same as render()).
+   * GPX is not included — another model can redraw from this spec only.
+   */
+  function buildCanvasTrackSpec(measureCtx) {
+    if (!currentState || !measureCtx) return null;
     const theme = themes[currentTheme];
-    const lines = [
-      'Создай вертикальный постер маршрута по GPX-треку.',
+    const controls = getPosterControls();
+    const W = CANVAS_W;
+    const H = CANVAS_H;
+    const topPad = 280;
+    const bottomPad = 360;
+    const routeArea = { x0: SAFE_MARGIN, y0: topPad, x1: W - SAFE_MARGIN, y1: H - bottomPad };
+    const routeW = routeArea.x1 - routeArea.x0;
+    const routeH = routeArea.y1 - routeArea.y0;
+    const fitted = fitToBox(currentState.thinned, routeW, routeH);
+    const vertices = fitted.points.map((p) => ({
+      x: roundPx(p.x + routeArea.x0),
+      y: roundPx(p.y + routeArea.y0),
+    }));
+
+    const lineWidth = controls.lineWidth;
+    const markerRadius = roundPx((lineWidth * controls.pointScale) / 2);
+
+    const labelMarkers = controls.labels
+      .map((label, index) => {
+        const targetMeters = Math.min(label.km * 1000, currentState.distance);
+        const geo = pointAtDistance(currentState.points, targetMeters);
+        if (!geo) return null;
+        const projected = fitted.projectPoint(geo);
+        return {
+          x: projected.x + routeArea.x0,
+          y: projected.y + routeArea.y0,
+          name: label.name,
+          km: targetMeters / 1000,
+          offsetX: label.offsetX,
+          offsetY: label.offsetY,
+          index: index + 1,
+        };
+      })
+      .filter(Boolean);
+
+    const markers = [];
+
+    labelMarkers.forEach((marker, index) => {
+      const routeIndex = nearestPointIndex(vertices, marker.x, marker.y);
+      const normal = outwardNormalForPoint(vertices, routeIndex, marker.x, marker.y);
+      const side = index % 2 === 0 ? 'right' : 'left';
+      const dot = {
+        cx: roundPx(marker.x),
+        cy: roundPx(marker.y),
+        r: markerRadius,
+        fill: theme.line,
+      };
+      const layout = computeTrackLabelLayout(marker, theme, side, controls, normal, vertices, measureCtx);
+      const label = layout
+        ? {
+            fontSize: layout.fontSize,
+            fontWeight: layout.fontWeight,
+            fontFamily: layout.fontFamily,
+            color: layout.color,
+            lines: layout.lines.map((text, i) => ({
+              text,
+              x: roundPx(layout.textX),
+              y: roundPx(layout.firstLineY + i * layout.lineHeight),
+            })),
+          }
+        : null;
+      markers.push({ dot, label });
+    });
+
+    return {
+      canvas: { width: W, height: H },
+      track: {
+        vertices,
+        stroke: theme.line,
+        lineWidth,
+        lineCap: 'round',
+        lineJoin: 'round',
+        curve: {
+          type: 'Catmull-Rom (Cardinal) spline through every vertex, tension 0.5',
+          implementation:
+            'Each segment between consecutive vertices is drawn as one cubic Bézier: for points p0,p1,p2,p3 (with endpoints duplicated at ends), cp1 = p1 + (p2-p0)/6 * tension*2, cp2 = p2 - (p3-p1)/6 * tension*2, tension=0.5 — same as reference canvas path using bezierCurveTo.',
+        },
+      },
+      markers,
+    };
+  }
+
+  function formatCanvasTrackPrompt(spec) {
+    const { canvas, track, markers } = spec;
+    const out = [];
+    out.push(
+      'Задача: сгенерировать изображение ТОЛЬКО с маршрутом (линия), кругами на точках подписей и текстовыми подписями.',
+      `Холст: ${canvas.width}×${canvas.height} px, вертикальная ориентация. Начало координат — левый верхний угол, ось X вправо, ось Y вниз. Все числа в пикселях.`,
       '',
-      'Холст: 1080×1920 px, вертикальная ориентация.',
-      `Заголовок: ${title}.`,
-      `Тема: ${currentTheme}. Фон градиентный от ${theme.bg1} к ${theme.bg2}, тонкие топографические контуры, цвет трека ${theme.line}.`,
-      `Трек: линия Catmull-Rom/Bezier, толщина ${controls.lineWidth}px, скруглённые концы и соединения, лёгкая тень цветом ${theme.lineShadow}.`,
-      `Точки: круги цветом трека, диаметр = ${controls.pointScale}× толщины линии.`,
-      `Прореживание GPX: оставить первую и последнюю точки, между соседними оставшимися точками минимум ${controls.minDistanceMeters} м по Haversine.`,
-      `Подписи: шрифт ${controls.labelFontKey}, размер ${controls.labelSize}px, вес 700, цвет ${theme.line}, без фона и обводки, поддерживать переносы строк; начальная позиция подписи расположена близко к точке, смещения X/Y применяются относительно этой автоматически выбранной позиции.`,
-    ];
+      'GPX и географические координаты недоступны — воспроизведи геометрию строго по данным ниже.',
+      '',
+      'Не добавляй: фон (градиент, текстуры, «бумага»), декоративные контуры, заголовок, нижний блок статистики, внешнюю рамку, тень/ореол вокруг линии (достаточно одной обводки указанной толщины). Прозрачный фон или сплошной нейтральный однотон — на выбор, остальное пустое.',
+      '',
+      '=== Линия трека ===',
+      `Цвет обводки: ${track.stroke}. Толщина: ${track.lineWidth} px. lineCap: ${track.lineCap}, lineJoin: ${track.lineJoin}.`,
+      `Кривая: ${track.curve.type}.`,
+      `Построение: ${track.curve.implementation}`,
+      '',
+      `Вершины кривой по порядку (${track.vertices.length} шт., координаты центра линии в px):`,
+      JSON.stringify(track.vertices),
+      '',
+      '=== Точки и подписи (каждая строка подписи — fillText, textAlign left, textBaseline middle; x,y — якорь как в canvas) ===',
+    );
 
-    if (currentState) {
-      lines.push(
-        '',
-        `Статистика трека: источник ${currentState.source}, исходных точек ${currentState.original}, после прореживания ${currentState.thinned.length}, дистанция ${(currentState.distance / 1000).toFixed(2)} км.`
-      );
-    }
-
-    if (controls.labels.length) {
-      lines.push('', 'Подписи на треке:');
-      controls.labels.forEach((label) => {
-        const text = label.name.replace(/\n/g, ' / ');
-        lines.push(`- "${text}" на ${label.km} км от старта, смещение X=${label.offsetX}px, Y=${label.offsetY}px.`);
+    if (markers.length === 0) {
+      out.push('(нет подписей на треке — только линия)');
+    } else {
+      markers.forEach((m, i) => {
+        out.push('', `Маркер ${i + 1}:`, `  круг: ${JSON.stringify(m.dot)}`);
+        if (m.label && m.label.lines.length) {
+          out.push(
+            `  шрифт: ${m.label.fontWeight} ${m.label.fontSize}px ${m.label.fontFamily}, цвет ${m.label.color}`,
+          );
+          m.label.lines.forEach((line, lineIndex) => {
+            out.push(`  строка ${lineIndex + 1}: ${JSON.stringify(line.text)} — x=${line.x}, y=${line.y}`);
+          });
+        } else {
+          out.push('  подпись: (пустой текст — только круг)');
+        }
       });
     }
 
-    aiDescription.value = lines.join('\n');
+    return out.join('\n');
+  }
+
+  function updateAIDescription() {
+    if (!currentState) {
+      aiDescription.value =
+        'После загрузки GPX здесь появится промпт для другой модели: координаты линии, точек и подписей на холсте 1080×1920 (без GPX).';
+      return;
+    }
+    const spec = buildCanvasTrackSpec(ctx);
+    aiDescription.value = spec ? formatCanvasTrackPrompt(spec) : '';
   }
 
   function formatKm(value) {
@@ -957,7 +1079,17 @@
       const file = new File([blob], 'sample.gpx', { type: 'application/gpx+xml' });
       await handleFile(file);
       titleInput.value = 'Evening Mountain Bike Ride';
-      if (currentState) render();
+      if (currentState) {
+        minDistanceInput.value = '180';
+        minDistanceOutput.textContent = '180';
+        updateThinning();
+        waypointList.textContent = '';
+        addWaypointRow('Старт', '0', '0', '0', false);
+        addWaypointRow('ТЦ Галерея', '5,4', '0', '0', false);
+        addWaypointRow('Пивски\nзабавник', '9,1', '240', '-200', false);
+        addWaypointRow('Финиш', formatKm(currentState.distance / 1000), '0', '0', false);
+        render();
+      }
     } catch (err) {
       console.error(err);
       showError('Не удалось загрузить пример sample.gpx. Попробуйте обновить страницу.');
@@ -1040,10 +1172,10 @@
     labelFontSelect.value = 'montserrat';
     labelSizeInput.value = '48';
     labelSizeOutput.textContent = '48';
-    lineWidthInput.value = '9';
-    lineWidthOutput.textContent = '9';
-    pointScaleInput.value = '4';
-    pointScaleOutput.textContent = '4';
+    lineWidthInput.value = '14';
+    lineWidthOutput.textContent = '14';
+    pointScaleInput.value = '3';
+    pointScaleOutput.textContent = '3';
     minDistanceInput.value = '50';
     minDistanceOutput.textContent = '50';
     waypointList.textContent = '';

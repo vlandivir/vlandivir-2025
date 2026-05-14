@@ -127,12 +127,12 @@
             </label>
           </div>
           <label class="ctl">
-            <span class="ctl-label">Толщина линии: <output id="lineWidthOutput">9</output> px</span>
-            <input type="range" id="lineWidthInput" min="3" max="24" step="1" value="9" />
+            <span class="ctl-label">Толщина линии: <output id="lineWidthOutput">14</output> px</span>
+            <input type="range" id="lineWidthInput" min="3" max="24" step="1" value="14" />
           </label>
           <label class="ctl">
-            <span class="ctl-label">Размер точки: <output id="pointScaleOutput">4</output>× толщины трека</span>
-            <input type="range" id="pointScaleInput" min="2" max="10" step="0.5" value="4" />
+            <span class="ctl-label">Размер точки: <output id="pointScaleOutput">3</output>× толщины трека</span>
+            <input type="range" id="pointScaleInput" min="2" max="10" step="0.5" value="3" />
           </label>
           <label class="ctl">
             <span class="ctl-label">Сглаживание: минимум <output id="minDistanceOutput">50</output> м между точками</span>
@@ -147,8 +147,8 @@
             </div>
           </label>
           <label class="ctl ai-brief">
-            <span class="ctl-label">Описание для другой AI модели</span>
-            <textarea id="aiDescription" readonly rows="8"></textarea>
+            <span class="ctl-label">Промпт для модели (трек на холсте, без GPX)</span>
+            <textarea id="aiDescription" readonly rows="14"></textarea>
           </label>
         </div>
 
@@ -184,7 +184,7 @@
   <span>Без внешних карт и API.</span>
 </footer>
 
-<script src="app.js?v=20260514-9"></script>
+<script src="app.js?v=20260514-14"></script>
 <script data-pplx-inline-edit>
 (function () {
   if (window === window.top) return;
