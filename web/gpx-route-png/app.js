@@ -32,6 +32,10 @@
   const minDistanceOutput = document.getElementById('minDistanceOutput');
   const themeGroup = document.getElementById('themeGroup');
   const aiDescription = document.getElementById('aiDescription');
+  const downloadPromptBtn = document.getElementById('downloadPromptBtn');
+  const downloadTransparentPngBtn = document.getElementById('downloadTransparentPngBtn');
+  const step2TrackPreviewCanvas = document.getElementById('step2TrackPreviewCanvas');
+  const step2TrackPlaceholder = document.getElementById('step2TrackPlaceholder');
 
   const statSource = document.getElementById('statSource');
   const statOriginal = document.getElementById('statOriginal');
@@ -40,6 +44,7 @@
   const statBbox = document.getElementById('statBbox');
 
   let currentState = null; // { points, thinned, distance, source, bbox, fileName }
+  let fileIngestGeneration = 0;
   let currentTheme = 'paper';
   let waypointCounter = 0;
   const DEFAULT_ROUTE_LINE_WIDTH = 14;
@@ -308,6 +313,70 @@
     },
   };
 
+  function computeRouteGeometry() {
+    if (!currentState) return null;
+    const W = CANVAS_W;
+    const H = CANVAS_H;
+    const topPad = 280;
+    const bottomPad = 360;
+    const routeArea = { x0: SAFE_MARGIN, y0: topPad, x1: W - SAFE_MARGIN, y1: H - bottomPad };
+    const routeW = routeArea.x1 - routeArea.x0;
+    const routeH = routeArea.y1 - routeArea.y0;
+    const fitted = fitToBox(currentState.thinned, routeW, routeH);
+    const pts = fitted.points.map((p) => ({ x: p.x + routeArea.x0, y: p.y + routeArea.y0 }));
+    const controls = getPosterControls();
+    const theme = themes[currentTheme];
+    const labelMarkers = controls.labels
+      .map((label, index) => {
+        const targetMeters = Math.min(label.km * 1000, currentState.distance);
+        const geoPoint = pointAtDistance(currentState.points, targetMeters);
+        if (!geoPoint) return null;
+        const projected = fitted.projectPoint(geoPoint);
+        return {
+          x: projected.x + routeArea.x0,
+          y: projected.y + routeArea.y0,
+          name: label.name,
+          km: targetMeters / 1000,
+          offsetX: label.offsetX,
+          offsetY: label.offsetY,
+          index: index + 1,
+        };
+      })
+      .filter(Boolean);
+    return { fitted, pts, controls, theme, labelMarkers };
+  }
+
+  function drawTrackOverlayLayers(targetCtx, geo) {
+    const { pts, controls, theme, labelMarkers } = geo;
+    targetCtx.save();
+    targetCtx.strokeStyle = theme.line;
+    targetCtx.lineWidth = controls.lineWidth;
+    targetCtx.lineCap = 'round';
+    targetCtx.lineJoin = 'round';
+    drawCatmullRom(targetCtx, pts, 0.5);
+    targetCtx.restore();
+    labelMarkers.forEach((marker, index) => {
+      const routeIndex = nearestPointIndex(pts, marker.x, marker.y);
+      const normal = outwardNormalForPoint(pts, routeIndex, marker.x, marker.y);
+      drawWaypointMarker(targetCtx, marker, theme, index, controls, normal, pts);
+    });
+  }
+
+  function renderStep2TrackPreview() {
+    if (!step2TrackPreviewCanvas || !step2TrackPlaceholder) return;
+    const s2 = step2TrackPreviewCanvas.getContext('2d');
+    if (!currentState) {
+      step2TrackPreviewCanvas.hidden = true;
+      step2TrackPlaceholder.hidden = false;
+      return;
+    }
+    step2TrackPlaceholder.hidden = true;
+    step2TrackPreviewCanvas.hidden = false;
+    s2.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    const geo = computeRouteGeometry();
+    if (geo) drawTrackOverlayLayers(s2, geo);
+  }
+
   // ---------- Rendering ----------
   function render() {
     if (!currentState) return;
@@ -348,48 +417,8 @@
     }
     ctx.restore();
 
-    // Project & fit route into safe area below title block & above stats
-    const topPad = 280;     // reserve for title block
-    const bottomPad = 360;  // reserve for stats block
-    const routeArea = { x0: SAFE_MARGIN, y0: topPad, x1: W - SAFE_MARGIN, y1: H - bottomPad };
-    const routeW = routeArea.x1 - routeArea.x0;
-    const routeH = routeArea.y1 - routeArea.y0;
-
-    const fitted = fitToBox(currentState.thinned, routeW, routeH);
-    const pts = fitted.points.map((p) => ({ x: p.x + routeArea.x0, y: p.y + routeArea.y0 }));
-    const controls = getPosterControls();
-
-    ctx.save();
-    ctx.strokeStyle = theme.line;
-    ctx.lineWidth = controls.lineWidth;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    drawCatmullRom(ctx, pts, 0.5);
-    ctx.restore();
-
-    // Route labels
-    const labelMarkers = controls.labels
-      .map((label, index) => {
-        const targetMeters = Math.min(label.km * 1000, currentState.distance);
-        const geo = pointAtDistance(currentState.points, targetMeters);
-        if (!geo) return null;
-        const projected = fitted.projectPoint(geo);
-        return {
-          x: projected.x + routeArea.x0,
-          y: projected.y + routeArea.y0,
-          name: label.name,
-          km: targetMeters / 1000,
-          offsetX: label.offsetX,
-          offsetY: label.offsetY,
-          index: index + 1,
-        };
-      })
-      .filter(Boolean);
-    labelMarkers.forEach((marker, index) => {
-      const routeIndex = nearestPointIndex(pts, marker.x, marker.y);
-      const normal = outwardNormalForPoint(pts, routeIndex, marker.x, marker.y);
-      drawWaypointMarker(ctx, marker, theme, index, controls, normal, pts);
-    });
+    const geo = computeRouteGeometry();
+    if (geo) drawTrackOverlayLayers(ctx, geo);
 
     // Top text block
     drawTopBlock(ctx, theme);
@@ -778,47 +807,20 @@
    */
   function buildCanvasTrackSpec(measureCtx) {
     if (!currentState || !measureCtx) return null;
-    const theme = themes[currentTheme];
-    const controls = getPosterControls();
+    const geo = computeRouteGeometry();
+    if (!geo) return null;
+    const { pts, controls, theme, labelMarkers } = geo;
     const W = CANVAS_W;
     const H = CANVAS_H;
-    const topPad = 280;
-    const bottomPad = 360;
-    const routeArea = { x0: SAFE_MARGIN, y0: topPad, x1: W - SAFE_MARGIN, y1: H - bottomPad };
-    const routeW = routeArea.x1 - routeArea.x0;
-    const routeH = routeArea.y1 - routeArea.y0;
-    const fitted = fitToBox(currentState.thinned, routeW, routeH);
-    const vertices = fitted.points.map((p) => ({
-      x: roundPx(p.x + routeArea.x0),
-      y: roundPx(p.y + routeArea.y0),
-    }));
-
+    const vertices = pts.map((p) => ({ x: roundPx(p.x), y: roundPx(p.y) }));
     const lineWidth = controls.lineWidth;
     const markerRadius = roundPx((lineWidth * controls.pointScale) / 2);
-
-    const labelMarkers = controls.labels
-      .map((label, index) => {
-        const targetMeters = Math.min(label.km * 1000, currentState.distance);
-        const geo = pointAtDistance(currentState.points, targetMeters);
-        if (!geo) return null;
-        const projected = fitted.projectPoint(geo);
-        return {
-          x: projected.x + routeArea.x0,
-          y: projected.y + routeArea.y0,
-          name: label.name,
-          km: targetMeters / 1000,
-          offsetX: label.offsetX,
-          offsetY: label.offsetY,
-          index: index + 1,
-        };
-      })
-      .filter(Boolean);
 
     const markers = [];
 
     labelMarkers.forEach((marker, index) => {
-      const routeIndex = nearestPointIndex(vertices, marker.x, marker.y);
-      const normal = outwardNormalForPoint(vertices, routeIndex, marker.x, marker.y);
+      const routeIndex = nearestPointIndex(pts, marker.x, marker.y);
+      const normal = outwardNormalForPoint(pts, routeIndex, marker.x, marker.y);
       const side = index % 2 === 0 ? 'right' : 'left';
       const dot = {
         cx: roundPx(marker.x),
@@ -826,7 +828,7 @@
         r: markerRadius,
         fill: theme.line,
       };
-      const layout = computeTrackLabelLayout(marker, theme, side, controls, normal, vertices, measureCtx);
+      const layout = computeTrackLabelLayout(marker, theme, side, controls, normal, pts, measureCtx);
       const label = layout
         ? {
             fontSize: layout.fontSize,
@@ -907,11 +909,78 @@
   function updateAIDescription() {
     if (!currentState) {
       aiDescription.value =
-        'После загрузки GPX здесь появится промпт для другой модели: координаты линии, точек и подписей на холсте 1080×1920 (без GPX).';
+        'Загрузите GPX в шаге 1 — здесь появится промпт: координаты линии, точек и подписей на холсте 1080×1920 (без GPX).';
+      updateStep2Controls();
+      renderStep2TrackPreview();
       return;
     }
     const spec = buildCanvasTrackSpec(ctx);
     aiDescription.value = spec ? formatCanvasTrackPrompt(spec) : '';
+    updateStep2Controls();
+    renderStep2TrackPreview();
+  }
+
+  function updateStep2Controls() {
+    const hasTrack = Boolean(currentState);
+    if (downloadTransparentPngBtn) {
+      downloadTransparentPngBtn.disabled = !hasTrack;
+    }
+    if (downloadPromptBtn) {
+      const text = (aiDescription.value || '').trim();
+      downloadPromptBtn.disabled = !hasTrack || !text;
+    }
+  }
+
+  function downloadPromptAsFile() {
+    const text = (aiDescription.value || '').trim();
+    if (!text || !currentState) return;
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const base =
+      (currentState.fileName || 'gpx-track').replace(/[^\wа-яА-Я\-_. ]+/g, '').trim() || 'gpx-track';
+    a.download = base + '-prompt.txt';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  async function downloadTransparentTrackPng() {
+    if (!currentState) return;
+    const controls = getPosterControls();
+    if (document.fonts && document.fonts.ready) {
+      try {
+        await document.fonts.ready;
+      } catch (_e) {
+        /* ignore */
+      }
+    }
+    if (document.fonts && controls.labelFontKey !== 'georgia') {
+      await document.fonts.load(`${controls.labelSize}px ${controls.labelFontFamily}`).catch(() => {});
+    }
+    const geo = computeRouteGeometry();
+    if (!geo) return;
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = CANVAS_W;
+    exportCanvas.height = CANVAS_H;
+    const x = exportCanvas.getContext('2d');
+    x.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    drawTrackOverlayLayers(x, geo);
+    exportCanvas.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const base =
+        (currentState.fileName || 'gpx-track').replace(/[^\wа-яА-Я\-_. ]+/g, '').trim() || 'gpx-track';
+      a.download = base + '-track-alpha.png';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }, 'image/png');
   }
 
   function formatKm(value) {
@@ -1006,7 +1075,8 @@
     errorBox.textContent = '';
   }
 
-  async function handleFile(file) {
+  async function handleFile(file, opts = {}) {
+    const { scrollToResults = true, suppressError = false } = opts;
     clearError();
     if (!file) return;
     if (!file.name.toLowerCase().endsWith('.gpx') && file.type !== 'application/gpx+xml' && file.type !== 'text/xml' && file.type !== 'application/xml') {
@@ -1021,6 +1091,7 @@
       showError('Файл слишком большой (больше 50 МБ). Уменьшите размер GPX.');
       return;
     }
+    const generation = ++fileIngestGeneration;
     try {
       const text = await file.text();
       if (!text.trim()) {
@@ -1029,6 +1100,8 @@
       }
       const { points, source } = parseGPX(text);
       const original = points.length;
+
+      if (generation !== fileIngestGeneration) return;
 
       // Bounding box on raw points
       let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
@@ -1057,19 +1130,27 @@
       updateStatsPanel(currentState);
       render();
       results.hidden = false;
-      // Smooth scroll to results
-      results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (scrollToResults) {
+        results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     } catch (err) {
       console.error(err);
-      showError(err.message || 'Не удалось обработать файл. Попробуйте другой GPX.');
+      if (!suppressError) {
+        showError(err.message || 'Не удалось обработать файл. Попробуйте другой GPX.');
+      }
     }
   }
 
-  async function loadSampleTrack() {
-    clearError();
-    sampleBtn.disabled = true;
-    const previousText = sampleBtn.textContent;
-    sampleBtn.textContent = 'Загружаю sample.gpx…';
+  async function loadSampleTrack(options = {}) {
+    const { quiet = false } = options;
+    const scrollToResults = !quiet;
+    const suppressError = quiet;
+    if (!quiet) {
+      clearError();
+      sampleBtn.disabled = true;
+    }
+    const previousText = quiet ? '' : sampleBtn.textContent;
+    if (!quiet) sampleBtn.textContent = 'Загружаю sample.gpx…';
     try {
       const response = await fetch('sample.gpx?v=20260514-8');
       if (!response.ok) {
@@ -1077,7 +1158,7 @@
       }
       const blob = await response.blob();
       const file = new File([blob], 'sample.gpx', { type: 'application/gpx+xml' });
-      await handleFile(file);
+      await handleFile(file, { scrollToResults, suppressError });
       titleInput.value = 'Evening Mountain Bike Ride';
       if (currentState) {
         minDistanceInput.value = '180';
@@ -1092,10 +1173,14 @@
       }
     } catch (err) {
       console.error(err);
-      showError('Не удалось загрузить пример sample.gpx. Попробуйте обновить страницу.');
+      if (!quiet) {
+        showError('Не удалось загрузить пример sample.gpx. Попробуйте обновить страницу.');
+      }
     } finally {
-      sampleBtn.disabled = false;
-      sampleBtn.textContent = previousText;
+      if (!quiet) {
+        sampleBtn.disabled = false;
+        sampleBtn.textContent = previousText;
+      }
     }
   }
 
@@ -1106,7 +1191,7 @@
   });
   sampleBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    loadSampleTrack();
+    loadSampleTrack({ quiet: false });
   });
   dropZone.addEventListener('click', () => fileInput.click());
   dropZone.addEventListener('keydown', (e) => {
@@ -1163,6 +1248,15 @@
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     }, 'image/png');
   });
+
+  if (downloadPromptBtn) {
+    downloadPromptBtn.addEventListener('click', downloadPromptAsFile);
+  }
+  if (downloadTransparentPngBtn) {
+    downloadTransparentPngBtn.addEventListener('click', () => {
+      void downloadTransparentTrackPng();
+    });
+  }
 
   resetBtn.addEventListener('click', () => {
     currentState = null;
@@ -1253,4 +1347,6 @@
     if (currentState) render();
     else updateAIDescription();
   });
+
+  void loadSampleTrack({ quiet: true });
 })();

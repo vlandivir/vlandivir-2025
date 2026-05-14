@@ -65,7 +65,7 @@ body {
 .brand { display: flex; align-items: center; gap: 14px; color: var(--ink); }
 .logo { width: 40px; height: 40px; }
 .brand-text { display: flex; flex-direction: column; line-height: 1.1; }
-.brand-name { font-weight: 700; font-size: 17px; letter-spacing: -0.01em; }
+.brand-name { font-weight: 700; font-size: 15px; letter-spacing: -0.01em; line-height: 1.2; max-width: min(520px, 52vw); }
 .brand-tag { font-size: 12px; color: var(--ink-muted); margin-top: 2px; letter-spacing: 0.02em; text-transform: uppercase; }
 .header-meta { display: flex; gap: 8px; }
 .meta-chip {
@@ -92,13 +92,13 @@ body {
   line-height: 1.02;
   letter-spacing: -0.025em;
   font-weight: 700;
-  margin: 0 0 20px;
+  margin: 0;
   color: var(--ink);
 }
 .lede { font-size: 17px; color: var(--ink-2); margin: 0; max-width: 60ch; }
 
 /* ---- Workbench ---- */
-.workbench { margin-bottom: 96px; }
+.workbench { margin-bottom: 0; }
 
 .drop-zone {
   border: 1.5px dashed var(--border-2);
@@ -182,19 +182,26 @@ body {
 .results {
   margin-top: 32px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 380px;
-  gap: 40px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(24px, 3vw, 40px);
   align-items: start;
 }
 @media (max-width: 960px) {
   .results { grid-template-columns: 1fr; }
 }
 
-.preview-wrap { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+.preview-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  min-width: 0;
+}
 .preview-frame {
-  width: 100%;
-  max-width: 360px;
+  width: min(100%, calc(min(70vh, 720px) * 1080 / 1920));
+  max-height: min(70vh, 720px);
   aspect-ratio: 1080 / 1920;
+  margin-inline: auto;
   background: #fff;
   border-radius: var(--radius);
   overflow: hidden;
@@ -222,6 +229,12 @@ body {
 }
 .primary-btn:hover { background: #0F1F1A; }
 .primary-btn:active { transform: translateY(1px); }
+.primary-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+.primary-btn:disabled:hover { background: var(--ink); }
 
 .ghost-btn {
   background: transparent;
@@ -236,6 +249,10 @@ body {
   transition: border-color .15s ease, color .15s ease;
 }
 .ghost-btn:hover { border-color: var(--ink-2); color: var(--ink); }
+.ghost-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 
 /* ---- Stats Panel ---- */
 .stats-panel {
@@ -243,6 +260,7 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 28px;
+  min-width: 0;
 }
 .panel-title {
   margin: 0 0 18px;
@@ -439,53 +457,236 @@ body {
 }
 .seg-btn.is-active { background: var(--ink); color: #F5EFE0; }
 
-/* ---- How section ---- */
-.how { margin-top: 40px; }
-.section-title {
-  font-size: 13px;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--ink-muted);
+/* ---- Workflow steps (главная страница) ---- */
+.workflow-step {
+  margin-bottom: clamp(48px, 8vw, 72px);
+}
+.workflow-step:last-of-type {
+  margin-bottom: 0;
+}
+.workflow-step-head {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+  margin-bottom: 28px;
+  max-width: 800px;
+}
+.workflow-step-badge {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--ink);
+  color: #f5efe0;
+  font-weight: 700;
+  font-size: 17px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+}
+.workflow-step-title {
+  margin: 0 0 10px;
+  font-size: clamp(20px, 2.4vw, 26px);
   font-weight: 600;
-  margin: 0 0 28px;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  line-height: 1.15;
 }
-.steps {
-  list-style: none; margin: 0; padding: 0;
+.workflow-step-text {
+  margin: 0;
+  font-size: 16px;
+  color: var(--ink-2);
+  line-height: 1.55;
+  max-width: 62ch;
+}
+.workflow-step .workbench {
+  margin-bottom: 0;
+}
+.workflow-step--static .workflow-step-head {
+  margin-bottom: 0;
+}
+
+.step2-alternatives {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 24px;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(20px, 3vw, 28px);
+  align-items: stretch;
+  margin-top: 8px;
 }
-@media (max-width: 800px) {
-  .steps { grid-template-columns: 1fr; }
+@media (max-width: 900px) {
+  .step2-alternatives {
+    grid-template-columns: 1fr;
+  }
 }
-.steps li {
+
+.step2-alt-column {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 26px 22px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 24px;
+  box-shadow: var(--shadow);
+  min-width: 0;
 }
-.step-n {
-  display: inline-block;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--accent);
-  margin-bottom: 16px;
-  letter-spacing: 0.05em;
-}
-.steps h3 {
-  margin: 0 0 8px;
-  font-size: 18px;
+.step2-alt-kicker {
+  margin: 0;
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: -0.01em;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--accent-deep);
 }
-.steps p { margin: 0; color: var(--ink-2); font-size: 14.5px; }
-.steps code {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  background: var(--bg-2);
-  padding: 1px 6px;
-  border-radius: 4px;
+.step2-alt-heading {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
   color: var(--ink);
+  line-height: 1.15;
+}
+.step2-alt-desc {
+  margin: 0;
+  font-size: 14.5px;
+  color: var(--ink-2);
+  line-height: 1.5;
+  max-width: 48ch;
+}
+.step2-alt-column .ai-brief {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.step2-alt-column .ai-brief textarea {
+  flex: 1;
+  min-height: 200px;
+}
+.step2-alt-btn {
+  width: 100%;
+  margin-top: auto;
+}
+
+.step2-preview-shell {
+  position: relative;
+  /* Строго 9:16: при ограничении по высоте ширина ужимается, иначе object-fit: cover
+     на фоне и растянутый canvas расходятся по кадру. */
+  aspect-ratio: 1080 / 1920;
+  width: min(100%, calc(min(65vh, 580px) * 1080 / 1920));
+  max-height: min(65vh, 580px);
+  margin-inline: auto;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--border-2);
+  background: #1a1f1c;
+  box-shadow: var(--shadow);
+}
+.step2-preview-shell__bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  display: block;
+  z-index: 0;
+}
+.step2-preview-shell__track {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+  z-index: 1;
+}
+.step2-preview-placeholder {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--ink-muted);
+  line-height: 1.45;
+  background: rgba(251, 247, 236, 0.82);
+}
+.step2-preview-placeholder[hidden] {
+  display: none !important;
+}
+.step2-preview-shell__track[hidden] {
+  display: none !important;
+}
+
+.step3-block {
+  width: 100%;
+  margin-top: 8px;
+  padding: 28px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.step3-block__head {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+  margin-bottom: 22px;
+}
+.step3-block__head .workflow-step-title {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+.step3-block__text {
+  margin: 0 0 16px;
+  font-size: 16px;
+  color: var(--ink-2);
+  line-height: 1.55;
+  max-width: none;
+}
+.step3-block__text:last-of-type {
+  margin-bottom: 22px;
+}
+.instagram-cta--step3 {
+  margin-top: 4px;
+}
+
+.instagram-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  border-radius: 12px;
+  border: 1px solid var(--border-2);
+  background: white;
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 16px;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+.instagram-cta:hover {
+  border-color: var(--accent);
+  color: var(--accent-deep);
+  background: #fcf8ee;
+}
+.instagram-cta__icon {
+  flex-shrink: 0;
+  color: var(--accent-deep);
+}
+.instagram-cta__handle {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
 /* ---- Footer ---- */
@@ -501,4 +702,5 @@ body {
 @media (max-width: 600px) {
   .site-footer { flex-direction: column; gap: 6px; }
   .header-meta { display: none; }
+  .brand-name { max-width: none; font-size: 14px; }
 }
