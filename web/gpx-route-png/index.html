@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta http-equiv="Referrer-Policy" content="no-referrer" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' https://api.fontshare.com https://fonts.googleapis.com; font-src https://api.fontshare.com https://cdn.fontshare.com https://fonts.gstatic.com; connect-src 'self'; img-src 'self' data: blob:;" />
+<title>Трек в PNG — генератор постеров из GPX</title>
+<meta name="description" content="Загрузите GPX-файл и получите вертикальный PNG-постер 1080×1920 с вашим маршрутом. Без карт, без серверов, всё в браузере." />
+<link rel="preconnect" href="https://api.fontshare.com" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&f[]=jetbrains-mono@400&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&display=swap" rel="stylesheet" />
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23163029'/><path d='M7 22 L13 10 L18 18 L25 8' stroke='%23E07A3C' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>" />
+<link rel="stylesheet" href="styles.css?v=20260514-9" />
+</head>
+<body>
+<div class="grid-bg" aria-hidden="true"></div>
+
+<header class="site-header">
+  <div class="brand">
+    <svg class="logo" viewBox="0 0 40 40" aria-label="Логотип Трек в PNG" xmlns="http://www.w3.org/2000/svg">
+      <rect x="0.5" y="0.5" width="39" height="39" rx="8" fill="none" stroke="currentColor" stroke-width="1"/>
+      <path d="M8 28 L15 12 L22 22 L32 8" stroke="var(--accent)" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="8" cy="28" r="2.2" fill="var(--accent)"/>
+      <circle cx="32" cy="8" r="2.2" fill="var(--accent)"/>
+    </svg>
+    <div class="brand-text">
+      <span class="brand-name">Трек в PNG</span>
+      <span class="brand-tag">постеры из GPX</span>
+    </div>
+  </div>
+  <div class="header-meta">
+    <span class="meta-chip">1080 × 1920</span>
+    <span class="meta-chip">локально в браузере</span>
+  </div>
+</header>
+
+<main class="container">
+  <section class="intro">
+    <h1>Превратите GPX-трек<br/>в вертикальный постер.</h1>
+    <p class="lede">Загрузите файл маршрута — приложение очистит трек от лишних точек, сгладит линию и нарисует PNG&nbsp;1080×1920 для печати или соцсетей. Никаких карт, серверов и аккаунтов.</p>
+  </section>
+
+  <section class="workbench">
+    <div class="drop-zone" id="dropZone" tabindex="0" role="button" aria-label="Зона загрузки GPX-файла">
+      <input type="file" id="fileInput" hidden />
+      <div class="drop-inner">
+        <svg class="drop-icon" viewBox="0 0 48 48" aria-hidden="true">
+          <path d="M24 6 L24 30 M14 20 L24 30 L34 20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M8 36 L8 42 L40 42 L40 36" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <p class="drop-title">Перетащите GPX сюда</p>
+        <p class="drop-sub">или <button type="button" class="link-btn" id="browseBtn">выберите файл</button> с устройства</p>
+        <p class="drop-sub sample-line"><button type="button" class="sample-btn" id="sampleBtn">Загрузить пример sample.gpx</button></p>
+        <p class="drop-hint">Поддерживается .gpx — trkpt, rtept, wpt</p>
+      </div>
+    </div>
+
+    <div class="error" id="errorBox" hidden role="alert"></div>
+
+    <div class="results" id="results" hidden>
+      <div class="preview-wrap">
+        <div class="preview-frame">
+          <canvas id="previewCanvas" width="1080" height="1920" aria-label="Предпросмотр постера трека"></canvas>
+        </div>
+        <button class="primary-btn" id="downloadBtn" type="button">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 4 L12 16 M6 11 L12 17 L18 11" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 20 L19 20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          Скачать PNG&nbsp;1080×1920
+        </button>
+      </div>
+
+      <aside class="stats-panel">
+        <h2 class="panel-title">Статистика трека</h2>
+        <dl class="stats">
+          <div class="stat">
+            <dt>Источник точек</dt>
+            <dd id="statSource">—</dd>
+          </div>
+          <div class="stat">
+            <dt>Точек в исходнике</dt>
+            <dd id="statOriginal">—</dd>
+          </div>
+          <div class="stat">
+            <dt>После прореживания</dt>
+            <dd id="statThinned">—</dd>
+          </div>
+          <div class="stat">
+            <dt>Километраж</dt>
+            <dd id="statDistance">—</dd>
+          </div>
+          <div class="stat">
+            <dt>Bounding box</dt>
+            <dd id="statBbox">—</dd>
+          </div>
+        </dl>
+
+        <div class="controls">
+          <label class="ctl">
+            <span class="ctl-label">Заголовок на постере</span>
+            <input type="text" id="titleInput" maxlength="40" placeholder="Например: Эльбрус, июль 2025" />
+          </label>
+          <div class="waypoints-editor" aria-label="Подписи на треке">
+            <div class="waypoints-head">
+              <div>
+                <span class="ctl-label">Подписи на треке</span>
+                <p>Текст, расстояние от старта и смещение X/Y в пикселях</p>
+              </div>
+              <button type="button" class="mini-btn" id="addWaypointBtn">+ подпись</button>
+            </div>
+            <div class="waypoint-list" id="waypointList"></div>
+          </div>
+          <div class="field-grid">
+            <label class="ctl">
+              <span class="ctl-label">Шрифт надписей</span>
+              <select id="labelFontSelect">
+                <option value="satoshi">Satoshi</option>
+                <option value="montserrat" selected>Montserrat</option>
+                <option value="jetbrains">JetBrains Mono</option>
+                <option value="georgia">Georgia</option>
+              </select>
+            </label>
+            <label class="ctl">
+              <span class="ctl-label">Размер надписей: <output id="labelSizeOutput">48</output> px</span>
+              <input type="range" id="labelSizeInput" min="28" max="72" step="1" value="48" />
+            </label>
+          </div>
+          <label class="ctl">
+            <span class="ctl-label">Толщина линии: <output id="lineWidthOutput">9</output> px</span>
+            <input type="range" id="lineWidthInput" min="3" max="24" step="1" value="9" />
+          </label>
+          <label class="ctl">
+            <span class="ctl-label">Размер точки: <output id="pointScaleOutput">4</output>× толщины трека</span>
+            <input type="range" id="pointScaleInput" min="2" max="10" step="0.5" value="4" />
+          </label>
+          <label class="ctl">
+            <span class="ctl-label">Сглаживание: минимум <output id="minDistanceOutput">50</output> м между точками</span>
+            <input type="range" id="minDistanceInput" min="50" max="500" step="10" value="50" />
+          </label>
+          <label class="ctl">
+            <span class="ctl-label">Тема</span>
+            <div class="seg" role="radiogroup" id="themeGroup">
+              <button type="button" class="seg-btn is-active" data-theme="paper" role="radio" aria-checked="true">Бумага</button>
+              <button type="button" class="seg-btn" data-theme="night" role="radio" aria-checked="false">Ночь</button>
+              <button type="button" class="seg-btn" data-theme="forest" role="radio" aria-checked="false">Лес</button>
+            </div>
+          </label>
+          <label class="ctl ai-brief">
+            <span class="ctl-label">Описание для другой AI модели</span>
+            <textarea id="aiDescription" readonly rows="8"></textarea>
+          </label>
+        </div>
+
+        <button class="ghost-btn" id="resetBtn" type="button">Загрузить другой файл</button>
+      </aside>
+    </div>
+  </section>
+
+  <section class="how">
+    <h2 class="section-title">Как это работает</h2>
+    <ol class="steps">
+      <li>
+        <span class="step-n">01</span>
+        <h3>Парсинг GPX</h3>
+        <p>Файл обрабатывается локально. Координаты извлекаются из <code>trkpt</code> с приоритетом, затем <code>rtept</code>, затем <code>wpt</code>.</p>
+      </li>
+      <li>
+        <span class="step-n">02</span>
+        <h3>Прореживание</h3>
+        <p>Между соседними точками — выбранный минимум метров по формуле Haversine. Первая и последняя сохраняются.</p>
+      </li>
+      <li>
+        <span class="step-n">03</span>
+        <h3>Сглаживание и рендер</h3>
+        <p>Линия сглаживается кривой Catmull–Rom и вписывается в холст 1080×1920 с редактируемыми многострочными подписями.</p>
+      </li>
+    </ol>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <span>Файлы не покидают браузер.</span>
+  <span>Без внешних карт и API.</span>
+</footer>
+
+<script src="app.js?v=20260514-9"></script>
+<script data-pplx-inline-edit>
+(function () {
+  if (window === window.top) return;
+
+  const allowedParentOrigins = ["https://www.perplexity.ai","https://perplexity.ai","https://testing.perplexity.ai","https://staging.perplexity.ai","https://*.preview.i.perplexity.ai","http://localhost:3000","http://127.0.0.1:3000","http://localhost:5173","http://127.0.0.1:5173"];
+  const MAX_FONT_BYTES = 500 * 1024;
+  const MAX_TOTAL_FONT_BYTES = 2 * 1024 * 1024;
+  let scrollForwarding = false;
+  let scrollRaf = 0;
+  let trustedTopOrigin = null;
+
+  // Allow entries like "https://*.preview.i.perplexity.ai" — the wildcard
+  // matches a single DNS label (no dots), so "https://*.foo" cannot stretch
+  // across multiple labels.
+  function matchesAllowedOrigin(origin) {
+    if (!origin) return false;
+    for (const entry of allowedParentOrigins) {
+      if (!entry.includes("*")) {
+        if (entry === origin) return true;
+        continue;
+      }
+      const pattern = new RegExp(
+        "^" +
+          entry.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^.]+") +
+          "$",
+      );
+      if (pattern.test(origin)) return true;
+    }
+    return false;
+  }
+
+  // Trust decision: when the sender is same-origin-visible (event.origin is a
+  // real origin like https://www.perplexity.ai) we trust event.origin directly.
+  // When event.origin is "null" (opaque broker srcdoc), we fall back to the
+  // broker's stamped `parentOrigin` to identify the top window. The fallback
+  // is claim-only — we rely on the browser's native `targetOrigin` enforcement
+  // on the response path (see postToTrustedTop) to ensure replies can't be
+  // delivered to anyone but the actual top window of that claimed origin.
+  function getTrustedParentOrigin(event) {
+    const forwardedParentOrigin =
+      typeof event.data.parentOrigin === "string" ? event.data.parentOrigin : null;
+    const parentOrigin = event.origin === "null" ? forwardedParentOrigin : event.origin;
+    return matchesAllowedOrigin(parentOrigin) ? parentOrigin : null;
+  }
+
+  // All responses go to window.top with targetOrigin = the allowlisted origin.
+  // An attacker that iframes us inside their own null-origin broker can claim
+  // any parentOrigin they like, but the browser will drop the reply whenever
+  // the real top's origin doesn't match — so the screenshot never leaves.
+  function postToTrustedTop(message) {
+    if (!trustedTopOrigin) return;
+    try {
+      window.top.postMessage(message, trustedTopOrigin);
+    } catch (_error) {}
+  }
+
+  function inlineAll(original, clone) {
+    if (original.nodeType !== 1 || clone.nodeType !== 1) return;
+
+    try {
+      const computedStyle = getComputedStyle(original);
+      // cssText on a computed style is the serialized declaration in modern
+      // Chromium/Safari — a single read beats enumerating ~400 longhand
+      // properties. Firefox returns "" here, so we fall back on empty.
+      const serialized = computedStyle.cssText;
+      if (serialized) {
+        clone.style.cssText = serialized;
+      } else {
+        const parts = new Array(computedStyle.length);
+        for (let index = 0; index < computedStyle.length; index += 1) {
+          const property = computedStyle[index];
+          parts[index] = `${property}:${computedStyle.getPropertyValue(property)};`;
+        }
+        clone.style.cssText = parts.join("");
+      }
+    } catch (_error) {}
+
+    const originalChildren = original.children;
+    const clonedChildren = clone.children;
+    for (
+      let index = 0;
+      index < originalChildren.length && index < clonedChildren.length;
+      index += 1
+    ) {
+      inlineAll(originalChildren[index], clonedChildren[index]);
+    }
+  }
+
+  function extractFontUrl(srcValue) {
+    const matches = [
+      ...srcValue.matchAll(
+        /url\(["']?([^"')]+)["']?\)(?:\s*format\(["']?([^"')]+)["']?\))?/gi,
+      ),
+    ];
+    if (matches.length === 0) return null;
+    const woff2 = matches.find((m) => m[2] && m[2].toLowerCase().includes("woff2"));
+    if (woff2) return woff2[1];
+    const woff = matches.find((m) => m[2] && m[2].toLowerCase().includes("woff"));
+    if (woff) return woff[1];
+    return matches[0][1];
+  }
+
+  // Cache resolved font URL -> data URI across captures. Fonts on a page
+  // essentially never change, and a batch run emits multiple captures back to
+  // back — without this we'd refetch + re-base64 every time.
+  const fontDataUriCache = new Map();
+  const SRC_DECLARATION_RE = /src\s*:\s*[^;}]+/i;
+
+  async function fetchAsDataUri(url) {
+    if (fontDataUriCache.has(url)) return fontDataUriCache.get(url);
+    let dataUri = null;
+    try {
+      const response = await fetch(url, { mode: "cors", credentials: "omit" });
+      if (response.ok) {
+        const blob = await response.blob();
+        if (blob.size <= MAX_FONT_BYTES) {
+          dataUri = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () =>
+              resolve(typeof reader.result === "string" ? reader.result : null);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+          });
+        }
+      }
+    } catch (_error) {
+      dataUri = null;
+    }
+    fontDataUriCache.set(url, dataUri);
+    return dataUri;
+  }
+
+  function collectFontFaceRuleTexts() {
+    const rules = [];
+    for (const sheet of document.styleSheets) {
+      let cssRules;
+      try {
+        cssRules = sheet.cssRules;
+      } catch (_error) {
+        continue;
+      }
+      if (!cssRules) continue;
+      for (const rule of cssRules) {
+        const cssText = rule.cssText || "";
+        if (cssText.startsWith("@font-face")) rules.push(cssText);
+      }
+    }
+    return rules;
+  }
+
+  async function buildInlinedFontCss() {
+    const ruleTexts = collectFontFaceRuleTexts();
+    if (ruleTexts.length === 0) return null;
+
+    const resolved = ruleTexts.map((cssText) => {
+      if (!SRC_DECLARATION_RE.test(cssText)) return null;
+      const srcMatch = cssText.match(/src\s*:\s*([^;}]+)[;}]/i);
+      if (!srcMatch) return null;
+      const url = extractFontUrl(srcMatch[1]);
+      if (!url) return null;
+      try {
+        return { cssText, url: new URL(url, document.baseURI).href };
+      } catch (_error) {
+        return null;
+      }
+    });
+
+    const dataUris = await Promise.all(
+      resolved.map((entry) => (entry ? fetchAsDataUri(entry.url) : Promise.resolve(null))),
+    );
+
+    const inlined = [];
+    let totalBytes = 0;
+    for (let index = 0; index < resolved.length; index += 1) {
+      const entry = resolved[index];
+      const dataUri = dataUris[index];
+      if (!entry || !dataUri) continue;
+      const approxBytes = dataUri.length * 0.75;
+      if (totalBytes + approxBytes > MAX_TOTAL_FONT_BYTES) break;
+      totalBytes += approxBytes;
+      inlined.push(entry.cssText.replace(SRC_DECLARATION_RE, `src: url("${dataUri}")`));
+    }
+    return inlined.length > 0 ? inlined.join("\n") : null;
+  }
+
+  function stripExternal(clone) {
+    const images = clone.querySelectorAll("img");
+    for (let index = 0; index < images.length; index += 1) {
+      const src = images[index].getAttribute("src");
+      if (src && !src.startsWith("data:")) images[index].removeAttribute("src");
+    }
+
+    const elements = clone.querySelectorAll("*");
+    for (let index = 0; index < elements.length; index += 1) {
+      const style = elements[index].style.cssText;
+      if (style && style.includes("url(")) {
+        elements[index].style.cssText = style.replace(
+          /url\(["']?(?!data:)[^)"']*["']?\)/gi,
+          "none",
+        );
+      }
+    }
+  }
+
+  function emitScroll() {
+    scrollRaf = 0;
+    if (!scrollForwarding) return;
+    postToTrustedTop({
+      type: "INLINE_EDIT_SCROLL",
+      scrollX: window.scrollX,
+      scrollY: window.scrollY,
+    });
+  }
+
+  window.addEventListener(
+    "scroll",
+    function () {
+      if (!scrollForwarding || scrollRaf) return;
+      scrollRaf = requestAnimationFrame(emitScroll);
+    },
+    { passive: true, capture: true },
+  );
+
+  async function handleCaptureRequest(event) {
+    const requestId = event.data.requestId;
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    function postResult(dataUrl) {
+      postToTrustedTop({
+        type: "INLINE_EDIT_SCREENSHOT_RESULT",
+        requestId,
+        dataUrl,
+        scrollX,
+        scrollY,
+      });
+    }
+
+    try {
+      // Wait for any pending web fonts to resolve so both inline metrics and
+      // the @font-face inlining below see the same loaded faces.
+      if (document.fonts && document.fonts.ready) {
+        try {
+          await document.fonts.ready;
+        } catch (_error) {}
+      }
+
+      const clone = document.documentElement.cloneNode(true);
+      inlineAll(document.documentElement, clone);
+
+      const removedNodes = clone.querySelectorAll("script,link[rel=\"stylesheet\"],style");
+      for (let index = 0; index < removedNodes.length; index += 1) {
+        removedNodes[index].remove();
+      }
+
+      stripExternal(clone);
+
+      // Re-embed web fonts as data-URI @font-face rules so the SVG rasterizer
+      // can resolve them — external font URLs aren't fetched during
+      // foreignObject rendering, which would otherwise force a fallback face
+      // and change text metrics.
+      const inlinedFontCss = await buildInlinedFontCss();
+      if (inlinedFontCss) {
+        const styleEl = document.createElement("style");
+        styleEl.textContent = inlinedFontCss;
+        const head = clone.querySelector("head");
+        if (head) head.appendChild(styleEl);
+        else clone.insertBefore(styleEl, clone.firstChild);
+      }
+
+      const html = new XMLSerializer().serializeToString(clone);
+      const svg =
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">` +
+        '<foreignObject width="100%" height="100%">' +
+        `<div xmlns="http://www.w3.org/1999/xhtml" style="width:${width}px;height:${height}px;overflow:hidden">` +
+        `<div style="transform:translate(-${scrollX}px,-${scrollY}px);transform-origin:top left">` +
+        html +
+        "</div></div></foreignObject></svg>";
+      const svgUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+      const image = new Image();
+      image.onload = function () {
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d").drawImage(image, 0, 0);
+        postResult(canvas.toDataURL("image/png"));
+      };
+      image.onerror = function () {
+        postResult(null);
+      };
+      image.src = svgUrl;
+    } catch (_error) {
+      postResult(null);
+    }
+  }
+
+  window.addEventListener("message", function (event) {
+    if (!event.data) return;
+    // Only accept messages from the direct parent frame. Blocks sibling /
+    // unrelated-window postMessage senders that could otherwise reach us.
+    if (event.source !== window.parent) return;
+
+    const trustedParentOrigin = getTrustedParentOrigin(event);
+    if (!trustedParentOrigin) return;
+    trustedTopOrigin = trustedParentOrigin;
+
+    if (event.data.type === "INLINE_EDIT_SCROLL_START") {
+      scrollForwarding = true;
+      emitScroll();
+      return;
+    }
+
+    if (event.data.type === "INLINE_EDIT_SCROLL_STOP") {
+      scrollForwarding = false;
+      if (scrollRaf) cancelAnimationFrame(scrollRaf);
+      scrollRaf = 0;
+      return;
+    }
+
+    if (event.data.type !== "INLINE_EDIT_CAPTURE_REQUEST") return;
+
+    handleCaptureRequest(event);
+  });
+})();
+
+
+</script></body>
+</html>

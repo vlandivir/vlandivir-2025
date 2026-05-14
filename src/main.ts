@@ -36,10 +36,16 @@ async function bootstrap() {
     // Serve Mini App static build
     const miniAppDist = path.join(process.cwd(), 'web', 'mini-app', 'dist');
     app.useStaticAssets(miniAppDist, { prefix: '/mini-app' });
+    // Static GPX → PNG tool (plain HTML/CSS/JS)
+    const gpxRoutePng = path.join(process.cwd(), 'web', 'gpx-route-png');
+    app.useStaticAssets(gpxRoutePng, { prefix: '/gpx-route-png' });
     // Fallback to index.html for SPA routes (use RegExp to avoid path-to-regexp issues)
     const instance = app.getHttpAdapter().getInstance();
     instance.get(/^\/mini-app(?:\/.*)?$/, (_req: unknown, res: Response) => {
       res.sendFile(path.join(miniAppDist, 'index.html'));
+    });
+    instance.get(/^\/gpx-route-png\/?$/, (_req: unknown, res: Response) => {
+      res.sendFile(path.join(gpxRoutePng, 'index.html'));
     });
     await app.listen(443);
   } else {
@@ -48,9 +54,14 @@ async function bootstrap() {
     // Serve Mini App static build in dev too (or use Vite dev server separately)
     const miniAppDist = path.join(process.cwd(), 'web', 'mini-app', 'dist');
     app.useStaticAssets(miniAppDist, { prefix: '/mini-app' });
+    const gpxRoutePng = path.join(process.cwd(), 'web', 'gpx-route-png');
+    app.useStaticAssets(gpxRoutePng, { prefix: '/gpx-route-png' });
     const instance = app.getHttpAdapter().getInstance();
     instance.get(/^\/mini-app(?:\/.*)?$/, (_req: unknown, res: Response) => {
       res.sendFile(path.join(miniAppDist, 'index.html'));
+    });
+    instance.get(/^\/gpx-route-png\/?$/, (_req: unknown, res: Response) => {
+      res.sendFile(path.join(gpxRoutePng, 'index.html'));
     });
     await app.listen(port);
     console.log(`Application is running on: http://localhost:${port}`);
