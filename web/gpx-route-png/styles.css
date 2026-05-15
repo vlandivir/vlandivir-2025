@@ -67,7 +67,13 @@ body {
 .brand-text { display: flex; flex-direction: column; line-height: 1.1; }
 .brand-name { font-weight: 700; font-size: 15px; letter-spacing: -0.01em; line-height: 1.2; max-width: min(520px, 52vw); }
 .brand-tag { font-size: 12px; color: var(--ink-muted); margin-top: 2px; letter-spacing: 0.02em; text-transform: uppercase; }
-.header-meta { display: flex; gap: 8px; }
+.header-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
 .lang-switcher {
   display: inline-flex;
   gap: 3px;
@@ -271,6 +277,16 @@ body {
   transition: border-color .15s ease, color .15s ease;
 }
 .ghost-btn:hover { border-color: var(--ink-2); color: var(--ink); }
+.settings-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+.settings-actions .ghost-btn {
+  width: 100%;
+}
+
 .ghost-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
@@ -678,11 +694,8 @@ body {
   letter-spacing: 0;
 }
 
-.step25-panel {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
-  gap: clamp(20px, 3vw, 28px);
-  align-items: start;
+.step2-panel,
+.step3-panel {
   margin-top: 8px;
   padding: 26px 22px;
   background: var(--surface);
@@ -690,30 +703,56 @@ body {
   border-radius: var(--radius);
   box-shadow: var(--shadow);
 }
+.step2-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+  gap: clamp(20px, 3vw, 28px);
+  align-items: start;
+}
+.step3-panel {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(16px, 2.5vw, 22px);
+  align-items: stretch;
+}
 @media (max-width: 900px) {
-  .step25-panel {
+  .step2-panel {
     grid-template-columns: 1fr;
   }
 }
-.step25-preview-shell {
+.step3-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+.step3-controls .ctl {
+  margin: 0;
+}
+.step3-panel-btn {
+  width: 100%;
+  margin-top: 4px;
+}
+.step3-preview-shell,
+.step2-anim-preview-shell {
   margin-inline: auto;
 }
-.step25-controls {
+.step2-controls {
   display: flex;
   flex-direction: column;
   gap: 18px;
   min-width: 0;
 }
-.step25-controls .ctl {
+.step2-controls .ctl {
   margin: 0;
 }
-.step25-actions {
+.step2-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
 }
-.step25-actions .primary-btn,
-.step25-actions .ghost-btn {
+.step2-actions .primary-btn,
+.step2-actions .ghost-btn {
   flex: 1 1 100%;
   min-width: 140px;
 }
@@ -748,8 +787,14 @@ body {
 .step3-block__text:last-of-type {
   margin-bottom: 22px;
 }
-.instagram-cta--step3 {
-  margin-top: 4px;
+.instagram-cta--header {
+  padding: 6px 12px;
+  font-size: 14px;
+  gap: 8px;
+}
+.instagram-cta--header .instagram-cta__icon {
+  width: 18px;
+  height: 18px;
 }
 
 .instagram-cta {

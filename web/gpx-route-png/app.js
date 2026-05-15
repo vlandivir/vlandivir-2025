@@ -13,28 +13,6 @@
       notGpxRoot: 'Это не похоже на GPX-файл: отсутствует корневой элемент <gpx>.',
       notEnoughPoints: 'В GPX-файле не найдено достаточно координат (нужно минимум две точки).',
       distanceUnit: 'км',
-      aiPromptIntro: [
-        'Задача: сгенерировать изображение ТОЛЬКО с маршрутом (линия), кругами на точках подписей и текстовыми подписями.',
-        '',
-        'GPX и географические координаты недоступны — воспроизведи геометрию строго по данным ниже.',
-        '',
-        'Не добавляй: фон (градиент, текстуры, «бумага»), декоративные контуры, заголовок, нижний блок статистики, внешнюю рамку, тень/ореол вокруг линии (достаточно одной обводки указанной толщины). Прозрачный фон или сплошной нейтральный однотон — на выбор, остальное пустое.',
-        '',
-        '=== Линия трека ===',
-      ],
-      canvasLine: (canvas) => `Холст: ${canvas.width}×${canvas.height} px, вертикальная ориентация. Начало координат — левый верхний угол, ось X вправо, ось Y вниз. Все числа в пикселях.`,
-      strokeLine: (track) => `Цвет обводки: ${track.stroke}. Толщина: ${track.lineWidth} px. lineCap: ${track.lineCap}, lineJoin: ${track.lineJoin}.`,
-      curveLine: (track) => `Кривая: ${track.curve.type}.`,
-      implementationLine: (track) => `Построение: ${track.curve.implementation}`,
-      verticesLine: (track) => `Вершины кривой по порядку (${track.vertices.length} шт., координаты центра линии в px):`,
-      markersHeading: '=== Точки и подписи (каждая строка подписи — fillText, textAlign left, textBaseline middle; x,y — якорь как в canvas) ===',
-      noMarkers: '(нет подписей на треке — только линия)',
-      markerLine: (i) => `Маркер ${i + 1}:`,
-      circleLine: (dot) => `  круг: ${JSON.stringify(dot)}`,
-      fontLine: (label) => `  шрифт: ${label.fontWeight} ${label.fontSize}px ${label.fontFamily}, цвет ${label.color}`,
-      labelLine: (line, lineIndex) => `  строка ${lineIndex + 1}: ${JSON.stringify(line.text)} — x=${line.x}, y=${line.y}`,
-      emptyLabel: '  подпись: (пустой текст — только круг)',
-      aiEmpty: 'Загрузите GPX в шаге 1 — здесь появится промпт: координаты линии, точек и подписей на холсте 1080×1920 (без GPX).',
       defaultStart: 'Старт',
       defaultFinish: 'Финиш',
       waypointTextPlaceholder: 'Текст',
@@ -85,6 +63,7 @@
         terracotta: 'Терракота',
         rust: 'Ржавчина',
       },
+      resetSettings: 'Сбросить настройки',
       locale: 'ru-RU',
     },
     en: {
@@ -92,28 +71,6 @@
       notGpxRoot: 'This does not look like a GPX file: the root <gpx> element is missing.',
       notEnoughPoints: 'The GPX file does not contain enough coordinates; at least two points are required.',
       distanceUnit: 'km',
-      aiPromptIntro: [
-        'Task: generate an image with ONLY the route: the line, circles at labeled points, and text labels.',
-        '',
-        'GPX and geographic coordinates are not available. Recreate the geometry strictly from the data below.',
-        '',
-        'Do not add a background, gradients, textures, paper effects, decorative contours, a title, bottom stats, an outer frame, or a shadow/glow around the line. Use only the single stroke with the specified width. Transparent background or a plain neutral solid color is acceptable; leave everything else empty.',
-        '',
-        '=== Track line ===',
-      ],
-      canvasLine: (canvas) => `Canvas: ${canvas.width}×${canvas.height} px, vertical orientation. Origin is the top-left corner, X goes right, Y goes down. All numbers are in pixels.`,
-      strokeLine: (track) => `Stroke color: ${track.stroke}. Width: ${track.lineWidth} px. lineCap: ${track.lineCap}, lineJoin: ${track.lineJoin}.`,
-      curveLine: (track) => `Curve: ${track.curve.type}.`,
-      implementationLine: (track) => `Construction: ${track.curve.implementation}`,
-      verticesLine: (track) => `Curve vertices in order (${track.vertices.length} items, line-center coordinates in px):`,
-      markersHeading: '=== Points and labels (each label line is fillText, textAlign left, textBaseline middle; x,y is the canvas anchor) ===',
-      noMarkers: '(no labels on the track; line only)',
-      markerLine: (i) => `Marker ${i + 1}:`,
-      circleLine: (dot) => `  circle: ${JSON.stringify(dot)}`,
-      fontLine: (label) => `  font: ${label.fontWeight} ${label.fontSize}px ${label.fontFamily}, color ${label.color}`,
-      labelLine: (line, lineIndex) => `  line ${lineIndex + 1}: ${JSON.stringify(line.text)} - x=${line.x}, y=${line.y}`,
-      emptyLabel: '  label: (empty text; circle only)',
-      aiEmpty: 'Upload a GPX in step 1 and the prompt will appear here: line, point, and label coordinates on a 1080×1920 canvas without the GPX.',
       defaultStart: 'Start',
       defaultFinish: 'Finish',
       waypointTextPlaceholder: 'Text',
@@ -164,6 +121,7 @@
         terracotta: 'Terracotta',
         rust: 'Rust',
       },
+      resetSettings: 'Reset settings to defaults',
       locale: 'en-US',
     },
   };
@@ -180,6 +138,7 @@
   const ctx = canvas.getContext('2d');
   const downloadBtn = document.getElementById('downloadBtn');
   const resetBtn = document.getElementById('resetBtn');
+  const resetSettingsBtn = document.getElementById('resetSettingsBtn');
   const titleInput = document.getElementById('titleInput');
   const waypointList = document.getElementById('waypointList');
   const addWaypointBtn = document.getElementById('addWaypointBtn');
@@ -192,16 +151,15 @@
   const pointScaleOutput = document.getElementById('pointScaleOutput');
   const minDistanceInput = document.getElementById('minDistanceInput');
   const minDistanceOutput = document.getElementById('minDistanceOutput');
-  const trackColorGroup = document.getElementById('trackColorGroup');
-  const aiDescription = document.getElementById('aiDescription');
-  const downloadPromptBtn = document.getElementById('downloadPromptBtn');
+  const trackColorGroups = document.querySelectorAll('[data-track-color-group]');
   const downloadTransparentPngBtn = document.getElementById('downloadTransparentPngBtn');
-  const step2TrackPreviewCanvas = document.getElementById('step2TrackPreviewCanvas');
-  const step2TrackPlaceholder = document.getElementById('step2TrackPlaceholder');
-  const step25AnimCanvas = document.getElementById('step25AnimCanvas');
-  const step25AnimPlaceholder = document.getElementById('step25AnimPlaceholder');
+  const step2AnimCanvas = document.getElementById('step2AnimCanvas');
+  const step2AnimPlaceholder = document.getElementById('step2AnimPlaceholder');
+  const step3TrackPreviewCanvas = document.getElementById('step3TrackPreviewCanvas');
+  const step3TrackPlaceholder = document.getElementById('step3TrackPlaceholder');
   const animDurationInput = document.getElementById('animDurationInput');
   const animDurationOutput = document.getElementById('animDurationOutput');
+  const animFpsSelect = document.getElementById('animFpsSelect');
   const playAnimBtn = document.getElementById('playAnimBtn');
   const downloadAnimWebmBtn = document.getElementById('downloadAnimWebmBtn');
   const downloadAnimPngZipBtn = document.getElementById('downloadAnimPngZipBtn');
@@ -218,7 +176,7 @@
   let waypointCounter = 0;
   const DEFAULT_ROUTE_LINE_WIDTH = 14;
   const ROUTE_ANIM_UNREVEALED = '#FFFFFF';
-  const ANIM_EXPORT_FPS = 30;
+  const ANIM_EXPORT_FPS_OPTIONS = [24, 25, 30, 60];
   let routePathCache = null;
   let routeAnimRafId = null;
   let routeAnimPlaying = false;
@@ -606,45 +564,228 @@
 
   const TRACK_COLOR_IDS = new Set(TRACK_PALETTE.map((entry) => entry.id));
 
+  const SETTINGS_STORAGE_KEY = 'gpx-route-png/v1';
+  const DEFAULT_SETTINGS = {
+    v: 1,
+    title: '',
+    labelFont: 'montserrat',
+    labelSize: 48,
+    lineWidth: 14,
+    pointScale: 3,
+    minDistance: MIN_DIST_M,
+    trackColor: 'terracotta',
+    animDuration: 5,
+    animFps: 30,
+    waypoints: [],
+  };
+
+  let saveSettingsTimer = null;
+  let settingsPersistSuspended = false;
+
+  function clampSettingNumber(value, min, max, fallback) {
+    const n = Number(value);
+    return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback;
+  }
+
+  function collectWaypointsForStorage() {
+    return [...waypointList.querySelectorAll('.waypoint-row')].map((row) => ({
+      name: row.querySelector('.waypoint-name').value,
+      distanceKm: row.querySelector('.waypoint-distance').value,
+      offsetX: row.querySelector('.waypoint-offset-x').value,
+      offsetY: row.querySelector('.waypoint-offset-y').value,
+    }));
+  }
+
+  function collectSettings() {
+    const fps = Number.parseInt(animFpsSelect?.value || String(DEFAULT_SETTINGS.animFps), 10);
+    return {
+      v: 1,
+      title: titleInput.value,
+      labelFont: labelFontSelect.value,
+      labelSize: Number.parseInt(labelSizeInput.value, 10) || DEFAULT_SETTINGS.labelSize,
+      lineWidth: Number.parseInt(lineWidthInput.value, 10) || DEFAULT_SETTINGS.lineWidth,
+      pointScale: Number.parseFloat(pointScaleInput.value) || DEFAULT_SETTINGS.pointScale,
+      minDistance: Number.parseInt(minDistanceInput.value, 10) || DEFAULT_SETTINGS.minDistance,
+      trackColor: currentTrackColorId,
+      animDuration: Number.parseFloat(animDurationInput?.value || String(DEFAULT_SETTINGS.animDuration)) || DEFAULT_SETTINGS.animDuration,
+      animFps: ANIM_EXPORT_FPS_OPTIONS.includes(fps) ? fps : DEFAULT_SETTINGS.animFps,
+      waypoints: collectWaypointsForStorage(),
+    };
+  }
+
+  function normalizeStoredSettings(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    const labelFont = Object.prototype.hasOwnProperty.call(LABEL_FONTS, raw.labelFont)
+      ? raw.labelFont
+      : DEFAULT_SETTINGS.labelFont;
+    const trackColor = TRACK_COLOR_IDS.has(raw.trackColor) ? raw.trackColor : DEFAULT_SETTINGS.trackColor;
+    const animFps = Number.parseInt(raw.animFps, 10);
+    const waypoints = Array.isArray(raw.waypoints)
+      ? raw.waypoints.map((entry) => ({
+          name: String(entry?.name ?? ''),
+          distanceKm: String(entry?.distanceKm ?? ''),
+          offsetX: String(entry?.offsetX ?? '0'),
+          offsetY: String(entry?.offsetY ?? '0'),
+        }))
+      : [];
+    return {
+      v: 1,
+      title: String(raw.title ?? ''),
+      labelFont,
+      labelSize: clampSettingNumber(raw.labelSize, 28, 72, DEFAULT_SETTINGS.labelSize),
+      lineWidth: clampSettingNumber(raw.lineWidth, 3, 24, DEFAULT_SETTINGS.lineWidth),
+      pointScale: clampSettingNumber(raw.pointScale, 2, 10, DEFAULT_SETTINGS.pointScale),
+      minDistance: clampSettingNumber(raw.minDistance, 50, 500, DEFAULT_SETTINGS.minDistance),
+      trackColor,
+      animDuration: clampSettingNumber(raw.animDuration, 1, 30, DEFAULT_SETTINGS.animDuration),
+      animFps: ANIM_EXPORT_FPS_OPTIONS.includes(animFps) ? animFps : DEFAULT_SETTINGS.animFps,
+      waypoints,
+    };
+  }
+
+  function persistSettings() {
+    if (settingsPersistSuspended) return;
+    try {
+      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(collectSettings()));
+    } catch (_e) {
+      /* private mode or quota */
+    }
+  }
+
+  function schedulePersistSettings() {
+    if (settingsPersistSuspended) return;
+    if (saveSettingsTimer) clearTimeout(saveSettingsTimer);
+    saveSettingsTimer = setTimeout(() => {
+      saveSettingsTimer = null;
+      persistSettings();
+    }, 250);
+  }
+
+  function loadStoredSettings() {
+    try {
+      const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
+      if (!raw) return null;
+      return normalizeStoredSettings(JSON.parse(raw));
+    } catch (_e) {
+      return null;
+    }
+  }
+
+  function clearStoredSettings() {
+    try {
+      localStorage.removeItem(SETTINGS_STORAGE_KEY);
+    } catch (_e) {
+      /* ignore */
+    }
+  }
+
+  function applySettings(settings, { skipRender = false } = {}) {
+    const normalized = normalizeStoredSettings(settings) || { ...DEFAULT_SETTINGS, waypoints: [] };
+    settingsPersistSuspended = true;
+    titleInput.value = normalized.title;
+    labelFontSelect.value = normalized.labelFont;
+    labelSizeInput.value = String(normalized.labelSize);
+    labelSizeOutput.textContent = String(normalized.labelSize);
+    lineWidthInput.value = String(normalized.lineWidth);
+    lineWidthOutput.textContent = String(normalized.lineWidth);
+    pointScaleInput.value = String(normalized.pointScale);
+    pointScaleOutput.textContent = String(normalized.pointScale);
+    minDistanceInput.value = String(normalized.minDistance);
+    minDistanceOutput.textContent = String(normalized.minDistance);
+    currentTrackColorId = normalized.trackColor;
+    syncTrackColorSwatches(normalized.trackColor);
+    if (animDurationInput) {
+      animDurationInput.value = String(normalized.animDuration);
+      if (animDurationOutput) animDurationOutput.textContent = String(normalized.animDuration);
+    }
+    if (animFpsSelect) animFpsSelect.value = String(normalized.animFps);
+    waypointList.textContent = '';
+    waypointCounter = 0;
+    normalized.waypoints.forEach((waypoint) => {
+      addWaypointRow(waypoint.name, waypoint.distanceKm, waypoint.offsetX, waypoint.offsetY, false);
+    });
+    settingsPersistSuspended = false;
+    if (currentState) {
+      updateThinning();
+      if (!skipRender) {
+        render();
+        renderStep2AnimPreview(1);
+      }
+    } else if (!skipRender) {
+      refreshWorkflowOutputs();
+    }
+    return normalized;
+  }
+
+  function applyDefaultSettings(options) {
+    return applySettings(DEFAULT_SETTINGS, options);
+  }
+
+  function restoreStoredSettings() {
+    const stored = loadStoredSettings();
+    if (!stored) return false;
+    applySettings(stored, { skipRender: true });
+    return true;
+  }
+
+  function resetSettingsToDefaults() {
+    clearStoredSettings();
+    applyDefaultSettings({ skipRender: true });
+    if (currentState) {
+      resetDefaultLabels();
+      updateThinning();
+      render();
+      renderStep2AnimPreview(1);
+    } else {
+      refreshWorkflowOutputs();
+    }
+    persistSettings();
+  }
+
   function getTrackColorLine(colorId = currentTrackColorId) {
     const entry = TRACK_PALETTE.find((item) => item.id === colorId);
     return entry ? entry.line : TRACK_PALETTE[5].line;
   }
 
-  function initTrackColorPalette() {
-    if (!trackColorGroup) return;
-    trackColorGroup.textContent = '';
-    trackColorGroup.setAttribute('aria-label', copy.trackColorAria);
-    TRACK_PALETTE.forEach((entry) => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'track-color-swatch';
-      btn.dataset.trackColor = entry.id;
-      btn.style.setProperty('--swatch', entry.line);
-      btn.setAttribute('role', 'radio');
-      btn.setAttribute('aria-label', copy.trackColorLabels[entry.id] || entry.id);
-      const isActive = entry.id === currentTrackColorId;
-      btn.classList.toggle('is-active', isActive);
-      btn.setAttribute('aria-checked', isActive ? 'true' : 'false');
-      trackColorGroup.appendChild(btn);
+  function syncTrackColorSwatches(colorId = currentTrackColorId) {
+    trackColorGroups.forEach((group) => {
+      [...group.querySelectorAll('.track-color-swatch')].forEach((btn) => {
+        const active = btn.dataset.trackColor === colorId;
+        btn.classList.toggle('is-active', active);
+        btn.setAttribute('aria-checked', active ? 'true' : 'false');
+      });
     });
+  }
+
+  function initTrackColorPalette() {
+    if (trackColorGroups.length === 0) return;
+    trackColorGroups.forEach((group) => {
+      group.textContent = '';
+      group.setAttribute('aria-label', copy.trackColorAria);
+      TRACK_PALETTE.forEach((entry) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'track-color-swatch';
+        btn.dataset.trackColor = entry.id;
+        btn.style.setProperty('--swatch', entry.line);
+        btn.setAttribute('role', 'radio');
+        btn.setAttribute('aria-label', copy.trackColorLabels[entry.id] || entry.id);
+        group.appendChild(btn);
+      });
+    });
+    syncTrackColorSwatches();
   }
 
   function setTrackColor(colorId) {
     if (!TRACK_COLOR_IDS.has(colorId) || colorId === currentTrackColorId) return;
     currentTrackColorId = colorId;
-    if (trackColorGroup) {
-      [...trackColorGroup.querySelectorAll('.track-color-swatch')].forEach((btn) => {
-        const active = btn.dataset.trackColor === colorId;
-        btn.classList.toggle('is-active', active);
-        btn.setAttribute('aria-checked', active ? 'true' : 'false');
-      });
-    }
+    syncTrackColorSwatches(colorId);
     invalidateRoutePathCache();
     if (currentState) {
       render();
-      renderStep25AnimPreview(1);
-    } else updateAIDescription();
+      renderStep2AnimPreview(1);
+    } else refreshWorkflowOutputs();
+    schedulePersistSettings();
   }
 
   function computeRouteGeometry() {
@@ -726,16 +867,16 @@
     });
   }
 
-  function renderStep2TrackPreview() {
-    if (!step2TrackPreviewCanvas || !step2TrackPlaceholder) return;
-    const s2 = step2TrackPreviewCanvas.getContext('2d');
+  function renderStep3TrackPreview() {
+    if (!step3TrackPreviewCanvas || !step3TrackPlaceholder) return;
+    const s2 = step3TrackPreviewCanvas.getContext('2d');
     if (!currentState) {
-      step2TrackPreviewCanvas.hidden = true;
-      step2TrackPlaceholder.hidden = false;
+      step3TrackPreviewCanvas.hidden = true;
+      step3TrackPlaceholder.hidden = false;
       return;
     }
-    step2TrackPlaceholder.hidden = true;
-    step2TrackPreviewCanvas.hidden = false;
+    step3TrackPlaceholder.hidden = true;
+    step3TrackPreviewCanvas.hidden = false;
     s2.clearRect(0, 0, CANVAS_W, CANVAS_H);
     const geo = computeRouteGeometry();
     if (geo) drawTrackOverlayLayers(s2, geo);
@@ -747,9 +888,15 @@
     return seconds * 1000;
   }
 
+  function getAnimExportFps() {
+    const fps = parseInt(animFpsSelect?.value || '30', 10);
+    return ANIM_EXPORT_FPS_OPTIONS.includes(fps) ? fps : 30;
+  }
+
   function getAnimExportFrameCount() {
     const durationMs = getAnimDurationMs();
-    return Math.max(2, Math.round((durationMs / 1000) * ANIM_EXPORT_FPS) + 1);
+    const fps = getAnimExportFps();
+    return Math.max(2, Math.round((durationMs / 1000) * fps) + 1);
   }
 
   function getAnimProgressForFrame(frameIndex, frameCount) {
@@ -921,7 +1068,7 @@
 
   function setAnimExportBusy(busy) {
     animExportInProgress = busy;
-    updateStep25Controls();
+    updateStep2Controls();
   }
 
   async function exportAnimWebm() {
@@ -940,8 +1087,9 @@
     try {
       const { geo, exportCanvas, exportCtx } = exportContext;
       const frameCount = getAnimExportFrameCount();
-      const frameDelayMs = Math.round(1000 / ANIM_EXPORT_FPS);
-      const stream = exportCanvas.captureStream(ANIM_EXPORT_FPS);
+      const exportFps = getAnimExportFps();
+      const frameDelayMs = Math.round(1000 / exportFps);
+      const stream = exportCanvas.captureStream(exportFps);
       const videoTrack = stream.getVideoTracks()[0];
       const recorder = new MediaRecorder(stream, {
         mimeType,
@@ -976,7 +1124,7 @@
       showError(copy.exportFailed);
     } finally {
       setAnimExportBusy(false);
-      renderStep25AnimPreview(1);
+      renderStep2AnimPreview(1);
     }
   }
 
@@ -1005,7 +1153,7 @@
 
       zipEntries.push({
         name: 'ffmpeg.txt',
-        data: new TextEncoder().encode(copy.ffmpegReadme(ANIM_EXPORT_FPS)),
+        data: new TextEncoder().encode(copy.ffmpegReadme(getAnimExportFps())),
       });
 
       const zipBytes = buildStoredZipArchive(zipEntries);
@@ -1018,7 +1166,7 @@
       showError(copy.exportFailed);
     } finally {
       setAnimExportBusy(false);
-      renderStep25AnimPreview(1);
+      renderStep2AnimPreview(1);
     }
   }
 
@@ -1028,55 +1176,55 @@
       routeAnimRafId = null;
     }
     routeAnimPlaying = false;
-    updateStep25Controls();
+    updateStep2Controls();
   }
 
-  function renderStep25AnimFrame(progress) {
-    if (!step25AnimCanvas || !step25AnimPlaceholder) return;
-    const animCtx = step25AnimCanvas.getContext('2d');
+  function renderStep2AnimFrame(progress) {
+    if (!step2AnimCanvas || !step2AnimPlaceholder) return;
+    const animCtx = step2AnimCanvas.getContext('2d');
     if (!currentState) {
-      step25AnimCanvas.hidden = true;
-      step25AnimPlaceholder.hidden = false;
-      if (step25AnimPlaceholder.textContent !== copy.animEmpty) {
-        step25AnimPlaceholder.textContent = copy.animEmpty;
+      step2AnimCanvas.hidden = true;
+      step2AnimPlaceholder.hidden = false;
+      if (step2AnimPlaceholder.textContent !== copy.animEmpty) {
+        step2AnimPlaceholder.textContent = copy.animEmpty;
       }
       return;
     }
-    step25AnimPlaceholder.hidden = true;
-    step25AnimCanvas.hidden = false;
+    step2AnimPlaceholder.hidden = true;
+    step2AnimCanvas.hidden = false;
     const geo = computeRouteGeometry();
     if (!geo) return;
     renderTraversalExportFrame(animCtx, geo, progress);
   }
 
-  function renderStep25AnimPreview(progress = 1) {
+  function renderStep2AnimPreview(progress = 1) {
     if (routeAnimPlaying) return;
-    renderStep25AnimFrame(progress);
-    updateStep25Controls();
+    renderStep2AnimFrame(progress);
+    updateStep2Controls();
   }
 
   function playRouteAnim() {
     if (!currentState || routeAnimPlaying || animExportInProgress) return;
     stopRouteAnimPlayback();
     routeAnimPlaying = true;
-    updateStep25Controls();
+    updateStep2Controls();
     const durationMs = getAnimDurationMs();
     const startedAt = performance.now();
 
     const tick = (now) => {
       const elapsed = now - startedAt;
       const progress = Math.min(1, elapsed / durationMs);
-      renderStep25AnimFrame(progress);
+      renderStep2AnimFrame(progress);
       if (progress < 1) {
         routeAnimRafId = requestAnimationFrame(tick);
         return;
       }
       routeAnimRafId = null;
       routeAnimPlaying = false;
-      updateStep25Controls();
+      updateStep2Controls();
     };
 
-    renderStep25AnimFrame(0);
+    renderStep2AnimFrame(0);
     routeAnimRafId = requestAnimationFrame(tick);
   }
 
@@ -1137,7 +1285,7 @@
     ctx.strokeRect(40, 40, W - 80, H - 80);
     ctx.restore();
 
-    updateAIDescription();
+    refreshWorkflowOutputs();
   }
 
   function fitToBox(points, boxW, boxH) {
@@ -1528,133 +1676,23 @@
     statBbox.textContent = wKm.toFixed(1) + ' × ' + hKm.toFixed(1) + ' ' + copy.distanceUnit;
   }
 
-  /**
-   * Geometry of the route overlay in poster canvas space (same as render()).
-   * GPX is not included — another model can redraw from this spec only.
-   */
-  function buildCanvasTrackSpec(measureCtx) {
-    if (!currentState || !measureCtx) return null;
-    const geo = computeRouteGeometry();
-    if (!geo) return null;
-    const { pts, controls, trackColor, labelMarkers } = geo;
-    const W = CANVAS_W;
-    const H = CANVAS_H;
-    const vertices = pts.map((p) => ({ x: roundPx(p.x), y: roundPx(p.y) }));
-    const lineWidth = controls.lineWidth;
-    const markerRadius = roundPx((lineWidth * controls.pointScale) / 2);
-
-    const markers = [];
-
-    labelMarkers.forEach((marker, index) => {
-      const routeIndex = nearestPointIndex(pts, marker.x, marker.y);
-      const normal = outwardNormalForPoint(pts, routeIndex, marker.x, marker.y);
-      const side = index % 2 === 0 ? 'right' : 'left';
-      const dot = {
-        cx: roundPx(marker.x),
-        cy: roundPx(marker.y),
-        r: markerRadius,
-        fill: trackColor,
-      };
-      const layout = computeTrackLabelLayout(marker, side, controls, normal, pts, measureCtx, trackColor);
-      const label = layout
-        ? {
-            fontSize: layout.fontSize,
-            fontWeight: layout.fontWeight,
-            fontFamily: layout.fontFamily,
-            color: layout.color,
-            lines: layout.lines.map((text, i) => ({
-              text,
-              x: roundPx(layout.textX),
-              y: roundPx(layout.firstLineY + i * layout.lineHeight),
-            })),
-          }
-        : null;
-      markers.push({ dot, label });
-    });
-
-    return {
-      canvas: { width: W, height: H },
-      track: {
-        vertices,
-        stroke: trackColor,
-        lineWidth,
-        lineCap: 'round',
-        lineJoin: 'round',
-        curve: {
-          type: 'Catmull-Rom (Cardinal) spline through every vertex, tension 0.5',
-          implementation:
-            'Each segment between consecutive vertices is drawn as one cubic Bézier: for points p0,p1,p2,p3 (with endpoints duplicated at ends), cp1 = p1 + (p2-p0)/6 * tension*2, cp2 = p2 - (p3-p1)/6 * tension*2, tension=0.5 — same as reference canvas path using bezierCurveTo.',
-        },
-      },
-      markers,
-    };
-  }
-
-  function formatCanvasTrackPrompt(spec) {
-    const { canvas, track, markers } = spec;
-    const out = [];
-    out.push(
-      copy.aiPromptIntro[0],
-      copy.canvasLine(canvas),
-      ...copy.aiPromptIntro.slice(1),
-      copy.strokeLine(track),
-      copy.curveLine(track),
-      copy.implementationLine(track),
-      '',
-      copy.verticesLine(track),
-      JSON.stringify(track.vertices),
-      '',
-      copy.markersHeading,
-    );
-
-    if (markers.length === 0) {
-      out.push(copy.noMarkers);
-    } else {
-      markers.forEach((m, i) => {
-        out.push('', copy.markerLine(i), copy.circleLine(m.dot));
-        if (m.label && m.label.lines.length) {
-          out.push(copy.fontLine(m.label));
-          m.label.lines.forEach((line, lineIndex) => {
-            out.push(copy.labelLine(line, lineIndex));
-          });
-        } else {
-          out.push(copy.emptyLabel);
-        }
-      });
-    }
-
-    return out.join('\n');
-  }
-
-  function updateAIDescription() {
+  function refreshWorkflowOutputs() {
     if (!currentState) {
-      aiDescription.value = copy.aiEmpty;
       stopRouteAnimPlayback();
       invalidateRoutePathCache();
       updateStep2Controls();
-      renderStep2TrackPreview();
-      renderStep25AnimPreview(1);
+      updateStep3Controls();
+      renderStep3TrackPreview();
+      renderStep2AnimPreview(1);
       return;
     }
-    const spec = buildCanvasTrackSpec(ctx);
-    aiDescription.value = spec ? formatCanvasTrackPrompt(spec) : '';
     updateStep2Controls();
-    renderStep2TrackPreview();
-    renderStep25AnimPreview(1);
+    updateStep3Controls();
+    renderStep3TrackPreview();
+    renderStep2AnimPreview(1);
   }
 
   function updateStep2Controls() {
-    const hasTrack = Boolean(currentState);
-    if (downloadTransparentPngBtn) {
-      downloadTransparentPngBtn.disabled = !hasTrack;
-    }
-    if (downloadPromptBtn) {
-      const text = (aiDescription.value || '').trim();
-      downloadPromptBtn.disabled = !hasTrack || !text;
-    }
-  }
-
-  function updateStep25Controls() {
     const hasTrack = Boolean(currentState);
     const locked = routeAnimPlaying || animExportInProgress;
     if (playAnimBtn) {
@@ -1662,6 +1700,7 @@
       playAnimBtn.textContent = routeAnimPlaying ? copy.playingAnim : copy.playAnim;
     }
     if (animDurationInput) animDurationInput.disabled = locked;
+    if (animFpsSelect) animFpsSelect.disabled = locked;
     if (downloadAnimWebmBtn) {
       downloadAnimWebmBtn.disabled = !hasTrack || locked;
       if (!animExportInProgress) downloadAnimWebmBtn.textContent = copy.downloadAnimWebm;
@@ -1672,20 +1711,11 @@
     }
   }
 
-  function downloadPromptAsFile() {
-    const text = (aiDescription.value || '').trim();
-    if (!text || !currentState) return;
-    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    const base =
-      (currentState.fileName || 'gpx-track').replace(/[^\wа-яА-Я\-_. ]+/g, '').trim() || 'gpx-track';
-    a.download = base + '-prompt.txt';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  function updateStep3Controls() {
+    const hasTrack = Boolean(currentState);
+    if (downloadTransparentPngBtn) {
+      downloadTransparentPngBtn.disabled = !hasTrack;
+    }
   }
 
   async function downloadTransparentTrackPng() {
@@ -1802,7 +1832,7 @@
     if (shouldRender) {
       nameInput.focus();
       if (currentState) render();
-      else updateAIDescription();
+      else refreshWorkflowOutputs();
     }
   }
 
@@ -1818,7 +1848,7 @@
   }
 
   async function handleFile(file, opts = {}) {
-    const { scrollToResults = true, suppressError = false } = opts;
+    const { scrollToResults = true, suppressError = false, preserveWaypoints = false } = opts;
     clearError();
     if (!file) return;
     if (!file.name.toLowerCase().endsWith('.gpx') && file.type !== 'application/gpx+xml' && file.type !== 'text/xml' && file.type !== 'application/xml') {
@@ -1869,10 +1899,11 @@
       };
 
       invalidateRoutePathCache();
-      resetDefaultLabels();
+      if (!preserveWaypoints) resetDefaultLabels();
       updateStatsPanel(currentState);
       render();
       results.hidden = false;
+      schedulePersistSettings();
       if (scrollToResults) {
         results.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
@@ -1885,7 +1916,7 @@
   }
 
   async function loadSampleTrack(options = {}) {
-    const { quiet = false } = options;
+    const { quiet = false, applyDemoContent = true, preserveWaypoints = false } = options;
     const scrollToResults = !quiet;
     const suppressError = quiet;
     if (!quiet) {
@@ -1901,18 +1932,22 @@
       }
       const blob = await response.blob();
       const file = new File([blob], 'sample.gpx', { type: 'application/gpx+xml' });
-      await handleFile(file, { scrollToResults, suppressError });
-      titleInput.value = 'Evening Mountain Bike Ride';
-      if (currentState) {
+      await handleFile(file, { scrollToResults, suppressError, preserveWaypoints });
+      if (applyDemoContent && currentState) {
+        settingsPersistSuspended = true;
+        titleInput.value = 'Evening Mountain Bike Ride';
         minDistanceInput.value = '180';
         minDistanceOutput.textContent = '180';
-        updateThinning();
         waypointList.textContent = '';
+        waypointCounter = 0;
         addWaypointRow(copy.defaultStart, '0', '0', '0', false);
         addWaypointRow(copy.sampleMiddle1, formatKm(5.4), '0', '0', false);
         addWaypointRow(copy.sampleMiddle2, formatKm(9.1), '240', '-200', false);
         addWaypointRow(copy.defaultFinish, formatKm(currentState.distance / 1000), '0', '0', false);
+        settingsPersistSuspended = false;
+        updateThinning();
         render();
+        persistSettings();
       }
     } catch (err) {
       console.error(err);
@@ -1992,9 +2027,6 @@
     }, 'image/png');
   });
 
-  if (downloadPromptBtn) {
-    downloadPromptBtn.addEventListener('click', downloadPromptAsFile);
-  }
   if (downloadTransparentPngBtn) {
     downloadTransparentPngBtn.addEventListener('click', () => {
       void downloadTransparentTrackPng();
@@ -2017,7 +2049,15 @@
   if (animDurationInput) {
     animDurationInput.addEventListener('input', () => {
       if (animDurationOutput) animDurationOutput.textContent = animDurationInput.value;
+      schedulePersistSettings();
     });
+  }
+  if (animFpsSelect) {
+    animFpsSelect.addEventListener('change', () => schedulePersistSettings());
+  }
+
+  if (resetSettingsBtn) {
+    resetSettingsBtn.addEventListener('click', () => resetSettingsToDefaults());
   }
 
   resetBtn.addEventListener('click', () => {
@@ -2027,27 +2067,19 @@
     results.hidden = true;
     clearError();
     titleInput.value = '';
-    labelFontSelect.value = 'montserrat';
-    labelSizeInput.value = '48';
-    labelSizeOutput.textContent = '48';
-    lineWidthInput.value = '14';
-    lineWidthOutput.textContent = '14';
-    pointScaleInput.value = '3';
-    pointScaleOutput.textContent = '3';
-    minDistanceInput.value = '50';
-    minDistanceOutput.textContent = '50';
-    currentTrackColorId = 'terracotta';
-    initTrackColorPalette();
     waypointList.textContent = '';
-    updateAIDescription();
+    waypointCounter = 0;
+    refreshWorkflowOutputs();
+    schedulePersistSettings();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   });
 
   [titleInput].forEach((input) => input.addEventListener('input', () => {
     if (currentState) {
       render();
-      renderStep25AnimPreview(1);
-    } else updateAIDescription();
+      renderStep2AnimPreview(1);
+    } else refreshWorkflowOutputs();
+    schedulePersistSettings();
   }));
 
   labelFontSelect.addEventListener('change', async () => {
@@ -2057,48 +2089,57 @@
     }
     if (currentState) {
       render();
-      renderStep25AnimPreview(1);
-    } else updateAIDescription();
+      renderStep2AnimPreview(1);
+    } else refreshWorkflowOutputs();
+    schedulePersistSettings();
   });
 
   labelSizeInput.addEventListener('input', () => {
     labelSizeOutput.textContent = labelSizeInput.value;
     if (currentState) {
       render();
-      renderStep25AnimPreview(1);
-    } else updateAIDescription();
+      renderStep2AnimPreview(1);
+    } else refreshWorkflowOutputs();
+    schedulePersistSettings();
   });
 
   lineWidthInput.addEventListener('input', () => {
     lineWidthOutput.textContent = lineWidthInput.value;
     if (currentState) {
       render();
-      renderStep25AnimPreview(1);
-    } else updateAIDescription();
+      renderStep2AnimPreview(1);
+    } else refreshWorkflowOutputs();
+    schedulePersistSettings();
   });
 
   pointScaleInput.addEventListener('input', () => {
     pointScaleOutput.textContent = pointScaleInput.value;
     if (currentState) {
       render();
-      renderStep25AnimPreview(1);
-    } else updateAIDescription();
+      renderStep2AnimPreview(1);
+    } else refreshWorkflowOutputs();
+    schedulePersistSettings();
   });
 
   minDistanceInput.addEventListener('input', () => {
     minDistanceOutput.textContent = minDistanceInput.value;
     if (currentState) updateThinning();
-    else updateAIDescription();
+    else refreshWorkflowOutputs();
+    schedulePersistSettings();
   });
 
-  addWaypointBtn.addEventListener('click', () => addWaypointRow());
+  addWaypointBtn.addEventListener('click', () => {
+    addWaypointRow();
+    schedulePersistSettings();
+  });
 
   waypointList.addEventListener('input', (e) => {
     if (e.target.matches('.waypoint-name, .waypoint-distance, .waypoint-offset-x, .waypoint-offset-y')) {
       if (currentState) {
         render();
-        renderStep25AnimPreview(1);
-      } else updateAIDescription();
+        renderStep2AnimPreview(1);
+      } else refreshWorkflowOutputs();
+      schedulePersistSettings();
     }
   });
 
@@ -2108,22 +2149,30 @@
     btn.closest('.waypoint-row').remove();
     if (currentState) {
       render();
-      renderStep25AnimPreview(1);
-    } else updateAIDescription();
+      renderStep2AnimPreview(1);
+    } else refreshWorkflowOutputs();
+    schedulePersistSettings();
   });
 
-  updateAIDescription();
-  if (trackColorGroup) {
-    trackColorGroup.addEventListener('click', (e) => {
+  trackColorGroups.forEach((group) => {
+    group.addEventListener('click', (e) => {
       const btn = e.target.closest('.track-color-swatch');
-      if (!btn) return;
+      if (!btn || !group.contains(btn)) return;
       const colorId = btn.dataset.trackColor;
       if (colorId) setTrackColor(colorId);
     });
-  }
+  });
 
   initTrackColorPalette();
-  updateStep25Controls();
-  renderStep25AnimPreview(1);
-  void loadSampleTrack({ quiet: true });
+  const hadStoredSettings = restoreStoredSettings();
+  updateStep2Controls();
+  updateStep3Controls();
+  renderStep2AnimPreview(1);
+  void loadSampleTrack({
+    quiet: true,
+    applyDemoContent: !hadStoredSettings,
+    preserveWaypoints: hadStoredSettings,
+  }).then(() => {
+    if (!hadStoredSettings) persistSettings();
+  });
 })();

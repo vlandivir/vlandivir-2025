@@ -6,14 +6,14 @@
 <meta http-equiv="Referrer-Policy" content="no-referrer" />
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' https://api.fontshare.com https://fonts.googleapis.com; font-src https://api.fontshare.com https://cdn.fontshare.com https://fonts.gstatic.com; connect-src 'self'; img-src 'self' data: blob:;" />
 <title>Как сделать анимацию велотрека</title>
-<meta name="description" content="Шаг 1: PNG 1080×1920 из GPX в браузере. Шаг 2: промпт с координатами для модели. Шаг 3: анимация трека и наложение на видео (описание)." />
+<meta name="description" content="Шаг 1: PNG 1080×1920 из GPX в браузере. Шаг 2: анимация прохождения трека и экспорт для ffmpeg. Шаг 3: PNG трека на прозрачном фоне." />
 <link rel="preconnect" href="https://api.fontshare.com" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&f[]=jetbrains-mono@400&display=swap" rel="stylesheet" />
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&display=swap" rel="stylesheet" />
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23163029'/><path d='M7 22 L13 10 L18 18 L25 8' stroke='%23E07A3C' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>" />
-<link rel="stylesheet" href="/gpx-route-png/styles.css?v=20260515-5" />
+<link rel="stylesheet" href="/gpx-route-png/styles.css?v=20260515-9" />
 </head>
 <body>
 <div class="grid-bg" aria-hidden="true"></div>
@@ -28,7 +28,7 @@
     </svg>
     <div class="brand-text">
       <span class="brand-name">Как сделать анимацию велотрека</span>
-      <span class="brand-tag">картинка → промпт → видео</span>
+      <span class="brand-tag">картинка → анимация → монтаж</span>
     </div>
   </div>
   <div class="header-meta">
@@ -38,6 +38,14 @@
     </nav>
     <span class="meta-chip">1080 × 1920</span>
     <span class="meta-chip">локально в браузере</span>
+    <a class="instagram-cta instagram-cta--header" href="https://www.instagram.com/vlandivir/" target="_blank" rel="noopener noreferrer" aria-label="Открыть профиль Instagram @vlandivir">
+      <svg class="instagram-cta__icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+        <rect x="3" y="3" width="18" height="18" rx="5" ry="5" fill="none" stroke="currentColor" stroke-width="2" />
+        <circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2" />
+        <circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" />
+      </svg>
+      <span class="instagram-cta__handle">@vlandivir</span>
+    </a>
   </div>
 </header>
 
@@ -151,11 +159,14 @@
           </label>
           <label class="ctl">
             <span class="ctl-label">Цвет трека</span>
-            <div class="track-color-palette" id="trackColorGroup" role="radiogroup"></div>
+            <div class="track-color-palette track-color-group" data-track-color-group role="radiogroup"></div>
           </label>
         </div>
 
-        <button class="ghost-btn" id="resetBtn" type="button">Загрузить другой файл</button>
+        <div class="settings-actions">
+          <button type="button" class="ghost-btn" id="resetSettingsBtn">Сбросить настройки</button>
+          <button class="ghost-btn" id="resetBtn" type="button">Загрузить другой файл</button>
+        </div>
       </aside>
     </div>
     </div>
@@ -165,58 +176,37 @@
     <div class="workflow-step-head">
       <span class="workflow-step-badge" aria-hidden="true">2</span>
       <div>
-        <h2 class="workflow-step-title" id="step2-title">Две альтернативы после шага&nbsp;1</h2>
-        <p class="workflow-step-text">Одинаковая геометрия трека из формы шага&nbsp;1: либо текстовый промпт для другой модели, либо готовый PNG с прозрачным фоном для монтажа.</p>
-      </div>
-    </div>
-    <div class="step2-alternatives">
-      <div class="step2-alt-column">
-        <p class="step2-alt-kicker">Альтернатива 1</p>
-        <h3 class="step2-alt-heading">Промпт для модели</h3>
-        <p class="step2-alt-desc">Координаты линии, точек и подписей на холсте 1080×1920 — GPX передавать не нужно.</p>
-        <label class="ctl ai-brief">
-          <span class="ctl-label">Текст промпта</span>
-          <textarea id="aiDescription" readonly rows="12" aria-label="Промпт с координатами трека для копирования"></textarea>
-        </label>
-        <button type="button" class="primary-btn step2-alt-btn" id="downloadPromptBtn" disabled>Скачать промпт (.txt)</button>
-      </div>
-      <div class="step2-alt-column">
-        <p class="step2-alt-kicker">Альтернатива 2</p>
-        <h3 class="step2-alt-heading">PNG трека на прозрачном фоне</h3>
-        <div class="step2-preview-shell">
-          <img class="step2-preview-shell__bg" src="/gpx-route-png/images/step2-demo-bg.jpg?v=20260514b" alt="" width="1080" height="1920" decoding="async" fetchpriority="high" />
-          <canvas id="step2TrackPreviewCanvas" class="step2-preview-shell__track" width="1080" height="1920" hidden aria-label="Слой трека поверх фото"></canvas>
-          <div id="step2TrackPlaceholder" class="step2-preview-placeholder">
-            Загрузите GPX в шаге&nbsp;1 — здесь появится трек поверх фото.
-          </div>
-        </div>
-        <button type="button" class="ghost-btn step2-alt-btn" id="downloadTransparentPngBtn" disabled>Скачать PNG (прозрачный фон)</button>
-      </div>
-    </div>
-  </section>
-
-  <section class="workflow-step" aria-labelledby="step25-title">
-    <div class="workflow-step-head">
-      <span class="workflow-step-badge workflow-step-badge--sub" aria-hidden="true">2.5</span>
-      <div>
-        <h2 class="workflow-step-title" id="step25-title">Анимация прохождения трека</h2>
+        <h2 class="workflow-step-title" id="step2-title">Анимация прохождения трека</h2>
         <p class="workflow-step-text">Маршрут рисуется от старта к финишу: весь трек и все точки сразу белые, по линии «проезжает» выбранный цвет. Подписи и точки перекрашиваются, когда до них доходит анимация. Те же настройки, что в шаге&nbsp;1.</p>
       </div>
     </div>
-    <div class="step25-panel">
-      <div class="step2-preview-shell step25-preview-shell">
-        <img class="step2-preview-shell__bg" src="/gpx-route-png/images/step2-demo-bg.jpg?v=20260514b" alt="" width="1080" height="1920" decoding="async" />
-        <canvas id="step25AnimCanvas" class="step2-preview-shell__track" width="1080" height="1920" hidden aria-label="Превью анимации прохождения трека"></canvas>
-        <div id="step25AnimPlaceholder" class="step2-preview-placeholder">
+    <div class="step2-panel">
+      <div class="step2-preview-shell step2-anim-preview-shell">
+        <img class="step2-preview-shell__bg" src="/gpx-route-png/images/step2-demo-bg.jpg?v=20260514b" alt="" width="1080" height="1920" decoding="async" fetchpriority="high" />
+        <canvas id="step2AnimCanvas" class="step2-preview-shell__track" width="1080" height="1920" hidden aria-label="Превью анимации прохождения трека"></canvas>
+        <div id="step2AnimPlaceholder" class="step2-preview-placeholder">
           Загрузите GPX в шаге&nbsp;1 — здесь можно посмотреть анимацию прохождения.
         </div>
       </div>
-      <div class="step25-controls">
+      <div class="step2-controls">
         <label class="ctl">
           <span class="ctl-label">Длительность анимации: <output id="animDurationOutput">5</output> с</span>
           <input type="range" id="animDurationInput" min="1" max="30" step="0.5" value="5" />
         </label>
-        <div class="step25-actions">
+        <label class="ctl">
+          <span class="ctl-label">Частота кадров (экспорт)</span>
+          <select id="animFpsSelect" class="ctl-select">
+            <option value="24">24 fps</option>
+            <option value="25">25 fps</option>
+            <option value="30" selected>30 fps</option>
+            <option value="60">60 fps</option>
+          </select>
+        </label>
+          <label class="ctl">
+            <span class="ctl-label">Цвет трека</span>
+            <div class="track-color-palette track-color-group" data-track-color-group role="radiogroup"></div>
+          </label>
+        <div class="step2-actions">
           <button type="button" class="primary-btn" id="playAnimBtn" disabled>Воспроизвести</button>
           <button type="button" class="ghost-btn" id="downloadAnimWebmBtn" disabled>Скачать WebM (альфа)</button>
           <button type="button" class="ghost-btn" id="downloadAnimPngZipBtn" disabled>Скачать кадры PNG (ZIP)</button>
@@ -225,24 +215,32 @@
     </div>
   </section>
 
-  <section class="workflow-step workflow-step--static" aria-labelledby="step3-title">
-    <div class="step3-block">
-      <div class="step3-block__head">
-        <span class="workflow-step-badge" aria-hidden="true">3</span>
-        <h2 class="workflow-step-title" id="step3-title">Анимация и наложение на видео</h2>
+  <section class="workflow-step" aria-labelledby="step3-title">
+    <div class="workflow-step-head">
+      <span class="workflow-step-badge" aria-hidden="true">3</span>
+      <div>
+        <h2 class="workflow-step-title" id="step3-title">PNG трека для монтажа</h2>
+        <p class="workflow-step-text">Та же геометрия, что в шаге&nbsp;1: слой трека на прозрачном фоне для наложения на фото или видео.</p>
       </div>
-      <p class="step3-block__text">Понемногу допишу создание анимации без использования моделей. Думаю, получится прямо на сайте забрать готовый результат.</p>
-      <p class="step3-block__text">Потом займусь субтитрами. Подпишись, чтобы не пропустить обновления.</p>
-      <a class="instagram-cta instagram-cta--step3" href="https://www.instagram.com/vlandivir/" target="_blank" rel="noopener noreferrer" aria-label="Открыть профиль Instagram @vlandivir">
-        <svg class="instagram-cta__icon" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-          <rect x="3" y="3" width="18" height="18" rx="5" ry="5" fill="none" stroke="currentColor" stroke-width="2" />
-          <circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2" />
-          <circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" />
-        </svg>
-        <span class="instagram-cta__handle">@vlandivir</span>
-      </a>
+    </div>
+    <div class="step3-panel">
+      <div class="step2-preview-shell step3-preview-shell">
+        <img class="step2-preview-shell__bg" src="/gpx-route-png/images/step2-demo-bg.jpg?v=20260514b" alt="" width="1080" height="1920" decoding="async" />
+        <canvas id="step3TrackPreviewCanvas" class="step2-preview-shell__track" width="1080" height="1920" hidden aria-label="Слой трека поверх фото"></canvas>
+        <div id="step3TrackPlaceholder" class="step2-preview-placeholder">
+          Загрузите GPX в шаге&nbsp;1 — здесь появится трек поверх фото.
+        </div>
+      </div>
+      <div class="step3-controls">
+          <label class="ctl">
+            <span class="ctl-label">Цвет трека</span>
+            <div class="track-color-palette track-color-group" data-track-color-group role="radiogroup"></div>
+          </label>
+      </div>
+      <button type="button" class="primary-btn step3-panel-btn" id="downloadTransparentPngBtn" disabled>Скачать PNG (прозрачный фон)</button>
     </div>
   </section>
+
 </main>
 
 <footer class="site-footer">
@@ -250,7 +248,7 @@
   <span>Без внешних карт и API.</span>
 </footer>
 
-<script src="/gpx-route-png/app.js?v=20260515-5"></script>
+<script src="/gpx-route-png/app.js?v=20260515-9"></script>
 <script data-pplx-inline-edit>
 (function () {
   if (window === window.top) return;
