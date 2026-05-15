@@ -13,7 +13,7 @@
 <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&f[]=jetbrains-mono@400&display=swap" rel="stylesheet" />
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&display=swap" rel="stylesheet" />
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23163029'/><path d='M7 22 L13 10 L18 18 L25 8' stroke='%23E07A3C' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>" />
-<link rel="stylesheet" href="/gpx-route-png/styles.css?v=20260515-1" />
+<link rel="stylesheet" href="/gpx-route-png/styles.css?v=20260515-5" />
 </head>
 <body>
 <div class="grid-bg" aria-hidden="true"></div>
@@ -150,12 +150,8 @@
             <input type="range" id="minDistanceInput" min="50" max="500" step="10" value="50" />
           </label>
           <label class="ctl">
-            <span class="ctl-label">Тема</span>
-            <div class="seg" role="radiogroup" id="themeGroup">
-              <button type="button" class="seg-btn is-active" data-theme="paper" role="radio" aria-checked="true">Бумага</button>
-              <button type="button" class="seg-btn" data-theme="night" role="radio" aria-checked="false">Ночь</button>
-              <button type="button" class="seg-btn" data-theme="forest" role="radio" aria-checked="false">Лес</button>
-            </div>
+            <span class="ctl-label">Цвет трека</span>
+            <div class="track-color-palette" id="trackColorGroup" role="radiogroup"></div>
           </label>
         </div>
 
@@ -199,6 +195,36 @@
     </div>
   </section>
 
+  <section class="workflow-step" aria-labelledby="step25-title">
+    <div class="workflow-step-head">
+      <span class="workflow-step-badge workflow-step-badge--sub" aria-hidden="true">2.5</span>
+      <div>
+        <h2 class="workflow-step-title" id="step25-title">Анимация прохождения трека</h2>
+        <p class="workflow-step-text">Маршрут рисуется от старта к финишу: весь трек и все точки сразу белые, по линии «проезжает» выбранный цвет. Подписи и точки перекрашиваются, когда до них доходит анимация. Те же настройки, что в шаге&nbsp;1.</p>
+      </div>
+    </div>
+    <div class="step25-panel">
+      <div class="step2-preview-shell step25-preview-shell">
+        <img class="step2-preview-shell__bg" src="/gpx-route-png/images/step2-demo-bg.jpg?v=20260514b" alt="" width="1080" height="1920" decoding="async" />
+        <canvas id="step25AnimCanvas" class="step2-preview-shell__track" width="1080" height="1920" hidden aria-label="Превью анимации прохождения трека"></canvas>
+        <div id="step25AnimPlaceholder" class="step2-preview-placeholder">
+          Загрузите GPX в шаге&nbsp;1 — здесь можно посмотреть анимацию прохождения.
+        </div>
+      </div>
+      <div class="step25-controls">
+        <label class="ctl">
+          <span class="ctl-label">Длительность анимации: <output id="animDurationOutput">5</output> с</span>
+          <input type="range" id="animDurationInput" min="1" max="30" step="0.5" value="5" />
+        </label>
+        <div class="step25-actions">
+          <button type="button" class="primary-btn" id="playAnimBtn" disabled>Воспроизвести</button>
+          <button type="button" class="ghost-btn" id="downloadAnimWebmBtn" disabled>Скачать WebM (альфа)</button>
+          <button type="button" class="ghost-btn" id="downloadAnimPngZipBtn" disabled>Скачать кадры PNG (ZIP)</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <section class="workflow-step workflow-step--static" aria-labelledby="step3-title">
     <div class="step3-block">
       <div class="step3-block__head">
@@ -224,7 +250,7 @@
   <span>Без внешних карт и API.</span>
 </footer>
 
-<script src="/gpx-route-png/app.js?v=20260515-1"></script>
+<script src="/gpx-route-png/app.js?v=20260515-5"></script>
 <script data-pplx-inline-edit>
 (function () {
   if (window === window.top) return;

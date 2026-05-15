@@ -54,6 +54,37 @@
       sampleUiError: 'Не удалось загрузить пример sample.gpx. Попробуйте обновить страницу.',
       sampleMiddle1: 'ТЦ Галерея',
       sampleMiddle2: 'Пивски\nзабавник',
+      animEmpty: 'Загрузите GPX в шаге 1 — здесь можно посмотреть анимацию прохождения трека.',
+      playAnim: 'Воспроизвести',
+      playingAnim: 'Воспроизведение…',
+      downloadAnimWebm: 'Скачать WebM (альфа)',
+      downloadAnimPngZip: 'Скачать кадры PNG (ZIP)',
+      exportingWebm: 'Запись WebM…',
+      exportingPngFrame: (current, total) => `Кадры: ${current}/${total}…`,
+      exportFailed: 'Не удалось экспортировать анимацию. Попробуйте ещё раз.',
+      webmUnsupported: 'WebM не поддерживается в этом браузере. Скачайте PNG (ZIP).',
+      ffmpegReadme: (fps) =>
+        [
+          'PNG-последовательность трека 1080×1920, прозрачный фон.',
+          `Кадровая частота: ${fps} fps (имя файлов frame_0001.png …).`,
+          '',
+          'Пример наложения на видео через ffmpeg:',
+          `ffmpeg -i video.mp4 -framerate ${fps} -i frame_%04d.png -filter_complex "overlay=0:0" -c:a copy output.mp4`,
+          '',
+          'WebM с альфой (если скачали отдельно):',
+          'ffmpeg -i video.mp4 -i track-anim.webm -filter_complex "[1:v]format=yuva420p[ov];[0:v][ov]overlay=0:0" -c:a copy output.mp4',
+        ].join('\n'),
+      trackColorLabel: 'Цвет трека',
+      trackColorAria: 'Цвет линии трека, точек и подписей',
+      trackColorLabels: {
+        lemon: 'Лимон',
+        sunflower: 'Подсолнух',
+        saffron: 'Шафран',
+        honey: 'Мёд',
+        tangerine: 'Мандарин',
+        terracotta: 'Терракота',
+        rust: 'Ржавчина',
+      },
       locale: 'ru-RU',
     },
     en: {
@@ -102,6 +133,37 @@
       sampleUiError: 'Could not load sample.gpx. Try refreshing the page.',
       sampleMiddle1: 'Galerija Mall',
       sampleMiddle2: 'Pivski\nzabavnik',
+      animEmpty: 'Upload a GPX in step 1 to preview the track traversal animation here.',
+      playAnim: 'Play',
+      playingAnim: 'Playing…',
+      downloadAnimWebm: 'Download WebM (alpha)',
+      downloadAnimPngZip: 'Download PNG frames (ZIP)',
+      exportingWebm: 'Recording WebM…',
+      exportingPngFrame: (current, total) => `Frames: ${current}/${total}…`,
+      exportFailed: 'Could not export the animation. Try again.',
+      webmUnsupported: 'WebM is not supported in this browser. Download PNG (ZIP) instead.',
+      ffmpegReadme: (fps) =>
+        [
+          'Track PNG sequence 1080×1920, transparent background.',
+          `Frame rate: ${fps} fps (files frame_0001.png …).`,
+          '',
+          'Example ffmpeg overlay on video:',
+          `ffmpeg -i video.mp4 -framerate ${fps} -i frame_%04d.png -filter_complex "overlay=0:0" -c:a copy output.mp4`,
+          '',
+          'WebM with alpha (if downloaded separately):',
+          'ffmpeg -i video.mp4 -i track-anim.webm -filter_complex "[1:v]format=yuva420p[ov];[0:v][ov]overlay=0:0" -c:a copy output.mp4',
+        ].join('\n'),
+      trackColorLabel: 'Track color',
+      trackColorAria: 'Color of the route line, points, and labels',
+      trackColorLabels: {
+        lemon: 'Lemon',
+        sunflower: 'Sunflower',
+        saffron: 'Saffron',
+        honey: 'Honey',
+        tangerine: 'Tangerine',
+        terracotta: 'Terracotta',
+        rust: 'Rust',
+      },
       locale: 'en-US',
     },
   };
@@ -130,12 +192,19 @@
   const pointScaleOutput = document.getElementById('pointScaleOutput');
   const minDistanceInput = document.getElementById('minDistanceInput');
   const minDistanceOutput = document.getElementById('minDistanceOutput');
-  const themeGroup = document.getElementById('themeGroup');
+  const trackColorGroup = document.getElementById('trackColorGroup');
   const aiDescription = document.getElementById('aiDescription');
   const downloadPromptBtn = document.getElementById('downloadPromptBtn');
   const downloadTransparentPngBtn = document.getElementById('downloadTransparentPngBtn');
   const step2TrackPreviewCanvas = document.getElementById('step2TrackPreviewCanvas');
   const step2TrackPlaceholder = document.getElementById('step2TrackPlaceholder');
+  const step25AnimCanvas = document.getElementById('step25AnimCanvas');
+  const step25AnimPlaceholder = document.getElementById('step25AnimPlaceholder');
+  const animDurationInput = document.getElementById('animDurationInput');
+  const animDurationOutput = document.getElementById('animDurationOutput');
+  const playAnimBtn = document.getElementById('playAnimBtn');
+  const downloadAnimWebmBtn = document.getElementById('downloadAnimWebmBtn');
+  const downloadAnimPngZipBtn = document.getElementById('downloadAnimPngZipBtn');
 
   const statSource = document.getElementById('statSource');
   const statOriginal = document.getElementById('statOriginal');
@@ -145,9 +214,15 @@
 
   let currentState = null; // { points, thinned, distance, source, bbox, fileName }
   let fileIngestGeneration = 0;
-  let currentTheme = 'paper';
+  let currentTrackColorId = 'terracotta';
   let waypointCounter = 0;
   const DEFAULT_ROUTE_LINE_WIDTH = 14;
+  const ROUTE_ANIM_UNREVEALED = '#FFFFFF';
+  const ANIM_EXPORT_FPS = 30;
+  let routePathCache = null;
+  let routeAnimRafId = null;
+  let routeAnimPlaying = false;
+  let animExportInProgress = false;
 
   const LABEL_FONTS = {
     satoshi: '"Satoshi", sans-serif',
@@ -299,6 +374,7 @@
     if (!currentState || !currentState.points) return;
     const controls = getPosterControls();
     currentState.thinned = thinPoints(currentState.points, controls.minDistanceMeters);
+    invalidateRoutePathCache();
     updateStatsPanel(currentState);
     render();
   }
@@ -352,6 +428,138 @@
   }
 
   // ---------- Catmull-Rom to Bezier draw ----------
+  function cubicBezierPoint(t, p0, p1, p2, p3) {
+    const u = 1 - t;
+    const uu = u * u;
+    const tt = t * t;
+    const uuu = uu * u;
+    const ttt = tt * t;
+    return {
+      x: uuu * p0.x + 3 * uu * t * p1.x + 3 * u * tt * p2.x + ttt * p3.x,
+      y: uuu * p0.y + 3 * uu * t * p1.y + 3 * u * tt * p2.y + ttt * p3.y,
+    };
+  }
+
+  function sampleCatmullRomPath(points, tension = 0.5, stepsPerSegment = 16) {
+    if (points.length < 2) {
+      const only = points[0] || { x: 0, y: 0 };
+      return { samples: [{ x: only.x, y: only.y, dist: 0 }], totalLength: 0 };
+    }
+
+    const samples = [];
+    let totalLength = 0;
+
+    const pushPoint = (x, y) => {
+      if (samples.length > 0) {
+        const prev = samples[samples.length - 1];
+        totalLength += Math.hypot(x - prev.x, y - prev.y);
+      }
+      samples.push({ x, y, dist: totalLength });
+    };
+
+    pushPoint(points[0].x, points[0].y);
+
+    if (points.length === 2) {
+      pushPoint(points[1].x, points[1].y);
+      return { samples, totalLength };
+    }
+
+    for (let i = 0; i < points.length - 1; i++) {
+      const p0 = points[i - 1] || points[i];
+      const p1 = points[i];
+      const p2 = points[i + 1];
+      const p3 = points[i + 2] || p2;
+
+      const cp1x = p1.x + ((p2.x - p0.x) / 6) * tension * 2;
+      const cp1y = p1.y + ((p2.y - p0.y) / 6) * tension * 2;
+      const cp2x = p2.x - ((p3.x - p1.x) / 6) * tension * 2;
+      const cp2y = p2.y - ((p3.y - p1.y) / 6) * tension * 2;
+
+      const b0 = p1;
+      const b1 = { x: cp1x, y: cp1y };
+      const b2 = { x: cp2x, y: cp2y };
+      const b3 = p2;
+
+      for (let step = 1; step <= stepsPerSegment; step++) {
+        const t = step / stepsPerSegment;
+        const pt = cubicBezierPoint(t, b0, b1, b2, b3);
+        pushPoint(pt.x, pt.y);
+      }
+    }
+
+    return { samples, totalLength };
+  }
+
+  function arcLengthAtPoint(samples, x, y) {
+    let bestDist = 0;
+    let bestGap = Infinity;
+    for (const sample of samples) {
+      const gap = (sample.x - x) ** 2 + (sample.y - y) ** 2;
+      if (gap < bestGap) {
+        bestGap = gap;
+        bestDist = sample.dist;
+      }
+    }
+    return bestDist;
+  }
+
+  function strokeSampledPath(ctx, samples) {
+    if (samples.length < 2) return;
+    ctx.beginPath();
+    ctx.moveTo(samples[0].x, samples[0].y);
+    for (let i = 1; i < samples.length; i++) {
+      ctx.lineTo(samples[i].x, samples[i].y);
+    }
+    ctx.stroke();
+  }
+
+  function strokeSampledPathToLength(ctx, samples, maxLength) {
+    if (samples.length < 2 || maxLength <= 0) return;
+
+    ctx.beginPath();
+    ctx.moveTo(samples[0].x, samples[0].y);
+
+    for (let i = 1; i < samples.length; i++) {
+      const prev = samples[i - 1];
+      const curr = samples[i];
+      if (curr.dist <= maxLength) {
+        ctx.lineTo(curr.x, curr.y);
+        continue;
+      }
+      if (prev.dist < maxLength) {
+        const segLen = curr.dist - prev.dist || 1;
+        const t = (maxLength - prev.dist) / segLen;
+        ctx.lineTo(prev.x + (curr.x - prev.x) * t, prev.y + (curr.y - prev.y) * t);
+      }
+      break;
+    }
+
+    ctx.stroke();
+  }
+
+  function invalidateRoutePathCache() {
+    routePathCache = null;
+  }
+
+  function getRoutePathCache(pts, labelMarkers) {
+    const cacheKey =
+      pts.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(';') +
+      '|' +
+      labelMarkers.map((m) => `${m.x.toFixed(2)},${m.y.toFixed(2)}`).join(';');
+    if (routePathCache && routePathCache.cacheKey === cacheKey) return routePathCache;
+
+    const sampled = sampleCatmullRomPath(pts, 0.5);
+    routePathCache = {
+      cacheKey,
+      samples: sampled.samples,
+      totalLength: sampled.totalLength,
+      markerDistances: labelMarkers.map((marker) =>
+        arcLengthAtPoint(sampled.samples, marker.x, marker.y),
+      ),
+    };
+    return routePathCache;
+  }
+
   function drawCatmullRom(ctx, points, tension = 0.5) {
     if (points.length < 2) return;
     ctx.beginPath();
@@ -376,42 +584,68 @@
     ctx.stroke();
   }
 
-  // ---------- Theming ----------
-  const themes = {
-    paper: {
-      bg1: '#F1EADA',
-      bg2: '#E2D6B5',
-      paperGrain: 'rgba(120,100,60,0.06)',
-      contour: 'rgba(78,107,74,0.10)',
-      line: '#C95A2B',
-      ink: '#1A2A24',
-      inkMuted: '#6B776F',
-      dot: '#1A2A24',
-      dotInner: '#C95A2B',
-    },
-    night: {
-      bg1: '#0F1620',
-      bg2: '#1A2535',
-      paperGrain: 'rgba(255,255,255,0.025)',
-      contour: 'rgba(120,160,200,0.08)',
-      line: '#E8A36B',
-      ink: '#EDE6D4',
-      inkMuted: '#8A98AC',
-      dot: '#EDE6D4',
-      dotInner: '#E8A36B',
-    },
-    forest: {
-      bg1: '#1F2A22',
-      bg2: '#2D3B30',
-      paperGrain: 'rgba(255,255,255,0.025)',
-      contour: 'rgba(180,200,140,0.07)',
-      line: '#E8C765',
-      ink: '#F2EAD3',
-      inkMuted: '#A8B59B',
-      dot: '#F2EAD3',
-      dotInner: '#E8C765',
-    },
+  // ---------- Poster (fixed) + track color palette ----------
+  const POSTER_THEME = {
+    bg1: '#F1EADA',
+    bg2: '#E2D6B5',
+    paperGrain: 'rgba(120,100,60,0.06)',
+    contour: 'rgba(78,107,74,0.10)',
+    ink: '#1A2A24',
+    inkMuted: '#6B776F',
   };
+
+  const TRACK_PALETTE = [
+    { id: 'lemon', line: '#FFE566' },
+    { id: 'sunflower', line: '#F7C948' },
+    { id: 'saffron', line: '#F0B429' },
+    { id: 'honey', line: '#E8A838' },
+    { id: 'tangerine', line: '#E8943A' },
+    { id: 'terracotta', line: '#E07A3C' },
+    { id: 'rust', line: '#C95A2B' },
+  ];
+
+  const TRACK_COLOR_IDS = new Set(TRACK_PALETTE.map((entry) => entry.id));
+
+  function getTrackColorLine(colorId = currentTrackColorId) {
+    const entry = TRACK_PALETTE.find((item) => item.id === colorId);
+    return entry ? entry.line : TRACK_PALETTE[5].line;
+  }
+
+  function initTrackColorPalette() {
+    if (!trackColorGroup) return;
+    trackColorGroup.textContent = '';
+    trackColorGroup.setAttribute('aria-label', copy.trackColorAria);
+    TRACK_PALETTE.forEach((entry) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'track-color-swatch';
+      btn.dataset.trackColor = entry.id;
+      btn.style.setProperty('--swatch', entry.line);
+      btn.setAttribute('role', 'radio');
+      btn.setAttribute('aria-label', copy.trackColorLabels[entry.id] || entry.id);
+      const isActive = entry.id === currentTrackColorId;
+      btn.classList.toggle('is-active', isActive);
+      btn.setAttribute('aria-checked', isActive ? 'true' : 'false');
+      trackColorGroup.appendChild(btn);
+    });
+  }
+
+  function setTrackColor(colorId) {
+    if (!TRACK_COLOR_IDS.has(colorId) || colorId === currentTrackColorId) return;
+    currentTrackColorId = colorId;
+    if (trackColorGroup) {
+      [...trackColorGroup.querySelectorAll('.track-color-swatch')].forEach((btn) => {
+        const active = btn.dataset.trackColor === colorId;
+        btn.classList.toggle('is-active', active);
+        btn.setAttribute('aria-checked', active ? 'true' : 'false');
+      });
+    }
+    invalidateRoutePathCache();
+    if (currentState) {
+      render();
+      renderStep25AnimPreview(1);
+    } else updateAIDescription();
+  }
 
   function computeRouteGeometry() {
     if (!currentState) return null;
@@ -425,7 +659,7 @@
     const fitted = fitToBox(currentState.thinned, routeW, routeH);
     const pts = fitted.points.map((p) => ({ x: p.x + routeArea.x0, y: p.y + routeArea.y0 }));
     const controls = getPosterControls();
-    const theme = themes[currentTheme];
+    const trackColor = getTrackColorLine();
     const labelMarkers = controls.labels
       .map((label, index) => {
         const targetMeters = Math.min(label.km * 1000, currentState.distance);
@@ -443,13 +677,13 @@
         };
       })
       .filter(Boolean);
-    return { fitted, pts, controls, theme, labelMarkers };
+    return { fitted, pts, controls, trackColor, labelMarkers };
   }
 
   function drawTrackOverlayLayers(targetCtx, geo) {
-    const { pts, controls, theme, labelMarkers } = geo;
+    const { pts, controls, trackColor, labelMarkers } = geo;
     targetCtx.save();
-    targetCtx.strokeStyle = theme.line;
+    targetCtx.strokeStyle = trackColor;
     targetCtx.lineWidth = controls.lineWidth;
     targetCtx.lineCap = 'round';
     targetCtx.lineJoin = 'round';
@@ -458,7 +692,37 @@
     labelMarkers.forEach((marker, index) => {
       const routeIndex = nearestPointIndex(pts, marker.x, marker.y);
       const normal = outwardNormalForPoint(pts, routeIndex, marker.x, marker.y);
-      drawWaypointMarker(targetCtx, marker, theme, index, controls, normal, pts);
+      drawWaypointMarker(targetCtx, marker, index, controls, normal, pts, trackColor);
+    });
+  }
+
+  function drawTrackTraversalLayers(targetCtx, geo, progress) {
+    const { pts, controls, trackColor, labelMarkers } = geo;
+    const path = getRoutePathCache(pts, labelMarkers);
+    const mix = Math.max(0, Math.min(1, progress));
+    const revealLength = mix * path.totalLength;
+    const markerEpsilon = Math.max(2, controls.lineWidth * 0.35);
+
+    targetCtx.save();
+    targetCtx.lineWidth = controls.lineWidth;
+    targetCtx.lineCap = 'round';
+    targetCtx.lineJoin = 'round';
+
+    targetCtx.strokeStyle = ROUTE_ANIM_UNREVEALED;
+    strokeSampledPath(targetCtx, path.samples);
+
+    if (revealLength > 0) {
+      targetCtx.strokeStyle = trackColor;
+      strokeSampledPathToLength(targetCtx, path.samples, revealLength);
+    }
+    targetCtx.restore();
+
+    labelMarkers.forEach((marker, index) => {
+      const reached = path.markerDistances[index] <= revealLength + markerEpsilon;
+      const markerColor = reached ? trackColor : ROUTE_ANIM_UNREVEALED;
+      const routeIndex = nearestPointIndex(pts, marker.x, marker.y);
+      const normal = outwardNormalForPoint(pts, routeIndex, marker.x, marker.y);
+      drawWaypointMarker(targetCtx, marker, index, controls, normal, pts, markerColor);
     });
   }
 
@@ -477,22 +741,361 @@
     if (geo) drawTrackOverlayLayers(s2, geo);
   }
 
+  function getAnimDurationMs() {
+    const seconds = parseFloat(animDurationInput?.value || '5');
+    if (!Number.isFinite(seconds) || seconds <= 0) return 5000;
+    return seconds * 1000;
+  }
+
+  function getAnimExportFrameCount() {
+    const durationMs = getAnimDurationMs();
+    return Math.max(2, Math.round((durationMs / 1000) * ANIM_EXPORT_FPS) + 1);
+  }
+
+  function getAnimProgressForFrame(frameIndex, frameCount) {
+    if (frameCount <= 1) return 1;
+    return frameIndex / (frameCount - 1);
+  }
+
+  function renderTraversalExportFrame(targetCtx, geo, progress) {
+    targetCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    if (progress >= 1) drawTrackOverlayLayers(targetCtx, geo);
+    else drawTrackTraversalLayers(targetCtx, geo, progress);
+  }
+
+  function safeTrackBaseName() {
+    return (currentState?.fileName || 'gpx-track').replace(/[^\wа-яА-Я\-_. ]+/g, '').trim() || 'gpx-track';
+  }
+
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function delayMs(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  const CRC32_TABLE = (() => {
+    const table = new Uint32Array(256);
+    for (let i = 0; i < 256; i++) {
+      let c = i;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+      table[i] = c >>> 0;
+    }
+    return table;
+  })();
+
+  function crc32Uint8(bytes) {
+    let crc = 0xffffffff;
+    for (let i = 0; i < bytes.length; i++) crc = CRC32_TABLE[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8);
+    return (crc ^ 0xffffffff) >>> 0;
+  }
+
+  function buildStoredZipArchive(entries) {
+    const nameEncoder = new TextEncoder();
+    const fileParts = [];
+    const centralParts = [];
+    let offset = 0;
+
+    for (const entry of entries) {
+      const nameBytes = nameEncoder.encode(entry.name);
+      const data = entry.data;
+      const crc = crc32Uint8(data);
+      const localHeader = new Uint8Array(30 + nameBytes.length);
+      const lh = new DataView(localHeader.buffer);
+      lh.setUint32(0, 0x04034b50, true);
+      lh.setUint16(4, 20, true);
+      lh.setUint16(6, 0, true);
+      lh.setUint16(8, 0, true);
+      lh.setUint32(14, crc, true);
+      lh.setUint32(18, data.length, true);
+      lh.setUint32(22, data.length, true);
+      lh.setUint16(26, nameBytes.length, true);
+      lh.setUint16(28, 0, true);
+      localHeader.set(nameBytes, 30);
+      fileParts.push(localHeader, data);
+
+      const cd = new Uint8Array(46 + nameBytes.length);
+      const cdv = new DataView(cd.buffer);
+      cdv.setUint32(0, 0x02014b50, true);
+      cdv.setUint16(4, 20, true);
+      cdv.setUint16(6, 20, true);
+      cdv.setUint16(8, 0, true);
+      cdv.setUint16(10, 0, true);
+      cdv.setUint32(16, crc, true);
+      cdv.setUint32(20, data.length, true);
+      cdv.setUint32(24, data.length, true);
+      cdv.setUint16(28, nameBytes.length, true);
+      cdv.setUint16(30, 0, true);
+      cdv.setUint16(32, 0, true);
+      cdv.setUint16(34, 0, true);
+      cdv.setUint16(36, 0, true);
+      cdv.setUint32(38, 0, true);
+      cdv.setUint32(42, offset, true);
+      cd.set(nameBytes, 46);
+      centralParts.push(cd);
+      offset += localHeader.length + data.length;
+    }
+
+    const centralSize = centralParts.reduce((sum, part) => sum + part.length, 0);
+    const end = new Uint8Array(22);
+    const endv = new DataView(end.buffer);
+    endv.setUint32(0, 0x06054b50, true);
+    endv.setUint16(8, entries.length, true);
+    endv.setUint16(10, entries.length, true);
+    endv.setUint32(12, centralSize, true);
+    endv.setUint32(16, offset, true);
+
+    const totalSize =
+      fileParts.reduce((sum, part) => sum + part.length, 0) + centralSize + end.length;
+    const out = new Uint8Array(totalSize);
+    let pos = 0;
+    for (const part of fileParts) {
+      out.set(part, pos);
+      pos += part.length;
+    }
+    for (const part of centralParts) {
+      out.set(part, pos);
+      pos += part.length;
+    }
+    out.set(end, pos);
+    return out;
+  }
+
+  function canvasToPngUint8(exportCanvas) {
+    return new Promise((resolve, reject) => {
+      exportCanvas.toBlob((blob) => {
+        if (!blob) {
+          reject(new Error('PNG encode failed'));
+          return;
+        }
+        blob
+          .arrayBuffer()
+          .then((buffer) => resolve(new Uint8Array(buffer)))
+          .catch(reject);
+      }, 'image/png');
+    });
+  }
+
+  function pickWebmMimeType() {
+    if (typeof MediaRecorder === 'undefined') return null;
+    const candidates = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+    return candidates.find((type) => MediaRecorder.isTypeSupported(type)) || null;
+  }
+
+  async function prepareAnimExportContext() {
+    if (!currentState || animExportInProgress) return null;
+    stopRouteAnimPlayback();
+    clearError();
+
+    const controls = getPosterControls();
+    if (document.fonts?.ready) {
+      try {
+        await document.fonts.ready;
+      } catch (_e) {
+        /* ignore */
+      }
+    }
+    if (document.fonts && controls.labelFontKey !== 'georgia') {
+      await document.fonts.load(`${controls.labelSize}px ${controls.labelFontFamily}`).catch(() => {});
+    }
+
+    const geo = computeRouteGeometry();
+    if (!geo) return null;
+
+    getRoutePathCache(geo.pts, geo.labelMarkers);
+
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = CANVAS_W;
+    exportCanvas.height = CANVAS_H;
+    const exportCtx = exportCanvas.getContext('2d', { alpha: true });
+    return { geo, exportCanvas, exportCtx };
+  }
+
+  function setAnimExportBusy(busy) {
+    animExportInProgress = busy;
+    updateStep25Controls();
+  }
+
+  async function exportAnimWebm() {
+    const exportContext = await prepareAnimExportContext();
+    if (!exportContext) return;
+
+    const mimeType = pickWebmMimeType();
+    if (!mimeType) {
+      showError(copy.webmUnsupported);
+      return;
+    }
+
+    setAnimExportBusy(true);
+    if (downloadAnimWebmBtn) downloadAnimWebmBtn.textContent = copy.exportingWebm;
+
+    try {
+      const { geo, exportCanvas, exportCtx } = exportContext;
+      const frameCount = getAnimExportFrameCount();
+      const frameDelayMs = Math.round(1000 / ANIM_EXPORT_FPS);
+      const stream = exportCanvas.captureStream(ANIM_EXPORT_FPS);
+      const videoTrack = stream.getVideoTracks()[0];
+      const recorder = new MediaRecorder(stream, {
+        mimeType,
+        videoBitsPerSecond: 12_000_000,
+      });
+      const chunks = [];
+      recorder.ondataavailable = (event) => {
+        if (event.data?.size) chunks.push(event.data);
+      };
+      const stopped = new Promise((resolve) => {
+        recorder.onstop = resolve;
+      });
+
+      recorder.start();
+      for (let i = 0; i < frameCount; i++) {
+        const progress = getAnimProgressForFrame(i, frameCount);
+        renderTraversalExportFrame(exportCtx, geo, progress);
+        if (videoTrack?.requestFrame) videoTrack.requestFrame();
+        await delayMs(frameDelayMs);
+      }
+      renderTraversalExportFrame(exportCtx, geo, 1);
+      if (videoTrack?.requestFrame) videoTrack.requestFrame();
+      await delayMs(frameDelayMs);
+
+      recorder.stop();
+      await stopped;
+
+      const blob = new Blob(chunks, { type: mimeType });
+      downloadBlob(blob, `${safeTrackBaseName()}-track-anim.webm`);
+    } catch (err) {
+      console.error(err);
+      showError(copy.exportFailed);
+    } finally {
+      setAnimExportBusy(false);
+      renderStep25AnimPreview(1);
+    }
+  }
+
+  async function exportAnimPngZip() {
+    const exportContext = await prepareAnimExportContext();
+    if (!exportContext) return;
+
+    setAnimExportBusy(true);
+    try {
+      const { geo, exportCanvas, exportCtx } = exportContext;
+      const frameCount = getAnimExportFrameCount();
+      const zipEntries = [];
+
+      for (let i = 0; i < frameCount; i++) {
+        if (downloadAnimPngZipBtn) {
+          downloadAnimPngZipBtn.textContent = copy.exportingPngFrame(i + 1, frameCount);
+        }
+        const progress = getAnimProgressForFrame(i, frameCount);
+        renderTraversalExportFrame(exportCtx, geo, progress);
+        const pngBytes = await canvasToPngUint8(exportCanvas);
+        zipEntries.push({
+          name: `frame_${String(i + 1).padStart(4, '0')}.png`,
+          data: pngBytes,
+        });
+      }
+
+      zipEntries.push({
+        name: 'ffmpeg.txt',
+        data: new TextEncoder().encode(copy.ffmpegReadme(ANIM_EXPORT_FPS)),
+      });
+
+      const zipBytes = buildStoredZipArchive(zipEntries);
+      downloadBlob(
+        new Blob([zipBytes], { type: 'application/zip' }),
+        `${safeTrackBaseName()}-track-anim-frames.zip`,
+      );
+    } catch (err) {
+      console.error(err);
+      showError(copy.exportFailed);
+    } finally {
+      setAnimExportBusy(false);
+      renderStep25AnimPreview(1);
+    }
+  }
+
+  function stopRouteAnimPlayback() {
+    if (routeAnimRafId !== null) {
+      cancelAnimationFrame(routeAnimRafId);
+      routeAnimRafId = null;
+    }
+    routeAnimPlaying = false;
+    updateStep25Controls();
+  }
+
+  function renderStep25AnimFrame(progress) {
+    if (!step25AnimCanvas || !step25AnimPlaceholder) return;
+    const animCtx = step25AnimCanvas.getContext('2d');
+    if (!currentState) {
+      step25AnimCanvas.hidden = true;
+      step25AnimPlaceholder.hidden = false;
+      if (step25AnimPlaceholder.textContent !== copy.animEmpty) {
+        step25AnimPlaceholder.textContent = copy.animEmpty;
+      }
+      return;
+    }
+    step25AnimPlaceholder.hidden = true;
+    step25AnimCanvas.hidden = false;
+    const geo = computeRouteGeometry();
+    if (!geo) return;
+    renderTraversalExportFrame(animCtx, geo, progress);
+  }
+
+  function renderStep25AnimPreview(progress = 1) {
+    if (routeAnimPlaying) return;
+    renderStep25AnimFrame(progress);
+    updateStep25Controls();
+  }
+
+  function playRouteAnim() {
+    if (!currentState || routeAnimPlaying || animExportInProgress) return;
+    stopRouteAnimPlayback();
+    routeAnimPlaying = true;
+    updateStep25Controls();
+    const durationMs = getAnimDurationMs();
+    const startedAt = performance.now();
+
+    const tick = (now) => {
+      const elapsed = now - startedAt;
+      const progress = Math.min(1, elapsed / durationMs);
+      renderStep25AnimFrame(progress);
+      if (progress < 1) {
+        routeAnimRafId = requestAnimationFrame(tick);
+        return;
+      }
+      routeAnimRafId = null;
+      routeAnimPlaying = false;
+      updateStep25Controls();
+    };
+
+    renderStep25AnimFrame(0);
+    routeAnimRafId = requestAnimationFrame(tick);
+  }
+
   // ---------- Rendering ----------
   function render() {
     if (!currentState) return;
-    const theme = themes[currentTheme];
+    const posterTheme = POSTER_THEME;
     const W = CANVAS_W, H = CANVAS_H;
 
     // Background gradient
     const grad = ctx.createLinearGradient(0, 0, 0, H);
-    grad.addColorStop(0, theme.bg1);
-    grad.addColorStop(1, theme.bg2);
+    grad.addColorStop(0, posterTheme.bg1);
+    grad.addColorStop(1, posterTheme.bg2);
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, W, H);
 
     // Soft topographic contour rings (decorative)
     ctx.save();
-    ctx.strokeStyle = theme.contour;
+    ctx.strokeStyle = posterTheme.contour;
     ctx.lineWidth = 2;
     for (let r = 200; r < 1400; r += 80) {
       ctx.beginPath();
@@ -510,7 +1113,7 @@
     ctx.save();
     ctx.globalAlpha = 1;
     for (let i = 0; i < 1400; i++) {
-      ctx.fillStyle = theme.paperGrain;
+      ctx.fillStyle = posterTheme.paperGrain;
       const x = Math.random() * W;
       const y = Math.random() * H;
       ctx.fillRect(x, y, 1.2, 1.2);
@@ -521,14 +1124,14 @@
     if (geo) drawTrackOverlayLayers(ctx, geo);
 
     // Top text block
-    drawTopBlock(ctx, theme);
+    drawTopBlock(ctx, posterTheme);
 
     // Bottom stats block
-    drawBottomBlock(ctx, theme);
+    drawBottomBlock(ctx, posterTheme);
 
     // Outer frame
     ctx.save();
-    ctx.strokeStyle = theme.ink;
+    ctx.strokeStyle = posterTheme.ink;
     ctx.globalAlpha = 0.10;
     ctx.lineWidth = 4;
     ctx.strokeRect(40, 40, W - 80, H - 80);
@@ -675,17 +1278,25 @@
     return best;
   }
 
-  function drawWaypointMarker(ctx, marker, theme, index, controls = getPosterControls(), normal = null, routePoints = null) {
+  function drawWaypointMarker(
+    ctx,
+    marker,
+    index,
+    controls = getPosterControls(),
+    normal = null,
+    routePoints = null,
+    lineColor,
+  ) {
     const side = index % 2 === 0 ? 'right' : 'left';
     const markerRadius = (controls.lineWidth * controls.pointScale) / 2;
     ctx.save();
-    ctx.fillStyle = theme.line;
+    ctx.fillStyle = lineColor;
     ctx.beginPath();
     ctx.arc(marker.x, marker.y, markerRadius, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
 
-    drawTrackLabel(ctx, marker, theme, side, controls, normal, routePoints);
+    drawTrackLabel(ctx, marker, side, controls, normal, routePoints, lineColor);
   }
 
   function splitLabelLines(text) {
@@ -704,7 +1315,15 @@
    * Same geometry as drawTrackLabel; used for canvas export and for AI prompt text.
    * @returns {null | { lines: string[], textX: number, firstLineY: number, lineHeight: number, fontSize: number, fontWeight: number, fontFamily: string, color: string }}
    */
-  function computeTrackLabelLayout(marker, theme, side, controls, normal, routePoints, measureCtx) {
+  function computeTrackLabelLayout(
+    marker,
+    side,
+    controls,
+    normal,
+    routePoints,
+    measureCtx,
+    lineColor,
+  ) {
     const clean = marker.name.trim();
     if (!clean) return null;
 
@@ -761,12 +1380,20 @@
       fontSize,
       fontWeight: weight,
       fontFamily: controls.labelFontFamily,
-      color: theme.line,
+      color: lineColor,
     };
   }
 
-  function drawTrackLabel(ctx, marker, theme, side, controls = getPosterControls(), normal = null, routePoints = null) {
-    const layout = computeTrackLabelLayout(marker, theme, side, controls, normal, routePoints, ctx);
+  function drawTrackLabel(
+    ctx,
+    marker,
+    side,
+    controls = getPosterControls(),
+    normal = null,
+    routePoints = null,
+    lineColor,
+  ) {
+    const layout = computeTrackLabelLayout(marker, side, controls, normal, routePoints, ctx, lineColor);
     if (!layout) return;
 
     ctx.save();
@@ -909,7 +1536,7 @@
     if (!currentState || !measureCtx) return null;
     const geo = computeRouteGeometry();
     if (!geo) return null;
-    const { pts, controls, theme, labelMarkers } = geo;
+    const { pts, controls, trackColor, labelMarkers } = geo;
     const W = CANVAS_W;
     const H = CANVAS_H;
     const vertices = pts.map((p) => ({ x: roundPx(p.x), y: roundPx(p.y) }));
@@ -926,9 +1553,9 @@
         cx: roundPx(marker.x),
         cy: roundPx(marker.y),
         r: markerRadius,
-        fill: theme.line,
+        fill: trackColor,
       };
-      const layout = computeTrackLabelLayout(marker, theme, side, controls, normal, pts, measureCtx);
+      const layout = computeTrackLabelLayout(marker, side, controls, normal, pts, measureCtx, trackColor);
       const label = layout
         ? {
             fontSize: layout.fontSize,
@@ -949,7 +1576,7 @@
       canvas: { width: W, height: H },
       track: {
         vertices,
-        stroke: theme.line,
+        stroke: trackColor,
         lineWidth,
         lineCap: 'round',
         lineJoin: 'round',
@@ -1002,14 +1629,18 @@
   function updateAIDescription() {
     if (!currentState) {
       aiDescription.value = copy.aiEmpty;
+      stopRouteAnimPlayback();
+      invalidateRoutePathCache();
       updateStep2Controls();
       renderStep2TrackPreview();
+      renderStep25AnimPreview(1);
       return;
     }
     const spec = buildCanvasTrackSpec(ctx);
     aiDescription.value = spec ? formatCanvasTrackPrompt(spec) : '';
     updateStep2Controls();
     renderStep2TrackPreview();
+    renderStep25AnimPreview(1);
   }
 
   function updateStep2Controls() {
@@ -1020,6 +1651,24 @@
     if (downloadPromptBtn) {
       const text = (aiDescription.value || '').trim();
       downloadPromptBtn.disabled = !hasTrack || !text;
+    }
+  }
+
+  function updateStep25Controls() {
+    const hasTrack = Boolean(currentState);
+    const locked = routeAnimPlaying || animExportInProgress;
+    if (playAnimBtn) {
+      playAnimBtn.disabled = !hasTrack || locked;
+      playAnimBtn.textContent = routeAnimPlaying ? copy.playingAnim : copy.playAnim;
+    }
+    if (animDurationInput) animDurationInput.disabled = locked;
+    if (downloadAnimWebmBtn) {
+      downloadAnimWebmBtn.disabled = !hasTrack || locked;
+      if (!animExportInProgress) downloadAnimWebmBtn.textContent = copy.downloadAnimWebm;
+    }
+    if (downloadAnimPngZipBtn) {
+      downloadAnimPngZipBtn.disabled = !hasTrack || locked;
+      if (!animExportInProgress) downloadAnimPngZipBtn.textContent = copy.downloadAnimPngZip;
     }
   }
 
@@ -1219,6 +1868,7 @@
         fileName: file.name.replace(/\.gpx$/i, ''),
       };
 
+      invalidateRoutePathCache();
       resetDefaultLabels();
       updateStatsPanel(currentState);
       render();
@@ -1351,7 +2001,28 @@
     });
   }
 
+  if (playAnimBtn) {
+    playAnimBtn.addEventListener('click', () => playRouteAnim());
+  }
+  if (downloadAnimWebmBtn) {
+    downloadAnimWebmBtn.addEventListener('click', () => {
+      void exportAnimWebm();
+    });
+  }
+  if (downloadAnimPngZipBtn) {
+    downloadAnimPngZipBtn.addEventListener('click', () => {
+      void exportAnimPngZip();
+    });
+  }
+  if (animDurationInput) {
+    animDurationInput.addEventListener('input', () => {
+      if (animDurationOutput) animDurationOutput.textContent = animDurationInput.value;
+    });
+  }
+
   resetBtn.addEventListener('click', () => {
+    stopRouteAnimPlayback();
+    invalidateRoutePathCache();
     currentState = null;
     results.hidden = true;
     clearError();
@@ -1365,14 +2036,18 @@
     pointScaleOutput.textContent = '3';
     minDistanceInput.value = '50';
     minDistanceOutput.textContent = '50';
+    currentTrackColorId = 'terracotta';
+    initTrackColorPalette();
     waypointList.textContent = '';
     updateAIDescription();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   });
 
   [titleInput].forEach((input) => input.addEventListener('input', () => {
-    if (currentState) render();
-    else updateAIDescription();
+    if (currentState) {
+      render();
+      renderStep25AnimPreview(1);
+    } else updateAIDescription();
   }));
 
   labelFontSelect.addEventListener('change', async () => {
@@ -1380,26 +2055,34 @@
     if (document.fonts && controls.labelFontKey !== 'georgia') {
       await document.fonts.load(`${controls.labelSize}px ${controls.labelFontFamily}`).catch(() => {});
     }
-    if (currentState) render();
-    else updateAIDescription();
+    if (currentState) {
+      render();
+      renderStep25AnimPreview(1);
+    } else updateAIDescription();
   });
 
   labelSizeInput.addEventListener('input', () => {
     labelSizeOutput.textContent = labelSizeInput.value;
-    if (currentState) render();
-    else updateAIDescription();
+    if (currentState) {
+      render();
+      renderStep25AnimPreview(1);
+    } else updateAIDescription();
   });
 
   lineWidthInput.addEventListener('input', () => {
     lineWidthOutput.textContent = lineWidthInput.value;
-    if (currentState) render();
-    else updateAIDescription();
+    if (currentState) {
+      render();
+      renderStep25AnimPreview(1);
+    } else updateAIDescription();
   });
 
   pointScaleInput.addEventListener('input', () => {
     pointScaleOutput.textContent = pointScaleInput.value;
-    if (currentState) render();
-    else updateAIDescription();
+    if (currentState) {
+      render();
+      renderStep25AnimPreview(1);
+    } else updateAIDescription();
   });
 
   minDistanceInput.addEventListener('input', () => {
@@ -1412,8 +2095,10 @@
 
   waypointList.addEventListener('input', (e) => {
     if (e.target.matches('.waypoint-name, .waypoint-distance, .waypoint-offset-x, .waypoint-offset-y')) {
-      if (currentState) render();
-      else updateAIDescription();
+      if (currentState) {
+        render();
+        renderStep25AnimPreview(1);
+      } else updateAIDescription();
     }
   });
 
@@ -1421,25 +2106,24 @@
     const btn = e.target.closest('.remove-waypoint');
     if (!btn) return;
     btn.closest('.waypoint-row').remove();
-    if (currentState) render();
-    else updateAIDescription();
+    if (currentState) {
+      render();
+      renderStep25AnimPreview(1);
+    } else updateAIDescription();
   });
 
   updateAIDescription();
-  themeGroup.addEventListener('click', (e) => {
-    const btn = e.target.closest('.seg-btn');
-    if (!btn) return;
-    const theme = btn.dataset.theme;
-    const VALID_THEMES = new Set(['paper', 'night', 'forest']);
-    if (!theme || theme === currentTheme || !VALID_THEMES.has(theme)) return;
-    currentTheme = theme;
-    [...themeGroup.querySelectorAll('.seg-btn')].forEach((b) => {
-      b.classList.toggle('is-active', b === btn);
-      b.setAttribute('aria-checked', b === btn ? 'true' : 'false');
+  if (trackColorGroup) {
+    trackColorGroup.addEventListener('click', (e) => {
+      const btn = e.target.closest('.track-color-swatch');
+      if (!btn) return;
+      const colorId = btn.dataset.trackColor;
+      if (colorId) setTrackColor(colorId);
     });
-    if (currentState) render();
-    else updateAIDescription();
-  });
+  }
 
+  initTrackColorPalette();
+  updateStep25Controls();
+  renderStep25AnimPreview(1);
   void loadSampleTrack({ quiet: true });
 })();
