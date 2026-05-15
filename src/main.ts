@@ -36,6 +36,9 @@ async function bootstrap() {
     // Serve Mini App static build
     const miniAppDist = path.join(process.cwd(), 'web', 'mini-app', 'dist');
     app.useStaticAssets(miniAppDist, { prefix: '/mini-app' });
+    // Main static page assets
+    const homePage = path.join(process.cwd(), 'web', 'home');
+    app.useStaticAssets(homePage, { prefix: '/home' });
     // Static GPX → PNG tool (plain HTML/CSS/JS)
     const gpxRoutePng = path.join(process.cwd(), 'web', 'gpx-route-png');
     app.useStaticAssets(gpxRoutePng, { prefix: '/gpx-route-png' });
@@ -54,6 +57,8 @@ async function bootstrap() {
     // Serve Mini App static build in dev too (or use Vite dev server separately)
     const miniAppDist = path.join(process.cwd(), 'web', 'mini-app', 'dist');
     app.useStaticAssets(miniAppDist, { prefix: '/mini-app' });
+    const homePage = path.join(process.cwd(), 'web', 'home');
+    app.useStaticAssets(homePage, { prefix: '/home' });
     const gpxRoutePng = path.join(process.cwd(), 'web', 'gpx-route-png');
     app.useStaticAssets(gpxRoutePng, { prefix: '/gpx-route-png' });
     const instance = app.getHttpAdapter().getInstance();
