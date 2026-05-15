@@ -6,6 +6,106 @@
   const CANVAS_H = 1920;
   const MIN_DIST_M = 50; // minimum distance between thinned points
   const SAFE_MARGIN = 140; // safe margin in canvas px around the route
+  const LANG = document.documentElement.lang === 'en' ? 'en' : 'ru';
+  const COPY = {
+    ru: {
+      parseXmlError: 'Не удалось разобрать GPX: файл повреждён или не является валидным XML.',
+      notGpxRoot: 'Это не похоже на GPX-файл: отсутствует корневой элемент <gpx>.',
+      notEnoughPoints: 'В GPX-файле не найдено достаточно координат (нужно минимум две точки).',
+      distanceUnit: 'км',
+      aiPromptIntro: [
+        'Задача: сгенерировать изображение ТОЛЬКО с маршрутом (линия), кругами на точках подписей и текстовыми подписями.',
+        '',
+        'GPX и географические координаты недоступны — воспроизведи геометрию строго по данным ниже.',
+        '',
+        'Не добавляй: фон (градиент, текстуры, «бумага»), декоративные контуры, заголовок, нижний блок статистики, внешнюю рамку, тень/ореол вокруг линии (достаточно одной обводки указанной толщины). Прозрачный фон или сплошной нейтральный однотон — на выбор, остальное пустое.',
+        '',
+        '=== Линия трека ===',
+      ],
+      canvasLine: (canvas) => `Холст: ${canvas.width}×${canvas.height} px, вертикальная ориентация. Начало координат — левый верхний угол, ось X вправо, ось Y вниз. Все числа в пикселях.`,
+      strokeLine: (track) => `Цвет обводки: ${track.stroke}. Толщина: ${track.lineWidth} px. lineCap: ${track.lineCap}, lineJoin: ${track.lineJoin}.`,
+      curveLine: (track) => `Кривая: ${track.curve.type}.`,
+      implementationLine: (track) => `Построение: ${track.curve.implementation}`,
+      verticesLine: (track) => `Вершины кривой по порядку (${track.vertices.length} шт., координаты центра линии в px):`,
+      markersHeading: '=== Точки и подписи (каждая строка подписи — fillText, textAlign left, textBaseline middle; x,y — якорь как в canvas) ===',
+      noMarkers: '(нет подписей на треке — только линия)',
+      markerLine: (i) => `Маркер ${i + 1}:`,
+      circleLine: (dot) => `  круг: ${JSON.stringify(dot)}`,
+      fontLine: (label) => `  шрифт: ${label.fontWeight} ${label.fontSize}px ${label.fontFamily}, цвет ${label.color}`,
+      labelLine: (line, lineIndex) => `  строка ${lineIndex + 1}: ${JSON.stringify(line.text)} — x=${line.x}, y=${line.y}`,
+      emptyLabel: '  подпись: (пустой текст — только круг)',
+      aiEmpty: 'Загрузите GPX в шаге 1 — здесь появится промпт: координаты линии, точек и подписей на холсте 1080×1920 (без GPX).',
+      defaultStart: 'Старт',
+      defaultFinish: 'Финиш',
+      waypointTextPlaceholder: 'Текст',
+      waypointTextAria: 'Текст подписи',
+      waypointDistancePlaceholder: 'км',
+      waypointDistanceAria: 'Расстояние от старта в километрах',
+      offsetXAria: 'Смещение подписи по горизонтали в пикселях',
+      offsetYAria: 'Смещение подписи по вертикали в пикселях',
+      removeWaypointAria: 'Удалить подпись на треке',
+      fileTypeError: 'Похоже, это не GPX-файл. Загрузите файл с расширением .gpx.',
+      emptyFileError: 'Файл пустой. Загрузите GPX с хотя бы двумя точками.',
+      largeFileError: 'Файл слишком большой (больше 50 МБ). Уменьшите размер GPX.',
+      whitespaceFileError: 'Файл пустой или содержит только пробелы.',
+      genericFileError: 'Не удалось обработать файл. Попробуйте другой GPX.',
+      loadingSample: 'Загружаю sample.gpx…',
+      sampleLoadError: 'Не удалось загрузить пример sample.gpx.',
+      sampleUiError: 'Не удалось загрузить пример sample.gpx. Попробуйте обновить страницу.',
+      sampleMiddle1: 'ТЦ Галерея',
+      sampleMiddle2: 'Пивски\nзабавник',
+      locale: 'ru-RU',
+    },
+    en: {
+      parseXmlError: 'Could not parse GPX: the file is damaged or is not valid XML.',
+      notGpxRoot: 'This does not look like a GPX file: the root <gpx> element is missing.',
+      notEnoughPoints: 'The GPX file does not contain enough coordinates; at least two points are required.',
+      distanceUnit: 'km',
+      aiPromptIntro: [
+        'Task: generate an image with ONLY the route: the line, circles at labeled points, and text labels.',
+        '',
+        'GPX and geographic coordinates are not available. Recreate the geometry strictly from the data below.',
+        '',
+        'Do not add a background, gradients, textures, paper effects, decorative contours, a title, bottom stats, an outer frame, or a shadow/glow around the line. Use only the single stroke with the specified width. Transparent background or a plain neutral solid color is acceptable; leave everything else empty.',
+        '',
+        '=== Track line ===',
+      ],
+      canvasLine: (canvas) => `Canvas: ${canvas.width}×${canvas.height} px, vertical orientation. Origin is the top-left corner, X goes right, Y goes down. All numbers are in pixels.`,
+      strokeLine: (track) => `Stroke color: ${track.stroke}. Width: ${track.lineWidth} px. lineCap: ${track.lineCap}, lineJoin: ${track.lineJoin}.`,
+      curveLine: (track) => `Curve: ${track.curve.type}.`,
+      implementationLine: (track) => `Construction: ${track.curve.implementation}`,
+      verticesLine: (track) => `Curve vertices in order (${track.vertices.length} items, line-center coordinates in px):`,
+      markersHeading: '=== Points and labels (each label line is fillText, textAlign left, textBaseline middle; x,y is the canvas anchor) ===',
+      noMarkers: '(no labels on the track; line only)',
+      markerLine: (i) => `Marker ${i + 1}:`,
+      circleLine: (dot) => `  circle: ${JSON.stringify(dot)}`,
+      fontLine: (label) => `  font: ${label.fontWeight} ${label.fontSize}px ${label.fontFamily}, color ${label.color}`,
+      labelLine: (line, lineIndex) => `  line ${lineIndex + 1}: ${JSON.stringify(line.text)} - x=${line.x}, y=${line.y}`,
+      emptyLabel: '  label: (empty text; circle only)',
+      aiEmpty: 'Upload a GPX in step 1 and the prompt will appear here: line, point, and label coordinates on a 1080×1920 canvas without the GPX.',
+      defaultStart: 'Start',
+      defaultFinish: 'Finish',
+      waypointTextPlaceholder: 'Text',
+      waypointTextAria: 'Label text',
+      waypointDistancePlaceholder: 'km',
+      waypointDistanceAria: 'Distance from start in kilometers',
+      offsetXAria: 'Horizontal label offset in pixels',
+      offsetYAria: 'Vertical label offset in pixels',
+      removeWaypointAria: 'Remove track label',
+      fileTypeError: 'This does not look like a GPX file. Upload a file with the .gpx extension.',
+      emptyFileError: 'The file is empty. Upload a GPX with at least two points.',
+      largeFileError: 'The file is too large (over 50 MB). Reduce the GPX size.',
+      whitespaceFileError: 'The file is empty or contains only whitespace.',
+      genericFileError: 'Could not process the file. Try another GPX.',
+      loadingSample: 'Loading sample.gpx...',
+      sampleLoadError: 'Could not load sample.gpx.',
+      sampleUiError: 'Could not load sample.gpx. Try refreshing the page.',
+      sampleMiddle1: 'Galerija Mall',
+      sampleMiddle2: 'Pivski\nzabavnik',
+      locale: 'en-US',
+    },
+  };
+  const copy = COPY[LANG];
 
   // ---------- DOM ----------
   const dropZone = document.getElementById('dropZone');
@@ -75,12 +175,12 @@
 
     const parseError = doc.querySelector('parsererror');
     if (parseError) {
-      throw new Error('Не удалось разобрать GPX: файл повреждён или не является валидным XML.');
+      throw new Error(copy.parseXmlError);
     }
 
     const root = doc.documentElement;
     if (!root || root.nodeName.toLowerCase() !== 'gpx') {
-      throw new Error('Это не похоже на GPX-файл: отсутствует корневой элемент <gpx>.');
+      throw new Error(copy.notGpxRoot);
     }
 
     const extractPoints = (selector) => {
@@ -109,7 +209,7 @@
     }
 
     if (points.length < 2) {
-      throw new Error('В GPX-файле не найдено достаточно координат (нужно минимум две точки).');
+      throw new Error(copy.notEnoughPoints);
     }
     return { points, source };
   }
@@ -790,15 +890,15 @@
   // ---------- UI: stats panel ----------
   function updateStatsPanel(state) {
     statSource.textContent = state.source;
-    statOriginal.textContent = state.original.toLocaleString('ru-RU');
-    statThinned.textContent = state.thinned.length.toLocaleString('ru-RU');
+    statOriginal.textContent = state.original.toLocaleString(copy.locale);
+    statThinned.textContent = state.thinned.length.toLocaleString(copy.locale);
     const km = state.distance / 1000;
-    statDistance.textContent = (km < 10 ? km.toFixed(2) : km.toFixed(1)) + ' км';
+    statDistance.textContent = (km < 10 ? km.toFixed(2) : km.toFixed(1)) + ' ' + copy.distanceUnit;
     const { minLat, maxLat, minLon, maxLon } = state.bbox;
     // Width/height in km
     const wKm = haversine(minLat, minLon, minLat, maxLon) / 1000;
     const hKm = haversine(minLat, minLon, maxLat, minLon) / 1000;
-    statBbox.textContent = wKm.toFixed(1) + ' × ' + hKm.toFixed(1) + ' км';
+    statBbox.textContent = wKm.toFixed(1) + ' × ' + hKm.toFixed(1) + ' ' + copy.distanceUnit;
   }
 
   /**
@@ -867,38 +967,31 @@
     const { canvas, track, markers } = spec;
     const out = [];
     out.push(
-      'Задача: сгенерировать изображение ТОЛЬКО с маршрутом (линия), кругами на точках подписей и текстовыми подписями.',
-      `Холст: ${canvas.width}×${canvas.height} px, вертикальная ориентация. Начало координат — левый верхний угол, ось X вправо, ось Y вниз. Все числа в пикселях.`,
+      copy.aiPromptIntro[0],
+      copy.canvasLine(canvas),
+      ...copy.aiPromptIntro.slice(1),
+      copy.strokeLine(track),
+      copy.curveLine(track),
+      copy.implementationLine(track),
       '',
-      'GPX и географические координаты недоступны — воспроизведи геометрию строго по данным ниже.',
-      '',
-      'Не добавляй: фон (градиент, текстуры, «бумага»), декоративные контуры, заголовок, нижний блок статистики, внешнюю рамку, тень/ореол вокруг линии (достаточно одной обводки указанной толщины). Прозрачный фон или сплошной нейтральный однотон — на выбор, остальное пустое.',
-      '',
-      '=== Линия трека ===',
-      `Цвет обводки: ${track.stroke}. Толщина: ${track.lineWidth} px. lineCap: ${track.lineCap}, lineJoin: ${track.lineJoin}.`,
-      `Кривая: ${track.curve.type}.`,
-      `Построение: ${track.curve.implementation}`,
-      '',
-      `Вершины кривой по порядку (${track.vertices.length} шт., координаты центра линии в px):`,
+      copy.verticesLine(track),
       JSON.stringify(track.vertices),
       '',
-      '=== Точки и подписи (каждая строка подписи — fillText, textAlign left, textBaseline middle; x,y — якорь как в canvas) ===',
+      copy.markersHeading,
     );
 
     if (markers.length === 0) {
-      out.push('(нет подписей на треке — только линия)');
+      out.push(copy.noMarkers);
     } else {
       markers.forEach((m, i) => {
-        out.push('', `Маркер ${i + 1}:`, `  круг: ${JSON.stringify(m.dot)}`);
+        out.push('', copy.markerLine(i), copy.circleLine(m.dot));
         if (m.label && m.label.lines.length) {
-          out.push(
-            `  шрифт: ${m.label.fontWeight} ${m.label.fontSize}px ${m.label.fontFamily}, цвет ${m.label.color}`,
-          );
+          out.push(copy.fontLine(m.label));
           m.label.lines.forEach((line, lineIndex) => {
-            out.push(`  строка ${lineIndex + 1}: ${JSON.stringify(line.text)} — x=${line.x}, y=${line.y}`);
+            out.push(copy.labelLine(line, lineIndex));
           });
         } else {
-          out.push('  подпись: (пустой текст — только круг)');
+          out.push(copy.emptyLabel);
         }
       });
     }
@@ -908,8 +1001,7 @@
 
   function updateAIDescription() {
     if (!currentState) {
-      aiDescription.value =
-        'Загрузите GPX в шаге 1 — здесь появится промпт: координаты линии, точек и подписей на холсте 1080×1920 (без GPX).';
+      aiDescription.value = copy.aiEmpty;
       updateStep2Controls();
       renderStep2TrackPreview();
       return;
@@ -985,14 +1077,15 @@
 
   function formatKm(value) {
     const rounded = Math.round(value * 10) / 10;
-    return String(rounded).replace('.', ',');
+    const formatted = String(rounded);
+    return LANG === 'ru' ? formatted.replace('.', ',') : formatted;
   }
 
   function resetDefaultLabels() {
     waypointList.textContent = '';
     if (!currentState) return;
-    addWaypointRow('Старт', '0', '0', '0', false);
-    addWaypointRow('Финиш', formatKm(currentState.distance / 1000), '0', '0', false);
+    addWaypointRow(copy.defaultStart, '0', '0', '0', false);
+    addWaypointRow(copy.defaultFinish, formatKm(currentState.distance / 1000), '0', '0', false);
   }
 
   function addWaypointRow(name = '', distanceKm = '', offsetX = '0', offsetY = '0', shouldRender = true) {
@@ -1005,18 +1098,18 @@
     nameInput.className = 'waypoint-name';
     nameInput.maxLength = 80;
     nameInput.rows = 1;
-    nameInput.placeholder = 'Текст';
+    nameInput.placeholder = copy.waypointTextPlaceholder;
     nameInput.value = name;
-    nameInput.setAttribute('aria-label', 'Текст подписи');
+    nameInput.setAttribute('aria-label', copy.waypointTextAria);
 
     const distanceInput = document.createElement('input');
     distanceInput.type = 'text';
     distanceInput.className = 'waypoint-distance';
     distanceInput.inputMode = 'decimal';
     distanceInput.pattern = '[0-9]+([\\.,][0-9]+)?';
-    distanceInput.placeholder = 'км';
+    distanceInput.placeholder = copy.waypointDistancePlaceholder;
     distanceInput.value = distanceKm;
-    distanceInput.setAttribute('aria-label', 'Расстояние от старта в километрах');
+    distanceInput.setAttribute('aria-label', copy.waypointDistanceAria);
 
     const offsetXInput = document.createElement('input');
     offsetXInput.type = 'text';
@@ -1025,7 +1118,7 @@
     offsetXInput.pattern = '-?[0-9]+([\\.,][0-9]+)?';
     offsetXInput.placeholder = 'X';
     offsetXInput.value = offsetX;
-    offsetXInput.setAttribute('aria-label', 'Смещение подписи по горизонтали в пикселях');
+    offsetXInput.setAttribute('aria-label', copy.offsetXAria);
 
     const offsetYInput = document.createElement('input');
     offsetYInput.type = 'text';
@@ -1034,12 +1127,12 @@
     offsetYInput.pattern = '-?[0-9]+([\\.,][0-9]+)?';
     offsetYInput.placeholder = 'Y';
     offsetYInput.value = offsetY;
-    offsetYInput.setAttribute('aria-label', 'Смещение подписи по вертикали в пикселях');
+    offsetYInput.setAttribute('aria-label', copy.offsetYAria);
 
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
     removeBtn.className = 'remove-waypoint';
-    removeBtn.setAttribute('aria-label', 'Удалить подпись на треке');
+    removeBtn.setAttribute('aria-label', copy.removeWaypointAria);
     const trashIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     trashIcon.setAttribute('viewBox', '0 0 24 24');
     trashIcon.setAttribute('aria-hidden', 'true');
@@ -1080,22 +1173,22 @@
     clearError();
     if (!file) return;
     if (!file.name.toLowerCase().endsWith('.gpx') && file.type !== 'application/gpx+xml' && file.type !== 'text/xml' && file.type !== 'application/xml') {
-      showError('Похоже, это не GPX-файл. Загрузите файл с расширением .gpx.');
+      showError(copy.fileTypeError);
       return;
     }
     if (file.size === 0) {
-      showError('Файл пустой. Загрузите GPX с хотя бы двумя точками.');
+      showError(copy.emptyFileError);
       return;
     }
     if (file.size > 50 * 1024 * 1024) {
-      showError('Файл слишком большой (больше 50 МБ). Уменьшите размер GPX.');
+      showError(copy.largeFileError);
       return;
     }
     const generation = ++fileIngestGeneration;
     try {
       const text = await file.text();
       if (!text.trim()) {
-        showError('Файл пустой или содержит только пробелы.');
+        showError(copy.whitespaceFileError);
         return;
       }
       const { points, source } = parseGPX(text);
@@ -1136,7 +1229,7 @@
     } catch (err) {
       console.error(err);
       if (!suppressError) {
-        showError(err.message || 'Не удалось обработать файл. Попробуйте другой GPX.');
+        showError(err.message || copy.genericFileError);
       }
     }
   }
@@ -1150,11 +1243,11 @@
       sampleBtn.disabled = true;
     }
     const previousText = quiet ? '' : sampleBtn.textContent;
-    if (!quiet) sampleBtn.textContent = 'Загружаю sample.gpx…';
+    if (!quiet) sampleBtn.textContent = copy.loadingSample;
     try {
-      const response = await fetch('sample.gpx?v=20260514-8');
+      const response = await fetch('/gpx-route-png/sample.gpx?v=20260514-8');
       if (!response.ok) {
-        throw new Error('Не удалось загрузить пример sample.gpx.');
+        throw new Error(copy.sampleLoadError);
       }
       const blob = await response.blob();
       const file = new File([blob], 'sample.gpx', { type: 'application/gpx+xml' });
@@ -1165,16 +1258,16 @@
         minDistanceOutput.textContent = '180';
         updateThinning();
         waypointList.textContent = '';
-        addWaypointRow('Старт', '0', '0', '0', false);
-        addWaypointRow('ТЦ Галерея', '5,4', '0', '0', false);
-        addWaypointRow('Пивски\nзабавник', '9,1', '240', '-200', false);
-        addWaypointRow('Финиш', formatKm(currentState.distance / 1000), '0', '0', false);
+        addWaypointRow(copy.defaultStart, '0', '0', '0', false);
+        addWaypointRow(copy.sampleMiddle1, formatKm(5.4), '0', '0', false);
+        addWaypointRow(copy.sampleMiddle2, formatKm(9.1), '240', '-200', false);
+        addWaypointRow(copy.defaultFinish, formatKm(currentState.distance / 1000), '0', '0', false);
         render();
       }
     } catch (err) {
       console.error(err);
       if (!quiet) {
-        showError('Не удалось загрузить пример sample.gpx. Попробуйте обновить страницу.');
+        showError(copy.sampleUiError);
       }
     } finally {
       if (!quiet) {

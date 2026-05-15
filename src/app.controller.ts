@@ -12,6 +12,11 @@ export class AppController {
     res.sendFile(path.join(process.cwd(), 'web', 'home', 'index.html'));
   }
 
+  @Get('en')
+  getHomeEn(@Res() res: Response): void {
+    res.sendFile(path.join(process.cwd(), 'web', 'home', 'en.html'));
+  }
+
   @Get('health')
   getHealth(): string {
     return this.appService.getHello();
@@ -20,5 +25,10 @@ export class AppController {
   @Get('home')
   getHomeAlias(@Res() res: Response): void {
     res.sendFile(path.join(process.cwd(), 'web', 'home', 'index.html'));
+  }
+
+  @Get('home/en')
+  getHomeEnAlias(@Res() res: Response): void {
+    res.sendFile(path.join(process.cwd(), 'web', 'home', 'en.html'));
   }
 }
