@@ -6,6 +6,7 @@ import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
 import { ServicesModule } from './services/services.module';
 import { MiniAppController } from './mini-app/mini-app.controller';
+import { SubsController } from './subs.controller';
 
 @Module({
   imports: [
@@ -16,7 +17,7 @@ import { MiniAppController } from './mini-app/mini-app.controller';
     ServicesModule,
     TelegramBotModule,
   ],
-  controllers: [AppController, MiniAppController],
+  controllers: [AppController, MiniAppController, SubsController],
   providers: [AppService],
 })
 export class AppModule {}

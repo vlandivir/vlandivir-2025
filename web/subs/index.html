@@ -9,6 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/subs/styles.css?v=20260516-1" />
+<script src="/subs/app.js?v=20260516-1" defer></script>
 </head>
 <body>
 <header class="site-header">
@@ -53,6 +54,50 @@
         <span class="clip clip--three"></span>
       </div>
     </div>
+  </section>
+
+  <section class="upload-panel" aria-labelledby="upload-title">
+    <div class="upload-copy">
+      <p class="eyebrow">Видео</p>
+      <h2 id="upload-title">Загрузка в хранилище</h2>
+      <p>Выберите видеофайл. Он будет загружен в DigitalOcean Spaces, а страница сохранит ссылку вида <code>/subs/&lt;hash&gt;</code> в локальной базе браузера.</p>
+    </div>
+
+    <div class="upload-card">
+      <form class="upload-form" id="uploadForm">
+        <label class="file-picker" for="videoInput">
+          <span class="file-picker__title">Выбрать видео</span>
+          <span class="file-picker__meta" id="fileMeta">MP4, MOV, WebM или другой video/* файл</span>
+        </label>
+        <input id="videoInput" name="video" type="file" accept="video/*" />
+        <button class="primary-link upload-button" id="uploadButton" type="submit" disabled>Загрузить</button>
+      </form>
+      <div class="progress" id="uploadProgress" hidden>
+        <div class="progress-bar" id="uploadProgressBar"></div>
+      </div>
+      <p class="upload-status" id="uploadStatus" role="status"></p>
+    </div>
+  </section>
+
+  <section class="current-video" id="currentVideoSection" hidden aria-labelledby="current-video-title">
+    <div>
+      <p class="eyebrow">Текущая ссылка</p>
+      <h2 id="current-video-title">Видео по hash</h2>
+      <p class="current-video__meta" id="currentVideoMeta"></p>
+    </div>
+    <video id="currentVideo" controls playsinline preload="metadata"></video>
+  </section>
+
+  <section class="saved-links" aria-labelledby="saved-title">
+    <div class="saved-links__head">
+      <div>
+        <p class="eyebrow">IndexedDB</p>
+        <h2 id="saved-title">Сохраненные ссылки</h2>
+      </div>
+      <button class="secondary-link clear-button" id="clearLinksButton" type="button">Очистить список</button>
+    </div>
+    <div class="links-list" id="linksList"></div>
+    <p class="empty-state" id="emptyState">Пока нет сохраненных видео. После загрузки ссылки появятся здесь.</p>
   </section>
 
   <section class="section-grid" id="roadmap" aria-labelledby="roadmap-title">

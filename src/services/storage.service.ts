@@ -111,6 +111,32 @@ export class StorageService implements OnModuleInit {
     return `${this.endpoint}/${this.bucket}/${key}`;
   }
 
+  async uploadSubsVideoStream(
+    stream: Readable,
+    mimeType: string,
+    hash: string,
+  ): Promise<string> {
+    const key = this.getSubsVideoKey(hash);
+
+    const upload = new Upload({
+      client: this.s3,
+      params: {
+        Bucket: this.bucket,
+        Key: key,
+        Body: stream,
+        ContentType: mimeType,
+        ACL: 'public-read',
+      },
+    });
+
+    await upload.done();
+    return this.getPublicUrl(key);
+  }
+
+  getSubsVideoUrl(hash: string): string {
+    return this.getPublicUrl(this.getSubsVideoKey(hash));
+  }
+
   async uploadFileWithKey(
     buffer: Buffer,
     mimeType: string,
@@ -127,6 +153,14 @@ export class StorageService implements OnModuleInit {
       },
     });
     await upload.done();
+    return `${this.endpoint}/${this.bucket}/${key}`;
+  }
+
+  private getSubsVideoKey(hash: string): string {
+    return `subs/videos/${hash}/source`;
+  }
+
+  private getPublicUrl(key: string): string {
     return `${this.endpoint}/${this.bucket}/${key}`;
   }
 

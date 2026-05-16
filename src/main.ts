@@ -55,9 +55,12 @@ async function bootstrap() {
     instance.get(/^\/gpx-route-png\/en\/?$/, (_req: unknown, res: Response) => {
       res.sendFile(path.join(gpxRoutePng, 'en.html'));
     });
-    instance.get(/^\/subs\/?$/, (_req: unknown, res: Response) => {
-      res.sendFile(path.join(subsPage, 'index.html'));
-    });
+    instance.get(
+      /^\/subs(?:\/[a-f0-9]{24})?\/?$/,
+      (_req: unknown, res: Response) => {
+        res.sendFile(path.join(subsPage, 'index.html'));
+      },
+    );
     await app.listen(443);
   } else {
     // Development mode - HTTP
@@ -81,9 +84,12 @@ async function bootstrap() {
     instance.get(/^\/gpx-route-png\/en\/?$/, (_req: unknown, res: Response) => {
       res.sendFile(path.join(gpxRoutePng, 'en.html'));
     });
-    instance.get(/^\/subs\/?$/, (_req: unknown, res: Response) => {
-      res.sendFile(path.join(subsPage, 'index.html'));
-    });
+    instance.get(
+      /^\/subs(?:\/[a-f0-9]{24})?\/?$/,
+      (_req: unknown, res: Response) => {
+        res.sendFile(path.join(subsPage, 'index.html'));
+      },
+    );
     await app.listen(port);
     console.log(`Application is running on: http://localhost:${port}`);
   }
