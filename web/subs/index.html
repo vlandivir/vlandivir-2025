@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="Subs ASS: проект для создания субтитров к видео в формате Advanced SubStation Alpha." />
+<title>Subs ASS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/subs/styles.css?v=20260516-1" />
+</head>
+<body>
+<header class="site-header">
+  <a class="brand" href="/" aria-label="На главную vlandivir">
+    <span class="brand-mark">ASS</span>
+    <span class="brand-text">Subs</span>
+  </a>
+  <nav class="header-nav" aria-label="Навигация">
+    <a href="/">Главная</a>
+    <a href="/gpx-route-png/">GPX Track PNG</a>
+  </nav>
+</header>
+
+<main>
+  <section class="hero" aria-labelledby="page-title">
+    <div class="hero-copy">
+      <p class="eyebrow">Новый инструмент vlandivir</p>
+      <h1 id="page-title">Субтитры для видео в формате ASS</h1>
+      <p class="lead">Страница проекта, на которой будет собран рабочий процесс: импорт видео, разметка реплик, настройка стилей, проверка тайминга и экспорт <code>.ass</code> для монтажа.</p>
+      <div class="actions">
+        <a class="primary-link" href="#roadmap">Посмотреть план</a>
+        <a class="secondary-link" href="#format">Формат ASS</a>
+      </div>
+    </div>
+
+    <div class="subtitle-preview" aria-label="Превью будущего редактора субтитров">
+      <div class="video-frame">
+        <div class="frame-topbar">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+        <div class="frame-scene">
+          <div class="playhead"></div>
+          <p class="subtitle-line subtitle-line--primary">Мы переводим речь в точный тайминг.</p>
+          <p class="subtitle-line subtitle-line--secondary">Dialogue: 0,0:01:24.30,0:01:27.10,Default,,0,0,0,,...</p>
+        </div>
+      </div>
+      <div class="timeline" aria-hidden="true">
+        <span class="clip clip--one"></span>
+        <span class="clip clip--two"></span>
+        <span class="clip clip--three"></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="section-grid" id="roadmap" aria-labelledby="roadmap-title">
+    <div class="section-head">
+      <p class="eyebrow">План</p>
+      <h2 id="roadmap-title">Что будет на странице</h2>
+    </div>
+    <div class="feature-list">
+      <article class="feature">
+        <span class="feature-index">01</span>
+        <h3>Расшифровка и реплики</h3>
+        <p>Черновик субтитров из текста или транскрипта, деление на короткие читаемые строки и ручная правка.</p>
+      </article>
+      <article class="feature">
+        <span class="feature-index">02</span>
+        <h3>Тайминг под видео</h3>
+        <p>Начало, конец, длительность и визуальный контроль пауз, чтобы субтитры не опаздывали и не перекрывали речь.</p>
+      </article>
+      <article class="feature">
+        <span class="feature-index">03</span>
+        <h3>Стили ASS</h3>
+        <p>Шрифт, размер, обводка, тень, позиция, цвета и готовые пресеты для вертикального и горизонтального видео.</p>
+      </article>
+      <article class="feature">
+        <span class="feature-index">04</span>
+        <h3>Экспорт</h3>
+        <p>Генерация <code>.ass</code> файла, который можно использовать в ffmpeg, DaVinci Resolve, Aegisub или другом монтажном пайплайне.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="format-panel" id="format" aria-labelledby="format-title">
+    <div>
+      <p class="eyebrow">Advanced SubStation Alpha</p>
+      <h2 id="format-title">Почему <code>.ass</code></h2>
+      <p>ASS удобен, когда субтитрам нужен не только текст, но и аккуратная типографика: стили, позиционирование, переносы, обводка и тени. Это хороший формат для видео, где субтитры являются частью визуального дизайна.</p>
+    </div>
+    <pre aria-label="Пример ASS"><code>[Script Info]
+ScriptType: v4.00+
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour
+Style: Default,Inter,58,&amp;H00FFFFFF,&amp;H0010181C
+
+[Events]
+Format: Start, End, Style, Text
+Dialogue: 0:00:03.20,0:00:05.60,Default,Первая строка субтитров</code></pre>
+  </section>
+</main>
+</body>
+</html>

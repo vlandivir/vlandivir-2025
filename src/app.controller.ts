@@ -31,4 +31,9 @@ export class AppController {
   getHomeEnAlias(@Res() res: Response): void {
     res.sendFile(path.join(process.cwd(), 'web', 'home', 'en.html'));
   }
+
+  @Get('subs')
+  getSubs(@Res() res: Response): void {
+    res.sendFile(path.join(process.cwd(), 'web', 'subs', 'index.html'));
+  }
 }
