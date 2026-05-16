@@ -1,6 +1,8 @@
 const DB_NAME = 'subs-project';
-const DB_VERSION = 1;
-const STORE_NAME = 'videos';
+const DB_VERSION = 2;
+const VIDEO_STORE = 'videos';
+const STYLE_STORE = 'styles';
+const CUE_STORE = 'cues';
 
 const form = document.querySelector('#uploadForm');
 const input = document.querySelector('#videoInput');
@@ -15,8 +17,24 @@ const clearLinksButton = document.querySelector('#clearLinksButton');
 const currentVideoSection = document.querySelector('#currentVideoSection');
 const currentVideo = document.querySelector('#currentVideo');
 const currentVideoMeta = document.querySelector('#currentVideoMeta');
+const styleForm = document.querySelector('#styleForm');
+const styleNameInput = document.querySelector('#styleNameInput');
+const styleFontInput = document.querySelector('#styleFontInput');
+const styleColorInput = document.querySelector('#styleColorInput');
+const stylePositionInput = document.querySelector('#stylePositionInput');
+const styleList = document.querySelector('#styleList');
+const stylesEmptyState = document.querySelector('#stylesEmptyState');
+const cueForm = document.querySelector('#cueForm');
+const cueTextInput = document.querySelector('#cueTextInput');
+const cueStartInput = document.querySelector('#cueStartInput');
+const cueEndInput = document.querySelector('#cueEndInput');
+const cueStyleInput = document.querySelector('#cueStyleInput');
+const cueList = document.querySelector('#cueList');
+const cuesEmptyState = document.querySelector('#cuesEmptyState');
 
 let dbPromise;
+let cachedStyles = [];
+let cachedCues = [];
 
 function openDb() {
   if (dbPromise) return dbPromise;
@@ -26,9 +44,18 @@ function openDb() {
 
     request.onupgradeneeded = () => {
       const db = request.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        const store = db.createObjectStore(STORE_NAME, { keyPath: 'hash' });
+      if (!db.objectStoreNames.contains(VIDEO_STORE)) {
+        const store = db.createObjectStore(VIDEO_STORE, { keyPath: 'hash' });
         store.createIndex('createdAt', 'createdAt');
+      }
+      if (!db.objectStoreNames.contains(STYLE_STORE)) {
+        const store = db.createObjectStore(STYLE_STORE, { keyPath: 'id' });
+        store.createIndex('createdAt', 'createdAt');
+      }
+      if (!db.objectStoreNames.contains(CUE_STORE)) {
+        const store = db.createObjectStore(CUE_STORE, { keyPath: 'id' });
+        store.createIndex('start', 'start');
+        store.createIndex('styleId', 'styleId');
       }
     };
 
@@ -39,44 +66,97 @@ function openDb() {
   return dbPromise;
 }
 
-async function readVideos() {
+async function readStore(storeName) {
   const db = await openDb();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, 'readonly');
-    const store = transaction.objectStore(STORE_NAME);
+    const transaction = db.transaction(storeName, 'readonly');
+    const store = transaction.objectStore(storeName);
     const request = store.getAll();
 
-    request.onsuccess = () => {
-      const videos = request.result.sort((a, b) =>
-        b.createdAt.localeCompare(a.createdAt),
-      );
-      resolve(videos);
-    };
+    request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
 }
 
-async function saveVideo(video) {
+async function putRecord(storeName, record) {
   const db = await openDb();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, 'readwrite');
-    transaction.objectStore(STORE_NAME).put(video);
+    const transaction = db.transaction(storeName, 'readwrite');
+    transaction.objectStore(storeName).put(record);
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => reject(transaction.error);
   });
 }
 
-async function clearVideos() {
+async function deleteRecord(storeName, id) {
   const db = await openDb();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, 'readwrite');
-    transaction.objectStore(STORE_NAME).clear();
+    const transaction = db.transaction(storeName, 'readwrite');
+    transaction.objectStore(storeName).delete(id);
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => reject(transaction.error);
   });
+}
+
+async function clearStore(storeName) {
+  const db = await openDb();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(storeName, 'readwrite');
+    transaction.objectStore(storeName).clear();
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+  });
+}
+
+async function readVideos() {
+  const videos = await readStore(VIDEO_STORE);
+  return videos.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+function saveVideo(video) {
+  return putRecord(VIDEO_STORE, video);
+}
+
+function clearVideos() {
+  return clearStore(VIDEO_STORE);
+}
+
+async function readStyles() {
+  const styles = await readStore(STYLE_STORE);
+  return styles.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+function saveStyle(style) {
+  return putRecord(STYLE_STORE, style);
+}
+
+function deleteStyle(id) {
+  return deleteRecord(STYLE_STORE, id);
+}
+
+async function readCues() {
+  const cues = await readStore(CUE_STORE);
+  return cues.sort((a, b) => a.start.localeCompare(b.start));
+}
+
+function saveCue(cue) {
+  return putRecord(CUE_STORE, cue);
+}
+
+function deleteCue(id) {
+  return deleteRecord(CUE_STORE, id);
+}
+
+function createId(prefix) {
+  if (window.crypto?.randomUUID) {
+    return `${prefix}-${window.crypto.randomUUID()}`;
+  }
+
+  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 function formatBytes(bytes) {
@@ -123,8 +203,139 @@ function renderVideos(videos) {
     videoLink.textContent = 'Открыть файл';
 
     item.append(title, meta, pageLink, videoLink);
-    linksList.append(item);
+  linksList.append(item);
   }
+}
+
+function positionLabel(position) {
+  return {
+    'bottom-center': 'Снизу по центру',
+    'bottom-left': 'Снизу слева',
+    'top-center': 'Сверху по центру',
+    'middle-center': 'По центру кадра',
+  }[position] || position;
+}
+
+function getStyleById(id) {
+  return cachedStyles.find((style) => style.id === id);
+}
+
+function renderStyleOptions() {
+  cueStyleInput.replaceChildren();
+
+  for (const style of cachedStyles) {
+    const option = document.createElement('option');
+    option.value = style.id;
+    option.textContent = style.name;
+    cueStyleInput.append(option);
+  }
+
+  cueStyleInput.disabled = cachedStyles.length === 0;
+}
+
+function renderStyles() {
+  styleList.replaceChildren();
+  stylesEmptyState.hidden = cachedStyles.length > 0;
+
+  for (const style of cachedStyles) {
+    const item = document.createElement('article');
+    item.className = 'style-item';
+
+    const swatch = document.createElement('span');
+    swatch.className = 'style-swatch';
+    swatch.style.background = style.color;
+
+    const body = document.createElement('div');
+    const title = document.createElement('h4');
+    title.textContent = style.name;
+    const meta = document.createElement('p');
+    meta.textContent = `${style.font} · ${positionLabel(style.position)}`;
+    body.append(title, meta);
+
+    const removeButton = document.createElement('button');
+    removeButton.className = 'icon-button';
+    removeButton.type = 'button';
+    removeButton.title = 'Удалить стиль';
+    removeButton.textContent = '×';
+    removeButton.addEventListener('click', async () => {
+      await deleteStyle(style.id);
+      cachedCues = cachedCues.filter((cue) => cue.styleId !== style.id);
+      await Promise.all(
+        (await readCues())
+          .filter((cue) => cue.styleId === style.id)
+          .map((cue) => deleteCue(cue.id)),
+      );
+      await refreshEditor();
+    });
+
+    item.append(swatch, body, removeButton);
+    styleList.append(item);
+  }
+
+  renderStyleOptions();
+}
+
+function renderCues() {
+  cueList.replaceChildren();
+  cuesEmptyState.hidden = cachedCues.length > 0;
+
+  for (const cue of cachedCues) {
+    const style = getStyleById(cue.styleId);
+    const item = document.createElement('article');
+    item.className = 'cue-item';
+
+    const time = document.createElement('p');
+    time.className = 'cue-item__time';
+    time.textContent = `${cue.start} → ${cue.end}`;
+
+    const text = document.createElement('p');
+    text.className = 'cue-item__text';
+    text.textContent = cue.text;
+    if (style) {
+      text.style.color = style.color;
+      text.style.fontFamily = style.font;
+    }
+
+    const meta = document.createElement('p');
+    meta.className = 'cue-item__meta';
+    meta.textContent = style
+      ? `${style.name} · ${positionLabel(style.position)}`
+      : 'Стиль удален';
+
+    const removeButton = document.createElement('button');
+    removeButton.className = 'icon-button';
+    removeButton.type = 'button';
+    removeButton.title = 'Удалить реплику';
+    removeButton.textContent = '×';
+    removeButton.addEventListener('click', async () => {
+      await deleteCue(cue.id);
+      await refreshEditor();
+    });
+
+    item.append(time, text, meta, removeButton);
+    cueList.append(item);
+  }
+}
+
+async function ensureDefaultStyle() {
+  const styles = await readStyles();
+  if (styles.length > 0) return;
+
+  await saveStyle({
+    id: createId('style'),
+    name: 'Default',
+    font: 'Inter',
+    color: '#ffffff',
+    position: 'bottom-center',
+    createdAt: new Date().toISOString(),
+  });
+}
+
+async function refreshEditor() {
+  cachedStyles = await readStyles();
+  cachedCues = await readCues();
+  renderStyles();
+  renderCues();
 }
 
 function uploadVideo(file) {
@@ -234,9 +445,46 @@ clearLinksButton.addEventListener('click', async () => {
   await refreshList();
 });
 
+styleForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+
+  await saveStyle({
+    id: createId('style'),
+    name: styleNameInput.value.trim(),
+    font: styleFontInput.value,
+    color: styleColorInput.value,
+    position: stylePositionInput.value,
+    createdAt: new Date().toISOString(),
+  });
+
+  styleForm.reset();
+  styleColorInput.value = '#ffffff';
+  await refreshEditor();
+});
+
+cueForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+
+  if (!cueStyleInput.value) return;
+
+  await saveCue({
+    id: createId('cue'),
+    text: cueTextInput.value.trim(),
+    start: cueStartInput.value.trim(),
+    end: cueEndInput.value.trim(),
+    styleId: cueStyleInput.value,
+    createdAt: new Date().toISOString(),
+  });
+
+  cueForm.reset();
+  await refreshEditor();
+});
+
 async function init() {
   await loadCurrentVideo();
+  await ensureDefaultStyle();
   await refreshList();
+  await refreshEditor();
 }
 
 init().catch((error) => {

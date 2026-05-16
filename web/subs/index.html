@@ -100,6 +100,87 @@
     <p class="empty-state" id="emptyState">Пока нет сохраненных видео. После загрузки ссылки появятся здесь.</p>
   </section>
 
+  <section class="subtitle-editor" aria-labelledby="editor-title">
+    <div class="editor-head">
+      <div>
+        <p class="eyebrow">Редактор</p>
+        <h2 id="editor-title">Стили и реплики</h2>
+      </div>
+      <p>Создайте несколько стилей субтитров, затем задайте текст, время появления, время исчезновения и стиль для каждой реплики.</p>
+    </div>
+
+    <div class="editor-grid">
+      <form class="editor-card editor-form" id="styleForm">
+        <h3>Стиль субтитров</h3>
+        <label class="editor-field">
+          <span>Название</span>
+          <input id="styleNameInput" type="text" maxlength="40" placeholder="Например: Default" required />
+        </label>
+        <div class="editor-field-grid">
+          <label class="editor-field">
+            <span>Шрифт</span>
+            <select id="styleFontInput">
+              <option value="Inter">Inter</option>
+              <option value="Arial">Arial</option>
+              <option value="Montserrat">Montserrat</option>
+              <option value="Georgia">Georgia</option>
+              <option value="JetBrains Mono">JetBrains Mono</option>
+            </select>
+          </label>
+          <label class="editor-field">
+            <span>Цвет</span>
+            <input id="styleColorInput" type="color" value="#ffffff" />
+          </label>
+        </div>
+        <label class="editor-field">
+          <span>Базовое положение</span>
+          <select id="stylePositionInput">
+            <option value="bottom-center">Снизу по центру</option>
+            <option value="bottom-left">Снизу слева</option>
+            <option value="top-center">Сверху по центру</option>
+            <option value="middle-center">По центру кадра</option>
+          </select>
+        </label>
+        <button class="primary-link editor-submit" type="submit">Добавить стиль</button>
+      </form>
+
+      <div class="editor-card">
+        <h3>Стили</h3>
+        <div class="style-list" id="styleList"></div>
+        <p class="empty-state" id="stylesEmptyState">Пока нет стилей.</p>
+      </div>
+
+      <form class="editor-card editor-form cue-form" id="cueForm">
+        <h3>Реплика</h3>
+        <label class="editor-field cue-text-field">
+          <span>Текст</span>
+          <textarea id="cueTextInput" rows="4" placeholder="Текст субтитра" required></textarea>
+        </label>
+        <div class="editor-field-grid">
+          <label class="editor-field">
+            <span>Появление</span>
+            <input id="cueStartInput" type="text" inputmode="numeric" placeholder="00:00:03.20" required />
+          </label>
+          <label class="editor-field">
+            <span>Исчезновение</span>
+            <input id="cueEndInput" type="text" inputmode="numeric" placeholder="00:00:05.60" required />
+          </label>
+        </div>
+        <label class="editor-field">
+          <span>Стиль</span>
+          <select id="cueStyleInput" required></select>
+        </label>
+        <button class="primary-link editor-submit" type="submit">Добавить реплику</button>
+      </form>
+
+      <div class="editor-card cue-list-card">
+        <h3>Реплики</h3>
+        <div class="cue-list" id="cueList"></div>
+        <p class="empty-state" id="cuesEmptyState">Пока нет реплик.</p>
+      </div>
+    </div>
+  </section>
+
   <section class="section-grid" id="roadmap" aria-labelledby="roadmap-title">
     <div class="section-head">
       <p class="eyebrow">План</p>
