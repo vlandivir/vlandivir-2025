@@ -1052,6 +1052,26 @@ function renderStyleLivePreview() {
   );
 }
 
+const ALIGN_CELL_ORDER = ['7', '8', '9', '4', '5', '6', '1', '2', '3'];
+
+function createAlignPreview(alignment) {
+  const preview = document.createElement('span');
+  preview.className = 'align-preview';
+  preview.setAttribute('role', 'img');
+  preview.setAttribute('aria-label', `Выравнивание ${alignment}`);
+
+  for (const cell of ALIGN_CELL_ORDER) {
+    const dot = document.createElement('span');
+    dot.className = 'align-preview__cell';
+    if (String(alignment) === cell) {
+      dot.classList.add('is-active');
+    }
+    preview.append(dot);
+  }
+
+  return preview;
+}
+
 function renderAlignControl() {
   const selectedAlign = positionAlignmentInput.value || '2';
   alignControlButtons.forEach((button) => {
@@ -1190,8 +1210,22 @@ function renderPositions() {
     const body = document.createElement('div');
     const title = document.createElement('h4');
     title.textContent = position.name;
-    const meta = document.createElement('p');
-    meta.textContent = `x ${position.x} · y ${position.y} · align ${position.alignment}`;
+
+    const meta = document.createElement('div');
+    meta.className = 'position-item__meta';
+
+    const coords = document.createElement('span');
+    coords.className = 'position-item__coords';
+    coords.textContent = `x ${position.x} · y ${position.y}`;
+
+    const alignWrap = document.createElement('span');
+    alignWrap.className = 'position-item__align';
+    const alignLabel = document.createElement('span');
+    alignLabel.className = 'position-item__align-label';
+    alignLabel.textContent = 'Align';
+    alignWrap.append(alignLabel, createAlignPreview(position.alignment));
+
+    meta.append(coords, alignWrap);
     body.append(title, meta);
 
     const actions = document.createElement('div');
@@ -1993,11 +2027,43 @@ window.addEventListener('popstate', () => {
   void loadCurrentVideo().then(() => refreshEditor());
 });
 
+let editorSectionPrefs = { ...SF.DEFAULT_SECTIONS_OPEN };
+let sectionSaveTimer;
+
+function applyEditorSectionPrefs(prefs) {
+  editorSectionPrefs = { ...SF.DEFAULT_SECTIONS_OPEN, ...prefs };
+  document.querySelectorAll('.editor-section[data-section]').forEach((section) => {
+    const key = section.dataset.section;
+    if (key in editorSectionPrefs) {
+      section.open = editorSectionPrefs[key];
+    }
+  });
+}
+
+function initEditorSections() {
+  document.querySelectorAll('.editor-section[data-section]').forEach((section) => {
+    section.addEventListener('toggle', () => {
+      const key = section.dataset.section;
+      if (!key) return;
+      editorSectionPrefs = {
+        ...editorSectionPrefs,
+        [key]: section.open,
+      };
+      clearTimeout(sectionSaveTimer);
+      sectionSaveTimer = setTimeout(() => {
+        void SF.writeEditorSectionPrefs(editorSectionPrefs);
+      }, 120);
+    });
+  });
+}
+
 async function init() {
   await loadEnabledFontFamilies();
   populateStyleFontOptions();
   initializeColorPickers();
   renderAlignControl();
+  applyEditorSectionPrefs(await SF.readEditorSectionPrefs());
+  initEditorSections();
   updateVideoControls();
   await loadCurrentVideo();
   await ensureDefaultPositions();

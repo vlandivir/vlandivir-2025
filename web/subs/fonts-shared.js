@@ -4,13 +4,22 @@
  */
 (function initSubsFonts(global) {
   const DB_NAME = 'subs-project';
-  const DB_VERSION = 5;
+  const DB_VERSION = 6;
   const VIDEO_STORE = 'videos';
   const STYLE_STORE = 'styles';
   const CUE_STORE = 'cues';
   const POSITION_STORE = 'positions';
   const FONT_PREFS_STORE = 'fontPrefs';
   const FONT_PREFS_ID = 'enabled';
+  const UI_PREFS_STORE = 'uiPrefs';
+  const UI_SECTIONS_ID = 'sections';
+
+  const DEFAULT_SECTIONS_OPEN = {
+    positions: true,
+    styles: true,
+    cues: true,
+    preview: true,
+  };
 
   /** Shown in the style editor until the user picks more on /font */
   const DEFAULT_ENABLED_FAMILIES = [
@@ -106,6 +115,9 @@
         }
         if (!db.objectStoreNames.contains(FONT_PREFS_STORE)) {
           db.createObjectStore(FONT_PREFS_STORE, { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains(UI_PREFS_STORE)) {
+          db.createObjectStore(UI_PREFS_STORE, { keyPath: 'id' });
         }
       };
 
@@ -364,6 +376,42 @@
     return patchVideoByHash(hash, { updatedAt: new Date().toISOString() });
   }
 
+  function sanitizeSectionsOpen(open) {
+    if (!open || typeof open !== 'object') return { ...DEFAULT_SECTIONS_OPEN };
+    const result = { ...DEFAULT_SECTIONS_OPEN };
+    for (const key of Object.keys(DEFAULT_SECTIONS_OPEN)) {
+      if (typeof open[key] === 'boolean') result[key] = open[key];
+    }
+    return result;
+  }
+
+  async function readEditorSectionPrefs() {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(UI_PREFS_STORE, 'readonly');
+      const request = tx.objectStore(UI_PREFS_STORE).get(UI_SECTIONS_ID);
+      request.onsuccess = () => {
+        resolve(sanitizeSectionsOpen(request.result?.open));
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async function writeEditorSectionPrefs(open) {
+    const db = await openDb();
+    const record = {
+      id: UI_SECTIONS_ID,
+      open: sanitizeSectionsOpen(open),
+      updatedAt: new Date().toISOString(),
+    };
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(UI_PREFS_STORE, 'readwrite');
+      tx.objectStore(UI_PREFS_STORE).put(record);
+      tx.oncomplete = () => resolve(record.open);
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
   global.SubsFonts = {
     DB_NAME,
     DB_VERSION,
@@ -373,6 +421,9 @@
     POSITION_STORE,
     FONT_PREFS_STORE,
     FONT_PREFS_ID,
+    UI_PREFS_STORE,
+    UI_SECTIONS_ID,
+    DEFAULT_SECTIONS_OPEN,
     SUBTITLE_FONTS,
     DEFAULT_ENABLED_FAMILIES,
     VALID_FAMILIES,
@@ -380,6 +431,8 @@
     openDb,
     readEnabledFontFamilies,
     writeEnabledFontFamilies,
+    readEditorSectionPrefs,
+    writeEditorSectionPrefs,
     getFontsForFamilies,
     sanitizeFamilies,
     isArchived,

@@ -336,22 +336,9 @@ code {
   font-weight: 800;
 }
 
-.feature p,
-.format-panel p {
+.feature p {
   margin-bottom: 0;
   color: var(--muted);
-}
-
-.format-panel {
-  display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(320px, 1.1fr);
-  gap: 34px;
-  align-items: start;
-  padding: 42px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--paper);
-  box-shadow: 0 12px 40px rgba(29, 44, 36, 0.08);
 }
 
 pre {
@@ -685,23 +672,70 @@ pre {
 
 .subtitle-editor {
   display: grid;
-  gap: 18px;
+  gap: 16px;
 }
 
-.editor-head {
+.subtitle-editor__eyebrow {
+  margin: 0;
+}
+
+.editor-section {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.editor-section__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 22px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.editor-section__summary::-webkit-details-marker {
+  display: none;
+}
+
+.editor-section__summary::after {
+  content: '';
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  margin-top: -4px;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(45deg);
+  transition: transform 0.15s ease;
+}
+
+.editor-section[open] > .editor-section__summary::after {
+  transform: rotate(-135deg);
+  margin-top: 2px;
+}
+
+.editor-section__title {
+  margin: 0;
+  font-size: clamp(22px, 3vw, 28px);
+  line-height: 1.1;
+}
+
+.editor-section__body {
   display: grid;
-  grid-template-columns: minmax(0, 0.8fr) minmax(320px, 1fr);
-  gap: 34px;
-  align-items: end;
+  gap: 16px;
+  padding: 0 22px 22px;
 }
 
-.editor-head h2 {
-  margin-bottom: 0;
+.editor-section__body.editor-grid {
+  padding-top: 0;
 }
 
-.editor-head p:last-child {
-  margin-bottom: 0;
-  color: var(--muted);
+.video-bound-panel {
+  display: grid;
+  gap: 16px;
 }
 
 .editor-grid {
@@ -709,11 +743,6 @@ pre {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 16px;
   align-items: start;
-}
-
-.video-bound-panel {
-  display: grid;
-  gap: 16px;
 }
 
 .video-bound-panel[hidden] {
@@ -898,30 +927,82 @@ pre {
 
 .align-control {
   display: grid;
-  width: 92px;
+  width: 66px;
   grid-template-columns: repeat(3, 1fr);
-  gap: 3px;
+  gap: 2px;
 }
 
 .align-control button {
   display: grid;
-  width: 28px;
-  height: 28px;
+  width: 20px;
+  height: 20px;
   place-items: center;
   border: 1px solid #d5dfd9;
-  border-radius: 6px;
+  border-radius: 4px;
   background: #fff;
   color: var(--muted);
   cursor: pointer;
   font: inherit;
-  font-size: 12px;
-  font-weight: 900;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0;
 }
 
 .align-control button.is-active {
   border-color: var(--green);
   background: var(--green);
   color: #fff;
+}
+
+.align-preview {
+  display: inline-grid;
+  grid-template-columns: repeat(3, 5px);
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid #d5dfd9;
+  border-radius: 4px;
+  background: #fff;
+  vertical-align: middle;
+}
+
+.align-preview__cell {
+  width: 5px;
+  height: 5px;
+  border-radius: 1px;
+  background: #e2ebe6;
+}
+
+.align-preview__cell.is-active {
+  background: var(--green);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--green) 40%, transparent);
+}
+
+.position-item__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 4px;
+}
+
+.position-item__coords {
+  color: var(--muted);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+}
+
+.position-item__align {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.position-item__align-label {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
 }
 
 .color-picker {
@@ -1416,10 +1497,8 @@ pre {
 
   .hero,
   .section-grid,
-  .format-panel,
   .upload-panel,
   .current-video,
-  .editor-head,
   .editor-grid,
   .video-bound-grid,
   .ass-workbench {
@@ -1456,10 +1535,6 @@ pre {
 
   .feature-list {
     grid-template-columns: 1fr;
-  }
-
-  .format-panel {
-    padding: 24px;
   }
 
   .upload-form,

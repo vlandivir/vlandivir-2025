@@ -6,9 +6,9 @@
 <meta name="description" content="Subs ASS: проект для создания субтитров к видео в формате Advanced SubStation Alpha." />
 <title>Subs ASS</title>
 <link rel="stylesheet" href="fonts/fonts.css?v=20260517-9" />
-<link rel="stylesheet" href="styles.css?v=20260517-13" />
-<script src="fonts-shared.js?v=20260517-5"></script>
-<script src="app.js?v=20260517-19" defer></script>
+<link rel="stylesheet" href="styles.css?v=20260517-15" />
+<script src="fonts-shared.js?v=20260517-6"></script>
+<script src="app.js?v=20260517-20" defer></script>
 </head>
 <body>
 <header class="site-header">
@@ -69,16 +69,12 @@
     <p class="empty-state" id="emptyState">Пока нет сохраненных видео. После загрузки ссылки появятся здесь.</p>
   </section>
 
-  <section class="subtitle-editor" aria-labelledby="editor-title">
-    <div class="editor-head">
-      <div>
-        <p class="eyebrow">Редактор</p>
-        <h2 id="editor-title">Стили и реплики</h2>
-      </div>
-      <p>Создайте несколько стилей субтитров, затем задайте текст, время появления, время исчезновения и стиль для каждой реплики.</p>
-    </div>
+  <section class="subtitle-editor" aria-label="Редактор субтитров">
+    <p class="eyebrow subtitle-editor__eyebrow">Редактор</p>
 
-    <div class="editor-grid">
+    <details class="editor-section" data-section="positions">
+      <summary class="editor-section__summary"><h2 class="editor-section__title">Позиции</h2></summary>
+      <div class="editor-section__body editor-grid">
       <form class="editor-card editor-form" id="positionForm">
         <h3>Позиция</h3>
         <label class="editor-field">
@@ -121,7 +117,12 @@
         <div class="position-list" id="positionList"></div>
         <p class="empty-state" id="positionsEmptyState">Пока нет позиций.</p>
       </div>
+      </div>
+    </details>
 
+    <details class="editor-section" data-section="styles">
+      <summary class="editor-section__summary"><h2 class="editor-section__title">Стили</h2></summary>
+      <div class="editor-section__body editor-grid">
       <form class="editor-card editor-form" id="styleForm">
         <h3>Стиль субтитров</h3>
         <div class="style-live-preview" id="styleLivePreview">
@@ -191,10 +192,13 @@
         <div class="style-list" id="styleList"></div>
         <p class="empty-state" id="stylesEmptyState">Пока нет стилей.</p>
       </div>
-    </div>
+      </div>
+    </details>
 
     <div class="video-bound-panel" id="videoBoundPanel" hidden>
-      <div class="editor-grid video-bound-grid">
+      <details class="editor-section" data-section="cues">
+        <summary class="editor-section__summary"><h2 class="editor-section__title">Реплики</h2></summary>
+        <div class="editor-section__body editor-grid video-bound-grid">
       <details class="editor-card ass-cheatsheet" open>
         <summary class="ass-cheatsheet__summary">Шпаргалка: теги в тексте реплики</summary>
         <p class="ass-cheatsheet__lead">Команды пишутся в фигурных скобках и действуют на фрагмент текста после них. Перенос строки — <code>\N</code>.</p>
@@ -291,8 +295,12 @@
         <div class="cue-list" id="cueList"></div>
         <p class="empty-state" id="cuesEmptyState">Пока нет реплик.</p>
       </div>
-    </div>
+        </div>
+      </details>
 
+      <details class="editor-section" data-section="preview">
+        <summary class="editor-section__summary"><h2 class="editor-section__title">Превью</h2></summary>
+        <div class="editor-section__body">
     <div class="ass-workbench">
       <div class="editor-card ass-output-card">
         <div class="ass-card-head">
@@ -327,24 +335,9 @@
         </div>
       </section>
     </div>
+        </div>
+      </details>
     </div>
-  </section>
-  <section class="format-panel" id="format" aria-labelledby="format-title">
-    <div>
-      <p class="eyebrow">Advanced SubStation Alpha</p>
-      <h2 id="format-title">Почему <code>.ass</code></h2>
-      <p>ASS удобен, когда субтитрам нужен не только текст, но и аккуратная типографика: стили, позиционирование, переносы, обводка и тени. Это хороший формат для видео, где субтитры являются частью визуального дизайна.</p>
-    </div>
-    <pre aria-label="Пример ASS"><code>[Script Info]
-ScriptType: v4.00+
-
-[V4+ Styles]
-Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour
-Style: Default,Montserrat,72,&amp;H00FFFFFF,&amp;H00000000,&amp;H0010181C,&amp;H00000000
-
-[Events]
-Format: Start, End, Style, Text
-Dialogue: 0:00:03.20,0:00:05.60,Default,Первая строка субтитров</code></pre>
   </section>
 </main>
 </body>
