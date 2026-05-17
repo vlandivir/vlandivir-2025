@@ -100,16 +100,20 @@ main {
 }
 
 .hero {
-  min-height: min(720px, calc(100vh - 104px));
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 500px);
-  gap: clamp(36px, 7vw, 96px);
-  align-items: center;
   padding: 30px 0 64px;
 }
 
 .hero-copy {
-  max-width: 650px;
+  width: 100%;
+  max-width: none;
+}
+
+.hero h1 {
+  max-width: none;
+}
+
+.hero .lead {
+  max-width: none;
 }
 
 .eyebrow {
@@ -839,6 +843,12 @@ pre {
 .color-picker__swatch.is-active {
   outline: 2px solid var(--green);
   outline-offset: 2px;
+}
+
+.color-picker__swatch--split {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(90deg, #ffffff 50%, #000000 50%);
 }
 
 .color-picker__reset {

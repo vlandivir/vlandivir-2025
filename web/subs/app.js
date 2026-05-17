@@ -70,11 +70,11 @@ const BUNDLED_FONT_FAMILIES = new Set([
 ]);
 
 const BASE_COLORS = [
-  { name: 'Белый', value: '#ffffff' },
-  { name: 'Черный', value: '#000000' },
+  { name: 'Белый и черный', value: '#ffffff', split: true },
+  { name: 'Желтый', value: '#eab308' },
+  { name: 'Теплый', value: '#e07a5f' },
   { name: 'Красный', value: '#ef4444' },
   { name: 'Оранжевый', value: '#f97316' },
-  { name: 'Желтый', value: '#eab308' },
   { name: 'Зеленый', value: '#22c55e' },
   { name: 'Синий', value: '#3b82f6' },
   { name: 'Фиолетовый', value: '#8b5cf6' },
@@ -445,13 +445,54 @@ function mixColor(color, target, amount) {
   );
 }
 
+function isAchromaticColor(color) {
+  const [red, green, blue] = hexToRgb(color);
+  const max = Math.max(red, green, blue);
+  const min = Math.min(red, green, blue);
+  return max - min < 24;
+}
+
 function getShades(baseColor) {
-  if (baseColor === '#ffffff') {
-    return ['#ffffff', '#f4f4f5', '#e4e4e7', '#d4d4d8', '#a1a1aa', '#71717a', '#52525b', '#3f3f46', '#27272a'];
+  if (baseColor === '#ffffff' || baseColor === '#000000') {
+    return [
+      '#ffffff',
+      '#e0e0e0',
+      '#c2c2c2',
+      '#a3a3a3',
+      '#858585',
+      '#666666',
+      '#474747',
+      '#292929',
+      '#000000',
+    ];
   }
 
-  if (baseColor === '#000000') {
-    return ['#000000', '#18181b', '#27272a', '#3f3f46', '#52525b', '#71717a', '#a1a1aa', '#d4d4d8', '#f4f4f5'];
+  if (baseColor === '#eab308') {
+    return [
+      '#fefce8',
+      '#fef9c3',
+      '#fef08a',
+      '#fde047',
+      '#facc15',
+      '#eab308',
+      '#ca8a04',
+      '#a16207',
+      '#713f12',
+    ];
+  }
+
+  if (baseColor === '#e07a5f') {
+    return [
+      '#fff1eb',
+      '#ffe0d4',
+      '#ffcbb8',
+      '#f5a88a',
+      '#ec9274',
+      '#e07a5f',
+      '#c4614a',
+      '#a34d3b',
+      '#7d3a2d',
+    ];
   }
 
   return [
@@ -469,6 +510,7 @@ function getShades(baseColor) {
 
 function findClosestBaseColor(color) {
   if (!color || isNoneColor(color)) return BASE_COLORS[0];
+  if (isAchromaticColor(color)) return BASE_COLORS[0];
 
   const rgb = hexToRgb(color);
   return BASE_COLORS.reduce((closest, baseColor) => {
@@ -486,15 +528,24 @@ function setColorInputValue(input, value) {
   input.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
+function closeColorPicker(pickerElement) {
+  if (!pickerElement) return;
+  pickerElement.classList.remove('is-open');
+  pickerElement
+    .querySelector('.color-picker__trigger')
+    ?.setAttribute('aria-expanded', 'false');
+}
+
 function closeOtherColorPickers(activePicker) {
   document.querySelectorAll('.color-picker.is-open').forEach((picker) => {
     if (picker !== activePicker) {
-      picker.classList.remove('is-open');
-      picker
-        .querySelector('.color-picker__trigger')
-        ?.setAttribute('aria-expanded', 'false');
+      closeColorPicker(picker);
     }
   });
+}
+
+function closeAllColorPickers() {
+  document.querySelectorAll('.color-picker.is-open').forEach(closeColorPicker);
 }
 
 function initializeColorPickers() {
@@ -567,18 +618,28 @@ function initializeColorPickers() {
       event.stopPropagation();
     });
 
-    function renderButton(color, label, onClick, isActive) {
+    function renderButton(color, label, onClick, isActive, options = {}) {
       const button = document.createElement('button');
       button.className = 'color-picker__swatch';
       button.type = 'button';
-      button.title = label;
+      button.title = options.split ? `${label} — белый и черный` : label;
       button.setAttribute('aria-label', label);
       button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
-      button.style.background = color;
+      if (options.split) {
+        button.classList.add('color-picker__swatch--split');
+      } else {
+        button.style.background = color;
+      }
       if (isActive) button.classList.add('is-active');
       button.addEventListener('click', (event) => {
         event.stopPropagation();
         onClick();
+      });
+      button.addEventListener('dblclick', (event) => {
+        event.stopPropagation();
+        event.preventDefault();
+        onClick();
+        closeColorPicker(pickerElement);
       });
       return button;
     }
@@ -605,6 +666,7 @@ function initializeColorPickers() {
               renderPicker();
             },
             !isNone && selectedBase.value === baseColor.value,
+            { split: baseColor.split },
           ),
         ),
       );
@@ -635,7 +697,7 @@ function initializeColorPickers() {
     const target = event.target;
     if (!(target instanceof Element)) return;
     if (target.closest('.color-picker')) return;
-    closeOtherColorPickers();
+    closeAllColorPickers();
   });
 }
 
