@@ -29,7 +29,7 @@ body {
     linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(243, 246, 242, 0.56) 42%, rgba(243, 246, 242, 1)),
     var(--page);
   color: var(--ink);
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: Montserrat, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   line-height: 1.5;
 }
 
@@ -590,6 +590,7 @@ pre {
   text-shadow:
     0 3px 0 #10181c,
     0 0 14px rgba(0, 0, 0, 0.8);
+  white-space: pre-line;
 }
 
 .video-subtitle-overlay--bottom-center {
@@ -708,6 +709,72 @@ pre {
   margin-bottom: 18px;
 }
 
+.style-live-preview {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 8px;
+  padding: 14px;
+  background: #808080;
+}
+
+.style-live-preview__text {
+  max-width: 100%;
+  margin: 0;
+  color: #fff;
+  font-weight: 900;
+  line-height: 1.12;
+  overflow-wrap: anywhere;
+}
+
+.style-live-preview__meta {
+  margin: 0;
+  color: #eef2f1;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.style-live-preview__colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.style-live-preview__color {
+  display: inline-flex;
+  min-height: 26px;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.26);
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: rgba(16, 24, 28, 0.2);
+  color: #f7fbf9;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.style-live-preview__swatch {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(255, 255, 255, 0.62);
+  border-radius: 999px;
+}
+
+.style-live-preview__swatch.is-none {
+  background:
+    linear-gradient(135deg, transparent 43%, #d44 44%, #d44 56%, transparent 57%),
+    linear-gradient(45deg, #f5f5f5 25%, transparent 25%),
+    linear-gradient(-45deg, #f5f5f5 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #f5f5f5 75%),
+    linear-gradient(-45deg, transparent 75%, #f5f5f5 75%);
+  background-color: #fff;
+  background-position: 0 0, 0 0, 0 6px, 6px -6px, -6px 0;
+  background-size: 100% 100%, 12px 12px, 12px 12px, 12px 12px, 12px 12px;
+}
+
 .editor-form {
   display: grid;
   gap: 14px;
@@ -726,6 +793,14 @@ pre {
 .editor-field-grid {
   grid-template-columns: minmax(0, 1fr) minmax(120px, 0.7fr);
   gap: 12px;
+}
+
+.editor-field-grid--position {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+}
+
+.editor-field-grid--style-type {
+  grid-template-columns: minmax(0, 1fr) minmax(96px, 0.45fr) minmax(120px, 0.55fr);
 }
 
 .editor-field span {
@@ -755,6 +830,34 @@ pre {
 .color-field-list {
   display: grid;
   gap: 12px;
+}
+
+.align-control {
+  display: grid;
+  width: 92px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+}
+
+.align-control button {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid #d5dfd9;
+  border-radius: 6px;
+  background: #fff;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.align-control button.is-active {
+  border-color: var(--green);
+  background: var(--green);
+  color: #fff;
 }
 
 .color-picker {
@@ -848,7 +951,28 @@ pre {
 .color-picker__swatch--split {
   position: relative;
   overflow: hidden;
-  background: linear-gradient(90deg, #ffffff 50%, #000000 50%);
+  background: #fff;
+  box-shadow: none;
+}
+
+.color-picker__swatch--split::before,
+.color-picker__swatch--split::after {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  content: "";
+}
+
+.color-picker__swatch--split::before {
+  left: -1px;
+  width: calc(50% + 1px);
+  background: #fff;
+}
+
+.color-picker__swatch--split::after {
+  right: -1px;
+  width: calc(50% + 1px);
+  background: #000;
 }
 
 .color-picker__reset {
@@ -979,11 +1103,20 @@ pre {
   line-height: 1;
 }
 
+.icon-button svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
 .edit-button {
-  width: auto;
-  min-width: 48px;
-  padding: 0 10px;
-  font-size: 13px;
+  width: 34px;
+  min-width: 0;
+  padding: 0;
 }
 
 .icon-button:hover {
@@ -1079,6 +1212,7 @@ pre {
   font-weight: 800;
   line-height: 1.25;
   overflow-wrap: anywhere;
+  white-space: pre-line;
 }
 
 .style-item__preview {

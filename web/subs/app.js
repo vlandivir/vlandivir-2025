@@ -35,25 +35,34 @@ const JASSUB_DEFAULT_FONT_URL = new URL(
   'vendor/jassub/default.woff2',
   SUBS_ASSET_BASE_URL,
 ).href;
+const STYLE_PREVIEW_TEXT = 'Preview Превью Događaj';
 
 function subsFontUrl(fileName) {
   return new URL(fileName, SUBS_FONTS_BASE_URL).href;
 }
 
+const SUBTITLE_FONTS = [
+  { family: 'Bebas Neue', regular: 'bebas-neue-400.ttf', bold: 'bebas-neue-400.ttf' },
+  { family: 'Bebas Neue Cyrillic', regular: 'bebas-neue-cyrillic-400.ttf', bold: 'bebas-neue-cyrillic-400.ttf' },
+  { family: 'Exo 2', regular: 'exo-2-400.ttf', bold: 'exo-2-700.ttf' },
+  { family: 'IBM Plex Sans', regular: 'ibm-plex-sans-400.ttf', bold: 'ibm-plex-sans-700.ttf' },
+  { family: 'Manrope', regular: 'manrope-400.ttf', bold: 'manrope-700.ttf' },
+  { family: 'Montserrat', regular: 'montserrat-400.ttf', bold: 'montserrat-700.ttf' },
+  { family: 'Nunito Sans', regular: 'nunito-sans-400.ttf', bold: 'nunito-sans-700.ttf' },
+  { family: 'Oswald', regular: 'oswald-400.ttf', bold: 'oswald-700.ttf' },
+  { family: 'Roboto', regular: 'roboto-400.ttf', bold: 'roboto-700.ttf' },
+  { family: 'Roboto Condensed', regular: 'roboto-condensed-400.ttf', bold: 'roboto-condensed-700.ttf' },
+  { family: 'Rubik', regular: 'rubik-400.ttf', bold: 'rubik-700.ttf' },
+];
+
 function buildJassubFontConfig() {
-  const availableFonts = {
-    inter: subsFontUrl('inter-400.woff2'),
-    'inter bold': subsFontUrl('inter-700.woff2'),
-    montserrat: subsFontUrl('montserrat-400.woff2'),
-    'montserrat bold': subsFontUrl('montserrat-700.woff2'),
-    'jetbrains mono': subsFontUrl('jetbrains-mono-500.woff2'),
-    'jetbrains mono bold': subsFontUrl('jetbrains-mono-700.woff2'),
-    arial: JASSUB_DEFAULT_FONT_URL,
-    'arial bold': JASSUB_DEFAULT_FONT_URL,
-    georgia: JASSUB_DEFAULT_FONT_URL,
-    'georgia bold': JASSUB_DEFAULT_FONT_URL,
-    'liberation sans': JASSUB_DEFAULT_FONT_URL,
-  };
+  const availableFonts = { 'liberation sans': JASSUB_DEFAULT_FONT_URL };
+
+  for (const font of SUBTITLE_FONTS) {
+    const family = font.family.toLowerCase();
+    availableFonts[family] = subsFontUrl(font.regular);
+    availableFonts[`${family} bold`] = subsFontUrl(font.bold);
+  }
 
   return {
     availableFonts,
@@ -61,13 +70,7 @@ function buildJassubFontConfig() {
   };
 }
 
-const BUNDLED_FONT_FAMILIES = new Set([
-  'Inter',
-  'Montserrat',
-  'JetBrains Mono',
-  'Arial',
-  'Georgia',
-]);
+const BUNDLED_FONT_FAMILIES = new Set(SUBTITLE_FONTS.map((font) => font.family));
 
 const BASE_COLORS = [
   { name: 'Белый и черный', value: '#ffffff', split: true },
@@ -86,6 +89,12 @@ const VIDEO_ICONS = {
   volume: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" /><path d="M16 9a4 4 0 0 1 0 6" /></svg>',
   muted: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" /><path d="m17 9 4 4" /><path d="m21 9-4 4" /></svg>',
 };
+const EDIT_ICON = `
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="m4 20 4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20Z" />
+    <path d="m14 7 3 3" />
+  </svg>
+`;
 
 const form = document.querySelector('#uploadForm');
 const input = document.querySelector('#videoInput');
@@ -107,8 +116,12 @@ const videoTimeLabel = document.querySelector('#videoTimeLabel');
 const videoMuteButton = document.querySelector('#videoMuteButton');
 const styleForm = document.querySelector('#styleForm');
 const styleNameInput = document.querySelector('#styleNameInput');
+const styleLivePreviewText = document.querySelector('#styleLivePreviewText');
+const styleLivePreviewMeta = document.querySelector('#styleLivePreviewMeta');
+const styleLivePreviewColors = document.querySelector('#styleLivePreviewColors');
 const styleFontInput = document.querySelector('#styleFontInput');
 const styleFontSizeInput = document.querySelector('#styleFontSizeInput');
+const styleFontVariantInput = document.querySelector('#styleFontVariantInput');
 const stylePrimaryColorInput = document.querySelector('#stylePrimaryColorInput');
 const styleSecondaryColorInput = document.querySelector('#styleSecondaryColorInput');
 const styleOutlineColorInput = document.querySelector('#styleOutlineColorInput');
@@ -123,6 +136,7 @@ const positionNameInput = document.querySelector('#positionNameInput');
 const positionXInput = document.querySelector('#positionXInput');
 const positionYInput = document.querySelector('#positionYInput');
 const positionAlignmentInput = document.querySelector('#positionAlignmentInput');
+const alignControlButtons = document.querySelectorAll('[data-align-cell]');
 const positionSubmitButton = document.querySelector('#positionSubmitButton');
 const cancelPositionEditButton = document.querySelector('#cancelPositionEditButton');
 const positionList = document.querySelector('#positionList');
@@ -705,6 +719,7 @@ function escapeAssText(text) {
   return String(text || '')
     .replace(/\r\n/g, '\n')
     .replace(/\r/g, '\n')
+    .replace(/\\n/g, '\\N')
     .split('\n')
     .join('\\N');
 }
@@ -737,12 +752,28 @@ function setCurrentVideoMetaLink(url, fallbackText = '') {
 }
 
 function formatPreviewFontFamily(fontName) {
-  const family = (fontName || 'Inter').trim();
+  const family = (fontName || 'Montserrat').trim();
   if (!BUNDLED_FONT_FAMILIES.has(family)) {
-    return `${family}, Inter, sans-serif`;
+    return `${family}, Montserrat, sans-serif`;
   }
 
-  return `"${family}", Inter, sans-serif`;
+  return `"${family}", Montserrat, sans-serif`;
+}
+
+function normalizeFontVariant(value) {
+  if (value === 'regular' || value === 'bold' || value === 'italic') {
+    return value;
+  }
+
+  return 'regular';
+}
+
+function fontVariantLabel(value) {
+  return {
+    regular: 'Regular',
+    bold: 'Bold',
+    italic: 'Italic',
+  }[normalizeFontVariant(value)];
 }
 
 function normalizeStyle(style) {
@@ -755,8 +786,9 @@ function normalizeStyle(style) {
   return {
     ...style,
     name: style.name || 'Default',
-    font: style.font || 'Inter',
+    font: style.font || 'Montserrat',
     fontSize: Number(style.fontSize) || 72,
+    fontVariant: normalizeFontVariant(style.fontVariant),
     primaryColor: isNoneColor(primaryColor) ? '#ffffff' : primaryColor,
     secondaryColor: style.secondaryColor ?? '#000000',
     outlineColor: style.outlineColor ?? '#10181c',
@@ -774,6 +806,8 @@ function applySubtitlePreviewStyle(element, style, scale = 1) {
   element.style.color = normalizedStyle.primaryColor;
   element.style.fontFamily = formatPreviewFontFamily(normalizedStyle.font);
   element.style.fontSize = `${fontSize}px`;
+  element.style.fontStyle = normalizedStyle.fontVariant === 'italic' ? 'italic' : 'normal';
+  element.style.fontWeight = normalizedStyle.fontVariant === 'bold' ? '900' : '400';
   element.style.background = isNoneColor(normalizedStyle.backColor)
     ? 'transparent'
     : normalizedStyle.backColor;
@@ -798,6 +832,60 @@ function applySubtitlePreviewStyle(element, style, scale = 1) {
   element.style.textShadow = shadows.join(', ');
 }
 
+function readStyleFormDraft() {
+  return normalizeStyle({
+    name: styleNameInput.value.trim() || 'Default',
+    font: styleFontInput.value || 'Montserrat',
+    fontSize: Number(styleFontSizeInput.value) || 72,
+    fontVariant: styleFontVariantInput.value,
+    primaryColor: stylePrimaryColorInput.value,
+    secondaryColor: styleSecondaryColorInput.value,
+    outlineColor: styleOutlineColorInput.value,
+    backColor: styleBackColorInput.value,
+    positionId: stylePositionInput.value || defaultPosition().id,
+  });
+}
+
+function createStylePreviewColor(label, value) {
+  const item = document.createElement('span');
+  item.className = 'style-live-preview__color';
+
+  const swatch = document.createElement('span');
+  swatch.className = 'style-live-preview__swatch';
+  swatch.classList.toggle('is-none', isNoneColor(value));
+  swatch.style.background = isNoneColor(value) ? 'transparent' : value;
+
+  const text = document.createElement('span');
+  text.textContent = `${label}: ${isNoneColor(value) ? 'none' : value.toUpperCase()}`;
+
+  item.append(swatch, text);
+  return item;
+}
+
+function renderStyleLivePreview() {
+  if (!styleLivePreviewText || !styleLivePreviewMeta || !styleLivePreviewColors) return;
+
+  const style = readStyleFormDraft();
+  styleLivePreviewText.textContent = STYLE_PREVIEW_TEXT;
+  applySubtitlePreviewStyle(styleLivePreviewText, style, 0.42);
+  styleLivePreviewMeta.textContent = `${style.font} · ${fontVariantLabel(style.fontVariant)} · ${style.fontSize}px`;
+  styleLivePreviewColors.replaceChildren(
+    createStylePreviewColor('Primary', style.primaryColor),
+    createStylePreviewColor('Secondary', style.secondaryColor),
+    createStylePreviewColor('Outline', style.outlineColor),
+    createStylePreviewColor('Back', style.backColor),
+  );
+}
+
+function renderAlignControl() {
+  const selectedAlign = positionAlignmentInput.value || '2';
+  alignControlButtons.forEach((button) => {
+    const isActive = button.dataset.alignCell === selectedAlign;
+    button.classList.toggle('is-active', isActive);
+    button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+  });
+}
+
 function generateAss() {
   const styles = cachedStyles.length
     ? cachedStyles
@@ -805,8 +893,9 @@ function generateAss() {
         {
           id: 'default',
           name: 'Default',
-          font: 'Inter',
+          font: 'Montserrat',
           fontSize: 72,
+          fontVariant: 'regular',
           primaryColor: '#ffffff',
           secondaryColor: '#000000',
           outlineColor: '#10181c',
@@ -826,8 +915,8 @@ function generateAss() {
       colorToAss(style.secondaryColor),
       colorToAss(style.outlineColor),
       colorToAss(style.backColor),
-      -1,
-      0,
+      style.fontVariant === 'bold' ? -1 : 0,
+      style.fontVariant === 'italic' ? -1 : 0,
       0,
       0,
       100,
@@ -911,6 +1000,7 @@ function renderPositionOptions() {
   } else if (cachedPositions[0]) {
     stylePositionInput.value = cachedPositions[0].id;
   }
+  renderStyleLivePreview();
 }
 
 function renderPositions() {
@@ -935,7 +1025,7 @@ function renderPositions() {
     editButton.className = 'icon-button edit-button';
     editButton.type = 'button';
     editButton.title = 'Редактировать позицию';
-    editButton.textContent = 'Изм.';
+    editButton.innerHTML = EDIT_ICON;
     editButton.addEventListener('click', () => {
       startPositionEdit(position);
     });
@@ -986,11 +1076,11 @@ function renderStyles() {
     const title = document.createElement('h4');
     title.textContent = style.name;
     const meta = document.createElement('p');
-    meta.textContent = `${style.font} · ${style.fontSize}px · ${positionLabel(style.position)}`;
+    meta.textContent = `${style.font} · ${fontVariantLabel(style.fontVariant)} · ${style.fontSize}px · ${positionLabel(style.position)}`;
 
     const preview = document.createElement('p');
     preview.className = 'style-item__preview';
-    preview.textContent = 'Превью субтитра';
+    preview.textContent = STYLE_PREVIEW_TEXT;
     applySubtitlePreviewStyle(preview, style, 0.34);
 
     body.append(title, preview, meta);
@@ -1002,7 +1092,7 @@ function renderStyles() {
     editButton.className = 'icon-button edit-button';
     editButton.type = 'button';
     editButton.title = 'Редактировать стиль';
-    editButton.textContent = 'Изм.';
+    editButton.innerHTML = EDIT_ICON;
     editButton.addEventListener('click', () => {
       startStyleEdit(style);
     });
@@ -1063,7 +1153,7 @@ function renderCues() {
     editButton.className = 'icon-button edit-button';
     editButton.type = 'button';
     editButton.title = 'Редактировать реплику';
-    editButton.textContent = 'Изм.';
+    editButton.innerHTML = EDIT_ICON;
     editButton.addEventListener('click', () => {
       startCueEdit(cue);
     });
@@ -1088,7 +1178,9 @@ function renderCues() {
 function resetStyleForm() {
   editingStyleId = undefined;
   styleForm.reset();
+  styleFontInput.value = 'Montserrat';
   styleFontSizeInput.value = '72';
+  styleFontVariantInput.value = 'regular';
   setColorInputValue(stylePrimaryColorInput, '#ffffff');
   setColorInputValue(styleSecondaryColorInput, '#000000');
   setColorInputValue(styleOutlineColorInput, '#10181c');
@@ -1096,6 +1188,7 @@ function resetStyleForm() {
   stylePositionInput.value = defaultPosition().id;
   styleSubmitButton.textContent = 'Добавить стиль';
   cancelStyleEditButton.hidden = true;
+  renderStyleLivePreview();
 }
 
 function resetCueForm() {
@@ -1111,6 +1204,7 @@ function resetPositionForm() {
   positionXInput.value = '540';
   positionYInput.value = '1700';
   positionAlignmentInput.value = '2';
+  renderAlignControl();
   positionSubmitButton.textContent = 'Добавить позицию';
   cancelPositionEditButton.hidden = true;
 }
@@ -1121,6 +1215,7 @@ function startStyleEdit(style) {
   styleNameInput.value = normalizedStyle.name;
   styleFontInput.value = normalizedStyle.font;
   styleFontSizeInput.value = String(normalizedStyle.fontSize);
+  styleFontVariantInput.value = normalizedStyle.fontVariant;
   setColorInputValue(stylePrimaryColorInput, normalizedStyle.primaryColor);
   setColorInputValue(styleSecondaryColorInput, normalizedStyle.secondaryColor);
   setColorInputValue(styleOutlineColorInput, normalizedStyle.outlineColor);
@@ -1128,6 +1223,7 @@ function startStyleEdit(style) {
   stylePositionInput.value = normalizedStyle.positionId;
   styleSubmitButton.textContent = 'Сохранить стиль';
   cancelStyleEditButton.hidden = false;
+  renderStyleLivePreview();
   styleNameInput.focus();
 }
 
@@ -1148,6 +1244,7 @@ function startPositionEdit(position) {
   positionXInput.value = String(position.x);
   positionYInput.value = String(position.y);
   positionAlignmentInput.value = String(position.alignment);
+  renderAlignControl();
   positionSubmitButton.textContent = 'Сохранить позицию';
   cancelPositionEditButton.hidden = false;
   positionNameInput.focus();
@@ -1348,8 +1445,9 @@ async function ensureDefaultStyle() {
   await saveStyle({
     id: createId('style'),
     name: 'Default',
-    font: 'Inter',
+    font: 'Montserrat',
     fontSize: 72,
+    fontVariant: 'regular',
     primaryColor: '#ffffff',
     secondaryColor: '#000000',
     outlineColor: '#10181c',
@@ -1537,6 +1635,21 @@ videoMuteButton.addEventListener('click', () => {
   currentVideo.muted = !currentVideo.muted;
 });
 
+[
+  styleNameInput,
+  styleFontInput,
+  styleFontSizeInput,
+  styleFontVariantInput,
+  stylePrimaryColorInput,
+  styleSecondaryColorInput,
+  styleOutlineColorInput,
+  styleBackColorInput,
+  stylePositionInput,
+].forEach((inputElement) => {
+  inputElement.addEventListener('input', renderStyleLivePreview);
+  inputElement.addEventListener('change', renderStyleLivePreview);
+});
+
 styleForm.addEventListener('submit', async (event) => {
   event.preventDefault();
 
@@ -1546,6 +1659,7 @@ styleForm.addEventListener('submit', async (event) => {
     name: styleNameInput.value.trim(),
     font: styleFontInput.value,
     fontSize: Number(styleFontSizeInput.value) || 72,
+    fontVariant: styleFontVariantInput.value,
     primaryColor: stylePrimaryColorInput.value,
     secondaryColor: styleSecondaryColorInput.value,
     outlineColor: styleOutlineColorInput.value,
@@ -1583,6 +1697,12 @@ cueForm.addEventListener('submit', async (event) => {
 cancelStyleEditButton.addEventListener('click', resetStyleForm);
 cancelCueEditButton.addEventListener('click', resetCueForm);
 cancelPositionEditButton.addEventListener('click', resetPositionForm);
+alignControlButtons.forEach((button) => {
+  button.addEventListener('click', () => {
+    positionAlignmentInput.value = button.dataset.alignCell;
+    renderAlignControl();
+  });
+});
 
 positionForm.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -1624,6 +1744,7 @@ refreshPreviewButton.addEventListener('click', () => {
 
 async function init() {
   initializeColorPickers();
+  renderAlignControl();
   updateVideoControls();
   await loadCurrentVideo();
   await ensureDefaultPositions();

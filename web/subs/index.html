@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="description" content="Subs ASS: проект для создания субтитров к видео в формате Advanced SubStation Alpha." />
 <title>Subs ASS</title>
-<link rel="stylesheet" href="fonts/fonts.css?v=20260517-2" />
-<link rel="stylesheet" href="styles.css?v=20260517-7" />
-<script src="app.js?v=20260517-6" defer></script>
+<link rel="stylesheet" href="fonts/fonts.css?v=20260517-5" />
+<link rel="stylesheet" href="styles.css?v=20260517-10" />
+<script src="app.js?v=20260517-7" defer></script>
 </head>
 <body>
 <header class="site-header">
@@ -81,7 +81,7 @@
           <span>Название</span>
           <input id="positionNameInput" type="text" maxlength="40" placeholder="Например: Нижний центр" required />
         </label>
-        <div class="editor-field-grid">
+        <div class="editor-field-grid editor-field-grid--position">
           <label class="editor-field">
             <span>X, px</span>
             <input id="positionXInput" type="number" min="0" max="1080" step="1" value="540" required />
@@ -90,21 +90,22 @@
             <span>Y, px</span>
             <input id="positionYInput" type="number" min="0" max="1920" step="1" value="1700" required />
           </label>
+          <div class="editor-field">
+            <span>Align</span>
+            <input id="positionAlignmentInput" type="hidden" value="2" />
+            <div class="align-control" aria-label="ASS align">
+              <button type="button" data-align-cell="7">7</button>
+              <button type="button" data-align-cell="8">8</button>
+              <button type="button" data-align-cell="9">9</button>
+              <button type="button" data-align-cell="4">4</button>
+              <button type="button" data-align-cell="5">5</button>
+              <button type="button" data-align-cell="6">6</button>
+              <button type="button" data-align-cell="1">1</button>
+              <button type="button" data-align-cell="2">2</button>
+              <button type="button" data-align-cell="3">3</button>
+            </div>
+          </div>
         </div>
-        <label class="editor-field">
-          <span>Выравнивание ASS</span>
-          <select id="positionAlignmentInput">
-            <option value="1">Снизу слева</option>
-            <option value="2">Снизу по центру</option>
-            <option value="3">Снизу справа</option>
-            <option value="4">По центру слева</option>
-            <option value="5">По центру</option>
-            <option value="6">По центру справа</option>
-            <option value="7">Сверху слева</option>
-            <option value="8">Сверху по центру</option>
-            <option value="9">Сверху справа</option>
-          </select>
-        </label>
         <div class="editor-actions">
           <button class="primary-link editor-submit" id="positionSubmitButton" type="submit">Добавить позицию</button>
           <button class="secondary-link editor-cancel" id="cancelPositionEditButton" type="button" hidden>Отменить</button>
@@ -119,24 +120,43 @@
 
       <form class="editor-card editor-form" id="styleForm">
         <h3>Стиль субтитров</h3>
+        <div class="style-live-preview" id="styleLivePreview">
+          <p class="style-live-preview__text" id="styleLivePreviewText">Preview Превью Događaj</p>
+          <p class="style-live-preview__meta" id="styleLivePreviewMeta">Montserrat · Regular · 72px</p>
+          <div class="style-live-preview__colors" id="styleLivePreviewColors"></div>
+        </div>
         <label class="editor-field">
           <span>Название</span>
           <input id="styleNameInput" type="text" maxlength="40" placeholder="Например: Default" required />
         </label>
-        <div class="editor-field-grid">
+        <div class="editor-field-grid editor-field-grid--style-type">
           <label class="editor-field">
             <span>Шрифт</span>
             <select id="styleFontInput">
-              <option value="Inter">Inter</option>
-              <option value="Arial">Arial</option>
-              <option value="Montserrat">Montserrat</option>
-              <option value="Georgia">Georgia</option>
-              <option value="JetBrains Mono">JetBrains Mono</option>
+              <option value="Bebas Neue">Bebas Neue</option>
+              <option value="Bebas Neue Cyrillic">Bebas Neue Cyrillic</option>
+              <option value="Exo 2">Exo 2</option>
+              <option value="IBM Plex Sans">IBM Plex Sans</option>
+              <option value="Manrope">Manrope</option>
+              <option value="Montserrat" selected>Montserrat</option>
+              <option value="Nunito Sans">Nunito Sans</option>
+              <option value="Oswald">Oswald</option>
+              <option value="Roboto">Roboto</option>
+              <option value="Roboto Condensed">Roboto Condensed</option>
+              <option value="Rubik">Rubik</option>
             </select>
           </label>
           <label class="editor-field">
             <span>Размер</span>
             <input id="styleFontSizeInput" type="number" min="12" max="220" step="1" value="72" />
+          </label>
+          <label class="editor-field">
+            <span>Начертание</span>
+            <select id="styleFontVariantInput">
+              <option value="regular" selected>Regular</option>
+              <option value="bold">Bold</option>
+              <option value="italic">Italic</option>
+            </select>
           </label>
         </div>
         <div class="color-field-list">
@@ -292,7 +312,7 @@ ScriptType: v4.00+
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour
-Style: Default,Inter,72,&amp;H00FFFFFF,&amp;H00000000,&amp;H0010181C,&amp;H00000000
+Style: Default,Montserrat,72,&amp;H00FFFFFF,&amp;H00000000,&amp;H0010181C,&amp;H00000000
 
 [Events]
 Format: Start, End, Style, Text
