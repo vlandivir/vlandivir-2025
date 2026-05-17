@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="Архив видео, стилей и позиций редактора субтитров ASS." />
+<title>Архив — Subs ASS</title>
+<link rel="stylesheet" href="/subs/styles.css?v=20260517-13" />
+<link rel="stylesheet" href="/subs/archive/archive.css?v=20260517-2" />
+<script src="/subs/fonts-shared.js?v=20260517-5"></script>
+<script src="/subs/archive/archive.js?v=20260517-2" defer></script>
+</head>
+<body>
+<header class="site-header archive-page-header">
+  <a class="brand" href="/subs" aria-label="Редактор субтитров">
+    <span class="brand-mark">ASS</span>
+    <span class="brand-text">Архив</span>
+  </a>
+  <nav class="header-nav" aria-label="Навигация">
+    <a href="/subs">← Редактор субтитров</a>
+    <a href="/">Главная</a>
+  </nav>
+</header>
+
+<main class="archive-page">
+  <header class="archive-page__intro">
+    <p class="eyebrow">IndexedDB</p>
+    <h1>Архив</h1>
+    <p class="archive-page__lead">Записи, убранные из редактора. Старые видео и реплики продолжают ссылаться на них по <code>id</code>. Восстановление не предусмотрено.</p>
+  </header>
+
+  <section class="saved-links archive-section" aria-labelledby="archive-videos-title">
+    <h2 id="archive-videos-title">Видео</h2>
+    <div class="links-list" id="archiveVideosList"></div>
+    <p class="empty-state" id="archiveVideosEmpty">В архиве нет видео.</p>
+  </section>
+
+  <section class="saved-links archive-section" aria-labelledby="archive-styles-title">
+    <h2 id="archive-styles-title">Стили</h2>
+    <div class="links-list" id="archiveStylesList"></div>
+    <p class="empty-state" id="archiveStylesEmpty">В архиве нет стилей.</p>
+  </section>
+
+  <section class="saved-links archive-section" aria-labelledby="archive-positions-title">
+    <h2 id="archive-positions-title">Позиции</h2>
+    <div class="links-list" id="archivePositionsList"></div>
+    <p class="empty-state" id="archivePositionsEmpty">В архиве нет позиций.</p>
+  </section>
+</main>
+</body>
+</html>

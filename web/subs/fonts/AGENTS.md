@@ -19,6 +19,7 @@
 | «Трендовый» геометрический | Manrope, Rubik, Jost, Commissioner | Округлые формы |
 | Техно / спорт | Exo 2, Geologica | Наклон и ширина |
 | Мягкий lifestyle | Comfortaa, Nunito Sans | Для лайфстайл-рилс |
+| Каллиграфия / formal script | Great Vibes | Короткие фразы, не для длинных субтитров |
 | Плотный текст в две строки | Roboto Condensed, PT Sans, Fira Sans, Source Sans 3 | Узкая ширина |
 | Акцент одной фразой | Russo One (только regular) | Не для длинных абзацев |
 
@@ -41,7 +42,7 @@
    ```
 3. **Имена файлов** — kebab-case, вес в суффиксе: `family-name-400.ttf` / `.otf`, `family-name-700.ttf` / `.otf`. Для display-only (один начертание): один файл на оба веса в `SUBTITLE_FONTS`.
 4. **Положить файлы** в `web/subs/fonts/` (предпочтительно TTF; OTF допустим — `generate-fonts-css.py` подставит `format('opentype')`).
-5. **Добавить запись** в `SUBTITLE_FONTS` в `web/subs/app.js` (поле `family` = имя для ASS/UI, как в Google Fonts).
+5. **Добавить запись** в `SUBTITLE_FONTS` в `web/subs/fonts-shared.js` (поле `family` = имя для ASS/UI, как в Google Fonts).
 6. **Перегенерировать CSS**:
    ```bash
    python3 web/subs/fonts/generate-fonts-css.py
@@ -127,9 +128,9 @@ for w in (400, 700):
 | Нет стабильного OFL-зеркала | Wremena (13), Soyuz Grotesk (20), Bluu Next (14) |
 | Латиница / ограничения лицензии | Coolvetica (26) |
 
-## Текущий каталог (41 семейство)
+## Текущий каталог (42 семейства)
 
-Полный список — массив `SUBTITLE_FONTS` в `web/subs/app.js`. Ниже — справочник с ссылками.
+Полный список — массив `SUBTITLE_FONTS` в `web/subs/fonts-shared.js`. Ниже — справочник с ссылками.
 
 | Семейство | Файлы в папке | Скачать / источник | Для Reels |
 |-----------|---------------|-------------------|-----------|
@@ -146,6 +147,7 @@ for w in (400, 700):
 | Fira Sans | `fira-sans-400.ttf`, `fira-sans-700.ttf` | [Fira Sans](https://fonts.google.com/specimen/Fira+Sans) · [ofl/firasans](https://github.com/google/fonts/tree/main/ofl/firasans) | Длинные субтитры |
 | Geologica | `geologica-400.ttf`, `geologica-700.ttf` | [Geologica](https://fonts.google.com/specimen/Geologica) · [ofl/geologica](https://github.com/google/fonts/tree/main/ofl/geologica) | Современный гротеск |
 | Golos Text | `golos-text-400.ttf`, `golos-text-700.ttf` | [Golos Text](https://fonts.google.com/specimen/Golos+Text) · [ofl/golostext](https://github.com/google/fonts/tree/main/ofl/golostext) | Русский UI-текст |
+| Great Vibes | `great-vibes-400.ttf` (400=700) | [Great Vibes](https://fonts.google.com/specimen/Great+Vibes) · [ofl/greatvibes](https://github.com/google/fonts/tree/main/ofl/greatvibes) · `great-vibes-OFL.txt` | Каллиграфия / script, кириллица с v1.100 |
 | IBM Plex Sans | `ibm-plex-sans-400.ttf`, `ibm-plex-sans-700.ttf` | [IBM Plex Sans](https://fonts.google.com/specimen/IBM+Plex+Sans) · [ofl/ibmplexsans](https://github.com/google/fonts/tree/main/ofl/ibmplexsans) | Кирилл. vol.1 №08 |
 | IBM Plex Serif | `ibm-plex-serif-400.ttf`, `ibm-plex-serif-700.ttf` | [IBM Plex Serif](https://fonts.google.com/specimen/IBM+Plex+Serif) · [ofl/ibmplexserif](https://github.com/google/fonts/tree/main/ofl/ibmplexserif) | Кирилл. vol.1 №08 |
 | Inter | `inter-400.ttf`, `inter-700.ttf` | [Inter](https://fonts.google.com/specimen/Inter) · [ofl/inter](https://github.com/google/fonts/tree/main/ofl/inter) | Кирилл. vol.1 №06 |
@@ -189,9 +191,9 @@ for w in (400, 700):
 
 | Файл | Назначение |
 |------|------------|
-| `web/subs/app.js` → `SUBTITLE_FONTS` | Список для ASS, JASSUB, `<select>` |
+| `web/subs/fonts-shared.js` → `SUBTITLE_FONTS` | Список для ASS, JASSUB, `<select>` |
 | `web/subs/fonts/fonts.css` | `@font-face` для превью в браузере (генерируется) |
-| `web/subs/fonts/generate-fonts-css.py` | Парсит `SUBTITLE_FONTS` из `app.js` |
+| `web/subs/fonts/generate-fonts-css.py` | Парсит `SUBTITLE_FONTS` из `fonts-shared.js` |
 | `web/subs/index.html` | Подключает `fonts.css` |
 
 ## Чеклист для агента после изменений

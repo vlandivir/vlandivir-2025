@@ -51,9 +51,10 @@ function getPickerSubtitleFonts() {
 }
 
 function getJassubSubtitleFonts() {
-  const usedFamilies = cachedStyles
-    .map((style) => style.font)
-    .filter((font) => typeof font === 'string' && font.trim());
+  const usedFamilies = [
+    ...cachedStyles.map((style) => style.font),
+    ...cachedCues.map((cue) => getStyleById(cue.styleId)?.font),
+  ].filter((font) => typeof font === 'string' && font.trim());
   const families = [...new Set([...enabledFontFamilies, ...usedFamilies])];
   return SF.getFontsForFamilies(families);
 }
@@ -157,6 +158,7 @@ const progressBar = document.querySelector('#uploadProgressBar');
 const linksList = document.querySelector('#linksList');
 const emptyState = document.querySelector('#emptyState');
 const clearLinksButton = document.querySelector('#clearLinksButton');
+const videoBoundPanel = document.querySelector('#videoBoundPanel');
 const currentVideoSection = document.querySelector('#currentVideoSection');
 const currentVideo = document.querySelector('#currentVideo');
 const currentVideoMeta = document.querySelector('#currentVideoMeta');
@@ -213,6 +215,8 @@ const refreshPreviewButton = document.querySelector('#refreshPreviewButton');
 let cachedStyles = [];
 let cachedCues = [];
 let cachedPositions = [];
+const stylesById = new Map();
+const positionsById = new Map();
 let jassubModulePromise;
 let jassubRenderer;
 let jassubTrack = '';
@@ -221,6 +225,7 @@ let useDomSubtitleFallback = false;
 let editingStyleId;
 let editingCueId;
 let editingPositionId;
+let currentVideoHash = null;
 
 function openDb() {
   return SF.openDb();
@@ -273,47 +278,111 @@ async function clearStore(storeName) {
 }
 
 async function readVideos() {
-  const videos = await readStore(VIDEO_STORE);
-  return videos.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return SF.readActiveVideos();
 }
 
-function saveVideo(video) {
-  return putRecord(VIDEO_STORE, video);
+async function saveVideo(video) {
+  const now = new Date().toISOString();
+  const existing = video.hash ? await SF.getVideoByHash(video.hash) : null;
+  return SF.putVideo({
+    ...existing,
+    ...video,
+    createdAt: video.createdAt || existing?.createdAt || now,
+    updatedAt: now,
+    archivedAt:
+      video.archivedAt !== undefined ? video.archivedAt : existing?.archivedAt,
+  });
 }
 
-function clearVideos() {
-  return clearStore(VIDEO_STORE);
+async function touchCurrentVideoUpdated() {
+  if (!currentVideoHash) return;
+  await SF.touchVideoUpdatedAt(currentVideoHash);
 }
 
 async function readStyles() {
-  const styles = await readStore(STYLE_STORE);
-  return styles.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  return SF.readActiveStyles();
 }
 
-function saveStyle(style) {
-  return putRecord(STYLE_STORE, style);
+async function saveStyle(style) {
+  const now = new Date().toISOString();
+  const existing = style.id ? await SF.getStyleById(style.id) : null;
+  return SF.putStyle({
+    ...existing,
+    ...style,
+    createdAt: style.createdAt || existing?.createdAt || now,
+    updatedAt: now,
+    archivedAt:
+      style.archivedAt !== undefined ? style.archivedAt : existing?.archivedAt,
+  });
 }
 
-function deleteStyle(id) {
-  return deleteRecord(STYLE_STORE, id);
+async function archiveStyle(id) {
+  return SF.archiveStyleById(id);
 }
 
 async function readPositions() {
-  const positions = await readStore(POSITION_STORE);
-  return positions.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  return SF.readActivePositions();
 }
 
-function savePosition(position) {
-  return putRecord(POSITION_STORE, position);
+async function savePosition(position) {
+  const now = new Date().toISOString();
+  const existing = position.id ? await SF.getPositionById(position.id) : null;
+  return SF.putPosition({
+    ...existing,
+    ...position,
+    createdAt: position.createdAt || existing?.createdAt || now,
+    updatedAt: now,
+    archivedAt:
+      position.archivedAt !== undefined
+        ? position.archivedAt
+        : existing?.archivedAt,
+  });
 }
 
-function deletePosition(id) {
-  return deleteRecord(POSITION_STORE, id);
+async function archivePosition(id) {
+  return SF.archivePositionById(id);
 }
 
-async function readCues() {
-  const cues = await readStore(CUE_STORE);
-  return cues.sort((a, b) => parseTimeToSeconds(a.start) - parseTimeToSeconds(b.start));
+async function reloadStylePositionLookups() {
+  stylesById.clear();
+  positionsById.clear();
+  for (const style of await SF.readAllStyles()) {
+    stylesById.set(style.id, style);
+  }
+  for (const position of await SF.readAllPositions()) {
+    positionsById.set(position.id, position);
+  }
+}
+
+function sortCuesByStart(cues) {
+  return cues.sort(
+    (a, b) => parseTimeToSeconds(a.start) - parseTimeToSeconds(b.start),
+  );
+}
+
+async function readCuesForVideo(videoHash) {
+  if (!videoHash) return [];
+
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(CUE_STORE, 'readonly');
+    const store = tx.objectStore(CUE_STORE);
+
+    const finish = (cues) => resolve(sortCuesByStart(cues));
+
+    if (store.indexNames.contains('videoHash')) {
+      const request = store.index('videoHash').getAll(videoHash);
+      request.onsuccess = () => finish(request.result);
+      request.onerror = () => reject(request.error);
+      return;
+    }
+
+    const request = store.getAll();
+    request.onsuccess = () => {
+      finish(request.result.filter((cue) => cue.videoHash === videoHash));
+    };
+    request.onerror = () => reject(request.error);
+  });
 }
 
 function saveCue(cue) {
@@ -368,14 +437,27 @@ function renderVideos(videos) {
     pageLink.textContent =
       video.absolutePageUrl || new URL(video.pageUrl, window.location.origin).href;
 
+    const actions = document.createElement('div');
+    actions.className = 'link-item__actions';
+
     const videoLink = document.createElement('a');
-    videoLink.className = 'secondary-link link-item__video';
+    videoLink.className = 'secondary-link';
     videoLink.href = video.videoUrl;
     videoLink.target = '_blank';
     videoLink.rel = 'noopener noreferrer';
     videoLink.textContent = 'Открыть файл';
 
-    item.append(title, meta, pageLink, videoLink);
+    const archiveButton = document.createElement('button');
+    archiveButton.className = 'secondary-link link-item__archive';
+    archiveButton.type = 'button';
+    archiveButton.textContent = 'В архив';
+    archiveButton.addEventListener('click', async () => {
+      await SF.archiveVideoByHash(video.hash);
+      await refreshList();
+    });
+
+    actions.append(videoLink, archiveButton);
+    item.append(title, meta, pageLink, actions);
     linksList.append(item);
   }
 }
@@ -391,11 +473,24 @@ function positionLabel(position) {
 }
 
 function getStyleById(id) {
-  return cachedStyles.find((style) => style.id === id);
+  if (!id) return undefined;
+  return stylesById.get(id) || cachedStyles.find((style) => style.id === id);
 }
 
 function getPositionById(id) {
-  return cachedPositions.find((position) => position.id === id);
+  if (!id) return undefined;
+  return (
+    positionsById.get(id) || cachedPositions.find((position) => position.id === id)
+  );
+}
+
+function collectStylesForAss() {
+  const byId = new Map(cachedStyles.map((style) => [style.id, style]));
+  for (const cue of cachedCues) {
+    const style = getStyleById(cue.styleId);
+    if (style) byId.set(style.id, style);
+  }
+  return [...byId.values()];
 }
 
 function getPositionByLegacy(legacy) {
@@ -967,8 +1062,9 @@ function renderAlignControl() {
 }
 
 function generateAss() {
-  const styles = cachedStyles.length
-    ? cachedStyles
+  const exportStyles = collectStylesForAss();
+  const styles = exportStyles.length
+    ? exportStyles
     : [
         {
           id: 'default',
@@ -1113,7 +1209,7 @@ function renderPositions() {
     const removeButton = document.createElement('button');
     removeButton.className = 'icon-button';
     removeButton.type = 'button';
-    removeButton.title = 'Удалить позицию';
+    removeButton.title = 'В архив';
     removeButton.textContent = '×';
     removeButton.disabled = cachedPositions.length <= 1;
     removeButton.addEventListener('click', async () => {
@@ -1121,9 +1217,9 @@ function renderPositions() {
       if (editingPositionId === position.id) resetPositionForm();
 
       const fallback = cachedPositions.find((item) => item.id !== position.id);
-      await deletePosition(position.id);
+      await archivePosition(position.id);
       await Promise.all(
-        (await readStyles())
+        cachedStyles
           .filter((style) => style.positionId === position.id)
           .map((style) => saveStyle({ ...style, positionId: fallback.id })),
       );
@@ -1180,17 +1276,11 @@ function renderStyles() {
     const removeButton = document.createElement('button');
     removeButton.className = 'icon-button';
     removeButton.type = 'button';
-    removeButton.title = 'Удалить стиль';
+    removeButton.title = 'В архив';
     removeButton.textContent = '×';
     removeButton.addEventListener('click', async () => {
       if (editingStyleId === style.id) resetStyleForm();
-      await deleteStyle(style.id);
-      cachedCues = cachedCues.filter((cue) => cue.styleId !== style.id);
-      await Promise.all(
-        (await readCues())
-          .filter((cue) => cue.styleId === style.id)
-          .map((cue) => deleteCue(cue.id)),
-      );
+      await archiveStyle(style.id);
       await refreshEditor();
     });
 
@@ -1246,6 +1336,7 @@ function renderCues() {
     removeButton.addEventListener('click', async () => {
       if (editingCueId === cue.id) resetCueForm();
       await deleteCue(cue.id);
+      await touchCurrentVideoUpdated();
       await refreshEditor();
     });
 
@@ -1566,9 +1657,12 @@ async function ensureDefaultPositions() {
 }
 
 async function refreshEditor() {
+  await reloadStylePositionLookups();
   cachedPositions = await readPositions();
   cachedStyles = await readStyles();
-  cachedCues = await readCues();
+  cachedCues = currentVideoHash
+    ? await readCuesForVideo(currentVideoHash)
+    : [];
   renderPositions();
   renderStyles();
   renderCues();
@@ -1611,17 +1705,56 @@ async function refreshList() {
   renderVideos(await readVideos());
 }
 
-async function loadCurrentVideo() {
-  const match = window.location.pathname.match(
-    /^\/subs\/([a-f0-9]{24})\/?$/,
-  );
-  if (!match) return;
+function getVideoHashFromPath() {
+  const match = window.location.pathname.match(/^\/subs\/([a-f0-9]{24})\/?$/);
+  return match ? match[1] : null;
+}
 
-  const hash = match[1];
+function setVideoBoundPanelVisible(visible) {
+  if (videoBoundPanel) videoBoundPanel.hidden = !visible;
+}
+
+async function applyVideoContext(hash) {
+  const previousHash = currentVideoHash;
+  currentVideoHash = hash;
+
+  if (!hash) {
+    setVideoBoundPanelVisible(false);
+    currentVideoSection.hidden = true;
+    currentVideo.src = '';
+    setCurrentVideoMetaLink(null, '');
+    await destroyJassubRenderer();
+    if (previousHash) {
+      resetCueForm();
+      cachedCues = [];
+      renderCues();
+      renderExport();
+    }
+    return;
+  }
+
+  setVideoBoundPanelVisible(true);
+
+  if (previousHash !== hash) {
+    resetCueForm();
+    await destroyJassubRenderer();
+    cachedCues = await readCuesForVideo(hash);
+    renderCues();
+    renderExport();
+  }
+}
+
+async function loadCurrentVideo() {
+  const hash = getVideoHashFromPath();
+  await applyVideoContext(hash);
+  if (!hash) return;
+
   const response = await fetch(`/subs-api/videos/${hash}`);
   if (!response.ok) {
     setCurrentVideoMetaLink(null, 'Не удалось получить данные по этой ссылке.');
+    currentVideo.src = '';
     currentVideoSection.hidden = false;
+    updateVideoControls();
     return;
   }
 
@@ -1633,16 +1766,22 @@ async function loadCurrentVideo() {
   updateVideoControls();
   void renderJassubPreview();
 
-  const saved = await readVideos();
-  if (!saved.some((item) => item.hash === hash)) {
+  const existing = await SF.getVideoByHash(hash);
+  if (!existing) {
     await saveVideo({
       ...video,
       originalName: `Видео ${hash}`,
       mimeType: 'video',
       size: 0,
-      createdAt: new Date().toISOString(),
     });
+    return;
   }
+
+  await SF.patchVideoByHash(hash, {
+    videoUrl: video.videoUrl,
+    absolutePageUrl: video.absolutePageUrl,
+    pageUrl: video.pageUrl,
+  });
 }
 
 input.addEventListener('change', () => {
@@ -1681,7 +1820,8 @@ form.addEventListener('submit', async (event) => {
 });
 
 clearLinksButton.addEventListener('click', async () => {
-  await clearVideos();
+  const active = await readVideos();
+  await Promise.all(active.map((video) => deleteRecord(VIDEO_STORE, video.hash)));
   await refreshList();
 });
 
@@ -1770,7 +1910,7 @@ styleForm.addEventListener('submit', async (event) => {
 cueForm.addEventListener('submit', async (event) => {
   event.preventDefault();
 
-  if (!cueStyleInput.value) return;
+  if (!currentVideoHash || !cueStyleInput.value) return;
 
   const existingCue = editingCueId
     ? cachedCues.find((cue) => cue.id === editingCueId)
@@ -1778,6 +1918,7 @@ cueForm.addEventListener('submit', async (event) => {
   const motion = readCueMotionFromForm();
   await saveCue({
     id: editingCueId || createId('cue'),
+    videoHash: currentVideoHash,
     text: cueTextInput.value.trim(),
     start: formatTimeInput(cueStartInput.value),
     end: formatTimeInput(cueEndInput.value),
@@ -1790,6 +1931,7 @@ cueForm.addEventListener('submit', async (event) => {
   });
 
   resetCueForm();
+  await touchCurrentVideoUpdated();
   await refreshEditor();
 });
 
@@ -1845,6 +1987,10 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
     void reloadFontPickerFromDb();
   }
+});
+
+window.addEventListener('popstate', () => {
+  void loadCurrentVideo().then(() => refreshEditor());
 });
 
 async function init() {

@@ -46,4 +46,11 @@ export class AppController {
   getFontPicker(@Res() res: Response): void {
     res.sendFile(path.join(process.cwd(), 'web', 'subs', 'font', 'index.html'));
   }
+
+  @Get('subs/archive')
+  getSubsArchive(@Res() res: Response): void {
+    res.sendFile(
+      path.join(process.cwd(), 'web', 'subs', 'archive', 'index.html'),
+    );
+  }
 }

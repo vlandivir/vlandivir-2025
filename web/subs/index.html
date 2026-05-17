@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="description" content="Subs ASS: проект для создания субтитров к видео в формате Advanced SubStation Alpha." />
 <title>Subs ASS</title>
-<link rel="stylesheet" href="fonts/fonts.css?v=20260517-8" />
-<link rel="stylesheet" href="styles.css?v=20260517-11" />
-<script src="fonts-shared.js?v=20260517-1"></script>
-<script src="app.js?v=20260517-16" defer></script>
+<link rel="stylesheet" href="fonts/fonts.css?v=20260517-9" />
+<link rel="stylesheet" href="styles.css?v=20260517-13" />
+<script src="fonts-shared.js?v=20260517-5"></script>
+<script src="app.js?v=20260517-19" defer></script>
 </head>
 <body>
 <header class="site-header">
@@ -18,6 +18,7 @@
   </a>
   <nav class="header-nav" aria-label="Навигация">
     <a href="/">Главная</a>
+    <a href="/subs/archive">Архив</a>
     <a href="/gpx-route-png/">GPX Track PNG</a>
   </nav>
 </header>
@@ -26,7 +27,6 @@
   <section class="hero" aria-labelledby="page-title">
     <div class="hero-copy">
       <h1 id="page-title">Субтитры для видео в формате ASS</h1>
-      <p class="lead">Страница проекта, на которой будет собран рабочий процесс: импорт видео, разметка реплик, настройка стилей, проверка тайминга и экспорт <code>.ass</code> для монтажа.</p>
     </div>
 
   </section>
@@ -60,7 +60,10 @@
         <p class="eyebrow">IndexedDB</p>
         <h2 id="saved-title">Сохраненные ссылки</h2>
       </div>
-      <button class="secondary-link clear-button" id="clearLinksButton" type="button">Очистить список</button>
+      <div class="saved-links__toolbar">
+        <a class="secondary-link" href="/subs/archive">Архив</a>
+        <button class="secondary-link clear-button" id="clearLinksButton" type="button">Очистить список</button>
+      </div>
     </div>
     <div class="links-list" id="linksList"></div>
     <p class="empty-state" id="emptyState">Пока нет сохраненных видео. После загрузки ссылки появятся здесь.</p>
@@ -188,7 +191,10 @@
         <div class="style-list" id="styleList"></div>
         <p class="empty-state" id="stylesEmptyState">Пока нет стилей.</p>
       </div>
+    </div>
 
+    <div class="video-bound-panel" id="videoBoundPanel" hidden>
+      <div class="editor-grid video-bound-grid">
       <details class="editor-card ass-cheatsheet" open>
         <summary class="ass-cheatsheet__summary">Шпаргалка: теги в тексте реплики</summary>
         <p class="ass-cheatsheet__lead">Команды пишутся в фигурных скобках и действуют на фрагмент текста после них. Перенос строки — <code>\N</code>.</p>
@@ -320,6 +326,7 @@
           </div>
         </div>
       </section>
+    </div>
     </div>
   </section>
   <section class="format-panel" id="format" aria-labelledby="format-title">

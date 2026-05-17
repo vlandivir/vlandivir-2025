@@ -7,14 +7,14 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-APP_JS = ROOT.parent / "app.js"
+FONTS_SHARED_JS = ROOT.parent / "fonts-shared.js"
 OUT_CSS = ROOT / "fonts.css"
 
 
 def parse_subtitle_fonts(source: str) -> list[dict[str, str]]:
-    match = re.search(r"const SUBTITLE_FONTS = \[([\s\S]*?)\n\];", source)
+    match = re.search(r"const SUBTITLE_FONTS = \[([\s\S]*?)\n\s*\];", source)
     if not match:
-        raise SystemExit("SUBTITLE_FONTS not found in app.js")
+        raise SystemExit("SUBTITLE_FONTS not found in fonts-shared.js")
     block = match.group(1)
     fonts = []
     for entry in re.finditer(
@@ -81,7 +81,7 @@ def emit_css(fonts: list[dict[str, str]]) -> str:
 
 
 def main() -> None:
-    source = APP_JS.read_text(encoding="utf-8")
+    source = FONTS_SHARED_JS.read_text(encoding="utf-8")
     fonts = parse_subtitle_fonts(source)
     OUT_CSS.write_text(emit_css(fonts), encoding="utf-8")
     print(f"Wrote {len(fonts)} families to {OUT_CSS}")

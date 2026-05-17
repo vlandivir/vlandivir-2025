@@ -4,7 +4,7 @@
  */
 (function initSubsFonts(global) {
   const DB_NAME = 'subs-project';
-  const DB_VERSION = 4;
+  const DB_VERSION = 5;
   const VIDEO_STORE = 'videos';
   const STYLE_STORE = 'styles';
   const CUE_STORE = 'cues';
@@ -36,6 +36,7 @@
     { family: 'Fira Sans', regular: 'fira-sans-400.ttf', bold: 'fira-sans-700.ttf' },
     { family: 'Geologica', regular: 'geologica-400.ttf', bold: 'geologica-700.ttf' },
     { family: 'Golos Text', regular: 'golos-text-400.ttf', bold: 'golos-text-700.ttf' },
+    { family: 'Great Vibes', regular: 'great-vibes-400.ttf', bold: 'great-vibes-400.ttf' },
     { family: 'IBM Plex Sans', regular: 'ibm-plex-sans-400.ttf', bold: 'ibm-plex-sans-700.ttf' },
     { family: 'IBM Plex Serif', regular: 'ibm-plex-serif-400.ttf', bold: 'ibm-plex-serif-700.ttf' },
     { family: 'Inter', regular: 'inter-400.ttf', bold: 'inter-700.ttf' },
@@ -79,6 +80,7 @@
 
       request.onupgradeneeded = () => {
         const db = request.result;
+        const tx = request.transaction;
         if (!db.objectStoreNames.contains(VIDEO_STORE)) {
           const store = db.createObjectStore(VIDEO_STORE, { keyPath: 'hash' });
           store.createIndex('createdAt', 'createdAt');
@@ -91,6 +93,12 @@
           const store = db.createObjectStore(CUE_STORE, { keyPath: 'id' });
           store.createIndex('start', 'start');
           store.createIndex('styleId', 'styleId');
+          store.createIndex('videoHash', 'videoHash', { unique: false });
+        } else if (tx) {
+          const cueStore = tx.objectStore(CUE_STORE);
+          if (!cueStore.indexNames.contains('videoHash')) {
+            cueStore.createIndex('videoHash', 'videoHash', { unique: false });
+          }
         }
         if (!db.objectStoreNames.contains(POSITION_STORE)) {
           const store = db.createObjectStore(POSITION_STORE, { keyPath: 'id' });
@@ -160,6 +168,202 @@
       .filter(Boolean);
   }
 
+  function isArchived(record) {
+    return Boolean(record?.archivedAt);
+  }
+
+  function isVideoArchived(video) {
+    return isArchived(video);
+  }
+
+  function sortByUpdatedDesc(items) {
+    return items.slice().sort((a, b) => {
+      const aTime = a.updatedAt || a.createdAt || a.archivedAt || '';
+      const bTime = b.updatedAt || b.createdAt || b.archivedAt || '';
+      return bTime.localeCompare(aTime);
+    });
+  }
+
+  async function readAllFromStore(storeName) {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeName, 'readonly');
+      const request = tx.objectStore(storeName).getAll();
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async function getFromStore(storeName, id) {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeName, 'readonly');
+      const request = tx.objectStore(storeName).get(id);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async function putToStore(storeName, record) {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeName, 'readwrite');
+      tx.objectStore(storeName).put(record);
+      tx.oncomplete = () => resolve(record);
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  async function patchInStore(storeName, id, patch) {
+    const record = await getFromStore(storeName, id);
+    if (!record) return null;
+
+    const next = { ...record, ...patch };
+    if (patch.archivedAt === null) delete next.archivedAt;
+    await putToStore(storeName, next);
+    return next;
+  }
+
+  async function readActiveFromStore(storeName) {
+    const items = await readAllFromStore(storeName);
+    return items
+      .filter((item) => !isArchived(item))
+      .sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+  }
+
+  async function readArchivedFromStore(storeName) {
+    const items = await readAllFromStore(storeName);
+    return sortByUpdatedDesc(items.filter((item) => isArchived(item)));
+  }
+
+  async function archiveInStore(storeName, id) {
+    const now = new Date().toISOString();
+    return patchInStore(storeName, id, {
+      archivedAt: now,
+      updatedAt: now,
+    });
+  }
+
+  function formatRuDateTime(iso) {
+    if (!iso) return '—';
+    return new Date(iso).toLocaleString('ru-RU', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+
+  async function readAllVideos() {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(VIDEO_STORE, 'readonly');
+      const request = tx.objectStore(VIDEO_STORE).getAll();
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async function getVideoByHash(hash) {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(VIDEO_STORE, 'readonly');
+      const request = tx.objectStore(VIDEO_STORE).get(hash);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async function putVideo(video) {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(VIDEO_STORE, 'readwrite');
+      tx.objectStore(VIDEO_STORE).put(video);
+      tx.oncomplete = () => resolve(video);
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  async function patchVideoByHash(hash, patch) {
+    const video = await getVideoByHash(hash);
+    if (!video) return null;
+
+    const next = { ...video, ...patch };
+    if (patch.archivedAt === null) delete next.archivedAt;
+    await putVideo(next);
+    return next;
+  }
+
+  async function readActiveVideos() {
+    const videos = await readAllVideos();
+    return videos
+      .filter((video) => !isVideoArchived(video))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  async function readArchivedVideos() {
+    const videos = await readAllVideos();
+    return sortByUpdatedDesc(videos.filter((video) => isVideoArchived(video)));
+  }
+
+  async function readAllStyles() {
+    return readAllFromStore(STYLE_STORE);
+  }
+
+  async function readActiveStyles() {
+    return readActiveFromStore(STYLE_STORE);
+  }
+
+  async function readArchivedStyles() {
+    return readArchivedFromStore(STYLE_STORE);
+  }
+
+  async function getStyleById(id) {
+    return getFromStore(STYLE_STORE, id);
+  }
+
+  async function putStyle(style) {
+    return putToStore(STYLE_STORE, style);
+  }
+
+  async function archiveStyleById(id) {
+    return archiveInStore(STYLE_STORE, id);
+  }
+
+  async function readAllPositions() {
+    return readAllFromStore(POSITION_STORE);
+  }
+
+  async function readActivePositions() {
+    return readActiveFromStore(POSITION_STORE);
+  }
+
+  async function readArchivedPositions() {
+    return readArchivedFromStore(POSITION_STORE);
+  }
+
+  async function getPositionById(id) {
+    return getFromStore(POSITION_STORE, id);
+  }
+
+  async function putPosition(position) {
+    return putToStore(POSITION_STORE, position);
+  }
+
+  async function archivePositionById(id) {
+    return archiveInStore(POSITION_STORE, id);
+  }
+
+  async function archiveVideoByHash(hash) {
+    const now = new Date().toISOString();
+    return patchVideoByHash(hash, { archivedAt: now, updatedAt: now });
+  }
+
+  async function touchVideoUpdatedAt(hash) {
+    return patchVideoByHash(hash, { updatedAt: new Date().toISOString() });
+  }
+
   global.SubsFonts = {
     DB_NAME,
     DB_VERSION,
@@ -178,5 +382,29 @@
     writeEnabledFontFamilies,
     getFontsForFamilies,
     sanitizeFamilies,
+    isArchived,
+    isVideoArchived,
+    sortByUpdatedDesc,
+    formatRuDateTime,
+    readAllVideos,
+    getVideoByHash,
+    putVideo,
+    patchVideoByHash,
+    readActiveVideos,
+    readArchivedVideos,
+    archiveVideoByHash,
+    touchVideoUpdatedAt,
+    readAllStyles,
+    readActiveStyles,
+    readArchivedStyles,
+    getStyleById,
+    putStyle,
+    archiveStyleById,
+    readAllPositions,
+    readActivePositions,
+    readArchivedPositions,
+    getPositionById,
+    putPosition,
+    archivePositionById,
   };
 })(window);
