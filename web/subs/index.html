@@ -5,11 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="description" content="Subs ASS: проект для создания субтитров к видео в формате Advanced SubStation Alpha." />
 <title>Subs ASS</title>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="styles.css?v=20260516-5" />
-<script src="app.js?v=20260516-5" defer></script>
+<link rel="stylesheet" href="fonts/fonts.css?v=20260517-2" />
+<link rel="stylesheet" href="styles.css?v=20260517-2" />
+<script src="app.js?v=20260517-3" defer></script>
 </head>
 <body>
 <header class="site-header">
@@ -30,8 +28,7 @@
       <h1 id="page-title">Субтитры для видео в формате ASS</h1>
       <p class="lead">Страница проекта, на которой будет собран рабочий процесс: импорт видео, разметка реплик, настройка стилей, проверка тайминга и экспорт <code>.ass</code> для монтажа.</p>
       <div class="actions">
-        <a class="primary-link" href="#roadmap">Посмотреть план</a>
-        <a class="secondary-link" href="#format">Формат ASS</a>
+        <a class="primary-link" href="#format">Формат ASS</a>
       </div>
     </div>
 
@@ -79,18 +76,6 @@
     </div>
   </section>
 
-  <section class="current-video" id="currentVideoSection" hidden aria-labelledby="current-video-title">
-    <div>
-      <p class="eyebrow">Текущая ссылка</p>
-      <h2 id="current-video-title">Видео по hash</h2>
-      <p class="current-video__meta" id="currentVideoMeta"></p>
-    </div>
-    <div class="video-preview-frame">
-      <video id="currentVideo" controls playsinline preload="metadata"></video>
-      <p class="video-subtitle-overlay" id="videoSubtitleOverlay" hidden></p>
-    </div>
-  </section>
-
   <section class="saved-links" aria-labelledby="saved-title">
     <div class="saved-links__head">
       <div>
@@ -113,6 +98,48 @@
     </div>
 
     <div class="editor-grid">
+      <form class="editor-card editor-form" id="positionForm">
+        <h3>Позиция</h3>
+        <label class="editor-field">
+          <span>Название</span>
+          <input id="positionNameInput" type="text" maxlength="40" placeholder="Например: Нижний центр" required />
+        </label>
+        <div class="editor-field-grid">
+          <label class="editor-field">
+            <span>X, px</span>
+            <input id="positionXInput" type="number" min="0" max="1080" step="1" value="540" required />
+          </label>
+          <label class="editor-field">
+            <span>Y, px</span>
+            <input id="positionYInput" type="number" min="0" max="1920" step="1" value="1700" required />
+          </label>
+        </div>
+        <label class="editor-field">
+          <span>Выравнивание ASS</span>
+          <select id="positionAlignmentInput">
+            <option value="1">Снизу слева</option>
+            <option value="2">Снизу по центру</option>
+            <option value="3">Снизу справа</option>
+            <option value="4">По центру слева</option>
+            <option value="5">По центру</option>
+            <option value="6">По центру справа</option>
+            <option value="7">Сверху слева</option>
+            <option value="8">Сверху по центру</option>
+            <option value="9">Сверху справа</option>
+          </select>
+        </label>
+        <div class="editor-actions">
+          <button class="primary-link editor-submit" id="positionSubmitButton" type="submit">Добавить позицию</button>
+          <button class="secondary-link editor-cancel" id="cancelPositionEditButton" type="button" hidden>Отменить</button>
+        </div>
+      </form>
+
+      <div class="editor-card">
+        <h3>Позиции</h3>
+        <div class="position-list" id="positionList"></div>
+        <p class="empty-state" id="positionsEmptyState">Пока нет позиций.</p>
+      </div>
+
       <form class="editor-card editor-form" id="styleForm">
         <h3>Стиль субтитров</h3>
         <label class="editor-field">
@@ -131,18 +158,35 @@
             </select>
           </label>
           <label class="editor-field">
-            <span>Цвет</span>
-            <input id="styleColorInput" type="color" value="#ffffff" />
+            <span>Размер</span>
+            <input id="styleFontSizeInput" type="number" min="12" max="220" step="1" value="72" />
+          </label>
+        </div>
+        <div class="color-field-list">
+          <label class="editor-field">
+            <span>PrimaryColour</span>
+            <input id="stylePrimaryColorInput" type="hidden" value="#ffffff" />
+            <div class="color-picker" data-color-picker="stylePrimaryColorInput" data-allow-none="false"></div>
+          </label>
+          <label class="editor-field">
+            <span>SecondaryColour</span>
+            <input id="styleSecondaryColorInput" type="hidden" value="#000000" />
+            <div class="color-picker" data-color-picker="styleSecondaryColorInput" data-allow-none="true"></div>
+          </label>
+          <label class="editor-field">
+            <span>OutlineColour</span>
+            <input id="styleOutlineColorInput" type="hidden" value="#10181c" />
+            <div class="color-picker" data-color-picker="styleOutlineColorInput" data-allow-none="true"></div>
+          </label>
+          <label class="editor-field">
+            <span>BackColour</span>
+            <input id="styleBackColorInput" type="hidden" value="#000000" />
+            <div class="color-picker" data-color-picker="styleBackColorInput" data-allow-none="true"></div>
           </label>
         </div>
         <label class="editor-field">
           <span>Базовое положение</span>
-          <select id="stylePositionInput">
-            <option value="bottom-center">Снизу по центру</option>
-            <option value="bottom-left">Снизу слева</option>
-            <option value="top-center">Сверху по центру</option>
-            <option value="middle-center">По центру кадра</option>
-          </select>
+          <select id="stylePositionInput"></select>
         </label>
         <div class="editor-actions">
           <button class="primary-link editor-submit" id="styleSubmitButton" type="submit">Добавить стиль</button>
@@ -156,11 +200,47 @@
         <p class="empty-state" id="stylesEmptyState">Пока нет стилей.</p>
       </div>
 
+      <details class="editor-card ass-cheatsheet" open>
+        <summary class="ass-cheatsheet__summary">Шпаргалка: теги в тексте реплики</summary>
+        <p class="ass-cheatsheet__lead">Команды пишутся в фигурных скобках и действуют на фрагмент текста после них. Перенос строки — <code>\N</code>.</p>
+        <div class="ass-cheatsheet__grid">
+          <article>
+            <h4>Размер и начертание</h4>
+            <ul>
+              <li><code>{\fs80}</code> — размер 80 px</li>
+              <li><code>{\b1}</code> / <code>{\i1}</code> — жирный / курсив</li>
+              <li><code>{\b0}</code> — вернуть обычное начертание</li>
+            </ul>
+          </article>
+          <article>
+            <h4>Цвет в реплике</h4>
+            <ul>
+              <li><code>{\c&amp;H00FFFFFF&amp;}</code> — основной цвет (формат BGR)</li>
+              <li><code>{\1c&amp;H0000FF&amp;}</code> — только заливка, <code>{\3c…}</code> — обводка</li>
+              <li>Белый <code>#FFFFFF</code> → <code>&amp;H00FFFFFF&amp;</code>, красный <code>#FF0000</code> → <code>&amp;H000000FF&amp;</code></li>
+            </ul>
+          </article>
+          <article>
+            <h4>Караоке</h4>
+            <ul>
+              <li><code>{\k50}</code> — подсветка слога ~0.5 с (50 сотых секунды)</li>
+              <li><code>{\kf50}</code> — плавное заполнение слога</li>
+              <li>Пример: <code>{\k40}При{\k40}вет, {\k60}мир!</code></li>
+              <li>Для караоке задайте <strong>SecondaryColour</strong> в стиле — это цвет «незаполненной» части.</li>
+            </ul>
+          </article>
+          <article>
+            <h4>Пример целиком</h4>
+            <pre class="ass-cheatsheet__sample"><code>{\fs90\c&amp;H00FFFF&amp;}{\k45}Бе{\k45}лый {\k60}текст</code></pre>
+          </article>
+        </div>
+      </details>
+
       <form class="editor-card editor-form cue-form" id="cueForm">
         <h3>Реплика</h3>
         <label class="editor-field cue-text-field">
           <span>Текст</span>
-          <textarea id="cueTextInput" rows="4" placeholder="Текст субтитра" required></textarea>
+          <textarea id="cueTextInput" rows="4" placeholder="Текст или теги ASS, например: {\fs80\c&H00FFFF&}{\k40}При{\k40}вет" required></textarea>
         </label>
         <div class="editor-field-grid">
           <label class="editor-field">
@@ -197,40 +277,33 @@
           <button class="secondary-link refresh-preview-button" id="refreshPreviewButton" type="button">Обновить превью</button>
           <button class="secondary-link download-ass-button" id="downloadAssButton" type="button" disabled>Скачать .ass</button>
         </div>
-        <textarea class="ass-output" id="assOutput" spellcheck="false" readonly></textarea>
+        <div class="ass-output-body">
+          <textarea class="ass-output" id="assOutput" spellcheck="false" readonly></textarea>
+        </div>
       </div>
+      <section class="current-video editor-card" id="currentVideoSection" hidden aria-labelledby="current-video-title">
+        <div class="current-video__head">
+          <div>
+            <p class="eyebrow">Видео</p>
+            <h3 id="current-video-title">Preview</h3>
+          </div>
+          <a class="current-video__meta" id="currentVideoMeta" href="#" target="_blank" rel="noopener noreferrer"></a>
+        </div>
+        <div class="video-preview-frame">
+          <div class="video-stage">
+            <video id="currentVideo" playsinline preload="metadata"></video>
+            <p class="video-subtitle-overlay" id="videoSubtitleOverlay" hidden></p>
+          </div>
+          <div class="video-controls" aria-label="Управление видео">
+            <button class="video-control-button" id="videoPlayButton" type="button" aria-label="Воспроизвести"></button>
+            <input class="video-control-range" id="videoSeekInput" type="range" min="0" max="0" step="0.01" value="0" aria-label="Позиция видео" />
+            <span class="video-control-time" id="videoTimeLabel">0:00 / 0:00</span>
+            <button class="video-control-button" id="videoMuteButton" type="button" aria-label="Выключить звук"></button>
+          </div>
+        </div>
+      </section>
     </div>
   </section>
-
-  <section class="section-grid" id="roadmap" aria-labelledby="roadmap-title">
-    <div class="section-head">
-      <p class="eyebrow">План</p>
-      <h2 id="roadmap-title">Что будет на странице</h2>
-    </div>
-    <div class="feature-list">
-      <article class="feature">
-        <span class="feature-index">01</span>
-        <h3>Расшифровка и реплики</h3>
-        <p>Черновик субтитров из текста или транскрипта, деление на короткие читаемые строки и ручная правка.</p>
-      </article>
-      <article class="feature">
-        <span class="feature-index">02</span>
-        <h3>Тайминг под видео</h3>
-        <p>Начало, конец, длительность и визуальный контроль пауз, чтобы субтитры не опаздывали и не перекрывали речь.</p>
-      </article>
-      <article class="feature">
-        <span class="feature-index">03</span>
-        <h3>Стили ASS</h3>
-        <p>Шрифт, размер, обводка, тень, позиция, цвета и готовые пресеты для вертикального и горизонтального видео.</p>
-      </article>
-      <article class="feature">
-        <span class="feature-index">04</span>
-        <h3>Экспорт</h3>
-        <p>Генерация <code>.ass</code> файла, который можно использовать в ffmpeg, DaVinci Resolve, Aegisub или другом монтажном пайплайне.</p>
-      </article>
-    </div>
-  </section>
-
   <section class="format-panel" id="format" aria-labelledby="format-title">
     <div>
       <p class="eyebrow">Advanced SubStation Alpha</p>
@@ -241,8 +314,8 @@
 ScriptType: v4.00+
 
 [V4+ Styles]
-Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour
-Style: Default,Inter,58,&amp;H00FFFFFF,&amp;H0010181C
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour
+Style: Default,Inter,72,&amp;H00FFFFFF,&amp;H00000000,&amp;H0010181C,&amp;H00000000
 
 [Events]
 Format: Start, End, Style, Text

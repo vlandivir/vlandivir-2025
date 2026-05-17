@@ -1,8 +1,15 @@
 const DB_NAME = 'subs-project';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const VIDEO_STORE = 'videos';
 const STYLE_STORE = 'styles';
 const CUE_STORE = 'cues';
+const POSITION_STORE = 'positions';
+const DEFAULT_POSITIONS = [
+  { id: 'position-bottom-center', name: 'Снизу по центру', x: 540, y: 1700, alignment: 2, legacy: 'bottom-center' },
+  { id: 'position-bottom-left', name: 'Снизу слева', x: 140, y: 1700, alignment: 1, legacy: 'bottom-left' },
+  { id: 'position-top-center', name: 'Сверху по центру', x: 540, y: 220, alignment: 8, legacy: 'top-center' },
+  { id: 'position-middle-center', name: 'По центру кадра', x: 540, y: 960, alignment: 5, legacy: 'middle-center' },
+];
 const SUBS_ASSET_BASE_URL = new URL(
   '.',
   document.currentScript?.src || window.location.href,
@@ -23,6 +30,62 @@ const JASSUB_MODERN_WASM_URL = new URL(
   'vendor/jassub/wasm/jassub-worker-modern.wasm',
   SUBS_ASSET_BASE_URL,
 ).href;
+const SUBS_FONTS_BASE_URL = new URL('fonts/', SUBS_ASSET_BASE_URL);
+const JASSUB_DEFAULT_FONT_URL = new URL(
+  'vendor/jassub/default.woff2',
+  SUBS_ASSET_BASE_URL,
+).href;
+
+function subsFontUrl(fileName) {
+  return new URL(fileName, SUBS_FONTS_BASE_URL).href;
+}
+
+function buildJassubFontConfig() {
+  const availableFonts = {
+    inter: subsFontUrl('inter-400.woff2'),
+    'inter bold': subsFontUrl('inter-700.woff2'),
+    montserrat: subsFontUrl('montserrat-400.woff2'),
+    'montserrat bold': subsFontUrl('montserrat-700.woff2'),
+    'jetbrains mono': subsFontUrl('jetbrains-mono-500.woff2'),
+    'jetbrains mono bold': subsFontUrl('jetbrains-mono-700.woff2'),
+    arial: JASSUB_DEFAULT_FONT_URL,
+    'arial bold': JASSUB_DEFAULT_FONT_URL,
+    georgia: JASSUB_DEFAULT_FONT_URL,
+    'georgia bold': JASSUB_DEFAULT_FONT_URL,
+    'liberation sans': JASSUB_DEFAULT_FONT_URL,
+  };
+
+  return {
+    availableFonts,
+    fonts: [...new Set(Object.values(availableFonts))],
+  };
+}
+
+const BUNDLED_FONT_FAMILIES = new Set([
+  'Inter',
+  'Montserrat',
+  'JetBrains Mono',
+  'Arial',
+  'Georgia',
+]);
+
+const BASE_COLORS = [
+  { name: 'Белый', value: '#ffffff' },
+  { name: 'Черный', value: '#000000' },
+  { name: 'Красный', value: '#ef4444' },
+  { name: 'Оранжевый', value: '#f97316' },
+  { name: 'Желтый', value: '#eab308' },
+  { name: 'Зеленый', value: '#22c55e' },
+  { name: 'Синий', value: '#3b82f6' },
+  { name: 'Фиолетовый', value: '#8b5cf6' },
+  { name: 'Розовый', value: '#ec4899' },
+];
+const VIDEO_ICONS = {
+  play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>',
+  pause: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7z" /><path d="M13 5h4v14h-4z" /></svg>',
+  volume: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" /><path d="M16 9a4 4 0 0 1 0 6" /></svg>',
+  muted: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" /><path d="m17 9 4 4" /><path d="m21 9-4 4" /></svg>',
+};
 
 const form = document.querySelector('#uploadForm');
 const input = document.querySelector('#videoInput');
@@ -38,15 +101,32 @@ const currentVideoSection = document.querySelector('#currentVideoSection');
 const currentVideo = document.querySelector('#currentVideo');
 const currentVideoMeta = document.querySelector('#currentVideoMeta');
 const videoSubtitleOverlay = document.querySelector('#videoSubtitleOverlay');
+const videoPlayButton = document.querySelector('#videoPlayButton');
+const videoSeekInput = document.querySelector('#videoSeekInput');
+const videoTimeLabel = document.querySelector('#videoTimeLabel');
+const videoMuteButton = document.querySelector('#videoMuteButton');
 const styleForm = document.querySelector('#styleForm');
 const styleNameInput = document.querySelector('#styleNameInput');
 const styleFontInput = document.querySelector('#styleFontInput');
-const styleColorInput = document.querySelector('#styleColorInput');
+const styleFontSizeInput = document.querySelector('#styleFontSizeInput');
+const stylePrimaryColorInput = document.querySelector('#stylePrimaryColorInput');
+const styleSecondaryColorInput = document.querySelector('#styleSecondaryColorInput');
+const styleOutlineColorInput = document.querySelector('#styleOutlineColorInput');
+const styleBackColorInput = document.querySelector('#styleBackColorInput');
 const stylePositionInput = document.querySelector('#stylePositionInput');
 const styleSubmitButton = document.querySelector('#styleSubmitButton');
 const cancelStyleEditButton = document.querySelector('#cancelStyleEditButton');
 const styleList = document.querySelector('#styleList');
 const stylesEmptyState = document.querySelector('#stylesEmptyState');
+const positionForm = document.querySelector('#positionForm');
+const positionNameInput = document.querySelector('#positionNameInput');
+const positionXInput = document.querySelector('#positionXInput');
+const positionYInput = document.querySelector('#positionYInput');
+const positionAlignmentInput = document.querySelector('#positionAlignmentInput');
+const positionSubmitButton = document.querySelector('#positionSubmitButton');
+const cancelPositionEditButton = document.querySelector('#cancelPositionEditButton');
+const positionList = document.querySelector('#positionList');
+const positionsEmptyState = document.querySelector('#positionsEmptyState');
 const cueForm = document.querySelector('#cueForm');
 const cueTextInput = document.querySelector('#cueTextInput');
 const cueStartInput = document.querySelector('#cueStartInput');
@@ -64,6 +144,7 @@ const refreshPreviewButton = document.querySelector('#refreshPreviewButton');
 let dbPromise;
 let cachedStyles = [];
 let cachedCues = [];
+let cachedPositions = [];
 let jassubModulePromise;
 let jassubRenderer;
 let jassubTrack = '';
@@ -71,6 +152,7 @@ let jassubRenderToken = 0;
 let useDomSubtitleFallback = false;
 let editingStyleId;
 let editingCueId;
+let editingPositionId;
 
 function openDb() {
   if (dbPromise) return dbPromise;
@@ -92,6 +174,10 @@ function openDb() {
         const store = db.createObjectStore(CUE_STORE, { keyPath: 'id' });
         store.createIndex('start', 'start');
         store.createIndex('styleId', 'styleId');
+      }
+      if (!db.objectStoreNames.contains(POSITION_STORE)) {
+        const store = db.createObjectStore(POSITION_STORE, { keyPath: 'id' });
+        store.createIndex('createdAt', 'createdAt');
       }
     };
 
@@ -174,6 +260,19 @@ function deleteStyle(id) {
   return deleteRecord(STYLE_STORE, id);
 }
 
+async function readPositions() {
+  const positions = await readStore(POSITION_STORE);
+  return positions.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+function savePosition(position) {
+  return putRecord(POSITION_STORE, position);
+}
+
+function deletePosition(id) {
+  return deleteRecord(POSITION_STORE, id);
+}
+
 async function readCues() {
   const cues = await readStore(CUE_STORE);
   return cues.sort((a, b) => parseTimeToSeconds(a.start) - parseTimeToSeconds(b.start));
@@ -244,16 +343,29 @@ function renderVideos(videos) {
 }
 
 function positionLabel(position) {
-  return {
-    'bottom-center': 'Снизу по центру',
-    'bottom-left': 'Снизу слева',
-    'top-center': 'Сверху по центру',
-    'middle-center': 'По центру кадра',
-  }[position] || position;
+  if (!position) return 'Снизу по центру';
+  if (typeof position === 'object') return `${position.name} · ${position.x}, ${position.y}`;
+
+  const matchedPosition = getPositionById(position) || getPositionByLegacy(position);
+  return matchedPosition
+    ? `${matchedPosition.name} · ${matchedPosition.x}, ${matchedPosition.y}`
+    : position;
 }
 
 function getStyleById(id) {
   return cachedStyles.find((style) => style.id === id);
+}
+
+function getPositionById(id) {
+  return cachedPositions.find((position) => position.id === id);
+}
+
+function getPositionByLegacy(legacy) {
+  return cachedPositions.find((position) => position.legacy === legacy);
+}
+
+function defaultPosition() {
+  return cachedPositions[0] || DEFAULT_POSITIONS[0];
 }
 
 function parseTimeToSeconds(value) {
@@ -288,7 +400,21 @@ function formatAssTime(value) {
   return `${hours}:${String(minutes).padStart(2, '0')}:${seconds.toFixed(2).padStart(5, '0')}`;
 }
 
+function formatVideoTime(value) {
+  if (!Number.isFinite(value)) return '0:00';
+
+  const minutes = Math.floor(value / 60);
+  const seconds = Math.floor(value % 60);
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
+function isNoneColor(color) {
+  return color === 'none';
+}
+
 function colorToAss(color) {
+  if (isNoneColor(color)) return '&HFF000000';
+
   const normalized = color.replace('#', '').padStart(6, '0');
   const red = normalized.slice(0, 2);
   const green = normalized.slice(2, 4);
@@ -296,26 +422,318 @@ function colorToAss(color) {
   return `&H00${blue}${green}${red}`.toUpperCase();
 }
 
-function assAlignment(position) {
-  return {
-    'bottom-left': 1,
-    'bottom-center': 2,
-    'middle-center': 5,
-    'top-center': 8,
-  }[position] || 2;
+function hexToRgb(hex) {
+  const normalized = hex.replace('#', '').padStart(6, '0');
+  return [
+    Number.parseInt(normalized.slice(0, 2), 16),
+    Number.parseInt(normalized.slice(2, 4), 16),
+    Number.parseInt(normalized.slice(4, 6), 16),
+  ];
+}
+
+function rgbToHex([red, green, blue]) {
+  return `#${[red, green, blue]
+    .map((channel) => Math.round(channel).toString(16).padStart(2, '0'))
+    .join('')}`;
+}
+
+function mixColor(color, target, amount) {
+  const sourceRgb = hexToRgb(color);
+  const targetRgb = hexToRgb(target);
+  return rgbToHex(
+    sourceRgb.map((channel, index) => channel + (targetRgb[index] - channel) * amount),
+  );
+}
+
+function getShades(baseColor) {
+  if (baseColor === '#ffffff') {
+    return ['#ffffff', '#f4f4f5', '#e4e4e7', '#d4d4d8', '#a1a1aa', '#71717a', '#52525b', '#3f3f46', '#27272a'];
+  }
+
+  if (baseColor === '#000000') {
+    return ['#000000', '#18181b', '#27272a', '#3f3f46', '#52525b', '#71717a', '#a1a1aa', '#d4d4d8', '#f4f4f5'];
+  }
+
+  return [
+    mixColor(baseColor, '#ffffff', 0.72),
+    mixColor(baseColor, '#ffffff', 0.55),
+    mixColor(baseColor, '#ffffff', 0.38),
+    mixColor(baseColor, '#ffffff', 0.2),
+    baseColor,
+    mixColor(baseColor, '#000000', 0.16),
+    mixColor(baseColor, '#000000', 0.32),
+    mixColor(baseColor, '#000000', 0.48),
+    mixColor(baseColor, '#000000', 0.64),
+  ];
+}
+
+function findClosestBaseColor(color) {
+  if (!color || isNoneColor(color)) return BASE_COLORS[0];
+
+  const rgb = hexToRgb(color);
+  return BASE_COLORS.reduce((closest, baseColor) => {
+    const baseRgb = hexToRgb(baseColor.value);
+    const distance = baseRgb.reduce((sum, channel, index) => {
+      const delta = channel - rgb[index];
+      return sum + delta * delta;
+    }, 0);
+    return distance < closest.distance ? { baseColor, distance } : closest;
+  }, { baseColor: BASE_COLORS[0], distance: Number.POSITIVE_INFINITY }).baseColor;
+}
+
+function setColorInputValue(input, value) {
+  input.value = value;
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+function closeOtherColorPickers(activePicker) {
+  document.querySelectorAll('.color-picker.is-open').forEach((picker) => {
+    if (picker !== activePicker) {
+      picker.classList.remove('is-open');
+      picker
+        .querySelector('.color-picker__trigger')
+        ?.setAttribute('aria-expanded', 'false');
+    }
+  });
+}
+
+function initializeColorPickers() {
+  const pickerElements = document.querySelectorAll('[data-color-picker]');
+
+  for (const pickerElement of pickerElements) {
+    const input = document.querySelector(`#${pickerElement.dataset.colorPicker}`);
+    if (!input) continue;
+
+    const allowNone = pickerElement.dataset.allowNone === 'true';
+    let selectedBase = findClosestBaseColor(input.value);
+
+    const triggerButton = document.createElement('button');
+    triggerButton.className = 'color-picker__trigger';
+    triggerButton.type = 'button';
+    triggerButton.setAttribute('aria-expanded', 'false');
+
+    const selectedSwatch = document.createElement('span');
+    selectedSwatch.className = 'color-picker__selected-swatch';
+
+    const selectedLabel = document.createElement('span');
+    selectedLabel.className = 'color-picker__selected-label';
+
+    triggerButton.append(selectedSwatch, selectedLabel);
+
+    const panel = document.createElement('div');
+    panel.className = 'color-picker__panel';
+
+    const baseGrid = document.createElement('div');
+    baseGrid.className = 'color-picker__grid';
+
+    const shadeGrid = document.createElement('div');
+    shadeGrid.className = 'color-picker__grid color-picker__grid--shades';
+
+    const resetButton = document.createElement('button');
+    resetButton.className = 'color-picker__reset';
+    resetButton.type = 'button';
+    resetButton.title = 'Не рисовать';
+    resetButton.setAttribute('aria-label', 'Не рисовать');
+    resetButton.innerHTML = `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M18 6 6 18" />
+        <path d="m6 6 12 12" />
+      </svg>
+    `;
+    resetButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      setColorInputValue(input, 'none');
+      renderPicker();
+    });
+
+    panel.append(baseGrid, shadeGrid);
+    if (allowNone) {
+      const pickerRow = document.createElement('div');
+      pickerRow.className = 'color-picker__row';
+      pickerRow.append(triggerButton, resetButton);
+      pickerElement.append(pickerRow, panel);
+    } else {
+      pickerElement.append(triggerButton, panel);
+    }
+
+    triggerButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      closeOtherColorPickers(pickerElement);
+      pickerElement.classList.add('is-open');
+      triggerButton.setAttribute('aria-expanded', 'true');
+    });
+
+    pickerElement.addEventListener('click', (event) => {
+      event.stopPropagation();
+    });
+
+    function renderButton(color, label, onClick, isActive) {
+      const button = document.createElement('button');
+      button.className = 'color-picker__swatch';
+      button.type = 'button';
+      button.title = label;
+      button.setAttribute('aria-label', label);
+      button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+      button.style.background = color;
+      if (isActive) button.classList.add('is-active');
+      button.addEventListener('click', (event) => {
+        event.stopPropagation();
+        onClick();
+      });
+      return button;
+    }
+
+    function renderPicker() {
+      const value = input.value;
+      const isNone = isNoneColor(value);
+      const shades = getShades(selectedBase.value);
+
+      selectedSwatch.style.background = isNone ? 'transparent' : value;
+      selectedSwatch.classList.toggle('is-none', isNone);
+      selectedLabel.textContent = isNone ? 'не рисовать' : value.toUpperCase();
+      triggerButton.setAttribute('aria-label', `Выбрать цвет: ${selectedLabel.textContent}`);
+      resetButton.classList.toggle('is-active', isNone);
+
+      baseGrid.replaceChildren(
+        ...BASE_COLORS.map((baseColor) =>
+          renderButton(
+            baseColor.value,
+            baseColor.name,
+            () => {
+              selectedBase = baseColor;
+              setColorInputValue(input, baseColor.value);
+              renderPicker();
+            },
+            !isNone && selectedBase.value === baseColor.value,
+          ),
+        ),
+      );
+
+      shadeGrid.replaceChildren(
+        ...shades.map((shade, index) =>
+          renderButton(
+            shade,
+            `Оттенок ${index + 1}`,
+            () => {
+              setColorInputValue(input, shade);
+              renderPicker();
+            },
+            !isNone && value.toLowerCase() === shade,
+          ),
+        ),
+      );
+    }
+
+    input.addEventListener('change', () => {
+      selectedBase = findClosestBaseColor(input.value);
+      renderPicker();
+    });
+    renderPicker();
+  }
+
+  document.addEventListener('click', (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (target.closest('.color-picker')) return;
+    closeOtherColorPickers();
+  });
 }
 
 function escapeAssText(text) {
-  return text
+  return String(text || '')
     .replace(/\r\n/g, '\n')
     .replace(/\r/g, '\n')
     .split('\n')
-    .map((line) => line.replace(/[{}]/g, ''))
     .join('\\N');
+}
+
+function stripAssMarkup(text) {
+  return String(text || '')
+    .replace(/\{[^}]*\}/g, '')
+    .replace(/\\N/g, '\n')
+    .replace(/\\n/g, '\n')
+    .trim();
 }
 
 function sanitizeAssName(name) {
   return name.replace(/,/g, ' ').trim() || 'Default';
+}
+
+function setCurrentVideoMetaLink(url, fallbackText = '') {
+  if (!currentVideoMeta) return;
+
+  if (!url) {
+    currentVideoMeta.removeAttribute('href');
+    currentVideoMeta.textContent = fallbackText;
+    currentVideoMeta.hidden = !fallbackText;
+    return;
+  }
+
+  currentVideoMeta.href = url;
+  currentVideoMeta.textContent = url;
+  currentVideoMeta.hidden = false;
+}
+
+function formatPreviewFontFamily(fontName) {
+  const family = (fontName || 'Inter').trim();
+  if (!BUNDLED_FONT_FAMILIES.has(family)) {
+    return `${family}, Inter, sans-serif`;
+  }
+
+  return `"${family}", Inter, sans-serif`;
+}
+
+function normalizeStyle(style) {
+  const primaryColor = style.primaryColor || style.color || '#ffffff';
+  const resolvedPosition =
+    getPositionById(style.positionId) ||
+    getPositionByLegacy(style.position) ||
+    defaultPosition();
+
+  return {
+    ...style,
+    name: style.name || 'Default',
+    font: style.font || 'Inter',
+    fontSize: Number(style.fontSize) || 72,
+    primaryColor: isNoneColor(primaryColor) ? '#ffffff' : primaryColor,
+    secondaryColor: style.secondaryColor ?? '#000000',
+    outlineColor: style.outlineColor ?? '#10181c',
+    backColor: style.backColor ?? '#000000',
+    positionId: resolvedPosition.id,
+    position: resolvedPosition,
+  };
+}
+
+function applySubtitlePreviewStyle(element, style, scale = 1) {
+  const normalizedStyle = normalizeStyle(style || {});
+  const fontSize = Math.max(14, Math.round(normalizedStyle.fontSize * scale));
+  const shadows = [];
+
+  element.style.color = normalizedStyle.primaryColor;
+  element.style.fontFamily = formatPreviewFontFamily(normalizedStyle.font);
+  element.style.fontSize = `${fontSize}px`;
+  element.style.background = isNoneColor(normalizedStyle.backColor)
+    ? 'transparent'
+    : normalizedStyle.backColor;
+  element.style.padding = isNoneColor(normalizedStyle.backColor) ? '0' : '0.08em 0.18em';
+  element.style.borderRadius = isNoneColor(normalizedStyle.backColor) ? '0' : '4px';
+
+  if (!isNoneColor(normalizedStyle.outlineColor)) {
+    const outlineSize = Math.max(1, Math.round(fontSize / 18));
+    shadows.push(
+      `${outlineSize}px 0 0 ${normalizedStyle.outlineColor}`,
+      `-${outlineSize}px 0 0 ${normalizedStyle.outlineColor}`,
+      `0 ${outlineSize}px 0 ${normalizedStyle.outlineColor}`,
+      `0 -${outlineSize}px 0 ${normalizedStyle.outlineColor}`,
+      `${outlineSize}px ${outlineSize}px 0 ${normalizedStyle.outlineColor}`,
+    );
+  }
+
+  if (!isNoneColor(normalizedStyle.backColor)) {
+    shadows.push(`0 ${Math.max(1, Math.round(fontSize / 12))}px 0 rgba(0, 0, 0, 0.28)`);
+  }
+
+  element.style.textShadow = shadows.join(', ');
 }
 
 function generateAss() {
@@ -326,21 +744,26 @@ function generateAss() {
           id: 'default',
           name: 'Default',
           font: 'Inter',
-          color: '#ffffff',
-          position: 'bottom-center',
+          fontSize: 72,
+          primaryColor: '#ffffff',
+          secondaryColor: '#000000',
+          outlineColor: '#10181c',
+          backColor: '#000000',
+          positionId: defaultPosition().id,
         },
       ];
 
-  const styleLines = styles.map((style) => {
+  const styleLines = styles.map((rawStyle) => {
+    const style = normalizeStyle(rawStyle);
     const name = sanitizeAssName(style.name);
     return [
       `Style: ${name}`,
       style.font,
-      72,
-      colorToAss(style.color),
-      '&H80000000',
-      '&H0010181C',
-      '&H00000000',
+      style.fontSize,
+      colorToAss(style.primaryColor),
+      colorToAss(style.secondaryColor),
+      colorToAss(style.outlineColor),
+      colorToAss(style.backColor),
       -1,
       0,
       0,
@@ -350,29 +773,30 @@ function generateAss() {
       0,
       0,
       1,
-      4,
-      2,
+      isNoneColor(style.outlineColor) ? 0 : 4,
+      isNoneColor(style.backColor) ? 0 : 2,
       24,
       24,
       120,
-      assAlignment(style.position),
+      style.position.alignment,
       1,
     ].join(',');
   });
 
   const cueLines = cachedCues.map((cue) => {
-    const style = getStyleById(cue.styleId);
+    const style = normalizeStyle(getStyleById(cue.styleId) || {});
+    const positionOverride = `{\\pos(${style.position.x},${style.position.y})}`;
     return [
       'Dialogue: 0',
       formatAssTime(cue.start),
       formatAssTime(cue.end),
-      sanitizeAssName(style?.name || 'Default'),
+      sanitizeAssName(style.name),
       '',
       0,
       0,
       0,
       '',
-      escapeAssText(cue.text),
+      `${positionOverride}${escapeAssText(cue.text)}`,
     ].join(',');
   });
 
@@ -408,24 +832,106 @@ function renderStyleOptions() {
   cueStyleInput.disabled = cachedStyles.length === 0;
 }
 
+function renderPositionOptions() {
+  const currentValue = stylePositionInput.value;
+  stylePositionInput.replaceChildren();
+
+  for (const position of cachedPositions) {
+    const option = document.createElement('option');
+    option.value = position.id;
+    option.textContent = `${position.name} (${position.x}, ${position.y})`;
+    stylePositionInput.append(option);
+  }
+
+  stylePositionInput.disabled = cachedPositions.length === 0;
+  if (cachedPositions.some((position) => position.id === currentValue)) {
+    stylePositionInput.value = currentValue;
+  } else if (cachedPositions[0]) {
+    stylePositionInput.value = cachedPositions[0].id;
+  }
+}
+
+function renderPositions() {
+  positionList.replaceChildren();
+  positionsEmptyState.hidden = cachedPositions.length > 0;
+
+  for (const position of cachedPositions) {
+    const item = document.createElement('article');
+    item.className = 'position-item';
+
+    const body = document.createElement('div');
+    const title = document.createElement('h4');
+    title.textContent = position.name;
+    const meta = document.createElement('p');
+    meta.textContent = `x ${position.x} · y ${position.y} · align ${position.alignment}`;
+    body.append(title, meta);
+
+    const actions = document.createElement('div');
+    actions.className = 'item-actions';
+
+    const editButton = document.createElement('button');
+    editButton.className = 'icon-button edit-button';
+    editButton.type = 'button';
+    editButton.title = 'Редактировать позицию';
+    editButton.textContent = 'Изм.';
+    editButton.addEventListener('click', () => {
+      startPositionEdit(position);
+    });
+
+    const removeButton = document.createElement('button');
+    removeButton.className = 'icon-button';
+    removeButton.type = 'button';
+    removeButton.title = 'Удалить позицию';
+    removeButton.textContent = '×';
+    removeButton.disabled = cachedPositions.length <= 1;
+    removeButton.addEventListener('click', async () => {
+      if (cachedPositions.length <= 1) return;
+      if (editingPositionId === position.id) resetPositionForm();
+
+      const fallback = cachedPositions.find((item) => item.id !== position.id);
+      await deletePosition(position.id);
+      await Promise.all(
+        (await readStyles())
+          .filter((style) => style.positionId === position.id)
+          .map((style) => saveStyle({ ...style, positionId: fallback.id })),
+      );
+      await destroyJassubRenderer();
+      await refreshEditor();
+    });
+
+    actions.append(editButton, removeButton);
+    item.append(body, actions);
+    positionList.append(item);
+  }
+
+  renderPositionOptions();
+}
+
 function renderStyles() {
   styleList.replaceChildren();
   stylesEmptyState.hidden = cachedStyles.length > 0;
 
-  for (const style of cachedStyles) {
+  for (const rawStyle of cachedStyles) {
+    const style = normalizeStyle(rawStyle);
     const item = document.createElement('article');
     item.className = 'style-item';
 
     const swatch = document.createElement('span');
     swatch.className = 'style-swatch';
-    swatch.style.background = style.color;
+    swatch.style.background = style.primaryColor;
 
     const body = document.createElement('div');
     const title = document.createElement('h4');
     title.textContent = style.name;
     const meta = document.createElement('p');
-    meta.textContent = `${style.font} · ${positionLabel(style.position)}`;
-    body.append(title, meta);
+    meta.textContent = `${style.font} · ${style.fontSize}px · ${positionLabel(style.position)}`;
+
+    const preview = document.createElement('p');
+    preview.className = 'style-item__preview';
+    preview.textContent = 'Превью субтитра';
+    applySubtitlePreviewStyle(preview, style, 0.34);
+
+    body.append(title, preview, meta);
 
     const actions = document.createElement('div');
     actions.className = 'item-actions';
@@ -469,7 +975,7 @@ function renderCues() {
   cuesEmptyState.hidden = cachedCues.length > 0;
 
   for (const cue of cachedCues) {
-    const style = getStyleById(cue.styleId);
+    const style = normalizeStyle(getStyleById(cue.styleId) || {});
     const item = document.createElement('article');
     item.className = 'cue-item';
 
@@ -479,15 +985,12 @@ function renderCues() {
 
     const text = document.createElement('p');
     text.className = 'cue-item__text';
-    text.textContent = cue.text;
-    if (style) {
-      text.style.color = style.color;
-      text.style.fontFamily = style.font;
-    }
+    text.textContent = stripAssMarkup(cue.text) || cue.text;
+    applySubtitlePreviewStyle(text, style, 0.34);
 
     const meta = document.createElement('p');
     meta.className = 'cue-item__meta';
-    meta.textContent = style
+    meta.textContent = style.name
       ? `${style.name} · ${positionLabel(style.position)}`
       : 'Стиль удален';
 
@@ -523,7 +1026,12 @@ function renderCues() {
 function resetStyleForm() {
   editingStyleId = undefined;
   styleForm.reset();
-  styleColorInput.value = '#ffffff';
+  styleFontSizeInput.value = '72';
+  setColorInputValue(stylePrimaryColorInput, '#ffffff');
+  setColorInputValue(styleSecondaryColorInput, '#000000');
+  setColorInputValue(styleOutlineColorInput, '#10181c');
+  setColorInputValue(styleBackColorInput, '#000000');
+  stylePositionInput.value = defaultPosition().id;
   styleSubmitButton.textContent = 'Добавить стиль';
   cancelStyleEditButton.hidden = true;
 }
@@ -535,12 +1043,27 @@ function resetCueForm() {
   cancelCueEditButton.hidden = true;
 }
 
+function resetPositionForm() {
+  editingPositionId = undefined;
+  positionForm.reset();
+  positionXInput.value = '540';
+  positionYInput.value = '1700';
+  positionAlignmentInput.value = '2';
+  positionSubmitButton.textContent = 'Добавить позицию';
+  cancelPositionEditButton.hidden = true;
+}
+
 function startStyleEdit(style) {
-  editingStyleId = style.id;
-  styleNameInput.value = style.name;
-  styleFontInput.value = style.font;
-  styleColorInput.value = style.color;
-  stylePositionInput.value = style.position;
+  const normalizedStyle = normalizeStyle(style);
+  editingStyleId = normalizedStyle.id;
+  styleNameInput.value = normalizedStyle.name;
+  styleFontInput.value = normalizedStyle.font;
+  styleFontSizeInput.value = String(normalizedStyle.fontSize);
+  setColorInputValue(stylePrimaryColorInput, normalizedStyle.primaryColor);
+  setColorInputValue(styleSecondaryColorInput, normalizedStyle.secondaryColor);
+  setColorInputValue(styleOutlineColorInput, normalizedStyle.outlineColor);
+  setColorInputValue(styleBackColorInput, normalizedStyle.backColor);
+  stylePositionInput.value = normalizedStyle.positionId;
   styleSubmitButton.textContent = 'Сохранить стиль';
   cancelStyleEditButton.hidden = false;
   styleNameInput.focus();
@@ -555,6 +1078,17 @@ function startCueEdit(cue) {
   cueSubmitButton.textContent = 'Сохранить реплику';
   cancelCueEditButton.hidden = false;
   cueTextInput.focus();
+}
+
+function startPositionEdit(position) {
+  editingPositionId = position.id;
+  positionNameInput.value = position.name;
+  positionXInput.value = String(position.x);
+  positionYInput.value = String(position.y);
+  positionAlignmentInput.value = String(position.alignment);
+  positionSubmitButton.textContent = 'Сохранить позицию';
+  cancelPositionEditButton.hidden = false;
+  positionNameInput.focus();
 }
 
 function currentPreviewCue() {
@@ -604,12 +1138,12 @@ function renderVideoSubtitleOverlay(cue, style) {
   }
 
   videoSubtitleOverlay.hidden = false;
+  const normalizedStyle = normalizeStyle(style || {});
   videoSubtitleOverlay.className = `video-subtitle-overlay video-subtitle-overlay--${
-    style?.position || 'bottom-center'
+    normalizedStyle.position.legacy || 'bottom-center'
   }`;
-  videoSubtitleOverlay.textContent = cue.text;
-  videoSubtitleOverlay.style.color = style?.color || '#ffffff';
-  videoSubtitleOverlay.style.fontFamily = style?.font || 'Inter';
+  videoSubtitleOverlay.textContent = stripAssMarkup(cue.text) || cue.text;
+  applySubtitlePreviewStyle(videoSubtitleOverlay, normalizedStyle, 0.5);
 }
 
 function loadJassubModule() {
@@ -671,6 +1205,7 @@ async function renderJassubPreview() {
       const JASSUB = await loadJassubModule();
       if (token !== jassubRenderToken) return;
 
+      const fontConfig = buildJassubFontConfig();
       jassubRenderer = new JASSUB({
         video: currentVideo,
         subContent: ass,
@@ -678,8 +1213,9 @@ async function renderJassubPreview() {
         wasmUrl: JASSUB_WASM_URL,
         modernWasmUrl: JASSUB_MODERN_WASM_URL,
         defaultFont: 'liberation sans',
-        fonts: [new URL('vendor/jassub/default.woff2', SUBS_ASSET_BASE_URL).href],
-        queryFonts: 'local',
+        fonts: fontConfig.fonts,
+        availableFonts: fontConfig.availableFonts,
+        queryFonts: false,
       });
       await jassubRenderer.ready;
       await jassubRenderer.renderer.setTrack(ass);
@@ -713,6 +1249,31 @@ function renderAssOutput() {
   downloadAssButton.disabled = cachedCues.length === 0;
 }
 
+function updateVideoControls() {
+  const duration = Number.isFinite(currentVideo.duration) ? currentVideo.duration : 0;
+  const currentTime = Number.isFinite(currentVideo.currentTime) ? currentVideo.currentTime : 0;
+
+  videoPlayButton.innerHTML = currentVideo.paused
+    ? VIDEO_ICONS.play
+    : VIDEO_ICONS.pause;
+  videoPlayButton.setAttribute(
+    'aria-label',
+    currentVideo.paused ? 'Воспроизвести' : 'Пауза',
+  );
+  videoMuteButton.innerHTML = currentVideo.muted
+    ? VIDEO_ICONS.muted
+    : VIDEO_ICONS.volume;
+  videoMuteButton.setAttribute(
+    'aria-label',
+    currentVideo.muted ? 'Включить звук' : 'Выключить звук',
+  );
+  videoSeekInput.max = String(duration);
+  if (document.activeElement !== videoSeekInput) {
+    videoSeekInput.value = String(currentTime);
+  }
+  videoTimeLabel.textContent = `${formatVideoTime(currentTime)} / ${formatVideoTime(duration)}`;
+}
+
 function renderExport() {
   renderAssOutput();
   void renderJassubPreview();
@@ -726,15 +1287,35 @@ async function ensureDefaultStyle() {
     id: createId('style'),
     name: 'Default',
     font: 'Inter',
-    color: '#ffffff',
-    position: 'bottom-center',
+    fontSize: 72,
+    primaryColor: '#ffffff',
+    secondaryColor: '#000000',
+    outlineColor: '#10181c',
+    backColor: '#000000',
+    positionId: defaultPosition().id,
     createdAt: new Date().toISOString(),
   });
 }
 
+async function ensureDefaultPositions() {
+  const positions = await readPositions();
+  if (positions.length > 0) return;
+
+  await Promise.all(
+    DEFAULT_POSITIONS.map((position, index) =>
+      savePosition({
+        ...position,
+        createdAt: new Date(Date.now() + index).toISOString(),
+      }),
+    ),
+  );
+}
+
 async function refreshEditor() {
+  cachedPositions = await readPositions();
   cachedStyles = await readStyles();
   cachedCues = await readCues();
+  renderPositions();
   renderStyles();
   renderCues();
   renderExport();
@@ -785,7 +1366,7 @@ async function loadCurrentVideo() {
   const hash = match[1];
   const response = await fetch(`/subs-api/videos/${hash}`);
   if (!response.ok) {
-    currentVideoMeta.textContent = 'Не удалось получить данные по этой ссылке.';
+    setCurrentVideoMetaLink(null, 'Не удалось получить данные по этой ссылке.');
     currentVideoSection.hidden = false;
     return;
   }
@@ -793,8 +1374,9 @@ async function loadCurrentVideo() {
   const video = await response.json();
   await destroyJassubRenderer();
   currentVideo.src = video.videoUrl;
-  currentVideoMeta.textContent = video.absolutePageUrl;
+  setCurrentVideoMetaLink(video.absolutePageUrl);
   currentVideoSection.hidden = false;
+  updateVideoControls();
   void renderJassubPreview();
 
   const saved = await readVideos();
@@ -850,22 +1432,47 @@ clearLinksButton.addEventListener('click', async () => {
 });
 
 currentVideo.addEventListener('timeupdate', () => {
+  updateVideoControls();
   updatePreviewMeta();
   if (currentVideo.paused) void repaintJassubFrame();
 });
 currentVideo.addEventListener('seeked', () => {
+  updateVideoControls();
   updatePreviewMeta();
   void repaintJassubFrame();
 });
 currentVideo.addEventListener('loadedmetadata', () => {
+  updateVideoControls();
   updatePreviewMeta();
   void renderJassubPreview();
 });
 currentVideo.addEventListener('loadeddata', () => {
+  updateVideoControls();
   void repaintJassubFrame();
 });
 currentVideo.addEventListener('play', () => {
+  updateVideoControls();
   void repaintJassubFrame();
+});
+currentVideo.addEventListener('pause', updateVideoControls);
+currentVideo.addEventListener('volumechange', updateVideoControls);
+
+videoPlayButton.addEventListener('click', () => {
+  if (currentVideo.paused) {
+    void currentVideo.play();
+  } else {
+    currentVideo.pause();
+  }
+});
+
+videoSeekInput.addEventListener('input', () => {
+  currentVideo.currentTime = Number(videoSeekInput.value) || 0;
+  updateVideoControls();
+  void repaintJassubFrame();
+});
+
+videoMuteButton.addEventListener('click', () => {
+  currentVideo.muted = !currentVideo.muted;
 });
 
 styleForm.addEventListener('submit', async (event) => {
@@ -876,12 +1483,17 @@ styleForm.addEventListener('submit', async (event) => {
     id: editingStyleId || createId('style'),
     name: styleNameInput.value.trim(),
     font: styleFontInput.value,
-    color: styleColorInput.value,
-    position: stylePositionInput.value,
+    fontSize: Number(styleFontSizeInput.value) || 72,
+    primaryColor: stylePrimaryColorInput.value,
+    secondaryColor: styleSecondaryColorInput.value,
+    outlineColor: styleOutlineColorInput.value,
+    backColor: styleBackColorInput.value,
+    positionId: stylePositionInput.value,
     createdAt: existingStyle?.createdAt || new Date().toISOString(),
   });
 
   resetStyleForm();
+  await destroyJassubRenderer();
   await refreshEditor();
 });
 
@@ -908,6 +1520,27 @@ cueForm.addEventListener('submit', async (event) => {
 
 cancelStyleEditButton.addEventListener('click', resetStyleForm);
 cancelCueEditButton.addEventListener('click', resetCueForm);
+cancelPositionEditButton.addEventListener('click', resetPositionForm);
+
+positionForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+
+  const existingPosition = editingPositionId
+    ? cachedPositions.find((position) => position.id === editingPositionId)
+    : undefined;
+  await savePosition({
+    id: editingPositionId || createId('position'),
+    name: positionNameInput.value.trim(),
+    x: Math.round(Number(positionXInput.value) || 0),
+    y: Math.round(Number(positionYInput.value) || 0),
+    alignment: Number(positionAlignmentInput.value) || 2,
+    createdAt: existingPosition?.createdAt || new Date().toISOString(),
+  });
+
+  resetPositionForm();
+  await destroyJassubRenderer();
+  await refreshEditor();
+});
 
 downloadAssButton.addEventListener('click', () => {
   const blob = new Blob([assOutput.value], {
@@ -928,7 +1561,11 @@ refreshPreviewButton.addEventListener('click', () => {
 });
 
 async function init() {
+  initializeColorPickers();
+  updateVideoControls();
   await loadCurrentVideo();
+  await ensureDefaultPositions();
+  cachedPositions = await readPositions();
   await ensureDefaultStyle();
   await refreshList();
   await refreshEditor();
