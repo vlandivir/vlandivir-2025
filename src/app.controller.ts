@@ -41,4 +41,9 @@ export class AppController {
   getSubsVideoPage(@Res() res: Response): void {
     res.sendFile(path.join(process.cwd(), 'web', 'subs', 'index.html'));
   }
+
+  @Get('font')
+  getFontPicker(@Res() res: Response): void {
+    res.sendFile(path.join(process.cwd(), 'web', 'subs', 'font', 'index.html'));
+  }
 }

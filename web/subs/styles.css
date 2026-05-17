@@ -795,6 +795,29 @@ pre {
   gap: 12px;
 }
 
+.editor-field-grid--motion {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.cue-motion {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: #f9fbf8;
+}
+
+.cue-motion__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.cue-motion__title code {
+  font-size: 12px;
+}
+
 .editor-field-grid--position {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
 }
@@ -807,6 +830,25 @@ pre {
   color: var(--muted);
   font-size: 13px;
   font-weight: 800;
+}
+
+.editor-field__label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.font-picker-link {
+  color: var(--green-dark);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.font-picker-link:hover {
+  text-decoration: underline;
 }
 
 .editor-field input,

@@ -1,9 +1,9 @@
-const DB_NAME = 'subs-project';
-const DB_VERSION = 3;
-const VIDEO_STORE = 'videos';
-const STYLE_STORE = 'styles';
-const CUE_STORE = 'cues';
-const POSITION_STORE = 'positions';
+const SF = window.SubsFonts;
+const DB_NAME = SF.DB_NAME;
+const VIDEO_STORE = SF.VIDEO_STORE;
+const STYLE_STORE = SF.STYLE_STORE;
+const CUE_STORE = SF.CUE_STORE;
+const POSITION_STORE = SF.POSITION_STORE;
 const DEFAULT_POSITIONS = [
   { id: 'position-bottom-center', name: 'Снизу по центру', x: 540, y: 1700, alignment: 2, legacy: 'bottom-center' },
   { id: 'position-bottom-left', name: 'Снизу слева', x: 140, y: 1700, alignment: 1, legacy: 'bottom-left' },
@@ -41,24 +41,27 @@ function subsFontUrl(fileName) {
   return new URL(fileName, SUBS_FONTS_BASE_URL).href;
 }
 
-const SUBTITLE_FONTS = [
-  { family: 'Bebas Neue', regular: 'bebas-neue-400.ttf', bold: 'bebas-neue-400.ttf' },
-  { family: 'Bebas Neue Cyrillic', regular: 'bebas-neue-cyrillic-400.ttf', bold: 'bebas-neue-cyrillic-400.ttf' },
-  { family: 'Exo 2', regular: 'exo-2-400.ttf', bold: 'exo-2-700.ttf' },
-  { family: 'IBM Plex Sans', regular: 'ibm-plex-sans-400.ttf', bold: 'ibm-plex-sans-700.ttf' },
-  { family: 'Manrope', regular: 'manrope-400.ttf', bold: 'manrope-700.ttf' },
-  { family: 'Montserrat', regular: 'montserrat-400.ttf', bold: 'montserrat-700.ttf' },
-  { family: 'Nunito Sans', regular: 'nunito-sans-400.ttf', bold: 'nunito-sans-700.ttf' },
-  { family: 'Oswald', regular: 'oswald-400.ttf', bold: 'oswald-700.ttf' },
-  { family: 'Roboto', regular: 'roboto-400.ttf', bold: 'roboto-700.ttf' },
-  { family: 'Roboto Condensed', regular: 'roboto-condensed-400.ttf', bold: 'roboto-condensed-700.ttf' },
-  { family: 'Rubik', regular: 'rubik-400.ttf', bold: 'rubik-700.ttf' },
-];
+const SUBTITLE_FONTS = SF.SUBTITLE_FONTS;
+const BUNDLED_FONT_FAMILIES = SF.VALID_FAMILIES;
+
+let enabledFontFamilies = [...SF.DEFAULT_ENABLED_FAMILIES];
+
+function getPickerSubtitleFonts() {
+  return SF.getFontsForFamilies(enabledFontFamilies);
+}
+
+function getJassubSubtitleFonts() {
+  const usedFamilies = cachedStyles
+    .map((style) => style.font)
+    .filter((font) => typeof font === 'string' && font.trim());
+  const families = [...new Set([...enabledFontFamilies, ...usedFamilies])];
+  return SF.getFontsForFamilies(families);
+}
 
 function buildJassubFontConfig() {
   const availableFonts = { 'liberation sans': JASSUB_DEFAULT_FONT_URL };
 
-  for (const font of SUBTITLE_FONTS) {
+  for (const font of getJassubSubtitleFonts()) {
     const family = font.family.toLowerCase();
     availableFonts[family] = subsFontUrl(font.regular);
     availableFonts[`${family} bold`] = subsFontUrl(font.bold);
@@ -70,7 +73,55 @@ function buildJassubFontConfig() {
   };
 }
 
-const BUNDLED_FONT_FAMILIES = new Set(SUBTITLE_FONTS.map((font) => font.family));
+async function loadEnabledFontFamilies() {
+  enabledFontFamilies = await SF.readEnabledFontFamilies();
+}
+
+function populateStyleFontOptions() {
+  if (!styleFontInput) return;
+
+  const currentValue = styleFontInput.value;
+  const pickerFonts = getPickerSubtitleFonts().sort((a, b) =>
+    a.family.localeCompare(b.family, 'ru', { sensitivity: 'base' }),
+  );
+  styleFontInput.replaceChildren();
+
+  if (pickerFonts.length === 0) {
+    const option = document.createElement('option');
+    option.value = '';
+    option.textContent = 'Выберите шрифты на /font';
+    option.disabled = true;
+    option.selected = true;
+    styleFontInput.append(option);
+    styleFontInput.disabled = true;
+    return;
+  }
+
+  styleFontInput.disabled = false;
+
+  for (const font of pickerFonts) {
+    const option = document.createElement('option');
+    option.value = font.family;
+    option.textContent = font.family;
+    styleFontInput.append(option);
+  }
+
+  const hasCurrent = pickerFonts.some((font) => font.family === currentValue);
+  const fallback = pickerFonts.some((font) => font.family === 'Montserrat')
+    ? 'Montserrat'
+    : pickerFonts[0].family;
+  styleFontInput.value = hasCurrent ? currentValue : fallback;
+}
+
+async function reloadFontPickerFromDb() {
+  const previous = enabledFontFamilies.join('\0');
+  await loadEnabledFontFamilies();
+  if (previous === enabledFontFamilies.join('\0')) return;
+
+  populateStyleFontOptions();
+  await destroyJassubRenderer();
+  await renderJassubPreview();
+}
 
 const BASE_COLORS = [
   { name: 'Белый и черный', value: '#ffffff', split: true },
@@ -146,6 +197,10 @@ const cueTextInput = document.querySelector('#cueTextInput');
 const cueStartInput = document.querySelector('#cueStartInput');
 const cueEndInput = document.querySelector('#cueEndInput');
 const cueStyleInput = document.querySelector('#cueStyleInput');
+const cueMotionDxInput = document.querySelector('#cueMotionDxInput');
+const cueMotionDyInput = document.querySelector('#cueMotionDyInput');
+const cueMotionStartMsInput = document.querySelector('#cueMotionStartMsInput');
+const cueMotionMsInput = document.querySelector('#cueMotionMsInput');
 const cueSubmitButton = document.querySelector('#cueSubmitButton');
 const cancelCueEditButton = document.querySelector('#cancelCueEditButton');
 const cueList = document.querySelector('#cueList');
@@ -155,7 +210,6 @@ const assOutput = document.querySelector('#assOutput');
 const downloadAssButton = document.querySelector('#downloadAssButton');
 const refreshPreviewButton = document.querySelector('#refreshPreviewButton');
 
-let dbPromise;
 let cachedStyles = [];
 let cachedCues = [];
 let cachedPositions = [];
@@ -169,37 +223,7 @@ let editingCueId;
 let editingPositionId;
 
 function openDb() {
-  if (dbPromise) return dbPromise;
-
-  dbPromise = new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(VIDEO_STORE)) {
-        const store = db.createObjectStore(VIDEO_STORE, { keyPath: 'hash' });
-        store.createIndex('createdAt', 'createdAt');
-      }
-      if (!db.objectStoreNames.contains(STYLE_STORE)) {
-        const store = db.createObjectStore(STYLE_STORE, { keyPath: 'id' });
-        store.createIndex('createdAt', 'createdAt');
-      }
-      if (!db.objectStoreNames.contains(CUE_STORE)) {
-        const store = db.createObjectStore(CUE_STORE, { keyPath: 'id' });
-        store.createIndex('start', 'start');
-        store.createIndex('styleId', 'styleId');
-      }
-      if (!db.objectStoreNames.contains(POSITION_STORE)) {
-        const store = db.createObjectStore(POSITION_STORE, { keyPath: 'id' });
-        store.createIndex('createdAt', 'createdAt');
-      }
-    };
-
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-
-  return dbPromise;
+  return SF.openDb();
 }
 
 async function readStore(storeName) {
@@ -736,6 +760,62 @@ function sanitizeAssName(name) {
   return name.replace(/,/g, ' ').trim() || 'Default';
 }
 
+function normalizeCueMotion(cue) {
+  if (!cue) return null;
+
+  const motionMs = Math.round(Number(cue.motionMs));
+  const motionStartMs = Math.max(0, Math.round(Number(cue.motionStartMs) || 0));
+  const motionDx = Math.round(Number(cue.motionDx) || 0);
+  const motionDy = Math.round(Number(cue.motionDy) || 0);
+
+  if (!Number.isFinite(motionMs) || motionMs <= 0) return null;
+  if (motionDx === 0 && motionDy === 0) return null;
+
+  return { motionDx, motionDy, motionStartMs, motionMs };
+}
+
+function readCueMotionFromForm() {
+  const motionMs = Math.round(Number(cueMotionMsInput?.value));
+  const motionStartMs = Math.max(0, Math.round(Number(cueMotionStartMsInput?.value) || 0));
+  const motionDx = Math.round(Number(cueMotionDxInput?.value) || 0);
+  const motionDy = Math.round(Number(cueMotionDyInput?.value) || 0);
+
+  if (!Number.isFinite(motionMs) || motionMs <= 0) {
+    return {
+      motionDx: 0,
+      motionDy: 0,
+      motionStartMs: 0,
+      motionMs: 0,
+    };
+  }
+
+  return { motionDx, motionDy, motionStartMs, motionMs };
+}
+
+function formatCueMotionLabel(cue) {
+  const motion = normalizeCueMotion(cue);
+  if (!motion) return '';
+
+  const endMs = motion.motionStartMs + motion.motionMs;
+  return ` · move Δ${motion.motionDx},${motion.motionDy} ${motion.motionStartMs}→${endMs}мс`;
+}
+
+function buildCuePositionPrefix(style, cue) {
+  const x = Math.round(style.position.x);
+  const y = Math.round(style.position.y);
+  const motion = normalizeCueMotion(cue);
+
+  if (!motion) {
+    return `{\\pos(${x},${y})}`;
+  }
+
+  const endX = x + motion.motionDx;
+  const endY = y + motion.motionDy;
+  const moveStartMs = motion.motionStartMs;
+  const moveEndMs = motion.motionStartMs + motion.motionMs;
+  return `{\\move(${x},${y},${endX},${endY},${moveStartMs},${moveEndMs})}`;
+}
+
 function setCurrentVideoMetaLink(url, fallbackText = '') {
   if (!currentVideoMeta) return;
 
@@ -936,7 +1016,7 @@ function generateAss() {
 
   const cueLines = cachedCues.map((cue) => {
     const style = normalizeStyle(getStyleById(cue.styleId) || {});
-    const positionOverride = `{\\pos(${style.position.x},${style.position.y})}`;
+    const positionPrefix = buildCuePositionPrefix(style, cue);
     return [
       'Dialogue: 0',
       formatAssTime(cue.start),
@@ -947,7 +1027,7 @@ function generateAss() {
       0,
       0,
       '',
-      `${positionOverride}${escapeAssText(cue.text)}`,
+      `${positionPrefix}${escapeAssText(cue.text)}`,
     ].join(',');
   });
 
@@ -1143,7 +1223,7 @@ function renderCues() {
     const meta = document.createElement('p');
     meta.className = 'cue-item__meta';
     meta.textContent = style.name
-      ? `${style.name} · ${positionLabel(style.position)}`
+      ? `${style.name} · ${positionLabel(style.position)}${formatCueMotionLabel(cue)}`
       : 'Стиль удален';
 
     const actions = document.createElement('div');
@@ -1194,6 +1274,10 @@ function resetStyleForm() {
 function resetCueForm() {
   editingCueId = undefined;
   cueForm.reset();
+  if (cueMotionDxInput) cueMotionDxInput.value = '';
+  if (cueMotionDyInput) cueMotionDyInput.value = '';
+  if (cueMotionStartMsInput) cueMotionStartMsInput.value = '';
+  if (cueMotionMsInput) cueMotionMsInput.value = '';
   cueSubmitButton.textContent = 'Добавить реплику';
   cancelCueEditButton.hidden = true;
 }
@@ -1233,6 +1317,16 @@ function startCueEdit(cue) {
   cueStartInput.value = formatTimeInput(cue.start);
   cueEndInput.value = formatTimeInput(cue.end);
   cueStyleInput.value = cue.styleId;
+  const motion = normalizeCueMotion(cue);
+  if (cueMotionDxInput) cueMotionDxInput.value = motion ? String(motion.motionDx) : '';
+  if (cueMotionDyInput) cueMotionDyInput.value = motion ? String(motion.motionDy) : '';
+  if (cueMotionStartMsInput) {
+    cueMotionStartMsInput.value =
+      motion && motion.motionStartMs > 0 ? String(motion.motionStartMs) : '';
+  }
+  if (cueMotionMsInput) {
+    cueMotionMsInput.value = motion ? String(motion.motionMs) : '';
+  }
   cueSubmitButton.textContent = 'Сохранить реплику';
   cancelCueEditButton.hidden = false;
   cueTextInput.focus();
@@ -1681,12 +1775,17 @@ cueForm.addEventListener('submit', async (event) => {
   const existingCue = editingCueId
     ? cachedCues.find((cue) => cue.id === editingCueId)
     : undefined;
+  const motion = readCueMotionFromForm();
   await saveCue({
     id: editingCueId || createId('cue'),
     text: cueTextInput.value.trim(),
     start: formatTimeInput(cueStartInput.value),
     end: formatTimeInput(cueEndInput.value),
     styleId: cueStyleInput.value,
+    motionDx: motion.motionDx,
+    motionDy: motion.motionDy,
+    motionStartMs: motion.motionStartMs,
+    motionMs: motion.motionMs,
     createdAt: existingCue?.createdAt || new Date().toISOString(),
   });
 
@@ -1742,7 +1841,15 @@ refreshPreviewButton.addEventListener('click', () => {
   void renderJassubPreview();
 });
 
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    void reloadFontPickerFromDb();
+  }
+});
+
 async function init() {
+  await loadEnabledFontFamilies();
+  populateStyleFontOptions();
   initializeColorPickers();
   renderAlignControl();
   updateVideoControls();

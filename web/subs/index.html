@@ -5,9 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="description" content="Subs ASS: проект для создания субтитров к видео в формате Advanced SubStation Alpha." />
 <title>Subs ASS</title>
-<link rel="stylesheet" href="fonts/fonts.css?v=20260517-5" />
-<link rel="stylesheet" href="styles.css?v=20260517-10" />
-<script src="app.js?v=20260517-7" defer></script>
+<link rel="stylesheet" href="fonts/fonts.css?v=20260517-8" />
+<link rel="stylesheet" href="styles.css?v=20260517-11" />
+<script src="fonts-shared.js?v=20260517-1"></script>
+<script src="app.js?v=20260517-16" defer></script>
 </head>
 <body>
 <header class="site-header">
@@ -130,21 +131,12 @@
           <input id="styleNameInput" type="text" maxlength="40" placeholder="Например: Default" required />
         </label>
         <div class="editor-field-grid editor-field-grid--style-type">
-          <label class="editor-field">
-            <span>Шрифт</span>
-            <select id="styleFontInput">
-              <option value="Bebas Neue">Bebas Neue</option>
-              <option value="Bebas Neue Cyrillic">Bebas Neue Cyrillic</option>
-              <option value="Exo 2">Exo 2</option>
-              <option value="IBM Plex Sans">IBM Plex Sans</option>
-              <option value="Manrope">Manrope</option>
-              <option value="Montserrat" selected>Montserrat</option>
-              <option value="Nunito Sans">Nunito Sans</option>
-              <option value="Oswald">Oswald</option>
-              <option value="Roboto">Roboto</option>
-              <option value="Roboto Condensed">Roboto Condensed</option>
-              <option value="Rubik">Rubik</option>
-            </select>
+          <label class="editor-field editor-field--font">
+            <span class="editor-field__label-row">
+              <span>Шрифт</span>
+              <a class="font-picker-link" href="/font">Все шрифты…</a>
+            </span>
+            <select id="styleFontInput"></select>
           </label>
           <label class="editor-field">
             <span>Размер</span>
@@ -227,6 +219,14 @@
             </ul>
           </article>
           <article>
+            <h4>Сдвиг позиции</h4>
+            <ul>
+              <li>В форме реплики: <strong>ΔX</strong>, <strong>ΔY</strong>, <strong>старт</strong> и <strong>длительность</strong> (мс).</li>
+              <li>Старт — позиция стиля, финиш — смещение на ΔX/ΔY.</li>
+              <li>В ASS: <code>{\move(x1,y1,x2,y2,200,700)}</code> — сдвиг с 200 до 700 мс.</li>
+            </ul>
+          </article>
+          <article>
             <h4>Пример целиком</h4>
             <pre class="ass-cheatsheet__sample"><code>{\fs90\c&amp;H00FFFF&amp;}{\k45}Бе{\k45}лый {\k60}текст</code></pre>
           </article>
@@ -253,6 +253,27 @@
           <span>Стиль</span>
           <select id="cueStyleInput" required></select>
         </label>
+        <div class="cue-motion">
+          <p class="cue-motion__title">Сдвиг позиции <code>{\move}</code></p>
+          <div class="editor-field-grid editor-field-grid--motion">
+            <label class="editor-field">
+              <span>ΔX, px</span>
+              <input id="cueMotionDxInput" type="number" step="1" />
+            </label>
+            <label class="editor-field">
+              <span>ΔY, px</span>
+              <input id="cueMotionDyInput" type="number" step="1" />
+            </label>
+            <label class="editor-field">
+              <span>Старт, мс</span>
+              <input id="cueMotionStartMsInput" type="number" min="0" step="1" />
+            </label>
+            <label class="editor-field">
+              <span>Длительность, мс</span>
+              <input id="cueMotionMsInput" type="number" min="0" step="1" />
+            </label>
+          </div>
+        </div>
         <div class="editor-actions">
           <button class="primary-link editor-submit" id="cueSubmitButton" type="submit">Добавить реплику</button>
           <button class="secondary-link editor-cancel" id="cancelCueEditButton" type="button" hidden>Отменить</button>

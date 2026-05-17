@@ -43,7 +43,9 @@ async function bootstrap() {
     const gpxRoutePng = path.join(process.cwd(), 'web', 'gpx-route-png');
     app.useStaticAssets(gpxRoutePng, { prefix: '/gpx-route-png' });
     const subsPage = path.join(process.cwd(), 'web', 'subs');
+    const fontPage = path.join(subsPage, 'font');
     app.useStaticAssets(subsPage, { prefix: '/subs' });
+    app.useStaticAssets(fontPage, { prefix: '/font' });
     // Fallback to index.html for SPA routes (use RegExp to avoid path-to-regexp issues)
     const instance = app.getHttpAdapter().getInstance();
     instance.get(/^\/mini-app(?:\/.*)?$/, (_req: unknown, res: Response) => {
@@ -61,6 +63,9 @@ async function bootstrap() {
         res.sendFile(path.join(subsPage, 'index.html'));
       },
     );
+    instance.get(/^\/font\/?$/, (_req: unknown, res: Response) => {
+      res.sendFile(path.join(fontPage, 'index.html'));
+    });
     await app.listen(443);
   } else {
     // Development mode - HTTP
@@ -73,7 +78,9 @@ async function bootstrap() {
     const gpxRoutePng = path.join(process.cwd(), 'web', 'gpx-route-png');
     app.useStaticAssets(gpxRoutePng, { prefix: '/gpx-route-png' });
     const subsPage = path.join(process.cwd(), 'web', 'subs');
+    const fontPage = path.join(subsPage, 'font');
     app.useStaticAssets(subsPage, { prefix: '/subs' });
+    app.useStaticAssets(fontPage, { prefix: '/font' });
     const instance = app.getHttpAdapter().getInstance();
     instance.get(/^\/mini-app(?:\/.*)?$/, (_req: unknown, res: Response) => {
       res.sendFile(path.join(miniAppDist, 'index.html'));
@@ -90,6 +97,9 @@ async function bootstrap() {
         res.sendFile(path.join(subsPage, 'index.html'));
       },
     );
+    instance.get(/^\/font\/?$/, (_req: unknown, res: Response) => {
+      res.sendFile(path.join(fontPage, 'index.html'));
+    });
     await app.listen(port);
     console.log(`Application is running on: http://localhost:${port}`);
   }
