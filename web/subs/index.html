@@ -8,8 +8,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="/subs/styles.css?v=20260516-1" />
-<script src="/subs/app.js?v=20260516-1" defer></script>
+<link rel="stylesheet" href="styles.css?v=20260516-5" />
+<script src="app.js?v=20260516-5" defer></script>
 </head>
 <body>
 <header class="site-header">
@@ -85,7 +85,10 @@
       <h2 id="current-video-title">Видео по hash</h2>
       <p class="current-video__meta" id="currentVideoMeta"></p>
     </div>
-    <video id="currentVideo" controls playsinline preload="metadata"></video>
+    <div class="video-preview-frame">
+      <video id="currentVideo" controls playsinline preload="metadata"></video>
+      <p class="video-subtitle-overlay" id="videoSubtitleOverlay" hidden></p>
+    </div>
   </section>
 
   <section class="saved-links" aria-labelledby="saved-title">
@@ -141,7 +144,10 @@
             <option value="middle-center">По центру кадра</option>
           </select>
         </label>
-        <button class="primary-link editor-submit" type="submit">Добавить стиль</button>
+        <div class="editor-actions">
+          <button class="primary-link editor-submit" id="styleSubmitButton" type="submit">Добавить стиль</button>
+          <button class="secondary-link editor-cancel" id="cancelStyleEditButton" type="button" hidden>Отменить</button>
+        </div>
       </form>
 
       <div class="editor-card">
@@ -159,24 +165,39 @@
         <div class="editor-field-grid">
           <label class="editor-field">
             <span>Появление</span>
-            <input id="cueStartInput" type="text" inputmode="numeric" placeholder="00:00:03.20" required />
+            <input id="cueStartInput" type="text" inputmode="decimal" placeholder="3.2" required />
           </label>
           <label class="editor-field">
             <span>Исчезновение</span>
-            <input id="cueEndInput" type="text" inputmode="numeric" placeholder="00:00:05.60" required />
+            <input id="cueEndInput" type="text" inputmode="decimal" placeholder="5.6" required />
           </label>
         </div>
         <label class="editor-field">
           <span>Стиль</span>
           <select id="cueStyleInput" required></select>
         </label>
-        <button class="primary-link editor-submit" type="submit">Добавить реплику</button>
+        <div class="editor-actions">
+          <button class="primary-link editor-submit" id="cueSubmitButton" type="submit">Добавить реплику</button>
+          <button class="secondary-link editor-cancel" id="cancelCueEditButton" type="button" hidden>Отменить</button>
+        </div>
       </form>
 
       <div class="editor-card cue-list-card">
         <h3>Реплики</h3>
         <div class="cue-list" id="cueList"></div>
         <p class="empty-state" id="cuesEmptyState">Пока нет реплик.</p>
+      </div>
+    </div>
+
+    <div class="ass-workbench">
+      <div class="editor-card ass-output-card">
+        <div class="ass-card-head">
+          <h3>ASS файл</h3>
+          <span id="previewMeta">Превью поверх загруженного видео</span>
+          <button class="secondary-link refresh-preview-button" id="refreshPreviewButton" type="button">Обновить превью</button>
+          <button class="secondary-link download-ass-button" id="downloadAssButton" type="button" disabled>Скачать .ass</button>
+        </div>
+        <textarea class="ass-output" id="assOutput" spellcheck="false" readonly></textarea>
       </div>
     </div>
   </section>

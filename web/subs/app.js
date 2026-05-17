@@ -3,6 +3,26 @@ const DB_VERSION = 2;
 const VIDEO_STORE = 'videos';
 const STYLE_STORE = 'styles';
 const CUE_STORE = 'cues';
+const SUBS_ASSET_BASE_URL = new URL(
+  '.',
+  document.currentScript?.src || window.location.href,
+);
+const JASSUB_MODULE_URL = new URL(
+  'vendor/jassub/jassub.js',
+  SUBS_ASSET_BASE_URL,
+).href;
+const JASSUB_WORKER_URL = new URL(
+  'vendor/jassub/worker/worker.js',
+  SUBS_ASSET_BASE_URL,
+).href;
+const JASSUB_WASM_URL = new URL(
+  'vendor/jassub/wasm/jassub-worker.wasm',
+  SUBS_ASSET_BASE_URL,
+).href;
+const JASSUB_MODERN_WASM_URL = new URL(
+  'vendor/jassub/wasm/jassub-worker-modern.wasm',
+  SUBS_ASSET_BASE_URL,
+).href;
 
 const form = document.querySelector('#uploadForm');
 const input = document.querySelector('#videoInput');
@@ -17,11 +37,14 @@ const clearLinksButton = document.querySelector('#clearLinksButton');
 const currentVideoSection = document.querySelector('#currentVideoSection');
 const currentVideo = document.querySelector('#currentVideo');
 const currentVideoMeta = document.querySelector('#currentVideoMeta');
+const videoSubtitleOverlay = document.querySelector('#videoSubtitleOverlay');
 const styleForm = document.querySelector('#styleForm');
 const styleNameInput = document.querySelector('#styleNameInput');
 const styleFontInput = document.querySelector('#styleFontInput');
 const styleColorInput = document.querySelector('#styleColorInput');
 const stylePositionInput = document.querySelector('#stylePositionInput');
+const styleSubmitButton = document.querySelector('#styleSubmitButton');
+const cancelStyleEditButton = document.querySelector('#cancelStyleEditButton');
 const styleList = document.querySelector('#styleList');
 const stylesEmptyState = document.querySelector('#stylesEmptyState');
 const cueForm = document.querySelector('#cueForm');
@@ -29,12 +52,25 @@ const cueTextInput = document.querySelector('#cueTextInput');
 const cueStartInput = document.querySelector('#cueStartInput');
 const cueEndInput = document.querySelector('#cueEndInput');
 const cueStyleInput = document.querySelector('#cueStyleInput');
+const cueSubmitButton = document.querySelector('#cueSubmitButton');
+const cancelCueEditButton = document.querySelector('#cancelCueEditButton');
 const cueList = document.querySelector('#cueList');
 const cuesEmptyState = document.querySelector('#cuesEmptyState');
+const previewMeta = document.querySelector('#previewMeta');
+const assOutput = document.querySelector('#assOutput');
+const downloadAssButton = document.querySelector('#downloadAssButton');
+const refreshPreviewButton = document.querySelector('#refreshPreviewButton');
 
 let dbPromise;
 let cachedStyles = [];
 let cachedCues = [];
+let jassubModulePromise;
+let jassubRenderer;
+let jassubTrack = '';
+let jassubRenderToken = 0;
+let useDomSubtitleFallback = false;
+let editingStyleId;
+let editingCueId;
 
 function openDb() {
   if (dbPromise) return dbPromise;
@@ -140,7 +176,7 @@ function deleteStyle(id) {
 
 async function readCues() {
   const cues = await readStore(CUE_STORE);
-  return cues.sort((a, b) => a.start.localeCompare(b.start));
+  return cues.sort((a, b) => parseTimeToSeconds(a.start) - parseTimeToSeconds(b.start));
 }
 
 function saveCue(cue) {
@@ -203,7 +239,7 @@ function renderVideos(videos) {
     videoLink.textContent = 'Открыть файл';
 
     item.append(title, meta, pageLink, videoLink);
-  linksList.append(item);
+    linksList.append(item);
   }
 }
 
@@ -218,6 +254,145 @@ function positionLabel(position) {
 
 function getStyleById(id) {
   return cachedStyles.find((style) => style.id === id);
+}
+
+function parseTimeToSeconds(value) {
+  const trimmed = value.trim().replace(',', '.');
+  if (/^\d+(?:\.\d{1,3})?$/.test(trimmed)) {
+    return Number(trimmed);
+  }
+
+  const match = trimmed.match(/^(?:(\d+):)?([0-5]?\d):([0-5]?\d(?:\.\d{1,3})?)$/);
+  if (!match) return Number.NaN;
+
+  const hours = Number(match[1] || 0);
+  const minutes = Number(match[2]);
+  const seconds = Number(match[3]);
+  return hours * 3600 + minutes * 60 + seconds;
+}
+
+function formatTimeInput(value) {
+  const seconds = parseTimeToSeconds(value);
+  if (!Number.isFinite(seconds)) return value.trim();
+
+  return Number.isInteger(seconds) ? String(seconds) : seconds.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+}
+
+function formatAssTime(value) {
+  const totalSeconds = parseTimeToSeconds(value);
+  if (!Number.isFinite(totalSeconds)) return value.trim();
+
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return `${hours}:${String(minutes).padStart(2, '0')}:${seconds.toFixed(2).padStart(5, '0')}`;
+}
+
+function colorToAss(color) {
+  const normalized = color.replace('#', '').padStart(6, '0');
+  const red = normalized.slice(0, 2);
+  const green = normalized.slice(2, 4);
+  const blue = normalized.slice(4, 6);
+  return `&H00${blue}${green}${red}`.toUpperCase();
+}
+
+function assAlignment(position) {
+  return {
+    'bottom-left': 1,
+    'bottom-center': 2,
+    'middle-center': 5,
+    'top-center': 8,
+  }[position] || 2;
+}
+
+function escapeAssText(text) {
+  return text
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .split('\n')
+    .map((line) => line.replace(/[{}]/g, ''))
+    .join('\\N');
+}
+
+function sanitizeAssName(name) {
+  return name.replace(/,/g, ' ').trim() || 'Default';
+}
+
+function generateAss() {
+  const styles = cachedStyles.length
+    ? cachedStyles
+    : [
+        {
+          id: 'default',
+          name: 'Default',
+          font: 'Inter',
+          color: '#ffffff',
+          position: 'bottom-center',
+        },
+      ];
+
+  const styleLines = styles.map((style) => {
+    const name = sanitizeAssName(style.name);
+    return [
+      `Style: ${name}`,
+      style.font,
+      72,
+      colorToAss(style.color),
+      '&H80000000',
+      '&H0010181C',
+      '&H00000000',
+      -1,
+      0,
+      0,
+      0,
+      100,
+      100,
+      0,
+      0,
+      1,
+      4,
+      2,
+      24,
+      24,
+      120,
+      assAlignment(style.position),
+      1,
+    ].join(',');
+  });
+
+  const cueLines = cachedCues.map((cue) => {
+    const style = getStyleById(cue.styleId);
+    return [
+      'Dialogue: 0',
+      formatAssTime(cue.start),
+      formatAssTime(cue.end),
+      sanitizeAssName(style?.name || 'Default'),
+      '',
+      0,
+      0,
+      0,
+      '',
+      escapeAssText(cue.text),
+    ].join(',');
+  });
+
+  return [
+    '[Script Info]',
+    'ScriptType: v4.00+',
+    'WrapStyle: 0',
+    'ScaledBorderAndShadow: yes',
+    'PlayResX: 1080',
+    'PlayResY: 1920',
+    '',
+    '[V4+ Styles]',
+    'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, MarginL, MarginR, MarginV, Alignment, Encoding',
+    ...styleLines,
+    '',
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...cueLines,
+    '',
+  ].join('\n');
 }
 
 function renderStyleOptions() {
@@ -252,12 +427,25 @@ function renderStyles() {
     meta.textContent = `${style.font} · ${positionLabel(style.position)}`;
     body.append(title, meta);
 
+    const actions = document.createElement('div');
+    actions.className = 'item-actions';
+
+    const editButton = document.createElement('button');
+    editButton.className = 'icon-button edit-button';
+    editButton.type = 'button';
+    editButton.title = 'Редактировать стиль';
+    editButton.textContent = 'Изм.';
+    editButton.addEventListener('click', () => {
+      startStyleEdit(style);
+    });
+
     const removeButton = document.createElement('button');
     removeButton.className = 'icon-button';
     removeButton.type = 'button';
     removeButton.title = 'Удалить стиль';
     removeButton.textContent = '×';
     removeButton.addEventListener('click', async () => {
+      if (editingStyleId === style.id) resetStyleForm();
       await deleteStyle(style.id);
       cachedCues = cachedCues.filter((cue) => cue.styleId !== style.id);
       await Promise.all(
@@ -268,7 +456,8 @@ function renderStyles() {
       await refreshEditor();
     });
 
-    item.append(swatch, body, removeButton);
+    actions.append(editButton, removeButton);
+    item.append(swatch, body, actions);
     styleList.append(item);
   }
 
@@ -286,7 +475,7 @@ function renderCues() {
 
     const time = document.createElement('p');
     time.className = 'cue-item__time';
-    time.textContent = `${cue.start} → ${cue.end}`;
+    time.textContent = `${formatTimeInput(cue.start)} → ${formatTimeInput(cue.end)}`;
 
     const text = document.createElement('p');
     text.className = 'cue-item__text';
@@ -302,19 +491,231 @@ function renderCues() {
       ? `${style.name} · ${positionLabel(style.position)}`
       : 'Стиль удален';
 
+    const actions = document.createElement('div');
+    actions.className = 'item-actions';
+
+    const editButton = document.createElement('button');
+    editButton.className = 'icon-button edit-button';
+    editButton.type = 'button';
+    editButton.title = 'Редактировать реплику';
+    editButton.textContent = 'Изм.';
+    editButton.addEventListener('click', () => {
+      startCueEdit(cue);
+    });
+
     const removeButton = document.createElement('button');
     removeButton.className = 'icon-button';
     removeButton.type = 'button';
     removeButton.title = 'Удалить реплику';
     removeButton.textContent = '×';
     removeButton.addEventListener('click', async () => {
+      if (editingCueId === cue.id) resetCueForm();
       await deleteCue(cue.id);
       await refreshEditor();
     });
 
-    item.append(time, text, meta, removeButton);
+    actions.append(editButton, removeButton);
+    item.append(time, text, meta, actions);
     cueList.append(item);
   }
+}
+
+function resetStyleForm() {
+  editingStyleId = undefined;
+  styleForm.reset();
+  styleColorInput.value = '#ffffff';
+  styleSubmitButton.textContent = 'Добавить стиль';
+  cancelStyleEditButton.hidden = true;
+}
+
+function resetCueForm() {
+  editingCueId = undefined;
+  cueForm.reset();
+  cueSubmitButton.textContent = 'Добавить реплику';
+  cancelCueEditButton.hidden = true;
+}
+
+function startStyleEdit(style) {
+  editingStyleId = style.id;
+  styleNameInput.value = style.name;
+  styleFontInput.value = style.font;
+  styleColorInput.value = style.color;
+  stylePositionInput.value = style.position;
+  styleSubmitButton.textContent = 'Сохранить стиль';
+  cancelStyleEditButton.hidden = false;
+  styleNameInput.focus();
+}
+
+function startCueEdit(cue) {
+  editingCueId = cue.id;
+  cueTextInput.value = cue.text;
+  cueStartInput.value = formatTimeInput(cue.start);
+  cueEndInput.value = formatTimeInput(cue.end);
+  cueStyleInput.value = cue.styleId;
+  cueSubmitButton.textContent = 'Сохранить реплику';
+  cancelCueEditButton.hidden = false;
+  cueTextInput.focus();
+}
+
+function currentPreviewCue() {
+  if (cachedCues.length === 0) return undefined;
+
+  const videoTime = currentVideo?.currentTime || 0;
+  const activeCue = cachedCues.find((cue) => {
+    const start = parseTimeToSeconds(cue.start);
+    const end = parseTimeToSeconds(cue.end);
+    return (
+      Number.isFinite(start) &&
+      Number.isFinite(end) &&
+      videoTime >= start &&
+      videoTime <= end
+    );
+  });
+
+  return currentVideo?.src ? activeCue : cachedCues[0];
+}
+
+function updatePreviewMeta(status) {
+  const cue = currentPreviewCue();
+  const style = cue ? getStyleById(cue.styleId) : undefined;
+  renderVideoSubtitleOverlay(cue, style);
+
+  if (status) {
+    previewMeta.textContent = status;
+    return;
+  }
+  if (!cue) {
+    previewMeta.textContent = currentVideo?.src
+      ? 'На текущем времени нет реплики'
+      : 'Загрузите видео для превью';
+    return;
+  }
+
+  previewMeta.textContent = currentVideo?.src
+    ? `JASSUB · ${formatTimeInput(cue.start)} → ${formatTimeInput(cue.end)} · ${style?.name || 'Default'}`
+    : 'Загрузите видео для превью';
+}
+
+function renderVideoSubtitleOverlay(cue, style) {
+  if (!useDomSubtitleFallback || !currentVideo?.src || !cue) {
+    videoSubtitleOverlay.hidden = true;
+    videoSubtitleOverlay.textContent = '';
+    return;
+  }
+
+  videoSubtitleOverlay.hidden = false;
+  videoSubtitleOverlay.className = `video-subtitle-overlay video-subtitle-overlay--${
+    style?.position || 'bottom-center'
+  }`;
+  videoSubtitleOverlay.textContent = cue.text;
+  videoSubtitleOverlay.style.color = style?.color || '#ffffff';
+  videoSubtitleOverlay.style.fontFamily = style?.font || 'Inter';
+}
+
+function loadJassubModule() {
+  if (!jassubModulePromise) {
+    jassubModulePromise = import(JASSUB_MODULE_URL).then(
+      (module) => module.default || module.JASSUB || module,
+    );
+  }
+
+  return jassubModulePromise;
+}
+
+async function destroyJassubRenderer() {
+  const renderer = jassubRenderer;
+  jassubRenderer = undefined;
+  jassubTrack = '';
+
+  if (renderer?.destroy) {
+    await renderer.destroy();
+  }
+}
+
+async function repaintJassubFrame() {
+  if (!jassubRenderer || !currentVideo.videoWidth || !currentVideo.videoHeight) {
+    return;
+  }
+
+  await jassubRenderer.ready;
+  await jassubRenderer.resize(true);
+  await jassubRenderer.manualRender({
+    expectedDisplayTime: performance.now(),
+    width: currentVideo.videoWidth,
+    height: currentVideo.videoHeight,
+    mediaTime: currentVideo.currentTime || 0,
+  });
+}
+
+async function renderJassubPreview() {
+  const token = ++jassubRenderToken;
+  const ass = assOutput.value || generateAss();
+
+  if (!currentVideo?.src) {
+    await destroyJassubRenderer();
+    useDomSubtitleFallback = false;
+    updatePreviewMeta('Загрузите видео для превью');
+    return;
+  }
+
+  if (cachedCues.length === 0) {
+    await destroyJassubRenderer();
+    useDomSubtitleFallback = false;
+    updatePreviewMeta('Добавьте реплики для превью');
+    return;
+  }
+
+  try {
+    if (!jassubRenderer) {
+      updatePreviewMeta('JASSUB загружает renderer...');
+      const JASSUB = await loadJassubModule();
+      if (token !== jassubRenderToken) return;
+
+      jassubRenderer = new JASSUB({
+        video: currentVideo,
+        subContent: ass,
+        workerUrl: JASSUB_WORKER_URL,
+        wasmUrl: JASSUB_WASM_URL,
+        modernWasmUrl: JASSUB_MODERN_WASM_URL,
+        defaultFont: 'liberation sans',
+        fonts: [new URL('vendor/jassub/default.woff2', SUBS_ASSET_BASE_URL).href],
+        queryFonts: 'local',
+      });
+      await jassubRenderer.ready;
+      await jassubRenderer.renderer.setTrack(ass);
+      jassubTrack = ass;
+      if (token !== jassubRenderToken) return;
+      await repaintJassubFrame();
+    } else if (ass !== jassubTrack) {
+      await jassubRenderer.ready;
+      await jassubRenderer.renderer.setTrack(ass);
+      jassubTrack = ass;
+      await repaintJassubFrame();
+    }
+
+    useDomSubtitleFallback = false;
+    updatePreviewMeta();
+  } catch (error) {
+    await destroyJassubRenderer();
+    useDomSubtitleFallback = true;
+    console.error(error);
+    updatePreviewMeta(
+      error instanceof Error
+        ? `JASSUB: ${error.message}`
+        : 'JASSUB не смог отрендерить субтитры',
+    );
+  }
+}
+
+function renderAssOutput() {
+  const ass = generateAss();
+  assOutput.value = ass;
+  downloadAssButton.disabled = cachedCues.length === 0;
+}
+
+function renderExport() {
+  renderAssOutput();
+  void renderJassubPreview();
 }
 
 async function ensureDefaultStyle() {
@@ -336,6 +737,7 @@ async function refreshEditor() {
   cachedCues = await readCues();
   renderStyles();
   renderCues();
+  renderExport();
 }
 
 function uploadVideo(file) {
@@ -389,9 +791,11 @@ async function loadCurrentVideo() {
   }
 
   const video = await response.json();
+  await destroyJassubRenderer();
   currentVideo.src = video.videoUrl;
   currentVideoMeta.textContent = video.absolutePageUrl;
   currentVideoSection.hidden = false;
+  void renderJassubPreview();
 
   const saved = await readVideos();
   if (!saved.some((item) => item.hash === hash)) {
@@ -445,20 +849,39 @@ clearLinksButton.addEventListener('click', async () => {
   await refreshList();
 });
 
+currentVideo.addEventListener('timeupdate', () => {
+  updatePreviewMeta();
+  if (currentVideo.paused) void repaintJassubFrame();
+});
+currentVideo.addEventListener('seeked', () => {
+  updatePreviewMeta();
+  void repaintJassubFrame();
+});
+currentVideo.addEventListener('loadedmetadata', () => {
+  updatePreviewMeta();
+  void renderJassubPreview();
+});
+currentVideo.addEventListener('loadeddata', () => {
+  void repaintJassubFrame();
+});
+currentVideo.addEventListener('play', () => {
+  void repaintJassubFrame();
+});
+
 styleForm.addEventListener('submit', async (event) => {
   event.preventDefault();
 
+  const existingStyle = editingStyleId ? getStyleById(editingStyleId) : undefined;
   await saveStyle({
-    id: createId('style'),
+    id: editingStyleId || createId('style'),
     name: styleNameInput.value.trim(),
     font: styleFontInput.value,
     color: styleColorInput.value,
     position: stylePositionInput.value,
-    createdAt: new Date().toISOString(),
+    createdAt: existingStyle?.createdAt || new Date().toISOString(),
   });
 
-  styleForm.reset();
-  styleColorInput.value = '#ffffff';
+  resetStyleForm();
   await refreshEditor();
 });
 
@@ -467,17 +890,41 @@ cueForm.addEventListener('submit', async (event) => {
 
   if (!cueStyleInput.value) return;
 
+  const existingCue = editingCueId
+    ? cachedCues.find((cue) => cue.id === editingCueId)
+    : undefined;
   await saveCue({
-    id: createId('cue'),
+    id: editingCueId || createId('cue'),
     text: cueTextInput.value.trim(),
-    start: cueStartInput.value.trim(),
-    end: cueEndInput.value.trim(),
+    start: formatTimeInput(cueStartInput.value),
+    end: formatTimeInput(cueEndInput.value),
     styleId: cueStyleInput.value,
-    createdAt: new Date().toISOString(),
+    createdAt: existingCue?.createdAt || new Date().toISOString(),
   });
 
-  cueForm.reset();
+  resetCueForm();
   await refreshEditor();
+});
+
+cancelStyleEditButton.addEventListener('click', resetStyleForm);
+cancelCueEditButton.addEventListener('click', resetCueForm);
+
+downloadAssButton.addEventListener('click', () => {
+  const blob = new Blob([assOutput.value], {
+    type: 'text/plain;charset=utf-8',
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'subtitles.ass';
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+});
+
+refreshPreviewButton.addEventListener('click', () => {
+  void renderJassubPreview();
 });
 
 async function init() {
