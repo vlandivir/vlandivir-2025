@@ -1093,6 +1093,10 @@ pre {
   outline-offset: 2px;
 }
 
+.color-picker__swatch.is-family-active:not(.is-active) {
+  box-shadow: 0 0 0 2px rgba(49, 111, 81, 0.2);
+}
+
 .color-picker__swatch--split {
   position: relative;
   overflow: hidden;

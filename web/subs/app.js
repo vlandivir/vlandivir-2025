@@ -690,6 +690,7 @@ function initializeColorPickers() {
 
     const allowNone = pickerElement.dataset.allowNone === 'true';
     let selectedBase = findClosestBaseColor(input.value);
+    let keepSelectedBaseOnNextChange = false;
 
     const triggerButton = document.createElement('button');
     triggerButton.className = 'color-picker__trigger';
@@ -764,6 +765,7 @@ function initializeColorPickers() {
         button.style.background = color;
       }
       if (isActive) button.classList.add('is-active');
+      if (options.familyActive) button.classList.add('is-family-active');
       button.addEventListener('click', (event) => {
         event.stopPropagation();
         onClick();
@@ -795,11 +797,15 @@ function initializeColorPickers() {
             baseColor.name,
             () => {
               selectedBase = baseColor;
+              keepSelectedBaseOnNextChange = true;
               setColorInputValue(input, baseColor.value);
               renderPicker();
             },
-            !isNone && selectedBase.value === baseColor.value,
-            { split: baseColor.split },
+            !isNone && value.toLowerCase() === baseColor.value,
+            {
+              split: baseColor.split,
+              familyActive: !isNone && selectedBase.value === baseColor.value,
+            },
           ),
         ),
       );
@@ -810,6 +816,7 @@ function initializeColorPickers() {
             shade,
             `Оттенок ${index + 1}`,
             () => {
+              keepSelectedBaseOnNextChange = true;
               setColorInputValue(input, shade);
               renderPicker();
             },
@@ -820,7 +827,11 @@ function initializeColorPickers() {
     }
 
     input.addEventListener('change', () => {
-      selectedBase = findClosestBaseColor(input.value);
+      if (keepSelectedBaseOnNextChange) {
+        keepSelectedBaseOnNextChange = false;
+      } else {
+        selectedBase = findClosestBaseColor(input.value);
+      }
       renderPicker();
     });
     renderPicker();
