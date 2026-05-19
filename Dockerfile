@@ -16,6 +16,7 @@ RUN apt-get update \
        make \
        g++ \
        pkg-config \
+       ffmpeg \
        libcairo2-dev \
        libpango1.0-dev \
        libjpeg-dev \

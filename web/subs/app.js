@@ -5,10 +5,38 @@ const STYLE_STORE = SF.STYLE_STORE;
 const CUE_STORE = SF.CUE_STORE;
 const POSITION_STORE = SF.POSITION_STORE;
 const DEFAULT_POSITIONS = [
-  { id: 'position-bottom-center', name: 'Снизу по центру', x: 540, y: 1700, alignment: 2, legacy: 'bottom-center' },
-  { id: 'position-bottom-left', name: 'Снизу слева', x: 140, y: 1700, alignment: 1, legacy: 'bottom-left' },
-  { id: 'position-top-center', name: 'Сверху по центру', x: 540, y: 220, alignment: 8, legacy: 'top-center' },
-  { id: 'position-middle-center', name: 'По центру кадра', x: 540, y: 960, alignment: 5, legacy: 'middle-center' },
+  {
+    id: 'position-bottom-center',
+    name: 'Снизу по центру',
+    x: 540,
+    y: 1700,
+    alignment: 2,
+    legacy: 'bottom-center',
+  },
+  {
+    id: 'position-bottom-left',
+    name: 'Снизу слева',
+    x: 140,
+    y: 1700,
+    alignment: 1,
+    legacy: 'bottom-left',
+  },
+  {
+    id: 'position-top-center',
+    name: 'Сверху по центру',
+    x: 540,
+    y: 220,
+    alignment: 8,
+    legacy: 'top-center',
+  },
+  {
+    id: 'position-middle-center',
+    name: 'По центру кадра',
+    x: 540,
+    y: 960,
+    alignment: 5,
+    legacy: 'middle-center',
+  },
 ];
 const SUBS_ASSET_BASE_URL = new URL(
   '.',
@@ -137,9 +165,12 @@ const BASE_COLORS = [
 ];
 const VIDEO_ICONS = {
   play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>',
-  pause: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7z" /><path d="M13 5h4v14h-4z" /></svg>',
-  volume: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" /><path d="M16 9a4 4 0 0 1 0 6" /></svg>',
-  muted: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" /><path d="m17 9 4 4" /><path d="m21 9-4 4" /></svg>',
+  pause:
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7z" /><path d="M13 5h4v14h-4z" /></svg>',
+  volume:
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" /><path d="M16 9a4 4 0 0 1 0 6" /></svg>',
+  muted:
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" /><path d="m17 9 4 4" /><path d="m21 9-4 4" /></svg>',
 };
 const EDIT_ICON = `
   <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -171,13 +202,21 @@ const styleForm = document.querySelector('#styleForm');
 const styleNameInput = document.querySelector('#styleNameInput');
 const styleLivePreviewText = document.querySelector('#styleLivePreviewText');
 const styleLivePreviewMeta = document.querySelector('#styleLivePreviewMeta');
-const styleLivePreviewColors = document.querySelector('#styleLivePreviewColors');
+const styleLivePreviewColors = document.querySelector(
+  '#styleLivePreviewColors',
+);
 const styleFontInput = document.querySelector('#styleFontInput');
 const styleFontSizeInput = document.querySelector('#styleFontSizeInput');
 const styleFontVariantInput = document.querySelector('#styleFontVariantInput');
-const stylePrimaryColorInput = document.querySelector('#stylePrimaryColorInput');
-const styleSecondaryColorInput = document.querySelector('#styleSecondaryColorInput');
-const styleOutlineColorInput = document.querySelector('#styleOutlineColorInput');
+const stylePrimaryColorInput = document.querySelector(
+  '#stylePrimaryColorInput',
+);
+const styleSecondaryColorInput = document.querySelector(
+  '#styleSecondaryColorInput',
+);
+const styleOutlineColorInput = document.querySelector(
+  '#styleOutlineColorInput',
+);
 const styleBackColorInput = document.querySelector('#styleBackColorInput');
 const stylePositionInput = document.querySelector('#stylePositionInput');
 const styleSubmitButton = document.querySelector('#styleSubmitButton');
@@ -188,10 +227,14 @@ const positionForm = document.querySelector('#positionForm');
 const positionNameInput = document.querySelector('#positionNameInput');
 const positionXInput = document.querySelector('#positionXInput');
 const positionYInput = document.querySelector('#positionYInput');
-const positionAlignmentInput = document.querySelector('#positionAlignmentInput');
+const positionAlignmentInput = document.querySelector(
+  '#positionAlignmentInput',
+);
 const alignControlButtons = document.querySelectorAll('[data-align-cell]');
 const positionSubmitButton = document.querySelector('#positionSubmitButton');
-const cancelPositionEditButton = document.querySelector('#cancelPositionEditButton');
+const cancelPositionEditButton = document.querySelector(
+  '#cancelPositionEditButton',
+);
 const positionList = document.querySelector('#positionList');
 const positionsEmptyState = document.querySelector('#positionsEmptyState');
 const cueForm = document.querySelector('#cueForm');
@@ -211,6 +254,19 @@ const previewMeta = document.querySelector('#previewMeta');
 const assOutput = document.querySelector('#assOutput');
 const downloadAssButton = document.querySelector('#downloadAssButton');
 const refreshPreviewButton = document.querySelector('#refreshPreviewButton');
+const audioPanel = document.querySelector('#audioPanel');
+const extractAudioButton = document.querySelector('#extractAudioButton');
+const audioStatus = document.querySelector('#audioStatus');
+const audioWaveformWrap = document.querySelector('#audioWaveformWrap');
+const audioWaveformCanvas = document.querySelector('#audioWaveformCanvas');
+const audioPlayer = document.querySelector('#audioPlayer');
+const transcriptionPanel = document.querySelector('#transcriptionPanel');
+const transcriptionLanguageInput = document.querySelector(
+  '#transcriptionLanguageInput',
+);
+const transcribeAudioButton = document.querySelector('#transcribeAudioButton');
+const transcriptionStatus = document.querySelector('#transcriptionStatus');
+const transcriptionOutput = document.querySelector('#transcriptionOutput');
 
 let cachedStyles = [];
 let cachedCues = [];
@@ -226,6 +282,8 @@ let editingStyleId;
 let editingCueId;
 let editingPositionId;
 let currentVideoHash = null;
+let currentAudioWaveform = [];
+let audioAnimationFrame = null;
 
 function openDb() {
   return SF.openDb();
@@ -413,6 +471,235 @@ function formatBytes(bytes) {
   return `${value.toFixed(value >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
 }
 
+function resizeAudioWaveformCanvas() {
+  if (!audioWaveformCanvas) return { width: 0, height: 0 };
+
+  const pixelRatio = window.devicePixelRatio || 1;
+  const rect = audioWaveformCanvas.getBoundingClientRect();
+  const width = Math.max(1, Math.round(rect.width));
+  const height = Math.max(1, Math.round(rect.height));
+  const scaledWidth = Math.round(width * pixelRatio);
+  const scaledHeight = Math.round(height * pixelRatio);
+
+  if (
+    audioWaveformCanvas.width !== scaledWidth ||
+    audioWaveformCanvas.height !== scaledHeight
+  ) {
+    audioWaveformCanvas.width = scaledWidth;
+    audioWaveformCanvas.height = scaledHeight;
+  }
+
+  return { width, height, pixelRatio };
+}
+
+function drawAudioWaveform(waveform) {
+  if (!audioWaveformCanvas) return;
+
+  const context = audioWaveformCanvas.getContext('2d');
+  if (!context) return;
+
+  const { width, height, pixelRatio } = resizeAudioWaveformCanvas();
+  context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+
+  const timelineHeight = 30;
+  const waveformTop = timelineHeight + 8;
+  const waveformHeight = height - waveformTop - 14;
+  context.clearRect(0, 0, width, height);
+  context.fillStyle = '#172026';
+  context.fillRect(0, 0, width, height);
+
+  if (!waveform?.length) {
+    context.fillStyle = '#65747b';
+    context.font = '600 14px sans-serif';
+    context.fillText(
+      'Waveform недоступен',
+      18,
+      waveformTop + waveformHeight / 2,
+    );
+    return;
+  }
+
+  const duration = Number.isFinite(audioPlayer?.duration)
+    ? audioPlayer.duration
+    : 0;
+  const currentTime = Number.isFinite(audioPlayer?.currentTime)
+    ? audioPlayer.currentTime
+    : 0;
+  const progress = duration > 0 ? Math.min(currentTime / duration, 1) : 0;
+  const progressX = Math.round(progress * width);
+  const centerY = waveformTop + waveformHeight / 2;
+  const barGap = 2;
+  const barWidth = Math.max(2, Math.floor(width / waveform.length) - barGap);
+
+  context.strokeStyle = 'rgba(233, 240, 237, 0.22)';
+  context.lineWidth = 1;
+  context.beginPath();
+  context.moveTo(0, timelineHeight);
+  context.lineTo(width, timelineHeight);
+  context.stroke();
+
+  const tickCount =
+    duration > 0 ? Math.min(8, Math.max(2, Math.ceil(duration / 5))) : 4;
+  context.font = '700 11px JetBrains Mono, monospace';
+  context.textBaseline = 'top';
+  for (let tick = 0; tick <= tickCount; tick += 1) {
+    const tickProgress = tick / tickCount;
+    const x = Math.round(tickProgress * width);
+    const time = duration > 0 ? duration * tickProgress : 0;
+    context.strokeStyle = 'rgba(233, 240, 237, 0.3)';
+    context.beginPath();
+    context.moveTo(x, timelineHeight - 8);
+    context.lineTo(x, timelineHeight);
+    context.stroke();
+
+    context.fillStyle = '#aab7b2';
+    const label = formatVideoTime(time);
+    const labelWidth = context.measureText(label).width;
+    const labelX = Math.min(
+      Math.max(6, x - labelWidth / 2),
+      width - labelWidth - 6,
+    );
+    context.fillText(label, labelX, 7);
+  }
+
+  waveform.forEach((peak, index) => {
+    const x = Math.round((index / waveform.length) * width);
+    const barHeight = Math.max(2, peak * waveformHeight);
+    context.fillStyle = x <= progressX ? '#fbbf24' : '#f97316';
+    context.fillRect(x, centerY - barHeight / 2, barWidth, barHeight);
+  });
+
+  context.fillStyle = 'rgba(251, 191, 36, 0.16)';
+  context.fillRect(0, waveformTop - 2, progressX, waveformHeight + 4);
+
+  context.strokeStyle = '#ffffff';
+  context.lineWidth = 2;
+  context.beginPath();
+  context.moveTo(progressX, waveformTop - 4);
+  context.lineTo(progressX, waveformTop + waveformHeight + 6);
+  context.stroke();
+
+  context.fillStyle = '#ffffff';
+  context.beginPath();
+  context.arc(progressX, waveformTop - 6, 4, 0, Math.PI * 2);
+  context.fill();
+}
+
+function redrawCurrentAudioWaveform() {
+  drawAudioWaveform(currentAudioWaveform);
+}
+
+function stopAudioWaveformAnimation() {
+  if (!audioAnimationFrame) return;
+
+  cancelAnimationFrame(audioAnimationFrame);
+  audioAnimationFrame = null;
+}
+
+function animateAudioWaveform() {
+  redrawCurrentAudioWaveform();
+  if (!audioPlayer.paused && !audioPlayer.ended) {
+    audioAnimationFrame = requestAnimationFrame(animateAudioWaveform);
+  } else {
+    audioAnimationFrame = null;
+  }
+}
+
+function startAudioWaveformAnimation() {
+  if (audioAnimationFrame) return;
+
+  audioAnimationFrame = requestAnimationFrame(animateAudioWaveform);
+}
+
+function getSelectedTranscriptionLanguage() {
+  return transcriptionLanguageInput?.value || 'auto';
+}
+
+function formatTranscriptTime(value) {
+  if (!Number.isFinite(value)) return '0.00';
+  return value.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+}
+
+function formatTranscript(transcript) {
+  if (Array.isArray(transcript?.cues) && transcript.cues.length > 0) {
+    return transcript.cues
+      .map(
+        (cue) =>
+          `${formatTranscriptTime(cue.start)} → ${formatTranscriptTime(cue.end)}  ${cue.text}`,
+      )
+      .join('\n');
+  }
+
+  return transcript?.text || '';
+}
+
+function renderTranscription(video = null) {
+  if (!transcriptionPanel) return;
+
+  const hasAudio = Boolean(video?.audioUrl);
+  transcriptionPanel.hidden = !hasAudio;
+  if (!hasAudio) {
+    transcriptionOutput.value = '';
+    transcriptionOutput.hidden = true;
+    transcriptionStatus.textContent = 'Сначала выделите audio.';
+    return;
+  }
+
+  const language = getSelectedTranscriptionLanguage();
+  const transcript = video?.transcripts?.[language];
+  if (transcript) {
+    transcriptionOutput.value = formatTranscript(transcript);
+    transcriptionOutput.hidden = false;
+    transcriptionStatus.textContent = `Распознано · ${transcript.language} · ${transcript.cues?.length || 0} реплик`;
+  } else {
+    transcriptionOutput.value = '';
+    transcriptionOutput.hidden = true;
+    transcriptionStatus.textContent = 'Распознавание ещё не запускалось.';
+  }
+}
+
+function renderAudioPanel(video = null) {
+  if (!audioPanel) return;
+
+  audioPanel.hidden = !currentVideoHash;
+  if (!currentVideoHash) return;
+
+  const audioUrl = video?.audioUrl || '';
+  const waveform = Array.isArray(video?.waveform) ? video.waveform : [];
+  currentAudioWaveform = waveform;
+
+  if (audioUrl) {
+    audioStatus.textContent = `Audio готово · ${formatBytes(video.audioSize)} · ${
+      video.audioMimeType || 'audio/mpeg'
+    }`;
+    audioPlayer.src = audioUrl;
+    audioPlayer.hidden = false;
+    audioWaveformWrap.hidden = false;
+    redrawCurrentAudioWaveform();
+    renderTranscription(video);
+  } else {
+    audioStatus.textContent = 'Audio ещё не выделено.';
+    stopAudioWaveformAnimation();
+    audioPlayer.removeAttribute('src');
+    audioPlayer.hidden = true;
+    audioWaveformWrap.hidden = true;
+    redrawCurrentAudioWaveform();
+    renderTranscription(null);
+  }
+}
+
+function getAudioPatch(audio) {
+  if (!audio?.audioUrl) return {};
+
+  return {
+    audioUrl: audio.audioUrl,
+    audioMimeType: audio.mimeType,
+    audioSize: audio.size,
+    waveform: audio.waveform,
+    audioCreatedAt: audio.createdAt,
+  };
+}
+
 function renderVideos(videos) {
   linksList.replaceChildren();
   emptyState.hidden = videos.length > 0;
@@ -435,7 +722,8 @@ function renderVideos(videos) {
     pageLink.className = 'link-item__url';
     pageLink.href = video.pageUrl;
     pageLink.textContent =
-      video.absolutePageUrl || new URL(video.pageUrl, window.location.origin).href;
+      video.absolutePageUrl ||
+      new URL(video.pageUrl, window.location.origin).href;
 
     const actions = document.createElement('div');
     actions.className = 'link-item__actions';
@@ -464,9 +752,11 @@ function renderVideos(videos) {
 
 function positionLabel(position) {
   if (!position) return 'Снизу по центру';
-  if (typeof position === 'object') return `${position.name} · ${position.x}, ${position.y}`;
+  if (typeof position === 'object')
+    return `${position.name} · ${position.x}, ${position.y}`;
 
-  const matchedPosition = getPositionById(position) || getPositionByLegacy(position);
+  const matchedPosition =
+    getPositionById(position) || getPositionByLegacy(position);
   return matchedPosition
     ? `${matchedPosition.name} · ${matchedPosition.x}, ${matchedPosition.y}`
     : position;
@@ -480,7 +770,8 @@ function getStyleById(id) {
 function getPositionById(id) {
   if (!id) return undefined;
   return (
-    positionsById.get(id) || cachedPositions.find((position) => position.id === id)
+    positionsById.get(id) ||
+    cachedPositions.find((position) => position.id === id)
   );
 }
 
@@ -507,7 +798,9 @@ function parseTimeToSeconds(value) {
     return Number(trimmed);
   }
 
-  const match = trimmed.match(/^(?:(\d+):)?([0-5]?\d):([0-5]?\d(?:\.\d{1,3})?)$/);
+  const match = trimmed.match(
+    /^(?:(\d+):)?([0-5]?\d):([0-5]?\d(?:\.\d{1,3})?)$/,
+  );
   if (!match) return Number.NaN;
 
   const hours = Number(match[1] || 0);
@@ -520,7 +813,9 @@ function formatTimeInput(value) {
   const seconds = parseTimeToSeconds(value);
   if (!Number.isFinite(seconds)) return value.trim();
 
-  return Number.isInteger(seconds) ? String(seconds) : seconds.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+  return Number.isInteger(seconds)
+    ? String(seconds)
+    : seconds.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
 }
 
 function formatAssTime(value) {
@@ -574,7 +869,9 @@ function mixColor(color, target, amount) {
   const sourceRgb = hexToRgb(color);
   const targetRgb = hexToRgb(target);
   return rgbToHex(
-    sourceRgb.map((channel, index) => channel + (targetRgb[index] - channel) * amount),
+    sourceRgb.map(
+      (channel, index) => channel + (targetRgb[index] - channel) * amount,
+    ),
   );
 }
 
@@ -646,14 +943,17 @@ function findClosestBaseColor(color) {
   if (isAchromaticColor(color)) return BASE_COLORS[0];
 
   const rgb = hexToRgb(color);
-  return BASE_COLORS.reduce((closest, baseColor) => {
-    const baseRgb = hexToRgb(baseColor.value);
-    const distance = baseRgb.reduce((sum, channel, index) => {
-      const delta = channel - rgb[index];
-      return sum + delta * delta;
-    }, 0);
-    return distance < closest.distance ? { baseColor, distance } : closest;
-  }, { baseColor: BASE_COLORS[0], distance: Number.POSITIVE_INFINITY }).baseColor;
+  return BASE_COLORS.reduce(
+    (closest, baseColor) => {
+      const baseRgb = hexToRgb(baseColor.value);
+      const distance = baseRgb.reduce((sum, channel, index) => {
+        const delta = channel - rgb[index];
+        return sum + delta * delta;
+      }, 0);
+      return distance < closest.distance ? { baseColor, distance } : closest;
+    },
+    { baseColor: BASE_COLORS[0], distance: Number.POSITIVE_INFINITY },
+  ).baseColor;
 }
 
 function setColorInputValue(input, value) {
@@ -685,7 +985,9 @@ function initializeColorPickers() {
   const pickerElements = document.querySelectorAll('[data-color-picker]');
 
   for (const pickerElement of pickerElements) {
-    const input = document.querySelector(`#${pickerElement.dataset.colorPicker}`);
+    const input = document.querySelector(
+      `#${pickerElement.dataset.colorPicker}`,
+    );
     if (!input) continue;
 
     const allowNone = pickerElement.dataset.allowNone === 'true';
@@ -787,7 +1089,10 @@ function initializeColorPickers() {
       selectedSwatch.style.background = isNone ? 'transparent' : value;
       selectedSwatch.classList.toggle('is-none', isNone);
       selectedLabel.textContent = isNone ? 'не рисовать' : value.toUpperCase();
-      triggerButton.setAttribute('aria-label', `Выбрать цвет: ${selectedLabel.textContent}`);
+      triggerButton.setAttribute(
+        'aria-label',
+        `Выбрать цвет: ${selectedLabel.textContent}`,
+      );
       resetButton.classList.toggle('is-active', isNone);
 
       baseGrid.replaceChildren(
@@ -882,7 +1187,10 @@ function normalizeCueMotion(cue) {
 
 function readCueMotionFromForm() {
   const motionMs = Math.round(Number(cueMotionMsInput?.value));
-  const motionStartMs = Math.max(0, Math.round(Number(cueMotionStartMsInput?.value) || 0));
+  const motionStartMs = Math.max(
+    0,
+    Math.round(Number(cueMotionStartMsInput?.value) || 0),
+  );
   const motionDx = Math.round(Number(cueMotionDxInput?.value) || 0);
   const motionDy = Math.round(Number(cueMotionDyInput?.value) || 0);
 
@@ -992,13 +1300,19 @@ function applySubtitlePreviewStyle(element, style, scale = 1) {
   element.style.color = normalizedStyle.primaryColor;
   element.style.fontFamily = formatPreviewFontFamily(normalizedStyle.font);
   element.style.fontSize = `${fontSize}px`;
-  element.style.fontStyle = normalizedStyle.fontVariant === 'italic' ? 'italic' : 'normal';
-  element.style.fontWeight = normalizedStyle.fontVariant === 'bold' ? '900' : '400';
+  element.style.fontStyle =
+    normalizedStyle.fontVariant === 'italic' ? 'italic' : 'normal';
+  element.style.fontWeight =
+    normalizedStyle.fontVariant === 'bold' ? '900' : '400';
   element.style.background = isNoneColor(normalizedStyle.backColor)
     ? 'transparent'
     : normalizedStyle.backColor;
-  element.style.padding = isNoneColor(normalizedStyle.backColor) ? '0' : '0.08em 0.18em';
-  element.style.borderRadius = isNoneColor(normalizedStyle.backColor) ? '0' : '4px';
+  element.style.padding = isNoneColor(normalizedStyle.backColor)
+    ? '0'
+    : '0.08em 0.18em';
+  element.style.borderRadius = isNoneColor(normalizedStyle.backColor)
+    ? '0'
+    : '4px';
 
   if (!isNoneColor(normalizedStyle.outlineColor)) {
     const outlineSize = Math.max(1, Math.round(fontSize / 18));
@@ -1012,7 +1326,9 @@ function applySubtitlePreviewStyle(element, style, scale = 1) {
   }
 
   if (!isNoneColor(normalizedStyle.backColor)) {
-    shadows.push(`0 ${Math.max(1, Math.round(fontSize / 12))}px 0 rgba(0, 0, 0, 0.28)`);
+    shadows.push(
+      `0 ${Math.max(1, Math.round(fontSize / 12))}px 0 rgba(0, 0, 0, 0.28)`,
+    );
   }
 
   element.style.textShadow = shadows.join(', ');
@@ -1049,7 +1365,8 @@ function createStylePreviewColor(label, value) {
 }
 
 function renderStyleLivePreview() {
-  if (!styleLivePreviewText || !styleLivePreviewMeta || !styleLivePreviewColors) return;
+  if (!styleLivePreviewText || !styleLivePreviewMeta || !styleLivePreviewColors)
+    return;
 
   const style = readStyleFormDraft();
   styleLivePreviewText.textContent = STYLE_PREVIEW_TEXT;
@@ -1454,8 +1771,10 @@ function startCueEdit(cue) {
   cueEndInput.value = formatTimeInput(cue.end);
   cueStyleInput.value = cue.styleId;
   const motion = normalizeCueMotion(cue);
-  if (cueMotionDxInput) cueMotionDxInput.value = motion ? String(motion.motionDx) : '';
-  if (cueMotionDyInput) cueMotionDyInput.value = motion ? String(motion.motionDy) : '';
+  if (cueMotionDxInput)
+    cueMotionDxInput.value = motion ? String(motion.motionDx) : '';
+  if (cueMotionDyInput)
+    cueMotionDyInput.value = motion ? String(motion.motionDy) : '';
   if (cueMotionStartMsInput) {
     cueMotionStartMsInput.value =
       motion && motion.motionStartMs > 0 ? String(motion.motionStartMs) : '';
@@ -1556,7 +1875,11 @@ async function destroyJassubRenderer() {
 }
 
 async function repaintJassubFrame() {
-  if (!jassubRenderer || !currentVideo.videoWidth || !currentVideo.videoHeight) {
+  if (
+    !jassubRenderer ||
+    !currentVideo.videoWidth ||
+    !currentVideo.videoHeight
+  ) {
     return;
   }
 
@@ -1639,8 +1962,12 @@ function renderAssOutput() {
 }
 
 function updateVideoControls() {
-  const duration = Number.isFinite(currentVideo.duration) ? currentVideo.duration : 0;
-  const currentTime = Number.isFinite(currentVideo.currentTime) ? currentVideo.currentTime : 0;
+  const duration = Number.isFinite(currentVideo.duration)
+    ? currentVideo.duration
+    : 0;
+  const currentTime = Number.isFinite(currentVideo.currentTime)
+    ? currentVideo.currentTime
+    : 0;
 
   videoPlayButton.innerHTML = currentVideo.paused
     ? VIDEO_ICONS.play
@@ -1705,9 +2032,7 @@ async function refreshEditor() {
   await reloadStylePositionLookups();
   cachedPositions = await readPositions();
   cachedStyles = await readStyles();
-  cachedCues = currentVideoHash
-    ? await readCuesForVideo(currentVideoHash)
-    : [];
+  cachedCues = currentVideoHash ? await readCuesForVideo(currentVideoHash) : [];
   renderPositions();
   renderStyles();
   renderCues();
@@ -1746,6 +2071,84 @@ function uploadVideo(file) {
   });
 }
 
+async function extractAudio() {
+  if (!currentVideoHash) return;
+
+  extractAudioButton.disabled = true;
+  audioStatus.textContent = 'Выделяю audio на backend...';
+
+  try {
+    const response = await fetch(`/subs-api/videos/${currentVideoHash}/audio`, {
+      method: 'POST',
+    });
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(payload.message || 'Не удалось выделить audio');
+    }
+
+    const patch = {
+      audioUrl: payload.audioUrl,
+      audioMimeType: payload.mimeType,
+      audioSize: payload.size,
+      waveform: payload.waveform,
+      audioCreatedAt: payload.createdAt,
+      updatedAt: new Date().toISOString(),
+    };
+    const updated = await SF.patchVideoByHash(currentVideoHash, patch);
+    renderAudioPanel(updated || { ...patch, hash: currentVideoHash });
+    await refreshList();
+  } catch (error) {
+    audioStatus.textContent =
+      error instanceof Error ? error.message : 'Не удалось выделить audio';
+  } finally {
+    extractAudioButton.disabled = false;
+  }
+}
+
+async function transcribeAudio() {
+  if (!currentVideoHash) return;
+
+  const language = getSelectedTranscriptionLanguage();
+  transcribeAudioButton.disabled = true;
+  transcriptionStatus.textContent = 'Распознаю речь на backend...';
+
+  try {
+    const response = await fetch(
+      `/subs-api/videos/${currentVideoHash}/audio/transcript`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ language }),
+      },
+    );
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(payload.message || 'Не удалось распознать речь');
+    }
+
+    const existing = await SF.getVideoByHash(currentVideoHash);
+    const transcripts = {
+      ...(existing?.transcripts || {}),
+      [payload.language || language]: payload,
+    };
+    const updated = await SF.patchVideoByHash(currentVideoHash, {
+      transcripts,
+      updatedAt: new Date().toISOString(),
+    });
+    renderTranscription(updated || { ...existing, transcripts });
+    await refreshList();
+  } catch (error) {
+    transcriptionStatus.textContent =
+      error instanceof Error ? error.message : 'Не удалось распознать речь';
+  } finally {
+    transcribeAudioButton.disabled = false;
+  }
+}
+
 async function refreshList() {
   renderVideos(await readVideos());
 }
@@ -1765,6 +2168,7 @@ async function applyVideoContext(hash) {
 
   if (!hash) {
     setVideoBoundPanelVisible(false);
+    renderAudioPanel(null);
     currentVideoSection.hidden = true;
     currentVideo.src = '';
     setCurrentVideoMetaLink(null, '');
@@ -1813,20 +2217,24 @@ async function loadCurrentVideo() {
 
   const existing = await SF.getVideoByHash(hash);
   if (!existing) {
-    await saveVideo({
+    const saved = await saveVideo({
       ...video,
+      ...getAudioPatch(video.audio),
       originalName: `Видео ${hash}`,
       mimeType: 'video',
       size: 0,
     });
+    renderAudioPanel(saved);
     return;
   }
 
-  await SF.patchVideoByHash(hash, {
+  const patched = await SF.patchVideoByHash(hash, {
     videoUrl: video.videoUrl,
     absolutePageUrl: video.absolutePageUrl,
     pageUrl: video.pageUrl,
+    ...getAudioPatch(video.audio),
   });
+  renderAudioPanel(patched || existing);
 }
 
 input.addEventListener('change', () => {
@@ -1866,7 +2274,9 @@ form.addEventListener('submit', async (event) => {
 
 clearLinksButton.addEventListener('click', async () => {
   const active = await readVideos();
-  await Promise.all(active.map((video) => deleteRecord(VIDEO_STORE, video.hash)));
+  await Promise.all(
+    active.map((video) => deleteRecord(VIDEO_STORE, video.hash)),
+  );
   await refreshList();
 });
 
@@ -1914,6 +2324,38 @@ videoMuteButton.addEventListener('click', () => {
   currentVideo.muted = !currentVideo.muted;
 });
 
+extractAudioButton.addEventListener('click', () => {
+  void extractAudio();
+});
+
+transcribeAudioButton.addEventListener('click', () => {
+  void transcribeAudio();
+});
+transcriptionLanguageInput.addEventListener('change', async () => {
+  if (!currentVideoHash) {
+    renderTranscription(null);
+    return;
+  }
+
+  renderTranscription(await SF.getVideoByHash(currentVideoHash));
+});
+
+audioPlayer.addEventListener('loadedmetadata', redrawCurrentAudioWaveform);
+audioPlayer.addEventListener('durationchange', redrawCurrentAudioWaveform);
+audioPlayer.addEventListener('timeupdate', redrawCurrentAudioWaveform);
+audioPlayer.addEventListener('seeking', redrawCurrentAudioWaveform);
+audioPlayer.addEventListener('seeked', redrawCurrentAudioWaveform);
+audioPlayer.addEventListener('play', startAudioWaveformAnimation);
+audioPlayer.addEventListener('pause', () => {
+  stopAudioWaveformAnimation();
+  redrawCurrentAudioWaveform();
+});
+audioPlayer.addEventListener('ended', () => {
+  stopAudioWaveformAnimation();
+  redrawCurrentAudioWaveform();
+});
+window.addEventListener('resize', redrawCurrentAudioWaveform);
+
 [
   styleNameInput,
   styleFontInput,
@@ -1932,7 +2374,9 @@ videoMuteButton.addEventListener('click', () => {
 styleForm.addEventListener('submit', async (event) => {
   event.preventDefault();
 
-  const existingStyle = editingStyleId ? getStyleById(editingStyleId) : undefined;
+  const existingStyle = editingStyleId
+    ? getStyleById(editingStyleId)
+    : undefined;
   await saveStyle({
     id: editingStyleId || createId('style'),
     name: styleNameInput.value.trim(),
@@ -2043,29 +2487,33 @@ let sectionSaveTimer;
 
 function applyEditorSectionPrefs(prefs) {
   editorSectionPrefs = { ...SF.DEFAULT_SECTIONS_OPEN, ...prefs };
-  document.querySelectorAll('.editor-section[data-section]').forEach((section) => {
-    const key = section.dataset.section;
-    if (key in editorSectionPrefs) {
-      section.open = editorSectionPrefs[key];
-    }
-  });
+  document
+    .querySelectorAll('.editor-section[data-section]')
+    .forEach((section) => {
+      const key = section.dataset.section;
+      if (key in editorSectionPrefs) {
+        section.open = editorSectionPrefs[key];
+      }
+    });
 }
 
 function initEditorSections() {
-  document.querySelectorAll('.editor-section[data-section]').forEach((section) => {
-    section.addEventListener('toggle', () => {
-      const key = section.dataset.section;
-      if (!key) return;
-      editorSectionPrefs = {
-        ...editorSectionPrefs,
-        [key]: section.open,
-      };
-      clearTimeout(sectionSaveTimer);
-      sectionSaveTimer = setTimeout(() => {
-        void SF.writeEditorSectionPrefs(editorSectionPrefs);
-      }, 120);
+  document
+    .querySelectorAll('.editor-section[data-section]')
+    .forEach((section) => {
+      section.addEventListener('toggle', () => {
+        const key = section.dataset.section;
+        if (!key) return;
+        editorSectionPrefs = {
+          ...editorSectionPrefs,
+          [key]: section.open,
+        };
+        clearTimeout(sectionSaveTimer);
+        sectionSaveTimer = setTimeout(() => {
+          void SF.writeEditorSectionPrefs(editorSectionPrefs);
+        }, 120);
+      });
     });
-  });
 }
 
 async function init() {

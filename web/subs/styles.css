@@ -26,10 +26,20 @@ body {
 body {
   min-height: 100vh;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(243, 246, 242, 0.56) 42%, rgba(243, 246, 242, 1)),
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.82),
+      rgba(243, 246, 242, 0.56) 42%,
+      rgba(243, 246, 242, 1)
+    ),
     var(--page);
   color: var(--ink);
-  font-family: Montserrat, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family:
+    Montserrat,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
   line-height: 1.5;
 }
 
@@ -70,7 +80,7 @@ a {
   border-radius: 8px;
   background: var(--green);
   color: #fff;
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 13px;
 }
 
@@ -154,7 +164,7 @@ h3 {
 }
 
 code {
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
 }
 
 .lead {
@@ -254,7 +264,9 @@ code {
 .subtitle-line {
   margin: 0 auto;
   text-align: center;
-  text-shadow: 0 2px 0 #10181c, 0 0 12px rgba(0, 0, 0, 0.5);
+  text-shadow:
+    0 2px 0 #10181c,
+    0 0 12px rgba(0, 0, 0, 0.5);
 }
 
 .subtitle-line--primary {
@@ -269,7 +281,7 @@ code {
   max-width: 430px;
   margin-top: 18px;
   color: #b9cad4;
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
   overflow-wrap: anywhere;
   text-align: left;
@@ -331,7 +343,7 @@ code {
   display: block;
   margin-bottom: 34px;
   color: var(--blue);
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 13px;
   font-weight: 800;
 }
@@ -348,7 +360,7 @@ pre {
   padding: 22px;
   background: #172026;
   color: #e9f0ed;
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 13px;
   line-height: 1.65;
 }
@@ -557,7 +569,7 @@ pre {
 
 .video-control-time {
   color: #e9f0ed;
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 13px;
   white-space: nowrap;
 }
@@ -644,7 +656,7 @@ pre {
 
 .link-item__url {
   color: var(--blue);
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 13px;
   overflow-wrap: anywhere;
   text-decoration: none;
@@ -781,7 +793,7 @@ pre {
 .style-live-preview__meta {
   margin: 0;
   color: #eef2f1;
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
   font-weight: 800;
 }
@@ -816,14 +828,30 @@ pre {
 
 .style-live-preview__swatch.is-none {
   background:
-    linear-gradient(135deg, transparent 43%, #d44 44%, #d44 56%, transparent 57%),
+    linear-gradient(
+      135deg,
+      transparent 43%,
+      #d44 44%,
+      #d44 56%,
+      transparent 57%
+    ),
     linear-gradient(45deg, #f5f5f5 25%, transparent 25%),
     linear-gradient(-45deg, #f5f5f5 25%, transparent 25%),
     linear-gradient(45deg, transparent 75%, #f5f5f5 75%),
     linear-gradient(-45deg, transparent 75%, #f5f5f5 75%);
   background-color: #fff;
-  background-position: 0 0, 0 0, 0 6px, 6px -6px, -6px 0;
-  background-size: 100% 100%, 12px 12px, 12px 12px, 12px 12px, 12px 12px;
+  background-position:
+    0 0,
+    0 0,
+    0 6px,
+    6px -6px,
+    -6px 0;
+  background-size:
+    100% 100%,
+    12px 12px,
+    12px 12px,
+    12px 12px,
+    12px 12px;
 }
 
 .editor-form {
@@ -874,7 +902,10 @@ pre {
 }
 
 .editor-field-grid--style-type {
-  grid-template-columns: minmax(0, 1fr) minmax(96px, 0.45fr) minmax(120px, 0.55fr);
+  grid-template-columns: minmax(0, 1fr) minmax(96px, 0.45fr) minmax(
+      120px,
+      0.55fr
+    );
 }
 
 .editor-field span {
@@ -988,7 +1019,7 @@ pre {
 
 .position-item__coords {
   color: var(--muted);
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
 }
 
@@ -1044,14 +1075,30 @@ pre {
 .color-picker__selected-swatch.is-none,
 .color-picker__swatch.is-none {
   background:
-    linear-gradient(135deg, transparent 46%, #d44 47%, #d44 53%, transparent 54%),
+    linear-gradient(
+      135deg,
+      transparent 46%,
+      #d44 47%,
+      #d44 53%,
+      transparent 54%
+    ),
     linear-gradient(45deg, #f5f5f5 25%, transparent 25%),
     linear-gradient(-45deg, #f5f5f5 25%, transparent 25%),
     linear-gradient(45deg, transparent 75%, #f5f5f5 75%),
     linear-gradient(-45deg, transparent 75%, #f5f5f5 75%);
   background-color: #fff;
-  background-position: 0 0, 0 0, 0 8px, 8px -8px, -8px 0;
-  background-size: 100% 100%, 16px 16px, 16px 16px, 16px 16px, 16px 16px;
+  background-position:
+    0 0,
+    0 0,
+    0 8px,
+    8px -8px,
+    -8px 0;
+  background-size:
+    100% 100%,
+    16px 16px,
+    16px 16px,
+    16px 16px,
+    16px 16px;
 }
 
 .color-picker__panel {
@@ -1109,7 +1156,7 @@ pre {
   position: absolute;
   top: -1px;
   bottom: -1px;
-  content: "";
+  content: '';
 }
 
 .color-picker__swatch--split::before {
@@ -1333,7 +1380,7 @@ pre {
   padding: 12px;
   background: #172026;
   color: #e9f0ed;
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
   line-height: 1.55;
 }
@@ -1350,7 +1397,7 @@ pre {
 }
 
 .cue-item__time {
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-weight: 700;
 }
 
@@ -1412,7 +1459,7 @@ pre {
 
 .current-video__meta {
   color: var(--blue);
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
   overflow-wrap: anywhere;
   text-decoration: none;
@@ -1441,7 +1488,7 @@ pre {
 
 .ass-card-head span {
   color: var(--muted);
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
   text-align: right;
 }
@@ -1475,9 +1522,122 @@ pre {
   padding: 16px;
   background: #172026;
   color: #e9f0ed;
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
   line-height: 1.6;
+}
+
+.audio-panel {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.audio-panel[hidden] {
+  display: none;
+}
+
+.audio-panel__head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.audio-panel__head h3 {
+  margin-bottom: 0;
+}
+
+.audio-extract-button {
+  min-height: 40px;
+  border-color: var(--line);
+  cursor: pointer;
+}
+
+.audio-extract-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.54;
+}
+
+.audio-status {
+  margin: 0;
+  color: var(--muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+}
+
+.audio-waveform {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #172026;
+}
+
+.audio-waveform canvas {
+  display: block;
+  width: 100%;
+  height: 150px;
+}
+
+.audio-player {
+  width: 100%;
+}
+
+.transcription-panel {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.transcription-panel[hidden] {
+  display: none;
+}
+
+.transcription-controls {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.transcription-language {
+  margin: 0;
+}
+
+.transcription-button {
+  min-height: 48px;
+  border-color: var(--line);
+  cursor: pointer;
+}
+
+.transcription-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.54;
+}
+
+.transcription-status {
+  margin: 0;
+  color: var(--muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+}
+
+.transcription-output {
+  min-height: 220px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  background: #172026;
+  color: #e9f0ed;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.transcription-output[hidden] {
+  display: none;
 }
 
 @media (max-width: 860px) {
@@ -1544,6 +1704,7 @@ pre {
   .upload-form,
   .link-item,
   .editor-field-grid,
+  .transcription-controls,
   .cue-item {
     grid-template-columns: 1fr;
   }
@@ -1602,5 +1763,4 @@ pre {
   .refresh-preview-button {
     width: 100%;
   }
-
 }

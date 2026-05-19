@@ -5,6 +5,30 @@ import { Upload } from '@aws-sdk/lib-storage';
 import { v4 as uuidv4 } from 'uuid';
 import { Readable } from 'stream';
 
+export type SubsAudioManifest = {
+  hash: string;
+  audioUrl: string;
+  mimeType: string;
+  size: number;
+  waveform: number[];
+  createdAt: string;
+};
+
+export type SubsTranscriptCue = {
+  start: number;
+  end: number;
+  text: string;
+};
+
+export type SubsAudioTranscript = {
+  hash: string;
+  language: string;
+  model: string;
+  text: string;
+  cues: SubsTranscriptCue[];
+  createdAt: string;
+};
+
 @Injectable()
 export class StorageService implements OnModuleInit {
   private readonly s3: S3;
@@ -133,8 +157,124 @@ export class StorageService implements OnModuleInit {
     return this.getPublicUrl(key);
   }
 
+  async uploadSubsAudioStream(
+    stream: Readable,
+    mimeType: string,
+    hash: string,
+  ): Promise<string> {
+    const key = this.getSubsAudioKey(hash);
+
+    const upload = new Upload({
+      client: this.s3,
+      params: {
+        Bucket: this.bucket,
+        Key: key,
+        Body: stream,
+        ContentType: mimeType,
+        ACL: 'public-read',
+      },
+    });
+
+    await upload.done();
+    return this.getPublicUrl(key);
+  }
+
+  async uploadSubsAudioManifest(
+    hash: string,
+    manifest: SubsAudioManifest,
+  ): Promise<string> {
+    const key = this.getSubsAudioManifestKey(hash);
+
+    const upload = new Upload({
+      client: this.s3,
+      params: {
+        Bucket: this.bucket,
+        Key: key,
+        Body: JSON.stringify(manifest),
+        ContentType: 'application/json',
+        ACL: 'public-read',
+      },
+    });
+
+    await upload.done();
+    return this.getPublicUrl(key);
+  }
+
+  async getSubsAudioManifest(hash: string): Promise<SubsAudioManifest | null> {
+    try {
+      const response = await this.s3.getObject({
+        Bucket: this.bucket,
+        Key: this.getSubsAudioManifestKey(hash),
+      });
+
+      if (!response.Body) return null;
+
+      const buffer = await this.readStreamToBuffer(
+        response.Body as NodeJS.ReadableStream,
+      );
+      const manifest = JSON.parse(buffer.toString('utf8')) as unknown;
+
+      if (!this.isSubsAudioManifest(manifest)) return null;
+      return manifest;
+    } catch (error) {
+      if (this.isMissingObjectError(error)) return null;
+      throw error;
+    }
+  }
+
+  async uploadSubsAudioTranscript(
+    hash: string,
+    language: string,
+    transcript: SubsAudioTranscript,
+  ): Promise<string> {
+    const key = this.getSubsAudioTranscriptKey(hash, language);
+
+    const upload = new Upload({
+      client: this.s3,
+      params: {
+        Bucket: this.bucket,
+        Key: key,
+        Body: JSON.stringify(transcript),
+        ContentType: 'application/json',
+        ACL: 'public-read',
+      },
+    });
+
+    await upload.done();
+    return this.getPublicUrl(key);
+  }
+
+  async getSubsAudioTranscript(
+    hash: string,
+    language: string,
+  ): Promise<SubsAudioTranscript | null> {
+    try {
+      const response = await this.s3.getObject({
+        Bucket: this.bucket,
+        Key: this.getSubsAudioTranscriptKey(hash, language),
+      });
+
+      if (!response.Body) return null;
+
+      const buffer = await this.readStreamToBuffer(
+        response.Body as NodeJS.ReadableStream,
+      );
+      const transcript = JSON.parse(buffer.toString('utf8')) as unknown;
+
+      if (!this.isSubsAudioTranscript(transcript)) return null;
+      return transcript;
+    } catch (error) {
+      if (this.isMissingObjectError(error)) return null;
+      throw error;
+    }
+  }
+
   getSubsVideoUrl(hash: string): string {
     return this.getPublicUrl(this.getSubsVideoKey(hash));
+  }
+
+  getSubsAudioUrl(hash: string): string {
+    return this.getPublicUrl(this.getSubsAudioKey(hash));
   }
 
   async uploadFileWithKey(
@@ -160,8 +300,80 @@ export class StorageService implements OnModuleInit {
     return `subs/videos/${hash}/source`;
   }
 
+  private getSubsAudioKey(hash: string): string {
+    return `subs/videos/${hash}/audio/audio.mp3`;
+  }
+
+  private getSubsAudioManifestKey(hash: string): string {
+    return `subs/videos/${hash}/audio/waveform.json`;
+  }
+
+  private getSubsAudioTranscriptKey(hash: string, language: string): string {
+    return `subs/videos/${hash}/audio/transcript-${this.normalizeStorageSegment(language)}.json`;
+  }
+
   private getPublicUrl(key: string): string {
     return `${this.endpoint}/${this.bucket}/${key}`;
+  }
+
+  private isSubsAudioManifest(value: unknown): value is SubsAudioManifest {
+    if (!value || typeof value !== 'object') return false;
+
+    const manifest = value as Partial<SubsAudioManifest>;
+    return (
+      typeof manifest.hash === 'string' &&
+      typeof manifest.audioUrl === 'string' &&
+      typeof manifest.mimeType === 'string' &&
+      typeof manifest.size === 'number' &&
+      typeof manifest.createdAt === 'string' &&
+      Array.isArray(manifest.waveform) &&
+      manifest.waveform.every((peak) => typeof peak === 'number')
+    );
+  }
+
+  private isSubsAudioTranscript(value: unknown): value is SubsAudioTranscript {
+    if (!value || typeof value !== 'object') return false;
+
+    const transcript = value as Partial<SubsAudioTranscript>;
+    return (
+      typeof transcript.hash === 'string' &&
+      typeof transcript.language === 'string' &&
+      typeof transcript.model === 'string' &&
+      typeof transcript.text === 'string' &&
+      typeof transcript.createdAt === 'string' &&
+      Array.isArray(transcript.cues) &&
+      transcript.cues.every(
+        (cue) =>
+          typeof cue?.start === 'number' &&
+          typeof cue?.end === 'number' &&
+          typeof cue?.text === 'string',
+      )
+    );
+  }
+
+  private isMissingObjectError(error: unknown): boolean {
+    if (!(error instanceof Error)) return false;
+    return (
+      error.name === 'NoSuchKey' ||
+      error.name === 'NotFound' ||
+      error.message.includes('NoSuchKey') ||
+      error.message.includes('not found')
+    );
+  }
+
+  private normalizeStorageSegment(value: string): string {
+    return value.toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
+  }
+
+  private async readStreamToBuffer(
+    stream: NodeJS.ReadableStream,
+  ): Promise<Buffer> {
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(Buffer.from(chunk));
+    }
+
+    return Buffer.concat(chunks);
   }
 
   async downloadFile(url: string): Promise<Buffer> {
@@ -179,13 +391,7 @@ export class StorageService implements OnModuleInit {
         throw new Error('No body in response');
       }
 
-      // Convert stream to buffer
-      const chunks: Buffer[] = [];
-      for await (const chunk of response.Body as NodeJS.ReadableStream) {
-        chunks.push(Buffer.from(chunk));
-      }
-
-      return Buffer.concat(chunks);
+      return this.readStreamToBuffer(response.Body as NodeJS.ReadableStream);
     } catch (error) {
       console.error('Error downloading file:', error);
       const errorMessage =
