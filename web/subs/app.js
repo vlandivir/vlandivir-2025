@@ -267,6 +267,18 @@ const transcriptionLanguageInput = document.querySelector(
 const transcribeAudioButton = document.querySelector('#transcribeAudioButton');
 const transcriptionStatus = document.querySelector('#transcriptionStatus');
 const transcriptionOutput = document.querySelector('#transcriptionOutput');
+const saveTranscriptionButton = document.querySelector(
+  '#saveTranscriptionButton',
+);
+const transcriptionToCuesPanel = document.querySelector(
+  '#transcriptionToCuesPanel',
+);
+const transcriptionCueStyleInput = document.querySelector(
+  '#transcriptionCueStyleInput',
+);
+const createCuesFromTranscriptionButton = document.querySelector(
+  '#createCuesFromTranscriptionButton',
+);
 
 let cachedStyles = [];
 let cachedCues = [];
@@ -615,12 +627,30 @@ function getSelectedTranscriptionLanguage() {
   return transcriptionLanguageInput?.value || 'auto';
 }
 
-function formatTranscriptTime(value) {
+function getTranscriptOutputKey(language = getSelectedTranscriptionLanguage()) {
+  return `${language}Output`;
+}
+
+function formatTranscriptTime(value, width = 5) {
   if (!Number.isFinite(value)) return '0.00';
-  return value.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+  return value.toFixed(2).padStart(width, ' ');
 }
 
 function formatTranscript(transcript) {
+  if (Array.isArray(transcript?.words) && transcript.words.length > 0) {
+    const timeWidth = Math.max(
+      5,
+      ...transcript.words.map(
+        (word) => formatTranscriptTime(word.start, 0).length,
+      ),
+    );
+    return transcript.words
+      .map(
+        (word) => `${formatTranscriptTime(word.start, timeWidth)} ${word.word}`,
+      )
+      .join('\n');
+  }
+
   if (Array.isArray(transcript?.cues) && transcript.cues.length > 0) {
     return transcript.cues
       .map(
@@ -641,6 +671,8 @@ function renderTranscription(video = null) {
   if (!hasAudio) {
     transcriptionOutput.value = '';
     transcriptionOutput.hidden = true;
+    saveTranscriptionButton.hidden = true;
+    transcriptionToCuesPanel.hidden = true;
     transcriptionStatus.textContent = 'Сначала выделите audio.';
     return;
   }
@@ -648,12 +680,21 @@ function renderTranscription(video = null) {
   const language = getSelectedTranscriptionLanguage();
   const transcript = video?.transcripts?.[language];
   if (transcript) {
-    transcriptionOutput.value = formatTranscript(transcript);
+    transcriptionOutput.value =
+      transcript[getTranscriptOutputKey(language)] ||
+      formatTranscript(transcript);
     transcriptionOutput.hidden = false;
-    transcriptionStatus.textContent = `Распознано · ${transcript.language} · ${transcript.cues?.length || 0} реплик`;
+    saveTranscriptionButton.hidden = false;
+    transcriptionToCuesPanel.hidden = false;
+    const editedSuffix = transcript[getTranscriptOutputKey(language)]
+      ? ' · отредактировано'
+      : '';
+    transcriptionStatus.textContent = `Распознано · ${transcript.language} · ${transcript.words?.length || 0} слов${editedSuffix}`;
   } else {
     transcriptionOutput.value = '';
     transcriptionOutput.hidden = true;
+    saveTranscriptionButton.hidden = true;
+    transcriptionToCuesPanel.hidden = true;
     transcriptionStatus.textContent = 'Распознавание ещё не запускалось.';
   }
 }
@@ -1285,8 +1326,8 @@ function normalizeStyle(style) {
     fontVariant: normalizeFontVariant(style.fontVariant),
     primaryColor: isNoneColor(primaryColor) ? '#ffffff' : primaryColor,
     secondaryColor: style.secondaryColor ?? '#000000',
-    outlineColor: style.outlineColor ?? '#10181c',
-    backColor: style.backColor ?? '#000000',
+    outlineColor: style.outlineColor ?? 'none',
+    backColor: style.backColor ?? 'none',
     positionId: resolvedPosition.id,
     position: resolvedPosition,
   };
@@ -1422,8 +1463,8 @@ function generateAss() {
           fontVariant: 'regular',
           primaryColor: '#ffffff',
           secondaryColor: '#000000',
-          outlineColor: '#10181c',
-          backColor: '#000000',
+          outlineColor: 'none',
+          backColor: 'none',
           positionId: defaultPosition().id,
         },
       ];
@@ -1496,15 +1537,23 @@ function generateAss() {
 
 function renderStyleOptions() {
   cueStyleInput.replaceChildren();
+  transcriptionCueStyleInput.replaceChildren();
 
   for (const style of cachedStyles) {
     const option = document.createElement('option');
     option.value = style.id;
     option.textContent = style.name;
     cueStyleInput.append(option);
+
+    const transcriptionOption = document.createElement('option');
+    transcriptionOption.value = style.id;
+    transcriptionOption.textContent = style.name;
+    transcriptionCueStyleInput.append(transcriptionOption);
   }
 
   cueStyleInput.disabled = cachedStyles.length === 0;
+  transcriptionCueStyleInput.disabled = cachedStyles.length === 0;
+  createCuesFromTranscriptionButton.disabled = cachedStyles.length === 0;
 }
 
 function renderPositionOptions() {
@@ -1716,8 +1765,8 @@ function resetStyleForm() {
   styleFontVariantInput.value = 'regular';
   setColorInputValue(stylePrimaryColorInput, '#ffffff');
   setColorInputValue(styleSecondaryColorInput, '#000000');
-  setColorInputValue(styleOutlineColorInput, '#10181c');
-  setColorInputValue(styleBackColorInput, '#000000');
+  setColorInputValue(styleOutlineColorInput, 'none');
+  setColorInputValue(styleBackColorInput, 'none');
   stylePositionInput.value = defaultPosition().id;
   styleSubmitButton.textContent = 'Добавить стиль';
   cancelStyleEditButton.hidden = true;
@@ -2007,8 +2056,8 @@ async function ensureDefaultStyle() {
     fontVariant: 'regular',
     primaryColor: '#ffffff',
     secondaryColor: '#000000',
-    outlineColor: '#10181c',
-    backColor: '#000000',
+    outlineColor: 'none',
+    backColor: 'none',
     positionId: defaultPosition().id,
     createdAt: new Date().toISOString(),
   });
@@ -2147,6 +2196,90 @@ async function transcribeAudio() {
   } finally {
     transcribeAudioButton.disabled = false;
   }
+}
+
+async function saveEditedTranscription() {
+  if (!currentVideoHash || transcriptionOutput.hidden) return;
+
+  const language = getSelectedTranscriptionLanguage();
+  const existing = await SF.getVideoByHash(currentVideoHash);
+  const transcript = existing?.transcripts?.[language];
+  if (!transcript) return;
+
+  const outputKey = getTranscriptOutputKey(language);
+  const transcripts = {
+    ...(existing.transcripts || {}),
+    [language]: {
+      ...transcript,
+      [outputKey]: transcriptionOutput.value,
+      editedAt: new Date().toISOString(),
+    },
+  };
+  const updated = await SF.patchVideoByHash(currentVideoHash, {
+    transcripts,
+    updatedAt: new Date().toISOString(),
+  });
+  renderTranscription(updated || { ...existing, transcripts });
+  transcriptionStatus.textContent = `Сохранено · ${language} · отредактировано`;
+}
+
+function parseTranscriptionWords(text) {
+  return text
+    .split('\n')
+    .map((line) => {
+      const match = line.trim().match(/^(\d+(?:\.\d{1,3})?)\s+(.+)$/);
+      if (!match) return null;
+
+      return {
+        start: Number(match[1]),
+        word: match[2].trim(),
+      };
+    })
+    .filter((word) => word && Number.isFinite(word.start) && word.word);
+}
+
+function buildCuesFromWords(words) {
+  return words.map((word, index) => {
+    const nextWord = words[index + 1];
+    return {
+      text: word.word,
+      start: word.start,
+      end: nextWord ? nextWord.start : word.start + 0.8,
+    };
+  });
+}
+
+async function createCuesFromTranscription() {
+  if (!currentVideoHash || transcriptionOutput.hidden) return;
+  if (!transcriptionCueStyleInput.value) {
+    transcriptionStatus.textContent = 'Выберите стиль для реплик.';
+    return;
+  }
+
+  const words = parseTranscriptionWords(transcriptionOutput.value);
+  if (words.length === 0) {
+    transcriptionStatus.textContent =
+      'Не нашёл строки в формате “00.00 слово”.';
+    return;
+  }
+
+  const cueDrafts = buildCuesFromWords(words);
+  const now = new Date().toISOString();
+  for (const cue of cueDrafts) {
+    await saveCue({
+      id: createId('cue'),
+      videoHash: currentVideoHash,
+      text: cue.text,
+      start: formatTimeInput(String(cue.start)),
+      end: formatTimeInput(String(cue.end)),
+      styleId: transcriptionCueStyleInput.value,
+      createdAt: now,
+    });
+  }
+
+  await touchCurrentVideoUpdated();
+  await refreshEditor();
+  transcriptionStatus.textContent = `Создано реплик: ${cueDrafts.length}`;
 }
 
 async function refreshList() {
@@ -2330,6 +2463,12 @@ extractAudioButton.addEventListener('click', () => {
 
 transcribeAudioButton.addEventListener('click', () => {
   void transcribeAudio();
+});
+saveTranscriptionButton.addEventListener('click', () => {
+  void saveEditedTranscription();
+});
+createCuesFromTranscriptionButton.addEventListener('click', () => {
+  void createCuesFromTranscription();
 });
 transcriptionLanguageInput.addEventListener('change', async () => {
   if (!currentVideoHash) {

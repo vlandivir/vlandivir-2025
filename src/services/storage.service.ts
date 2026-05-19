@@ -20,12 +20,19 @@ export type SubsTranscriptCue = {
   text: string;
 };
 
+export type SubsTranscriptWord = {
+  start: number;
+  end: number;
+  word: string;
+};
+
 export type SubsAudioTranscript = {
   hash: string;
   language: string;
   model: string;
   text: string;
   cues: SubsTranscriptCue[];
+  words: SubsTranscriptWord[];
   createdAt: string;
 };
 
@@ -309,7 +316,7 @@ export class StorageService implements OnModuleInit {
   }
 
   private getSubsAudioTranscriptKey(hash: string, language: string): string {
-    return `subs/videos/${hash}/audio/transcript-${this.normalizeStorageSegment(language)}.json`;
+    return `subs/videos/${hash}/audio/transcript-words-${this.normalizeStorageSegment(language)}.json`;
   }
 
   private getPublicUrl(key: string): string {
@@ -342,11 +349,18 @@ export class StorageService implements OnModuleInit {
       typeof transcript.text === 'string' &&
       typeof transcript.createdAt === 'string' &&
       Array.isArray(transcript.cues) &&
+      Array.isArray(transcript.words) &&
       transcript.cues.every(
         (cue) =>
           typeof cue?.start === 'number' &&
           typeof cue?.end === 'number' &&
           typeof cue?.text === 'string',
+      ) &&
+      transcript.words.every(
+        (word) =>
+          typeof word?.start === 'number' &&
+          typeof word?.end === 'number' &&
+          typeof word?.word === 'string',
       )
     );
   }

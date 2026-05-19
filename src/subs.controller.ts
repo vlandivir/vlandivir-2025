@@ -24,6 +24,7 @@ import {
   type SubsAudioManifest,
   type SubsAudioTranscript,
   type SubsTranscriptCue,
+  type SubsTranscriptWord,
 } from './services/storage.service';
 
 type UploadedVideo = {
@@ -57,9 +58,16 @@ type OpenAiTranscriptionSegment = {
   text?: string;
 };
 
+type OpenAiTranscriptionWord = {
+  start?: number;
+  end?: number;
+  word?: string;
+};
+
 type OpenAiTranscriptionResponse = {
   text?: string;
   segments?: OpenAiTranscriptionSegment[];
+  words?: OpenAiTranscriptionWord[];
 };
 
 type MulterDiskFile = {
@@ -236,15 +244,14 @@ export class SubsController {
       language,
     );
     const cues = this.normalizeTranscriptionSegments(response);
+    const words = this.normalizeTranscriptionWords(response);
     const transcript = {
       hash,
       language,
       model: 'whisper-1',
-      text:
-        cues.length > 0
-          ? cues.map((cue) => cue.text).join('\n')
-          : (response.text || '').trim(),
+      text: (response.text || words.map((word) => word.word).join(' ')).trim(),
       cues,
+      words,
       createdAt: new Date().toISOString(),
     };
 
@@ -308,6 +315,7 @@ export class SubsController {
       formData.append('model', 'whisper-1');
       formData.append('response_format', 'verbose_json');
       formData.append('timestamp_granularities[]', 'segment');
+      formData.append('timestamp_granularities[]', 'word');
       formData.append('temperature', '0');
       if (language !== 'auto') {
         formData.append('language', language);
@@ -364,6 +372,20 @@ export class SubsController {
         text: (segment.text || '').trim(),
       }))
       .filter((segment) => segment.text);
+  }
+
+  private normalizeTranscriptionWords(
+    response: OpenAiTranscriptionResponse,
+  ): SubsTranscriptWord[] {
+    if (!Array.isArray(response.words)) return [];
+
+    return response.words
+      .map((word) => ({
+        start: Number(word.start || 0),
+        end: Number(word.end || 0),
+        word: (word.word || '').trim(),
+      }))
+      .filter((word) => word.word);
   }
 
   private runFfmpeg(args: string[]): Promise<void> {

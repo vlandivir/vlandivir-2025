@@ -124,9 +124,33 @@
             class="transcription-output"
             id="transcriptionOutput"
             spellcheck="false"
-            readonly
             hidden
           ></textarea>
+          <button
+            class="secondary-link transcription-save-button"
+            id="saveTranscriptionButton"
+            type="button"
+            hidden
+          >
+            Сохранить текст
+          </button>
+          <div
+            class="transcription-to-cues"
+            id="transcriptionToCuesPanel"
+            hidden
+          >
+            <label class="editor-field transcription-cue-style">
+              <span>Стиль для реплик</span>
+              <select id="transcriptionCueStyleInput"></select>
+            </label>
+            <button
+              class="primary-link transcription-cues-button"
+              id="createCuesFromTranscriptionButton"
+              type="button"
+            >
+              Преобразовать в реплики
+            </button>
+          </div>
         </div>
       </section>
 
@@ -332,7 +356,7 @@
                   <input
                     id="styleOutlineColorInput"
                     type="hidden"
-                    value="#10181c"
+                    value="none"
                   />
                   <div
                     class="color-picker"
@@ -342,11 +366,7 @@
                 </label>
                 <label class="editor-field">
                   <span>BackColour</span>
-                  <input
-                    id="styleBackColorInput"
-                    type="hidden"
-                    value="#000000"
-                  />
+                  <input id="styleBackColorInput" type="hidden" value="none" />
                   <div
                     class="color-picker"
                     data-color-picker="styleBackColorInput"
@@ -391,7 +411,7 @@
               <h2 class="editor-section__title">Реплики</h2>
             </summary>
             <div class="editor-section__body editor-grid video-bound-grid">
-              <details class="editor-card ass-cheatsheet" open>
+              <details class="editor-card ass-cheatsheet">
                 <summary class="ass-cheatsheet__summary">
                   Шпаргалка: теги в тексте реплики
                 </summary>
