@@ -524,6 +524,20 @@ pre {
   pointer-events: none;
 }
 
+.reels-safe-zone-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.reels-safe-zone-overlay[hidden] {
+  display: none;
+}
+
 .video-controls {
   display: grid;
   grid-template-columns: 40px minmax(0, 1fr) auto 40px;
@@ -1494,9 +1508,39 @@ pre {
   text-decoration: underline;
 }
 
+.current-video__tools {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-end;
+  text-align: right;
+}
+
 .current-video__head .current-video__meta {
   margin-bottom: 0;
-  text-align: right;
+}
+
+.safe-zone-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+  user-select: none;
+}
+
+.safe-zone-toggle input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--green);
 }
 
 .ass-card-head {
@@ -1880,7 +1924,8 @@ pre {
     align-items: start;
   }
 
-  .current-video__head .current-video__meta {
+  .current-video__tools {
+    align-items: flex-start;
     text-align: left;
   }
 

@@ -4,10 +4,142 @@ const VIDEO_STORE = SF.VIDEO_STORE;
 const STYLE_STORE = SF.STYLE_STORE;
 const CUE_STORE = SF.CUE_STORE;
 const POSITION_STORE = SF.POSITION_STORE;
+const IS_EN = document.documentElement.lang?.startsWith('en');
+const TEXT = IS_EN
+  ? {
+      bottomCenter: 'Bottom center',
+      bottomLeft: 'Bottom left',
+      topCenter: 'Top center',
+      middleCenter: 'Center',
+      chooseFonts: 'Choose fonts on /font',
+      noWaveform: 'Waveform unavailable',
+      audioFirst: 'Extract audio first.',
+      transcriptNotRun: 'Transcription has not been run yet.',
+      edited: 'edited',
+      recognized: 'Transcribed',
+      words: 'words',
+      audioReady: 'Audio ready',
+      audioNotExtracted: 'Audio has not been extracted yet.',
+      openFile: 'Open file',
+      archive: 'Archive',
+      doNotDraw: 'Do not draw',
+      chooseColor: 'Choose color',
+      shade: 'Shade',
+      whiteAndBlack: 'white and black',
+      styleDeleted: 'Style deleted',
+      addStyle: 'Add style',
+      addCue: 'Add cue',
+      addPosition: 'Add position',
+      saveStyle: 'Save style',
+      saveCue: 'Save cue',
+      savePosition: 'Save position',
+      noCueAtCurrentTime: 'No cue at the current time',
+      loadVideoForPreview: 'Upload video for preview',
+      addCuesForPreview: 'Add cues for preview',
+      jassubLoading: 'JASSUB is loading renderer...',
+      jassubFailed: 'JASSUB failed to render subtitles',
+      addCues: 'Add cues.',
+      addVideoAndCues: 'Add a video and cues.',
+      readyToRender: 'Ready to render.',
+      video: 'Video',
+      done: 'Done',
+      uploading: 'Uploading',
+      preparingUpload: 'Preparing upload...',
+      uploadFailed: 'Failed to upload video',
+      extractAudio: 'Extracting audio on backend...',
+      extractAudioFailed: 'Failed to extract audio',
+      transcribing: 'Transcribing speech on backend...',
+      transcribeFailed: 'Failed to transcribe speech',
+      saved: 'Saved',
+      chooseCueStyle: 'Choose a cue style.',
+      noWordLines: 'No lines in “00.00 word” format.',
+      cuesCreated: 'Cues created',
+      rendering: 'Burning subtitles on backend...',
+      renderFailed: 'Failed to burn subtitles',
+      linkFetchFailed: 'Failed to fetch data for this link.',
+      videoName: 'Video',
+      fileMeta: 'MP4, MOV, WebM, or another video/* file',
+      loadingError: 'IndexedDB error',
+      editPosition: 'Edit position',
+      editStyle: 'Edit style',
+      editCue: 'Edit cue',
+      deleteCue: 'Delete cue',
+      pause: 'Pause',
+      play: 'Play',
+      unmute: 'Unmute',
+      mute: 'Mute',
+      alignment: 'Alignment',
+      cancel: 'Cancel',
+    }
+  : {
+      bottomCenter: 'Снизу по центру',
+      bottomLeft: 'Снизу слева',
+      topCenter: 'Сверху по центру',
+      middleCenter: 'По центру кадра',
+      chooseFonts: 'Выберите шрифты на /font',
+      noWaveform: 'Waveform недоступен',
+      audioFirst: 'Сначала выделите audio.',
+      transcriptNotRun: 'Распознавание ещё не запускалось.',
+      edited: 'отредактировано',
+      recognized: 'Распознано',
+      words: 'слов',
+      audioReady: 'Audio готово',
+      audioNotExtracted: 'Audio ещё не выделено.',
+      openFile: 'Открыть файл',
+      archive: 'В архив',
+      doNotDraw: 'Не рисовать',
+      chooseColor: 'Выбрать цвет',
+      shade: 'Оттенок',
+      whiteAndBlack: 'белый и черный',
+      styleDeleted: 'Стиль удален',
+      addStyle: 'Добавить стиль',
+      addCue: 'Добавить реплику',
+      addPosition: 'Добавить позицию',
+      saveStyle: 'Сохранить стиль',
+      saveCue: 'Сохранить реплику',
+      savePosition: 'Сохранить позицию',
+      noCueAtCurrentTime: 'На текущем времени нет реплики',
+      loadVideoForPreview: 'Загрузите видео для превью',
+      addCuesForPreview: 'Добавьте реплики для превью',
+      jassubLoading: 'JASSUB загружает renderer...',
+      jassubFailed: 'JASSUB не смог отрендерить субтитры',
+      addCues: 'Добавьте реплики.',
+      addVideoAndCues: 'Добавьте видео и реплики.',
+      readyToRender: 'Готово к рендеру.',
+      video: 'Видео',
+      done: 'Готово',
+      uploading: 'Загрузка',
+      preparingUpload: 'Подготовка загрузки...',
+      uploadFailed: 'Не удалось загрузить видео',
+      extractAudio: 'Выделяю audio на backend...',
+      extractAudioFailed: 'Не удалось выделить audio',
+      transcribing: 'Распознаю речь на backend...',
+      transcribeFailed: 'Не удалось распознать речь',
+      saved: 'Сохранено',
+      chooseCueStyle: 'Выберите стиль для реплик.',
+      noWordLines: 'Не нашёл строки в формате “00.00 слово”.',
+      cuesCreated: 'Создано реплик',
+      rendering: 'Накладываю субтитры на backend...',
+      renderFailed: 'Не удалось наложить субтитры',
+      linkFetchFailed: 'Не удалось получить данные по этой ссылке.',
+      videoName: 'Видео',
+      fileMeta: 'MP4, MOV, WebM или другой video/* файл',
+      loadingError: 'Ошибка IndexedDB',
+      editPosition: 'Редактировать позицию',
+      editStyle: 'Редактировать стиль',
+      editCue: 'Редактировать реплику',
+      deleteCue: 'Удалить реплику',
+      pause: 'Пауза',
+      play: 'Воспроизвести',
+      unmute: 'Включить звук',
+      mute: 'Выключить звук',
+      alignment: 'Выравнивание',
+      cancel: 'Отменить',
+    };
 const DEFAULT_POSITIONS = [
   {
     id: 'position-bottom-center',
-    name: 'Снизу по центру',
+    name: TEXT.bottomCenter,
     x: 540,
     y: 1700,
     alignment: 2,
@@ -15,7 +147,7 @@ const DEFAULT_POSITIONS = [
   },
   {
     id: 'position-bottom-left',
-    name: 'Снизу слева',
+    name: TEXT.bottomLeft,
     x: 140,
     y: 1700,
     alignment: 1,
@@ -23,7 +155,7 @@ const DEFAULT_POSITIONS = [
   },
   {
     id: 'position-top-center',
-    name: 'Сверху по центру',
+    name: TEXT.topCenter,
     x: 540,
     y: 220,
     alignment: 8,
@@ -31,7 +163,7 @@ const DEFAULT_POSITIONS = [
   },
   {
     id: 'position-middle-center',
-    name: 'По центру кадра',
+    name: TEXT.middleCenter,
     x: 540,
     y: 960,
     alignment: 5,
@@ -118,7 +250,7 @@ function populateStyleFontOptions() {
   if (pickerFonts.length === 0) {
     const option = document.createElement('option');
     option.value = '';
-    option.textContent = 'Выберите шрифты на /font';
+    option.textContent = TEXT.chooseFonts;
     option.disabled = true;
     option.selected = true;
     styleFontInput.append(option);
@@ -153,15 +285,19 @@ async function reloadFontPickerFromDb() {
 }
 
 const BASE_COLORS = [
-  { name: 'Белый и черный', value: '#ffffff', split: true },
-  { name: 'Желтый', value: '#eab308' },
-  { name: 'Теплый', value: '#e07a5f' },
-  { name: 'Красный', value: '#ef4444' },
-  { name: 'Оранжевый', value: '#f97316' },
-  { name: 'Зеленый', value: '#22c55e' },
-  { name: 'Синий', value: '#3b82f6' },
-  { name: 'Фиолетовый', value: '#8b5cf6' },
-  { name: 'Розовый', value: '#ec4899' },
+  {
+    name: IS_EN ? 'White and black' : 'Белый и черный',
+    value: '#ffffff',
+    split: true,
+  },
+  { name: IS_EN ? 'Yellow' : 'Желтый', value: '#eab308' },
+  { name: IS_EN ? 'Warm' : 'Теплый', value: '#e07a5f' },
+  { name: IS_EN ? 'Red' : 'Красный', value: '#ef4444' },
+  { name: IS_EN ? 'Orange' : 'Оранжевый', value: '#f97316' },
+  { name: IS_EN ? 'Green' : 'Зеленый', value: '#22c55e' },
+  { name: IS_EN ? 'Blue' : 'Синий', value: '#3b82f6' },
+  { name: IS_EN ? 'Purple' : 'Фиолетовый', value: '#8b5cf6' },
+  { name: IS_EN ? 'Pink' : 'Розовый', value: '#ec4899' },
 ];
 const VIDEO_ICONS = {
   play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>',
@@ -194,6 +330,8 @@ const currentVideoSection = document.querySelector('#currentVideoSection');
 const currentVideo = document.querySelector('#currentVideo');
 const currentVideoMeta = document.querySelector('#currentVideoMeta');
 const videoSubtitleOverlay = document.querySelector('#videoSubtitleOverlay');
+const safeZoneOverlayToggle = document.querySelector('#safeZoneOverlayToggle');
+const reelsSafeZoneOverlay = document.querySelector('#reelsSafeZoneOverlay');
 const videoPlayButton = document.querySelector('#videoPlayButton');
 const videoSeekInput = document.querySelector('#videoSeekInput');
 const videoTimeLabel = document.querySelector('#videoTimeLabel');
@@ -484,6 +622,14 @@ function createId(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+function getSubsPagePath(hash) {
+  return IS_EN ? `/subs/en/${hash}` : `/subs/${hash}`;
+}
+
+function getAbsoluteSubsPageUrl(hash) {
+  return new URL(getSubsPagePath(hash), window.location.origin).href;
+}
+
 function formatBytes(bytes) {
   if (!bytes) return '0 B';
 
@@ -536,11 +682,7 @@ function drawAudioWaveform(waveform) {
   if (!waveform?.length) {
     context.fillStyle = '#65747b';
     context.font = '600 14px sans-serif';
-    context.fillText(
-      'Waveform недоступен',
-      18,
-      waveformTop + waveformHeight / 2,
-    );
+    context.fillText(TEXT.noWaveform, 18, waveformTop + waveformHeight / 2);
     return;
   }
 
@@ -686,7 +828,7 @@ function renderTranscription(video = null) {
     transcriptionOutput.hidden = true;
     saveTranscriptionButton.hidden = true;
     transcriptionToCuesPanel.hidden = true;
-    transcriptionStatus.textContent = 'Сначала выделите audio.';
+    transcriptionStatus.textContent = TEXT.audioFirst;
     return;
   }
 
@@ -700,15 +842,15 @@ function renderTranscription(video = null) {
     saveTranscriptionButton.hidden = false;
     transcriptionToCuesPanel.hidden = false;
     const editedSuffix = transcript[getTranscriptOutputKey(language)]
-      ? ' · отредактировано'
+      ? ` · ${TEXT.edited}`
       : '';
-    transcriptionStatus.textContent = `Распознано · ${transcript.language} · ${transcript.words?.length || 0} слов${editedSuffix}`;
+    transcriptionStatus.textContent = `${TEXT.recognized} · ${transcript.language} · ${transcript.words?.length || 0} ${TEXT.words}${editedSuffix}`;
   } else {
     transcriptionOutput.value = '';
     transcriptionOutput.hidden = true;
     saveTranscriptionButton.hidden = true;
     transcriptionToCuesPanel.hidden = true;
-    transcriptionStatus.textContent = 'Распознавание ещё не запускалось.';
+    transcriptionStatus.textContent = TEXT.transcriptNotRun;
   }
 }
 
@@ -723,7 +865,7 @@ function renderAudioPanel(video = null) {
   currentAudioWaveform = waveform;
 
   if (audioUrl) {
-    audioStatus.textContent = `Audio готово · ${formatBytes(video.audioSize)} · ${
+    audioStatus.textContent = `${TEXT.audioReady} · ${formatBytes(video.audioSize)} · ${
       video.audioMimeType || 'audio/mpeg'
     }`;
     audioPlayer.src = audioUrl;
@@ -732,7 +874,7 @@ function renderAudioPanel(video = null) {
     redrawCurrentAudioWaveform();
     renderTranscription(video);
   } else {
-    audioStatus.textContent = 'Audio ещё не выделено.';
+    audioStatus.textContent = TEXT.audioNotExtracted;
     stopAudioWaveformAnimation();
     audioPlayer.removeAttribute('src');
     audioPlayer.hidden = true;
@@ -767,7 +909,9 @@ function renderVideos(videos) {
     title.textContent = video.originalName || video.hash;
 
     const meta = document.createElement('p');
-    const createdAt = new Date(video.createdAt).toLocaleString('ru-RU');
+    const createdAt = new Date(video.createdAt).toLocaleString(
+      IS_EN ? 'en-US' : 'ru-RU',
+    );
     meta.textContent = `${createdAt} · ${formatBytes(video.size)} · ${
       video.mimeType || 'video'
     }`;
@@ -787,12 +931,12 @@ function renderVideos(videos) {
     videoLink.href = video.videoUrl;
     videoLink.target = '_blank';
     videoLink.rel = 'noopener noreferrer';
-    videoLink.textContent = 'Открыть файл';
+    videoLink.textContent = TEXT.openFile;
 
     const archiveButton = document.createElement('button');
     archiveButton.className = 'secondary-link link-item__archive';
     archiveButton.type = 'button';
-    archiveButton.textContent = 'В архив';
+    archiveButton.textContent = TEXT.archive;
     archiveButton.addEventListener('click', async () => {
       await SF.archiveVideoByHash(video.hash);
       await refreshList();
@@ -805,7 +949,7 @@ function renderVideos(videos) {
 }
 
 function positionLabel(position) {
-  if (!position) return 'Снизу по центру';
+  if (!position) return TEXT.bottomCenter;
   if (typeof position === 'object')
     return `${position.name} · ${position.x}, ${position.y}`;
 
@@ -1073,8 +1217,8 @@ function initializeColorPickers() {
     const resetButton = document.createElement('button');
     resetButton.className = 'color-picker__reset';
     resetButton.type = 'button';
-    resetButton.title = 'Не рисовать';
-    resetButton.setAttribute('aria-label', 'Не рисовать');
+    resetButton.title = TEXT.doNotDraw;
+    resetButton.setAttribute('aria-label', TEXT.doNotDraw);
     resetButton.innerHTML = `
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="M18 6 6 18" />
@@ -1112,7 +1256,7 @@ function initializeColorPickers() {
       const button = document.createElement('button');
       button.className = 'color-picker__swatch';
       button.type = 'button';
-      button.title = options.split ? `${label} — белый и черный` : label;
+      button.title = options.split ? `${label} — ${TEXT.whiteAndBlack}` : label;
       button.setAttribute('aria-label', label);
       button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
       if (options.split) {
@@ -1142,10 +1286,12 @@ function initializeColorPickers() {
 
       selectedSwatch.style.background = isNone ? 'transparent' : value;
       selectedSwatch.classList.toggle('is-none', isNone);
-      selectedLabel.textContent = isNone ? 'не рисовать' : value.toUpperCase();
+      selectedLabel.textContent = isNone
+        ? TEXT.doNotDraw.toLowerCase()
+        : value.toUpperCase();
       triggerButton.setAttribute(
         'aria-label',
-        `Выбрать цвет: ${selectedLabel.textContent}`,
+        `${TEXT.chooseColor}: ${selectedLabel.textContent}`,
       );
       resetButton.classList.toggle('is-active', isNone);
 
@@ -1173,7 +1319,7 @@ function initializeColorPickers() {
         ...shades.map((shade, index) =>
           renderButton(
             shade,
-            `Оттенок ${index + 1}`,
+            `${TEXT.shade} ${index + 1}`,
             () => {
               keepSelectedBaseOnNextChange = true;
               setColorInputValue(input, shade);
@@ -1265,7 +1411,7 @@ function formatCueMotionLabel(cue) {
   if (!motion) return '';
 
   const endMs = motion.motionStartMs + motion.motionMs;
-  return ` · move Δ${motion.motionDx},${motion.motionDy} ${motion.motionStartMs}→${endMs}мс`;
+  return ` · move Δ${motion.motionDx},${motion.motionDy} ${motion.motionStartMs}→${endMs}ms`;
 }
 
 function buildCuePositionPrefix(style, cue) {
@@ -1440,7 +1586,7 @@ function createAlignPreview(alignment) {
   const preview = document.createElement('span');
   preview.className = 'align-preview';
   preview.setAttribute('role', 'img');
-  preview.setAttribute('aria-label', `Выравнивание ${alignment}`);
+  preview.setAttribute('aria-label', `${TEXT.alignment} ${alignment}`);
 
   for (const cell of ALIGN_CELL_ORDER) {
     const dot = document.createElement('span');
@@ -1624,7 +1770,7 @@ function renderPositions() {
     const editButton = document.createElement('button');
     editButton.className = 'icon-button edit-button';
     editButton.type = 'button';
-    editButton.title = 'Редактировать позицию';
+    editButton.title = TEXT.editPosition;
     editButton.innerHTML = EDIT_ICON;
     editButton.addEventListener('click', () => {
       startPositionEdit(position);
@@ -1633,7 +1779,7 @@ function renderPositions() {
     const removeButton = document.createElement('button');
     removeButton.className = 'icon-button';
     removeButton.type = 'button';
-    removeButton.title = 'В архив';
+    removeButton.title = TEXT.archive;
     removeButton.textContent = '×';
     removeButton.disabled = cachedPositions.length <= 1;
     removeButton.addEventListener('click', async () => {
@@ -1691,7 +1837,7 @@ function renderStyles() {
     const editButton = document.createElement('button');
     editButton.className = 'icon-button edit-button';
     editButton.type = 'button';
-    editButton.title = 'Редактировать стиль';
+    editButton.title = TEXT.editStyle;
     editButton.innerHTML = EDIT_ICON;
     editButton.addEventListener('click', () => {
       startStyleEdit(style);
@@ -1700,7 +1846,7 @@ function renderStyles() {
     const removeButton = document.createElement('button');
     removeButton.className = 'icon-button';
     removeButton.type = 'button';
-    removeButton.title = 'В архив';
+    removeButton.title = TEXT.archive;
     removeButton.textContent = '×';
     removeButton.addEventListener('click', async () => {
       if (editingStyleId === style.id) resetStyleForm();
@@ -1738,7 +1884,7 @@ function renderCues() {
     meta.className = 'cue-item__meta';
     meta.textContent = style.name
       ? `${style.name} · ${positionLabel(style.position)}${formatCueMotionLabel(cue)}`
-      : 'Стиль удален';
+      : TEXT.styleDeleted;
 
     const actions = document.createElement('div');
     actions.className = 'item-actions';
@@ -1746,7 +1892,7 @@ function renderCues() {
     const editButton = document.createElement('button');
     editButton.className = 'icon-button edit-button';
     editButton.type = 'button';
-    editButton.title = 'Редактировать реплику';
+    editButton.title = TEXT.editCue;
     editButton.innerHTML = EDIT_ICON;
     editButton.addEventListener('click', () => {
       startCueEdit(cue);
@@ -1755,7 +1901,7 @@ function renderCues() {
     const removeButton = document.createElement('button');
     removeButton.className = 'icon-button';
     removeButton.type = 'button';
-    removeButton.title = 'Удалить реплику';
+    removeButton.title = TEXT.deleteCue;
     removeButton.textContent = '×';
     removeButton.addEventListener('click', async () => {
       if (editingCueId === cue.id) resetCueForm();
@@ -1781,7 +1927,7 @@ function resetStyleForm() {
   setColorInputValue(styleOutlineColorInput, 'none');
   setColorInputValue(styleBackColorInput, 'none');
   stylePositionInput.value = defaultPosition().id;
-  styleSubmitButton.textContent = 'Добавить стиль';
+  styleSubmitButton.textContent = TEXT.addStyle;
   cancelStyleEditButton.hidden = true;
   renderStyleLivePreview();
 }
@@ -1793,7 +1939,7 @@ function resetCueForm() {
   if (cueMotionDyInput) cueMotionDyInput.value = '';
   if (cueMotionStartMsInput) cueMotionStartMsInput.value = '';
   if (cueMotionMsInput) cueMotionMsInput.value = '';
-  cueSubmitButton.textContent = 'Добавить реплику';
+  cueSubmitButton.textContent = TEXT.addCue;
   cancelCueEditButton.hidden = true;
 }
 
@@ -1804,7 +1950,7 @@ function resetPositionForm() {
   positionYInput.value = '1700';
   positionAlignmentInput.value = '2';
   renderAlignControl();
-  positionSubmitButton.textContent = 'Добавить позицию';
+  positionSubmitButton.textContent = TEXT.addPosition;
   cancelPositionEditButton.hidden = true;
 }
 
@@ -1820,7 +1966,7 @@ function startStyleEdit(style) {
   setColorInputValue(styleOutlineColorInput, normalizedStyle.outlineColor);
   setColorInputValue(styleBackColorInput, normalizedStyle.backColor);
   stylePositionInput.value = normalizedStyle.positionId;
-  styleSubmitButton.textContent = 'Сохранить стиль';
+  styleSubmitButton.textContent = TEXT.saveStyle;
   cancelStyleEditButton.hidden = false;
   renderStyleLivePreview();
   styleNameInput.focus();
@@ -1844,7 +1990,7 @@ function startCueEdit(cue) {
   if (cueMotionMsInput) {
     cueMotionMsInput.value = motion ? String(motion.motionMs) : '';
   }
-  cueSubmitButton.textContent = 'Сохранить реплику';
+  cueSubmitButton.textContent = TEXT.saveCue;
   cancelCueEditButton.hidden = false;
   cueTextInput.focus();
 }
@@ -1856,7 +2002,7 @@ function startPositionEdit(position) {
   positionYInput.value = String(position.y);
   positionAlignmentInput.value = String(position.alignment);
   renderAlignControl();
-  positionSubmitButton.textContent = 'Сохранить позицию';
+  positionSubmitButton.textContent = TEXT.savePosition;
   cancelPositionEditButton.hidden = false;
   positionNameInput.focus();
 }
@@ -1890,14 +2036,14 @@ function updatePreviewMeta(status) {
   }
   if (!cue) {
     previewMeta.textContent = currentVideo?.src
-      ? 'На текущем времени нет реплики'
-      : 'Загрузите видео для превью';
+      ? TEXT.noCueAtCurrentTime
+      : TEXT.loadVideoForPreview;
     return;
   }
 
   previewMeta.textContent = currentVideo?.src
     ? `JASSUB · ${formatTimeInput(cue.start)} → ${formatTimeInput(cue.end)} · ${style?.name || 'Default'}`
-    : 'Загрузите видео для превью';
+    : TEXT.loadVideoForPreview;
 }
 
 function renderVideoSubtitleOverlay(cue, style) {
@@ -1914,6 +2060,11 @@ function renderVideoSubtitleOverlay(cue, style) {
   }`;
   videoSubtitleOverlay.textContent = stripAssMarkup(cue.text) || cue.text;
   applySubtitlePreviewStyle(videoSubtitleOverlay, normalizedStyle, 0.5);
+}
+
+function syncSafeZoneOverlay() {
+  if (!reelsSafeZoneOverlay || !safeZoneOverlayToggle) return;
+  reelsSafeZoneOverlay.hidden = !safeZoneOverlayToggle.checked;
 }
 
 function loadJassubModule() {
@@ -1962,20 +2113,20 @@ async function renderJassubPreview() {
   if (!currentVideo?.src) {
     await destroyJassubRenderer();
     useDomSubtitleFallback = false;
-    updatePreviewMeta('Загрузите видео для превью');
+    updatePreviewMeta(TEXT.loadVideoForPreview);
     return;
   }
 
   if (cachedCues.length === 0) {
     await destroyJassubRenderer();
     useDomSubtitleFallback = false;
-    updatePreviewMeta('Добавьте реплики для превью');
+    updatePreviewMeta(TEXT.addCuesForPreview);
     return;
   }
 
   try {
     if (!jassubRenderer) {
-      updatePreviewMeta('JASSUB загружает renderer...');
+      updatePreviewMeta(TEXT.jassubLoading);
       const JASSUB = await loadJassubModule();
       if (token !== jassubRenderToken) return;
 
@@ -2010,9 +2161,7 @@ async function renderJassubPreview() {
     useDomSubtitleFallback = true;
     console.error(error);
     updatePreviewMeta(
-      error instanceof Error
-        ? `JASSUB: ${error.message}`
-        : 'JASSUB не смог отрендерить субтитры',
+      error instanceof Error ? `JASSUB: ${error.message}` : TEXT.jassubFailed,
     );
   }
 }
@@ -2035,8 +2184,8 @@ function renderSubtitledVideoControls() {
   if (!canRender) {
     renderedVideoResult.hidden = true;
     renderSubtitledVideoStatus.textContent = currentVideoHash
-      ? 'Добавьте реплики.'
-      : 'Добавьте видео и реплики.';
+      ? TEXT.addCues
+      : TEXT.addVideoAndCues;
     return;
   }
 
@@ -2047,7 +2196,7 @@ function renderSubtitledVideoControls() {
     showRenderedVideoLinks(renderedVideo);
   } else {
     renderedVideoResult.hidden = true;
-    renderSubtitledVideoStatus.textContent = 'Готово к рендеру.';
+    renderSubtitledVideoStatus.textContent = TEXT.readyToRender;
   }
 }
 
@@ -2055,10 +2204,10 @@ function showRenderedVideoLinks(renderedVideo) {
   if (!renderedVideo?.videoUrl) return;
 
   renderedVideoLink.href = renderedVideo.videoUrl;
-  renderedVideoLink.textContent = 'Видео';
+  renderedVideoLink.textContent = TEXT.video;
   renderedVideoDownloadLink.href = `/subs-api/videos/${renderedVideo.hash || currentVideoHash}/render/download`;
   renderedVideoResult.hidden = false;
-  renderSubtitledVideoStatus.textContent = `Готово · ${formatBytes(renderedVideo.size)} · ${renderedVideo.mimeType || 'video/mp4'}`;
+  renderSubtitledVideoStatus.textContent = `${TEXT.done} · ${formatBytes(renderedVideo.size)} · ${renderedVideo.mimeType || 'video/mp4'}`;
 }
 
 function updateVideoControls() {
@@ -2074,14 +2223,14 @@ function updateVideoControls() {
     : VIDEO_ICONS.pause;
   videoPlayButton.setAttribute(
     'aria-label',
-    currentVideo.paused ? 'Воспроизвести' : 'Пауза',
+    currentVideo.paused ? TEXT.play : TEXT.pause,
   );
   videoMuteButton.innerHTML = currentVideo.muted
     ? VIDEO_ICONS.muted
     : VIDEO_ICONS.volume;
   videoMuteButton.setAttribute(
     'aria-label',
-    currentVideo.muted ? 'Включить звук' : 'Выключить звук',
+    currentVideo.muted ? TEXT.unmute : TEXT.mute,
   );
   videoSeekInput.max = String(duration);
   if (document.activeElement !== videoSeekInput) {
@@ -2155,7 +2304,7 @@ function uploadVideo(file) {
       progress.hidden = false;
       const percent = Math.round((event.loaded / event.total) * 100);
       progressBar.style.width = `${percent}%`;
-      uploadStatus.textContent = `Загрузка: ${percent}%`;
+      uploadStatus.textContent = `${TEXT.uploading}: ${percent}%`;
     };
 
     xhr.onload = () => {
@@ -2176,7 +2325,7 @@ async function extractAudio() {
   if (!currentVideoHash) return;
 
   extractAudioButton.disabled = true;
-  audioStatus.textContent = 'Выделяю audio на backend...';
+  audioStatus.textContent = TEXT.extractAudio;
 
   try {
     const response = await fetch(`/subs-api/videos/${currentVideoHash}/audio`, {
@@ -2185,7 +2334,7 @@ async function extractAudio() {
     const payload = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      throw new Error(payload.message || 'Не удалось выделить audio');
+      throw new Error(payload.message || TEXT.extractAudioFailed);
     }
 
     const patch = {
@@ -2201,7 +2350,7 @@ async function extractAudio() {
     await refreshList();
   } catch (error) {
     audioStatus.textContent =
-      error instanceof Error ? error.message : 'Не удалось выделить audio';
+      error instanceof Error ? error.message : TEXT.extractAudioFailed;
   } finally {
     extractAudioButton.disabled = false;
   }
@@ -2212,7 +2361,7 @@ async function transcribeAudio() {
 
   const language = getSelectedTranscriptionLanguage();
   transcribeAudioButton.disabled = true;
-  transcriptionStatus.textContent = 'Распознаю речь на backend...';
+  transcriptionStatus.textContent = TEXT.transcribing;
 
   try {
     const response = await fetch(
@@ -2228,7 +2377,7 @@ async function transcribeAudio() {
     const payload = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      throw new Error(payload.message || 'Не удалось распознать речь');
+      throw new Error(payload.message || TEXT.transcribeFailed);
     }
 
     const existing = await SF.getVideoByHash(currentVideoHash);
@@ -2244,7 +2393,7 @@ async function transcribeAudio() {
     await refreshList();
   } catch (error) {
     transcriptionStatus.textContent =
-      error instanceof Error ? error.message : 'Не удалось распознать речь';
+      error instanceof Error ? error.message : TEXT.transcribeFailed;
   } finally {
     transcribeAudioButton.disabled = false;
   }
@@ -2272,7 +2421,7 @@ async function saveEditedTranscription() {
     updatedAt: new Date().toISOString(),
   });
   renderTranscription(updated || { ...existing, transcripts });
-  transcriptionStatus.textContent = `Сохранено · ${language} · отредактировано`;
+  transcriptionStatus.textContent = `${TEXT.saved} · ${language} · ${TEXT.edited}`;
 }
 
 function parseTranscriptionWords(text) {
@@ -2304,14 +2453,13 @@ function buildCuesFromWords(words) {
 async function createCuesFromTranscription() {
   if (!currentVideoHash || transcriptionOutput.hidden) return;
   if (!transcriptionCueStyleInput.value) {
-    transcriptionStatus.textContent = 'Выберите стиль для реплик.';
+    transcriptionStatus.textContent = TEXT.chooseCueStyle;
     return;
   }
 
   const words = parseTranscriptionWords(transcriptionOutput.value);
   if (words.length === 0) {
-    transcriptionStatus.textContent =
-      'Не нашёл строки в формате “00.00 слово”.';
+    transcriptionStatus.textContent = TEXT.noWordLines;
     return;
   }
 
@@ -2331,7 +2479,7 @@ async function createCuesFromTranscription() {
 
   await touchCurrentVideoUpdated();
   await refreshEditor();
-  transcriptionStatus.textContent = `Создано реплик: ${cueDrafts.length}`;
+  transcriptionStatus.textContent = `${TEXT.cuesCreated}: ${cueDrafts.length}`;
 }
 
 async function renderSubtitledVideo() {
@@ -2339,7 +2487,7 @@ async function renderSubtitledVideo() {
 
   renderSubtitledVideoButton.disabled = true;
   renderedVideoResult.hidden = true;
-  renderSubtitledVideoStatus.textContent = 'Накладываю субтитры на backend...';
+  renderSubtitledVideoStatus.textContent = TEXT.rendering;
 
   try {
     const response = await fetch(
@@ -2355,7 +2503,7 @@ async function renderSubtitledVideo() {
     const payload = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      throw new Error(payload.message || 'Не удалось наложить субтитры');
+      throw new Error(payload.message || TEXT.renderFailed);
     }
 
     const renderedVideo = {
@@ -2373,7 +2521,7 @@ async function renderSubtitledVideo() {
     showRenderedVideoLinks(renderedVideo);
   } catch (error) {
     renderSubtitledVideoStatus.textContent =
-      error instanceof Error ? error.message : 'Не удалось наложить субтитры';
+      error instanceof Error ? error.message : TEXT.renderFailed;
   } finally {
     renderSubtitledVideoButton.disabled = !(
       currentVideoHash && cachedCues.length > 0
@@ -2386,7 +2534,9 @@ async function refreshList() {
 }
 
 function getVideoHashFromPath() {
-  const match = window.location.pathname.match(/^\/subs\/([a-f0-9]{24})\/?$/);
+  const match = window.location.pathname.match(
+    /^\/subs(?:\/en)?\/([a-f0-9]{24})\/?$/,
+  );
   return match ? match[1] : null;
 }
 
@@ -2434,7 +2584,7 @@ async function loadCurrentVideo() {
 
   const response = await fetch(`/subs-api/videos/${hash}`);
   if (!response.ok) {
-    setCurrentVideoMetaLink(null, 'Не удалось получить данные по этой ссылке.');
+    setCurrentVideoMetaLink(null, TEXT.linkFetchFailed);
     currentVideo.src = '';
     currentVideoSection.hidden = false;
     updateVideoControls();
@@ -2442,9 +2592,14 @@ async function loadCurrentVideo() {
   }
 
   const video = await response.json();
+  const localizedVideo = {
+    ...video,
+    pageUrl: getSubsPagePath(hash),
+    absolutePageUrl: getAbsoluteSubsPageUrl(hash),
+  };
   await destroyJassubRenderer();
-  currentVideo.src = video.videoUrl;
-  setCurrentVideoMetaLink(video.absolutePageUrl);
+  currentVideo.src = localizedVideo.videoUrl;
+  setCurrentVideoMetaLink(localizedVideo.absolutePageUrl);
   currentVideoSection.hidden = false;
   updateVideoControls();
   void renderJassubPreview();
@@ -2452,9 +2607,9 @@ async function loadCurrentVideo() {
   const existing = await SF.getVideoByHash(hash);
   if (!existing) {
     const saved = await saveVideo({
-      ...video,
-      ...getAudioPatch(video.audio),
-      originalName: `Видео ${hash}`,
+      ...localizedVideo,
+      ...getAudioPatch(localizedVideo.audio),
+      originalName: `${TEXT.videoName} ${hash}`,
       mimeType: 'video',
       size: 0,
     });
@@ -2468,10 +2623,10 @@ async function loadCurrentVideo() {
   }
 
   const patched = await SF.patchVideoByHash(hash, {
-    videoUrl: video.videoUrl,
-    absolutePageUrl: video.absolutePageUrl,
-    pageUrl: video.pageUrl,
-    ...getAudioPatch(video.audio),
+    videoUrl: localizedVideo.videoUrl,
+    absolutePageUrl: localizedVideo.absolutePageUrl,
+    pageUrl: localizedVideo.pageUrl,
+    ...getAudioPatch(localizedVideo.audio),
   });
   renderAudioPanel(patched || existing);
   renderSubtitledVideoControls();
@@ -2482,7 +2637,7 @@ input.addEventListener('change', () => {
   uploadButton.disabled = !file;
   fileMeta.textContent = file
     ? `${file.name} · ${formatBytes(file.size)} · ${file.type || 'video'}`
-    : 'MP4, MOV, WebM или другой video/* файл';
+    : TEXT.fileMeta;
   uploadStatus.textContent = '';
   progress.hidden = true;
   progressBar.style.width = '0%';
@@ -2495,18 +2650,23 @@ form.addEventListener('submit', async (event) => {
   if (!file) return;
 
   uploadButton.disabled = true;
-  uploadStatus.textContent = 'Подготовка загрузки...';
+  uploadStatus.textContent = TEXT.preparingUpload;
 
   try {
     const uploaded = await uploadVideo(file);
-    await saveVideo(uploaded);
+    const localizedUpload = {
+      ...uploaded,
+      pageUrl: getSubsPagePath(uploaded.hash),
+      absolutePageUrl: getAbsoluteSubsPageUrl(uploaded.hash),
+    };
+    await saveVideo(localizedUpload);
     await refreshList();
-    uploadStatus.textContent = `Готово: ${uploaded.absolutePageUrl}`;
-    window.history.replaceState(null, '', uploaded.pageUrl);
+    uploadStatus.textContent = `${TEXT.done}: ${localizedUpload.absolutePageUrl}`;
+    window.history.replaceState(null, '', localizedUpload.pageUrl);
     await loadCurrentVideo();
   } catch (error) {
     uploadStatus.textContent =
-      error instanceof Error ? error.message : 'Не удалось загрузить видео';
+      error instanceof Error ? error.message : TEXT.uploadFailed;
   } finally {
     uploadButton.disabled = false;
   }
@@ -2545,6 +2705,9 @@ currentVideo.addEventListener('play', () => {
 });
 currentVideo.addEventListener('pause', updateVideoControls);
 currentVideo.addEventListener('volumechange', updateVideoControls);
+
+safeZoneOverlayToggle?.addEventListener('change', syncSafeZoneOverlay);
+syncSafeZoneOverlay();
 
 videoPlayButton.addEventListener('click', () => {
   if (currentVideo.paused) {
@@ -2784,5 +2947,5 @@ async function init() {
 
 init().catch((error) => {
   uploadStatus.textContent =
-    error instanceof Error ? error.message : 'Ошибка IndexedDB';
+    error instanceof Error ? error.message : TEXT.loadingError;
 });

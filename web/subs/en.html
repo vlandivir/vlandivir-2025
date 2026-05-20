@@ -1,11 +1,11 @@
 <!doctype html>
-<html lang="ru">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Subs ASS: проект для создания субтитров к видео в формате Advanced SubStation Alpha."
+      content="Subs ASS: assistant for creating video subtitles in Advanced SubStation Alpha."
     />
     <title>Subs ASS</title>
     <link rel="stylesheet" href="fonts/fonts.css?v=20260517-9" />
@@ -15,42 +15,42 @@
   </head>
   <body>
     <header class="site-header">
-      <a class="brand" href="/" aria-label="На главную vlandivir">
+      <a class="brand" href="/" aria-label="vlandivir home">
         <span class="brand-mark">ASS</span>
         <span class="brand-text">Subs</span>
       </a>
-      <nav class="header-nav" aria-label="Навигация">
-        <a href="/">Главная</a>
-        <a href="/subs/archive">Архив</a>
+      <nav class="header-nav" aria-label="Navigation">
+        <a href="/">Home</a>
+        <a href="/subs/archive">Archive</a>
         <a href="/gpx-route-png/">GPX Track PNG</a>
-        <a href="/subs/en">EN</a>
+        <a href="/subs/">RU</a>
       </nav>
     </header>
 
     <main>
       <section class="hero" aria-labelledby="page-title">
         <div class="hero-copy">
-          <h1 id="page-title">Субтитры для видео в формате ASS</h1>
+          <h1 id="page-title">ASS subtitles for video</h1>
         </div>
       </section>
 
       <section class="upload-panel" aria-labelledby="upload-title">
         <div class="upload-copy">
-          <p class="eyebrow">Видео</p>
-          <h2 id="upload-title">Загрузка в хранилище</h2>
+          <p class="eyebrow">Video</p>
+          <h2 id="upload-title">Upload to storage</h2>
           <p>
-            Выберите видеофайл. Он будет загружен в DigitalOcean Spaces, а
-            страница сохранит ссылку вида <code>/subs/&lt;hash&gt;</code> в
-            локальной базе браузера.
+            Choose a video file. It will be uploaded to DigitalOcean Spaces, and
+            this page will save a link like
+            <code>/subs/en/&lt;hash&gt;</code> in the browser local database.
           </p>
         </div>
 
         <div class="upload-card">
           <form class="upload-form" id="uploadForm">
             <label class="file-picker" for="videoInput">
-              <span class="file-picker__title">Выбрать видео</span>
+              <span class="file-picker__title">Choose video</span>
               <span class="file-picker__meta" id="fileMeta"
-                >MP4, MOV, WebM или другой video/* файл</span
+                >MP4, MOV, WebM, or another video/* file</span
               >
             </label>
             <input id="videoInput" name="video" type="file" accept="video/*" />
@@ -60,7 +60,7 @@
               type="submit"
               disabled
             >
-              Загрузить
+              Upload
             </button>
           </form>
           <div class="progress" id="uploadProgress" hidden>
@@ -78,7 +78,7 @@
       >
         <div class="audio-panel__head">
           <div>
-            <p class="eyebrow">Звук</p>
+            <p class="eyebrow">Audio</p>
             <h3 id="audio-title">Audio</h3>
           </div>
           <button
@@ -86,10 +86,12 @@
             id="extractAudioButton"
             type="button"
           >
-            Выделить audio
+            Extract audio
           </button>
         </div>
-        <p class="audio-status" id="audioStatus">Audio ещё не выделено.</p>
+        <p class="audio-status" id="audioStatus">
+          Audio has not been extracted yet.
+        </p>
         <div class="audio-waveform" id="audioWaveformWrap" hidden>
           <canvas
             id="audioWaveformCanvas"
@@ -102,11 +104,11 @@
         <div class="transcription-panel" id="transcriptionPanel" hidden>
           <div class="transcription-controls">
             <label class="editor-field transcription-language">
-              <span>Язык распознавания</span>
+              <span>Recognition language</span>
               <select id="transcriptionLanguageInput">
                 <option value="auto">Auto</option>
-                <option value="ru">Русский</option>
-                <option value="sr">Сербский</option>
+                <option value="ru">Russian</option>
+                <option value="sr">Serbian</option>
                 <option value="en">English</option>
               </select>
             </label>
@@ -115,11 +117,11 @@
               id="transcribeAudioButton"
               type="button"
             >
-              Распознать речь
+              Transcribe speech
             </button>
           </div>
           <p class="transcription-status" id="transcriptionStatus">
-            Распознавание ещё не запускалось.
+            Transcription has not been run yet.
           </p>
           <textarea
             class="transcription-output"
@@ -133,7 +135,7 @@
             type="button"
             hidden
           >
-            Сохранить текст
+            Save text
           </button>
           <div
             class="transcription-to-cues"
@@ -141,7 +143,7 @@
             hidden
           >
             <label class="editor-field transcription-cue-style">
-              <span>Стиль для реплик</span>
+              <span>Cue style</span>
               <select id="transcriptionCueStyleInput"></select>
             </label>
             <button
@@ -149,7 +151,7 @@
               id="createCuesFromTranscriptionButton"
               type="button"
             >
-              Преобразовать в реплики
+              Convert to cues
             </button>
           </div>
         </div>
@@ -159,42 +161,42 @@
         <div class="saved-links__head">
           <div>
             <p class="eyebrow">IndexedDB</p>
-            <h2 id="saved-title">Сохраненные ссылки</h2>
+            <h2 id="saved-title">Saved links</h2>
           </div>
           <div class="saved-links__toolbar">
-            <a class="secondary-link" href="/subs/archive">Архив</a>
+            <a class="secondary-link" href="/subs/archive">Archive</a>
             <button
               class="secondary-link clear-button"
               id="clearLinksButton"
               type="button"
             >
-              Очистить список
+              Clear list
             </button>
           </div>
         </div>
         <div class="links-list" id="linksList"></div>
         <p class="empty-state" id="emptyState">
-          Пока нет сохраненных видео. После загрузки ссылки появятся здесь.
+          No saved videos yet. Links will appear here after upload.
         </p>
       </section>
 
-      <section class="subtitle-editor" aria-label="Редактор субтитров">
-        <p class="eyebrow subtitle-editor__eyebrow">Редактор</p>
+      <section class="subtitle-editor" aria-label="Subtitle editor">
+        <p class="eyebrow subtitle-editor__eyebrow">Editor</p>
 
         <details class="editor-section" data-section="positions">
           <summary class="editor-section__summary">
-            <h2 class="editor-section__title">Позиции</h2>
+            <h2 class="editor-section__title">Positions</h2>
           </summary>
           <div class="editor-section__body editor-grid">
             <form class="editor-card editor-form" id="positionForm">
-              <h3>Позиция</h3>
+              <h3>Position</h3>
               <label class="editor-field">
-                <span>Название</span>
+                <span>Name</span>
                 <input
                   id="positionNameInput"
                   type="text"
                   maxlength="40"
-                  placeholder="Например: Нижний центр"
+                  placeholder="Example: Bottom center"
                   required
                 />
               </label>
@@ -245,7 +247,7 @@
                   id="positionSubmitButton"
                   type="submit"
                 >
-                  Добавить позицию
+                  Add position
                 </button>
                 <button
                   class="secondary-link editor-cancel"
@@ -253,16 +255,16 @@
                   type="button"
                   hidden
                 >
-                  Отменить
+                  Cancel
                 </button>
               </div>
             </form>
 
             <div class="editor-card">
-              <h3>Позиции</h3>
+              <h3>Positions</h3>
               <div class="position-list" id="positionList"></div>
               <p class="empty-state" id="positionsEmptyState">
-                Пока нет позиций.
+                No positions yet.
               </p>
             </div>
           </div>
@@ -270,14 +272,14 @@
 
         <details class="editor-section" data-section="styles">
           <summary class="editor-section__summary">
-            <h2 class="editor-section__title">Стили</h2>
+            <h2 class="editor-section__title">Styles</h2>
           </summary>
           <div class="editor-section__body editor-grid">
             <form class="editor-card editor-form" id="styleForm">
-              <h3>Стиль субтитров</h3>
+              <h3>Subtitle style</h3>
               <div class="style-live-preview" id="styleLivePreview">
                 <p class="style-live-preview__text" id="styleLivePreviewText">
-                  Preview Превью Događaj
+                  Preview Preview Događaj
                 </p>
                 <p class="style-live-preview__meta" id="styleLivePreviewMeta">
                   Montserrat · Regular · 72px
@@ -288,25 +290,25 @@
                 ></div>
               </div>
               <label class="editor-field">
-                <span>Название</span>
+                <span>Name</span>
                 <input
                   id="styleNameInput"
                   type="text"
                   maxlength="40"
-                  placeholder="Например: Default"
+                  placeholder="Example: Default"
                   required
                 />
               </label>
               <div class="editor-field-grid editor-field-grid--style-type">
                 <label class="editor-field editor-field--font">
                   <span class="editor-field__label-row">
-                    <span>Шрифт</span>
-                    <a class="font-picker-link" href="/font">Все шрифты…</a>
+                    <span>Font</span>
+                    <a class="font-picker-link" href="/font">All fonts...</a>
                   </span>
                   <select id="styleFontInput"></select>
                 </label>
                 <label class="editor-field">
-                  <span>Размер</span>
+                  <span>Size</span>
                   <input
                     id="styleFontSizeInput"
                     type="number"
@@ -317,7 +319,7 @@
                   />
                 </label>
                 <label class="editor-field">
-                  <span>Начертание</span>
+                  <span>Weight</span>
                   <select id="styleFontVariantInput">
                     <option value="regular" selected>Regular</option>
                     <option value="bold">Bold</option>
@@ -376,7 +378,7 @@
                 </label>
               </div>
               <label class="editor-field">
-                <span>Базовое положение</span>
+                <span>Base position</span>
                 <select id="stylePositionInput"></select>
               </label>
               <div class="editor-actions">
@@ -385,7 +387,7 @@
                   id="styleSubmitButton"
                   type="submit"
                 >
-                  Добавить стиль
+                  Add style
                 </button>
                 <button
                   class="secondary-link editor-cancel"
@@ -393,15 +395,15 @@
                   type="button"
                   hidden
                 >
-                  Отменить
+                  Cancel
                 </button>
               </div>
             </form>
 
             <div class="editor-card">
-              <h3>Стили</h3>
+              <h3>Styles</h3>
               <div class="style-list" id="styleList"></div>
-              <p class="empty-state" id="stylesEmptyState">Пока нет стилей.</p>
+              <p class="empty-state" id="stylesEmptyState">No styles yet.</p>
             </div>
           </div>
         </details>
@@ -409,102 +411,103 @@
         <div class="video-bound-panel" id="videoBoundPanel" hidden>
           <details class="editor-section" data-section="cues">
             <summary class="editor-section__summary">
-              <h2 class="editor-section__title">Реплики</h2>
+              <h2 class="editor-section__title">Cues</h2>
             </summary>
             <div class="editor-section__body editor-grid video-bound-grid">
               <details class="editor-card ass-cheatsheet">
                 <summary class="ass-cheatsheet__summary">
-                  Шпаргалка: теги в тексте реплики
+                  Cheat sheet: tags in cue text
                 </summary>
                 <p class="ass-cheatsheet__lead">
-                  Команды пишутся в фигурных скобках и действуют на фрагмент
-                  текста после них. Перенос строки — <code>\N</code>.
+                  Commands are written in braces and affect the following text
+                  fragment. Line break: <code>\N</code>.
                 </p>
                 <div class="ass-cheatsheet__grid">
                   <article>
-                    <h4>Размер и начертание</h4>
+                    <h4>Size and weight</h4>
                     <ul>
-                      <li><code>{\fs80}</code> — размер 80 px</li>
+                      <li><code>{\fs80}</code> — 80 px size</li>
                       <li>
-                        <code>{\b1}</code> / <code>{\i1}</code> — жирный /
-                        курсив
+                        <code>{\b1}</code> / <code>{\i1}</code> — bold / italic
                       </li>
-                      <li><code>{\b0}</code> — вернуть обычное начертание</li>
+                      <li><code>{\b0}</code> — return to regular weight</li>
                     </ul>
                   </article>
                   <article>
-                    <h4>Цвет в реплике</h4>
+                    <h4>Cue color</h4>
                     <ul>
                       <li>
-                        <code>{\c&amp;H00FFFFFF&amp;}</code> — основной цвет
-                        (формат BGR)
+                        <code>{\c&amp;H00FFFFFF&amp;}</code> — primary color
+                        (BGR format)
                       </li>
                       <li>
-                        <code>{\1c&amp;H0000FF&amp;}</code> — только заливка,
-                        <code>{\3c…}</code> — обводка
+                        <code>{\1c&amp;H0000FF&amp;}</code> — fill only,
+                        <code>{\3c…}</code> outline
                       </li>
                       <li>
-                        Белый <code>#FFFFFF</code> →
-                        <code>&amp;H00FFFFFF&amp;</code>, красный
+                        White <code>#FFFFFF</code> →
+                        <code>&amp;H00FFFFFF&amp;</code>, red
                         <code>#FF0000</code> → <code>&amp;H000000FF&amp;</code>
                       </li>
                     </ul>
                   </article>
                   <article>
-                    <h4>Караоке</h4>
+                    <h4>Karaoke</h4>
                     <ul>
                       <li>
-                        <code>{\k50}</code> — подсветка слога ~0.5 с (50 сотых
-                        секунды)
+                        <code>{\k50}</code> — syllable highlight for ~0.5s (50
+                        centiseconds)
                       </li>
-                      <li><code>{\kf50}</code> — плавное заполнение слога</li>
+                      <li><code>{\kf50}</code> — smooth syllable fill</li>
                       <li>
-                        Пример: <code>{\k40}При{\k40}вет, {\k60}мир!</code>
+                        Example: <code>{\k40}Hel{\k40}lo, {\k60}world!</code>
                       </li>
                       <li>
-                        Для караоке задайте <strong>SecondaryColour</strong> в
-                        стиле — это цвет «незаполненной» части.
+                        For karaoke set <strong>SecondaryColour</strong> in the
+                        style: it is the color of the unrevealed part.
                       </li>
                     </ul>
                   </article>
                   <article>
-                    <h4>Сдвиг позиции</h4>
+                    <h4>Position move</h4>
                     <ul>
                       <li>
-                        В форме реплики: <strong>ΔX</strong>,
-                        <strong>ΔY</strong>, <strong>старт</strong> и
-                        <strong>длительность</strong> (мс).
+                        In the cue form: <strong>ΔX</strong>,
+                        <strong>ΔY</strong>, <strong>start</strong> and
+                        <strong>duration</strong> (ms).
                       </li>
-                      <li>Старт — позиция стиля, финиш — смещение на ΔX/ΔY.</li>
                       <li>
-                        В ASS: <code>{\move(x1,y1,x2,y2,200,700)}</code> — сдвиг
-                        с 200 до 700 мс.
+                        Start is the style position; finish is the ΔX/ΔY offset.
+                      </li>
+                      <li>
+                        In ASS: <code>{\move(x1,y1,x2,y2,200,700)}</code> moves
+                        from 200 to 700 ms.
                       </li>
                     </ul>
                   </article>
                   <article>
-                    <h4>Пример целиком</h4>
+                    <h4>Full example</h4>
                     <pre
                       class="ass-cheatsheet__sample"
-                    ><code>{\fs90\c&amp;H00FFFF&amp;}{\k45}Бе{\k45}лый {\k60}текст</code></pre>
+                    ><code>{\fs90\c&amp;H00FFFF&amp;}{\k45}Hel{\k45}lo {\k60}text</code></pre>
                   </article>
                 </div>
               </details>
 
               <form class="editor-card editor-form cue-form" id="cueForm">
-                <h3>Реплика</h3>
+                <h3>Cue</h3>
                 <label class="editor-field cue-text-field">
-                  <span>Текст</span>
+                  <span>Text</span>
                   <textarea
                     id="cueTextInput"
                     rows="4"
-                    placeholder="Текст или теги ASS, например: {\fs80\c&H00FFFF&}{\k40}При{\k40}вет"
+                    placeholder="Text or ASS tags, for example: {\fs80\c&H00FFFF&}{\k40}Hello"
                     required
                   ></textarea>
                 </label>
                 <div class="editor-field-grid">
                   <label class="editor-field">
-                    <span>Появление</span>
+                    <span>Start</span>
                     <input
                       id="cueStartInput"
                       type="text"
@@ -514,7 +517,7 @@
                     />
                   </label>
                   <label class="editor-field">
-                    <span>Исчезновение</span>
+                    <span>End</span>
                     <input
                       id="cueEndInput"
                       type="text"
@@ -525,12 +528,12 @@
                   </label>
                 </div>
                 <label class="editor-field">
-                  <span>Стиль</span>
+                  <span>Style</span>
                   <select id="cueStyleInput" required></select>
                 </label>
                 <div class="cue-motion">
                   <p class="cue-motion__title">
-                    Сдвиг позиции <code>{\move}</code>
+                    Position move <code>{\move}</code>
                   </p>
                   <div class="editor-field-grid editor-field-grid--motion">
                     <label class="editor-field">
@@ -542,7 +545,7 @@
                       <input id="cueMotionDyInput" type="number" step="1" />
                     </label>
                     <label class="editor-field">
-                      <span>Старт, мс</span>
+                      <span>Start, ms</span>
                       <input
                         id="cueMotionStartMsInput"
                         type="number"
@@ -551,7 +554,7 @@
                       />
                     </label>
                     <label class="editor-field">
-                      <span>Длительность, мс</span>
+                      <span>Duration, ms</span>
                       <input
                         id="cueMotionMsInput"
                         type="number"
@@ -567,7 +570,7 @@
                     id="cueSubmitButton"
                     type="submit"
                   >
-                    Добавить реплику
+                    Add cue
                   </button>
                   <button
                     class="secondary-link editor-cancel"
@@ -575,37 +578,35 @@
                     type="button"
                     hidden
                   >
-                    Отменить
+                    Cancel
                   </button>
                 </div>
               </form>
 
               <div class="editor-card cue-list-card">
-                <h3>Реплики</h3>
+                <h3>Cues</h3>
                 <div class="cue-list" id="cueList"></div>
-                <p class="empty-state" id="cuesEmptyState">Пока нет реплик.</p>
+                <p class="empty-state" id="cuesEmptyState">No cues yet.</p>
               </div>
             </div>
           </details>
 
           <details class="editor-section" data-section="preview">
             <summary class="editor-section__summary">
-              <h2 class="editor-section__title">Превью</h2>
+              <h2 class="editor-section__title">Preview</h2>
             </summary>
             <div class="editor-section__body">
               <div class="ass-workbench">
                 <div class="editor-card ass-output-card">
                   <div class="ass-card-head">
-                    <h3>ASS файл</h3>
-                    <span id="previewMeta"
-                      >Превью поверх загруженного видео</span
-                    >
+                    <h3>ASS file</h3>
+                    <span id="previewMeta">Preview over uploaded video</span>
                     <button
                       class="secondary-link refresh-preview-button"
                       id="refreshPreviewButton"
                       type="button"
                     >
-                      Обновить превью
+                      Refresh preview
                     </button>
                     <button
                       class="secondary-link download-ass-button"
@@ -613,7 +614,7 @@
                       type="button"
                       disabled
                     >
-                      Скачать .ass
+                      Download .ass
                     </button>
                   </div>
                   <div class="ass-output-body">
@@ -633,7 +634,7 @@
                 >
                   <div class="current-video__head">
                     <div>
-                      <p class="eyebrow">Видео</p>
+                      <p class="eyebrow">Video</p>
                       <h3 id="current-video-title">Preview</h3>
                     </div>
                     <div class="current-video__tools">
@@ -672,12 +673,12 @@
                         hidden
                       />
                     </div>
-                    <div class="video-controls" aria-label="Управление видео">
+                    <div class="video-controls" aria-label="Video controls">
                       <button
                         class="video-control-button"
                         id="videoPlayButton"
                         type="button"
-                        aria-label="Воспроизвести"
+                        aria-label="Play"
                       ></button>
                       <input
                         class="video-control-range"
@@ -687,7 +688,7 @@
                         max="0"
                         step="0.01"
                         value="0"
-                        aria-label="Позиция видео"
+                        aria-label="Video position"
                       />
                       <span class="video-control-time" id="videoTimeLabel"
                         >0:00 / 0:00</span
@@ -696,7 +697,7 @@
                         class="video-control-button"
                         id="videoMuteButton"
                         type="button"
-                        aria-label="Выключить звук"
+                        aria-label="Mute"
                       ></button>
                     </div>
                   </div>
@@ -707,13 +708,13 @@
 
           <details class="editor-section" data-section="render">
             <summary class="editor-section__summary">
-              <h2 class="editor-section__title">Готовое видео</h2>
+              <h2 class="editor-section__title">Final video</h2>
             </summary>
             <div class="editor-section__body">
               <section class="editor-card render-video-card">
-                <h3>Наложить субтитры</h3>
+                <h3>Burn subtitles</h3>
                 <p class="render-video-card__text">
-                  Локально это можно сделать такой командой:
+                  Locally, you can do it with this command:
                 </p>
                 <pre
                   class="ffmpeg-command"
@@ -725,7 +726,7 @@
                     type="button"
                     disabled
                   >
-                    Наложить субтитры
+                    Burn subtitles
                   </button>
                 </div>
                 <div
@@ -739,7 +740,7 @@
                     href="#"
                     target="_blank"
                     rel="noopener noreferrer"
-                    >Видео</a
+                    >Video</a
                   >
                   <a
                     class="render-video-download-link"
@@ -752,7 +753,7 @@
                     class="render-video-status"
                     id="renderSubtitledVideoStatus"
                   >
-                    Добавьте видео и реплики.
+                    Add a video and cues.
                   </p>
                 </div>
               </section>
