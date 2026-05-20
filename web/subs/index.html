@@ -9,9 +9,9 @@
     />
     <title>Subs ASS</title>
     <link rel="stylesheet" href="fonts/fonts.css?v=20260517-9" />
-    <link rel="stylesheet" href="styles.css?v=20260520-2" />
+    <link rel="stylesheet" href="styles.css?v=20260520-3" />
     <script src="fonts-shared.js?v=20260520-1"></script>
-    <script src="app.js?v=20260520-3" defer></script>
+    <script src="app.js?v=20260520-4" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -39,9 +39,9 @@
           <p class="eyebrow">Видео</p>
           <h2 id="upload-title">Загрузка в хранилище</h2>
           <p>
-            Выберите видеофайл. Он будет загружен в DigitalOcean Spaces, а
-            страница сохранит ссылку вида <code>/subs/&lt;hash&gt;</code> в
-            локальной базе браузера.
+            Выберите вертикальное видео 1080×1920 px до 200 МБ. Оно будет
+            загружено в DigitalOcean Spaces, а страница сохранит ссылку вида
+            <code>/subs/&lt;hash&gt;</code> в локальной базе браузера.
           </p>
         </div>
 
@@ -50,7 +50,7 @@
             <label class="file-picker" for="videoInput">
               <span class="file-picker__title">Выбрать видео</span>
               <span class="file-picker__meta" id="fileMeta"
-                >MP4, MOV, WebM или другой video/* файл</span
+                >Только вертикальное 1080×1920 px, до 200 МБ</span
               >
             </label>
             <input id="videoInput" name="video" type="file" accept="video/*" />

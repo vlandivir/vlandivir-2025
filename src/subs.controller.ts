@@ -91,6 +91,15 @@ type MulterDiskFile = {
   size: number;
 };
 
+type VideoDimensions = {
+  width: number;
+  height: number;
+};
+
+const MAX_SUBS_VIDEO_SIZE_BYTES = 200 * 1024 * 1024;
+const REQUIRED_SUBS_VIDEO_WIDTH = 1080;
+const REQUIRED_SUBS_VIDEO_HEIGHT = 1920;
+
 @Controller('subs-api')
 export class SubsController {
   constructor(
@@ -103,7 +112,7 @@ export class SubsController {
     FileInterceptor('video', {
       dest: tmpdir(),
       limits: {
-        fileSize: 1024 * 1024 * 1024,
+        fileSize: MAX_SUBS_VIDEO_SIZE_BYTES,
       },
       fileFilter: (_req, file, callback) => {
         if (file.mimetype.startsWith('video/')) {
@@ -129,6 +138,8 @@ export class SubsController {
     const hash = this.createHash();
 
     try {
+      await this.assertUploadVideoMeetsRequirements(file);
+
       const videoUrl = await this.storageService.uploadSubsVideoStream(
         createReadStream(file.path),
         file.mimetype,
@@ -382,6 +393,66 @@ export class SubsController {
     return `${proto}://${req.get('host')}/subs/${hash}`;
   }
 
+  private async assertUploadVideoMeetsRequirements(
+    file: MulterDiskFile,
+  ): Promise<void> {
+    if (file.size > MAX_SUBS_VIDEO_SIZE_BYTES) {
+      throw new BadRequestException('Video must be 200 MB or smaller');
+    }
+
+    const dimensions = await this.readVideoDimensions(file.path);
+    if (
+      dimensions.width !== REQUIRED_SUBS_VIDEO_WIDTH ||
+      dimensions.height !== REQUIRED_SUBS_VIDEO_HEIGHT
+    ) {
+      throw new BadRequestException(
+        'Video must be vertical 1080p: 1080×1920 px',
+      );
+    }
+  }
+
+  private async readVideoDimensions(path: string): Promise<VideoDimensions> {
+    const output = await this.runFfprobeCapture([
+      '-v',
+      'error',
+      '-select_streams',
+      'v:0',
+      '-show_entries',
+      'stream=width,height:stream_tags=rotate:stream_side_data=rotation',
+      '-of',
+      'json',
+      path,
+    ]);
+
+    const parsed = JSON.parse(output.toString()) as {
+      streams?: Array<{
+        width?: number;
+        height?: number;
+        tags?: { rotate?: string };
+        side_data_list?: Array<{ rotation?: number }>;
+      }>;
+    };
+    const stream = parsed.streams?.[0];
+    const width = Number(stream?.width);
+    const height = Number(stream?.height);
+    if (!Number.isFinite(width) || !Number.isFinite(height)) {
+      throw new BadRequestException('Could not read video dimensions');
+    }
+
+    const tagRotation = Number(stream?.tags?.rotate || 0);
+    const sideDataRotation = Number(
+      stream?.side_data_list?.find((item) =>
+        Number.isFinite(Number(item.rotation)),
+      )?.rotation || 0,
+    );
+    const rotation = Math.abs(tagRotation || sideDataRotation) % 180;
+    if (rotation === 90) {
+      return { width: height, height: width };
+    }
+
+    return { width, height };
+  }
+
   private normalizeTranscriptionLanguage(language?: string): string {
     const normalized = (language || 'auto').trim().toLowerCase();
     if (normalized === 'auto' || normalized === '') return 'auto';
@@ -550,6 +621,36 @@ export class SubsController {
           return;
         }
         reject(new Error(stderr.trim() || `ffmpeg exited with code ${code}`));
+      });
+    });
+  }
+
+  private runFfprobeCapture(args: string[]): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const child = spawn('ffprobe', args);
+      const stdoutChunks: Buffer[] = [];
+      let stderr = '';
+
+      child.stdout.on('data', (chunk: Buffer) => {
+        stdoutChunks.push(chunk);
+      });
+      child.stderr.on('data', (chunk: Buffer) => {
+        stderr += chunk.toString();
+        if (stderr.length > 8000) stderr = stderr.slice(-8000);
+      });
+      child.on('error', (error) => {
+        if (error.message.includes('ENOENT')) {
+          reject(new Error('ffprobe is not installed on the server'));
+          return;
+        }
+        reject(error);
+      });
+      child.on('close', (code) => {
+        if (code === 0) {
+          resolve(Buffer.concat(stdoutChunks));
+          return;
+        }
+        reject(new Error(stderr.trim() || `ffprobe exited with code ${code}`));
       });
     });
   }

@@ -4,6 +4,9 @@ const VIDEO_STORE = SF.VIDEO_STORE;
 const STYLE_STORE = SF.STYLE_STORE;
 const CUE_STORE = SF.CUE_STORE;
 const POSITION_STORE = SF.POSITION_STORE;
+const MAX_UPLOAD_VIDEO_SIZE_BYTES = 200 * 1024 * 1024;
+const REQUIRED_UPLOAD_VIDEO_WIDTH = 1080;
+const REQUIRED_UPLOAD_VIDEO_HEIGHT = 1920;
 const IS_EN = document.documentElement.lang?.startsWith('en');
 const TEXT = IS_EN
   ? {
@@ -58,7 +61,11 @@ const TEXT = IS_EN
       renderFailed: 'Failed to burn subtitles',
       linkFetchFailed: 'Failed to fetch data for this link.',
       videoName: 'Video',
-      fileMeta: 'MP4, MOV, WebM, or another video/* file',
+      fileMeta: 'Vertical 1080×1920 px only, up to 200 MB',
+      videoTooLarge: 'Video must be 200 MB or smaller.',
+      videoWrongDimensions:
+        'Video must be vertical 1080p: 1080×1920 px. Selected video is {width}×{height} px.',
+      videoMetadataFailed: 'Could not read video dimensions.',
       loadingError: 'IndexedDB error',
       editPosition: 'Edit position',
       editStyle: 'Edit style',
@@ -123,7 +130,11 @@ const TEXT = IS_EN
       renderFailed: 'Не удалось наложить субтитры',
       linkFetchFailed: 'Не удалось получить данные по этой ссылке.',
       videoName: 'Видео',
-      fileMeta: 'MP4, MOV, WebM или другой video/* файл',
+      fileMeta: 'Только вертикальное 1080×1920 px, до 200 МБ',
+      videoTooLarge: 'Видео должно быть не больше 200 МБ.',
+      videoWrongDimensions:
+        'Видео должно быть вертикальным 1080p: 1080×1920 px. Выбранное видео: {width}×{height} px.',
+      videoMetadataFailed: 'Не удалось прочитать размеры видео.',
       loadingError: 'Ошибка IndexedDB',
       editPosition: 'Редактировать позицию',
       editStyle: 'Редактировать стиль',
@@ -447,6 +458,7 @@ let editingPositionId;
 let currentVideoHash = null;
 let currentAudioWaveform = [];
 let audioAnimationFrame = null;
+let uploadValidationToken = 0;
 
 function openDb() {
   return SF.openDb();
@@ -640,6 +652,58 @@ function formatBytes(bytes) {
   );
   const value = bytes / 1024 ** unit;
   return `${value.toFixed(value >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
+}
+
+function formatText(template, values) {
+  return template.replace(/\{(\w+)}/g, (_match, key) =>
+    Object.prototype.hasOwnProperty.call(values, key) ? values[key] : '',
+  );
+}
+
+function readLocalVideoDimensions(file) {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video');
+    const url = URL.createObjectURL(file);
+
+    const cleanup = () => {
+      video.removeAttribute('src');
+      video.load();
+      URL.revokeObjectURL(url);
+    };
+
+    video.preload = 'metadata';
+    video.muted = true;
+    video.playsInline = true;
+    video.onloadedmetadata = () => {
+      const dimensions = {
+        width: video.videoWidth,
+        height: video.videoHeight,
+      };
+      cleanup();
+      resolve(dimensions);
+    };
+    video.onerror = () => {
+      cleanup();
+      reject(new Error(TEXT.videoMetadataFailed));
+    };
+    video.src = url;
+  });
+}
+
+async function validateUploadVideoFile(file) {
+  if (file.size > MAX_UPLOAD_VIDEO_SIZE_BYTES) {
+    throw new Error(TEXT.videoTooLarge);
+  }
+
+  const dimensions = await readLocalVideoDimensions(file);
+  if (
+    dimensions.width !== REQUIRED_UPLOAD_VIDEO_WIDTH ||
+    dimensions.height !== REQUIRED_UPLOAD_VIDEO_HEIGHT
+  ) {
+    throw new Error(formatText(TEXT.videoWrongDimensions, dimensions));
+  }
+
+  return dimensions;
 }
 
 function resizeAudioWaveformCanvas() {
@@ -2632,15 +2696,28 @@ async function loadCurrentVideo() {
   renderSubtitledVideoControls();
 }
 
-input.addEventListener('change', () => {
+input.addEventListener('change', async () => {
+  const validationToken = (uploadValidationToken += 1);
   const file = input.files?.[0];
-  uploadButton.disabled = !file;
+  uploadButton.disabled = true;
   fileMeta.textContent = file
     ? `${file.name} · ${formatBytes(file.size)} · ${file.type || 'video'}`
     : TEXT.fileMeta;
   uploadStatus.textContent = '';
   progress.hidden = true;
   progressBar.style.width = '0%';
+
+  if (!file) return;
+
+  try {
+    await validateUploadVideoFile(file);
+    if (validationToken !== uploadValidationToken) return;
+    uploadButton.disabled = false;
+  } catch (error) {
+    if (validationToken !== uploadValidationToken) return;
+    uploadStatus.textContent =
+      error instanceof Error ? error.message : TEXT.videoMetadataFailed;
+  }
 });
 
 form.addEventListener('submit', async (event) => {
@@ -2651,6 +2728,14 @@ form.addEventListener('submit', async (event) => {
 
   uploadButton.disabled = true;
   uploadStatus.textContent = TEXT.preparingUpload;
+
+  try {
+    await validateUploadVideoFile(file);
+  } catch (error) {
+    uploadStatus.textContent =
+      error instanceof Error ? error.message : TEXT.videoMetadataFailed;
+    return;
+  }
 
   try {
     const uploaded = await uploadVideo(file);
