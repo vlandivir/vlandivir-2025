@@ -9,9 +9,9 @@
     />
     <title>Subs ASS</title>
     <link rel="stylesheet" href="fonts/fonts.css?v=20260517-9" />
-    <link rel="stylesheet" href="styles.css?v=20260519-3" />
-    <script src="fonts-shared.js?v=20260517-6"></script>
-    <script src="app.js?v=20260519-3" defer></script>
+    <link rel="stylesheet" href="styles.css?v=20260520-1" />
+    <script src="fonts-shared.js?v=20260520-1"></script>
+    <script src="app.js?v=20260520-1" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -686,6 +686,60 @@
                   </div>
                 </section>
               </div>
+            </div>
+          </details>
+
+          <details class="editor-section" data-section="render">
+            <summary class="editor-section__summary">
+              <h2 class="editor-section__title">Готовое видео</h2>
+            </summary>
+            <div class="editor-section__body">
+              <section class="editor-card render-video-card">
+                <h3>Наложить субтитры</h3>
+                <p class="render-video-card__text">
+                  Локально это можно сделать такой командой:
+                </p>
+                <pre
+                  class="ffmpeg-command"
+                ><code id="ffmpegCommandExample">ffmpeg -i input.mp4 -vf "subtitles=subtitles.ass:fontsdir=./web/subs/fonts" -c:v libx264 -crf 18 -preset veryfast -c:a copy output.mp4</code></pre>
+                <div class="render-video-actions">
+                  <button
+                    class="primary-link"
+                    id="renderSubtitledVideoButton"
+                    type="button"
+                    disabled
+                  >
+                    Наложить субтитры
+                  </button>
+                </div>
+                <div
+                  class="render-video-result"
+                  id="renderedVideoResult"
+                  hidden
+                >
+                  <a
+                    class="render-video-link"
+                    id="renderedVideoLink"
+                    href="#"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    >Видео</a
+                  >
+                  <a
+                    class="render-video-download-link"
+                    id="renderedVideoDownloadLink"
+                    href="#"
+                    download="subtitled-video.mp4"
+                    >Download</a
+                  >
+                  <p
+                    class="render-video-status"
+                    id="renderSubtitledVideoStatus"
+                  >
+                    Добавьте видео и реплики.
+                  </p>
+                </div>
+              </section>
             </div>
           </details>
         </div>

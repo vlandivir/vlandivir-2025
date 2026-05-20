@@ -186,6 +186,28 @@ export class StorageService implements OnModuleInit {
     return this.getPublicUrl(key);
   }
 
+  async uploadSubsRenderedVideoStream(
+    stream: Readable,
+    mimeType: string,
+    hash: string,
+  ): Promise<string> {
+    const key = this.getSubsRenderedVideoKey(hash);
+
+    const upload = new Upload({
+      client: this.s3,
+      params: {
+        Bucket: this.bucket,
+        Key: key,
+        Body: stream,
+        ContentType: mimeType,
+        ACL: 'public-read',
+      },
+    });
+
+    await upload.done();
+    return this.getPublicUrl(key);
+  }
+
   async uploadSubsAudioManifest(
     hash: string,
     manifest: SubsAudioManifest,
@@ -284,6 +306,10 @@ export class StorageService implements OnModuleInit {
     return this.getPublicUrl(this.getSubsAudioKey(hash));
   }
 
+  getSubsRenderedVideoUrl(hash: string): string {
+    return this.getPublicUrl(this.getSubsRenderedVideoKey(hash));
+  }
+
   async uploadFileWithKey(
     buffer: Buffer,
     mimeType: string,
@@ -317,6 +343,10 @@ export class StorageService implements OnModuleInit {
 
   private getSubsAudioTranscriptKey(hash: string, language: string): string {
     return `subs/videos/${hash}/audio/transcript-words-${this.normalizeStorageSegment(language)}.json`;
+  }
+
+  private getSubsRenderedVideoKey(hash: string): string {
+    return `subs/videos/${hash}/renders/subtitled.mp4`;
   }
 
   private getPublicUrl(key: string): string {

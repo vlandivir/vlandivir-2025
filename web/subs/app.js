@@ -279,10 +279,23 @@ const transcriptionCueStyleInput = document.querySelector(
 const createCuesFromTranscriptionButton = document.querySelector(
   '#createCuesFromTranscriptionButton',
 );
+const ffmpegCommandExample = document.querySelector('#ffmpegCommandExample');
+const renderSubtitledVideoButton = document.querySelector(
+  '#renderSubtitledVideoButton',
+);
+const renderedVideoResult = document.querySelector('#renderedVideoResult');
+const renderedVideoLink = document.querySelector('#renderedVideoLink');
+const renderedVideoDownloadLink = document.querySelector(
+  '#renderedVideoDownloadLink',
+);
+const renderSubtitledVideoStatus = document.querySelector(
+  '#renderSubtitledVideoStatus',
+);
 
 let cachedStyles = [];
 let cachedCues = [];
 let cachedPositions = [];
+const cachedRenderedVideos = new Map();
 const stylesById = new Map();
 const positionsById = new Map();
 let jassubModulePromise;
@@ -2010,6 +2023,44 @@ function renderAssOutput() {
   downloadAssButton.disabled = cachedCues.length === 0;
 }
 
+function renderSubtitledVideoControls() {
+  const canRender = Boolean(currentVideoHash && cachedCues.length > 0);
+  renderSubtitledVideoButton.disabled = !canRender;
+
+  if (ffmpegCommandExample) {
+    ffmpegCommandExample.textContent =
+      'ffmpeg -i input.mp4 -vf "subtitles=subtitles.ass:fontsdir=./web/subs/fonts" -c:v libx264 -crf 18 -preset veryfast -c:a copy output.mp4';
+  }
+
+  if (!canRender) {
+    renderedVideoResult.hidden = true;
+    renderSubtitledVideoStatus.textContent = currentVideoHash
+      ? 'Добавьте реплики.'
+      : 'Добавьте видео и реплики.';
+    return;
+  }
+
+  const renderedVideo = currentVideoHash
+    ? cachedRenderedVideos.get(currentVideoHash)
+    : null;
+  if (renderedVideo?.videoUrl) {
+    showRenderedVideoLinks(renderedVideo);
+  } else {
+    renderedVideoResult.hidden = true;
+    renderSubtitledVideoStatus.textContent = 'Готово к рендеру.';
+  }
+}
+
+function showRenderedVideoLinks(renderedVideo) {
+  if (!renderedVideo?.videoUrl) return;
+
+  renderedVideoLink.href = renderedVideo.videoUrl;
+  renderedVideoLink.textContent = 'Видео';
+  renderedVideoDownloadLink.href = `/subs-api/videos/${renderedVideo.hash || currentVideoHash}/render/download`;
+  renderedVideoResult.hidden = false;
+  renderSubtitledVideoStatus.textContent = `Готово · ${formatBytes(renderedVideo.size)} · ${renderedVideo.mimeType || 'video/mp4'}`;
+}
+
 function updateVideoControls() {
   const duration = Number.isFinite(currentVideo.duration)
     ? currentVideo.duration
@@ -2041,6 +2092,7 @@ function updateVideoControls() {
 
 function renderExport() {
   renderAssOutput();
+  renderSubtitledVideoControls();
   void renderJassubPreview();
 }
 
@@ -2282,6 +2334,53 @@ async function createCuesFromTranscription() {
   transcriptionStatus.textContent = `Создано реплик: ${cueDrafts.length}`;
 }
 
+async function renderSubtitledVideo() {
+  if (!currentVideoHash || cachedCues.length === 0) return;
+
+  renderSubtitledVideoButton.disabled = true;
+  renderedVideoResult.hidden = true;
+  renderSubtitledVideoStatus.textContent = 'Накладываю субтитры на backend...';
+
+  try {
+    const response = await fetch(
+      `/subs-api/videos/${currentVideoHash}/render`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ass: assOutput.value || generateAss() }),
+      },
+    );
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(payload.message || 'Не удалось наложить субтитры');
+    }
+
+    const renderedVideo = {
+      hash: currentVideoHash,
+      videoUrl: payload.videoUrl,
+      mimeType: payload.mimeType,
+      size: payload.size,
+      createdAt: payload.createdAt,
+    };
+    cachedRenderedVideos.set(currentVideoHash, renderedVideo);
+    await SF.patchVideoByHash(currentVideoHash, {
+      renderedVideo,
+      updatedAt: new Date().toISOString(),
+    });
+    showRenderedVideoLinks(renderedVideo);
+  } catch (error) {
+    renderSubtitledVideoStatus.textContent =
+      error instanceof Error ? error.message : 'Не удалось наложить субтитры';
+  } finally {
+    renderSubtitledVideoButton.disabled = !(
+      currentVideoHash && cachedCues.length > 0
+    );
+  }
+}
+
 async function refreshList() {
   renderVideos(await readVideos());
 }
@@ -2302,6 +2401,8 @@ async function applyVideoContext(hash) {
   if (!hash) {
     setVideoBoundPanelVisible(false);
     renderAudioPanel(null);
+    cachedRenderedVideos.clear();
+    renderSubtitledVideoControls();
     currentVideoSection.hidden = true;
     currentVideo.src = '';
     setCurrentVideoMetaLink(null, '');
@@ -2358,7 +2459,12 @@ async function loadCurrentVideo() {
       size: 0,
     });
     renderAudioPanel(saved);
+    renderSubtitledVideoControls();
     return;
+  }
+
+  if (existing.renderedVideo?.videoUrl) {
+    cachedRenderedVideos.set(hash, existing.renderedVideo);
   }
 
   const patched = await SF.patchVideoByHash(hash, {
@@ -2368,6 +2474,7 @@ async function loadCurrentVideo() {
     ...getAudioPatch(video.audio),
   });
   renderAudioPanel(patched || existing);
+  renderSubtitledVideoControls();
 }
 
 input.addEventListener('change', () => {
@@ -2605,6 +2712,10 @@ downloadAssButton.addEventListener('click', () => {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+});
+
+renderSubtitledVideoButton.addEventListener('click', () => {
+  void renderSubtitledVideo();
 });
 
 refreshPreviewButton.addEventListener('click', () => {

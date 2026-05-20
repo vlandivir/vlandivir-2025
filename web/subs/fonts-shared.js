@@ -19,6 +19,7 @@
     styles: true,
     cues: true,
     preview: true,
+    render: true,
   };
 
   /** Shown in the style editor until the user picks more on /font */
@@ -32,51 +33,161 @@
   ];
 
   const SUBTITLE_FONTS = [
-    { family: 'Alegreya Sans', regular: 'alegreya-sans-400.ttf', bold: 'alegreya-sans-700.ttf' },
+    {
+      family: 'Alegreya Sans',
+      regular: 'alegreya-sans-400.ttf',
+      bold: 'alegreya-sans-700.ttf',
+    },
     { family: 'Arsenal', regular: 'arsenal-400.ttf', bold: 'arsenal-700.ttf' },
-    { family: 'Bebas Neue Cyrillic', regular: 'bebas-neue-cyrillic-400.ttf', bold: 'bebas-neue-cyrillic-400.ttf' },
+    {
+      family: 'Bebas Neue Cyrillic',
+      regular: 'bebas-neue-cyrillic-400.ttf',
+      bold: 'bebas-neue-cyrillic-400.ttf',
+    },
     { family: 'Bitter', regular: 'bitter-400.ttf', bold: 'bitter-700.ttf' },
-    { family: 'Comfortaa', regular: 'comfortaa-400.ttf', bold: 'comfortaa-700.ttf' },
-    { family: 'Commissioner', regular: 'commissioner-400.ttf', bold: 'commissioner-700.ttf' },
-    { family: 'Cormorant Garamond', regular: 'cormorant-garamond-400.ttf', bold: 'cormorant-garamond-700.ttf' },
-    { family: 'EB Garamond', regular: 'eb-garamond-400.ttf', bold: 'eb-garamond-700.ttf' },
+    {
+      family: 'Comfortaa',
+      regular: 'comfortaa-400.ttf',
+      bold: 'comfortaa-700.ttf',
+    },
+    {
+      family: 'Commissioner',
+      regular: 'commissioner-400.ttf',
+      bold: 'commissioner-700.ttf',
+    },
+    {
+      family: 'Cormorant Garamond',
+      regular: 'cormorant-garamond-400.ttf',
+      bold: 'cormorant-garamond-700.ttf',
+    },
+    {
+      family: 'EB Garamond',
+      regular: 'eb-garamond-400.ttf',
+      bold: 'eb-garamond-700.ttf',
+    },
     { family: 'Exo 2', regular: 'exo-2-400.ttf', bold: 'exo-2-700.ttf' },
-    { family: 'Finlandica', regular: 'finlandica-400.ttf', bold: 'finlandica-700.ttf' },
-    { family: 'Fira Sans', regular: 'fira-sans-400.ttf', bold: 'fira-sans-700.ttf' },
-    { family: 'Geologica', regular: 'geologica-400.ttf', bold: 'geologica-700.ttf' },
-    { family: 'Golos Text', regular: 'golos-text-400.ttf', bold: 'golos-text-700.ttf' },
-    { family: 'Great Vibes', regular: 'great-vibes-400.ttf', bold: 'great-vibes-400.ttf' },
-    { family: 'IBM Plex Sans', regular: 'ibm-plex-sans-400.ttf', bold: 'ibm-plex-sans-700.ttf' },
-    { family: 'IBM Plex Serif', regular: 'ibm-plex-serif-400.ttf', bold: 'ibm-plex-serif-700.ttf' },
+    {
+      family: 'Finlandica',
+      regular: 'finlandica-400.ttf',
+      bold: 'finlandica-700.ttf',
+    },
+    {
+      family: 'Fira Sans',
+      regular: 'fira-sans-400.ttf',
+      bold: 'fira-sans-700.ttf',
+    },
+    {
+      family: 'Geologica',
+      regular: 'geologica-400.ttf',
+      bold: 'geologica-700.ttf',
+    },
+    {
+      family: 'Golos Text',
+      regular: 'golos-text-400.ttf',
+      bold: 'golos-text-700.ttf',
+    },
+    {
+      family: 'Great Vibes',
+      regular: 'great-vibes-400.ttf',
+      bold: 'great-vibes-400.ttf',
+    },
+    {
+      family: 'IBM Plex Sans',
+      regular: 'ibm-plex-sans-400.ttf',
+      bold: 'ibm-plex-sans-700.ttf',
+    },
+    {
+      family: 'IBM Plex Serif',
+      regular: 'ibm-plex-serif-400.ttf',
+      bold: 'ibm-plex-serif-700.ttf',
+    },
     { family: 'Inter', regular: 'inter-400.ttf', bold: 'inter-700.ttf' },
     { family: 'Jost', regular: 'jost-400.ttf', bold: 'jost-700.ttf' },
     { family: 'Lack', regular: 'lack-400.otf', bold: 'lack-700.otf' },
-    { family: 'Literata', regular: 'literata-400.ttf', bold: 'literata-700.ttf' },
+    {
+      family: 'Literata',
+      regular: 'literata-400.ttf',
+      bold: 'literata-700.ttf',
+    },
     { family: 'Manrope', regular: 'manrope-400.ttf', bold: 'manrope-700.ttf' },
-    { family: 'Merriweather', regular: 'merriweather-400.ttf', bold: 'merriweather-700.ttf' },
-    { family: 'Montserrat', regular: 'montserrat-400.ttf', bold: 'montserrat-700.ttf' },
-    { family: 'Noto Sans', regular: 'noto-sans-400.ttf', bold: 'noto-sans-700.ttf' },
-    { family: 'Nunito Sans', regular: 'nunito-sans-400.ttf', bold: 'nunito-sans-700.ttf' },
+    {
+      family: 'Merriweather',
+      regular: 'merriweather-400.ttf',
+      bold: 'merriweather-700.ttf',
+    },
+    {
+      family: 'Montserrat',
+      regular: 'montserrat-400.ttf',
+      bold: 'montserrat-700.ttf',
+    },
+    {
+      family: 'Noto Sans',
+      regular: 'noto-sans-400.ttf',
+      bold: 'noto-sans-700.ttf',
+    },
+    {
+      family: 'Nunito Sans',
+      regular: 'nunito-sans-400.ttf',
+      bold: 'nunito-sans-700.ttf',
+    },
     { family: 'Oi', regular: 'oi-400.ttf', bold: 'oi-400.ttf' },
     { family: 'Onest', regular: 'onest-400.ttf', bold: 'onest-700.ttf' },
-    { family: 'Open Sans', regular: 'open-sans-400.ttf', bold: 'open-sans-700.ttf' },
+    {
+      family: 'Open Sans',
+      regular: 'open-sans-400.ttf',
+      bold: 'open-sans-700.ttf',
+    },
     { family: 'Oswald', regular: 'oswald-400.ttf', bold: 'oswald-700.ttf' },
-    { family: 'Playfair Display', regular: 'playfair-display-400.ttf', bold: 'playfair-display-700.ttf' },
+    {
+      family: 'Playfair Display',
+      regular: 'playfair-display-400.ttf',
+      bold: 'playfair-display-700.ttf',
+    },
     { family: 'PT Sans', regular: 'pt-sans-400.ttf', bold: 'pt-sans-700.ttf' },
-    { family: 'PT Serif', regular: 'pt-serif-400.ttf', bold: 'pt-serif-700.ttf' },
+    {
+      family: 'PT Serif',
+      regular: 'pt-serif-400.ttf',
+      bold: 'pt-serif-700.ttf',
+    },
     { family: 'Roboto', regular: 'roboto-400.ttf', bold: 'roboto-700.ttf' },
-    { family: 'Roboto Condensed', regular: 'roboto-condensed-400.ttf', bold: 'roboto-condensed-700.ttf' },
-    { family: 'Roboto Slab', regular: 'roboto-slab-400.ttf', bold: 'roboto-slab-700.ttf' },
+    {
+      family: 'Roboto Condensed',
+      regular: 'roboto-condensed-400.ttf',
+      bold: 'roboto-condensed-700.ttf',
+    },
+    {
+      family: 'Roboto Slab',
+      regular: 'roboto-slab-400.ttf',
+      bold: 'roboto-slab-700.ttf',
+    },
     { family: 'Rubik', regular: 'rubik-400.ttf', bold: 'rubik-700.ttf' },
-    { family: 'Russo One', regular: 'russo-one-400.ttf', bold: 'russo-one-400.ttf' },
-    { family: 'Spectral', regular: 'spectral-400.ttf', bold: 'spectral-700.ttf' },
-    { family: 'Source Sans 3', regular: 'source-sans-3-400.ttf', bold: 'source-sans-3-700.ttf' },
+    {
+      family: 'Russo One',
+      regular: 'russo-one-400.ttf',
+      bold: 'russo-one-400.ttf',
+    },
+    {
+      family: 'Spectral',
+      regular: 'spectral-400.ttf',
+      bold: 'spectral-700.ttf',
+    },
+    {
+      family: 'Source Sans 3',
+      regular: 'source-sans-3-400.ttf',
+      bold: 'source-sans-3-700.ttf',
+    },
     { family: 'Tektur', regular: 'tektur-400.ttf', bold: 'tektur-700.ttf' },
     { family: 'Ubuntu', regular: 'ubuntu-400.ttf', bold: 'ubuntu-700.ttf' },
-    { family: 'Unbounded', regular: 'unbounded-400.ttf', bold: 'unbounded-700.ttf' },
+    {
+      family: 'Unbounded',
+      regular: 'unbounded-400.ttf',
+      bold: 'unbounded-700.ttf',
+    },
   ];
 
-  const FAMILY_TO_FONT = new Map(SUBTITLE_FONTS.map((font) => [font.family, font]));
+  const FAMILY_TO_FONT = new Map(
+    SUBTITLE_FONTS.map((font) => [font.family, font]),
+  );
   const VALID_FAMILIES = new Set(FAMILY_TO_FONT.keys());
 
   let dbPromise;
@@ -147,7 +258,9 @@
 
     return new Promise((resolve, reject) => {
       const transaction = db.transaction(FONT_PREFS_STORE, 'readonly');
-      const request = transaction.objectStore(FONT_PREFS_STORE).get(FONT_PREFS_ID);
+      const request = transaction
+        .objectStore(FONT_PREFS_STORE)
+        .get(FONT_PREFS_ID);
 
       request.onsuccess = () => {
         const stored = sanitizeFamilies(request.result?.families);
@@ -175,9 +288,7 @@
 
   function getFontsForFamilies(familyNames) {
     const names = sanitizeFamilies(familyNames);
-    return names
-      .map((family) => FAMILY_TO_FONT.get(family))
-      .filter(Boolean);
+    return names.map((family) => FAMILY_TO_FONT.get(family)).filter(Boolean);
   }
 
   function isArchived(record) {

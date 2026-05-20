@@ -3,10 +3,12 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   InternalServerErrorException,
   Param,
   Post,
   Req,
+  Res,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
@@ -15,10 +17,10 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { spawn } from 'child_process';
 import { randomBytes } from 'crypto';
 import { createReadStream } from 'fs';
-import { stat, unlink } from 'fs/promises';
+import { stat, unlink, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import {
   StorageService,
   type SubsAudioManifest,
@@ -50,6 +52,18 @@ type ExtractedAudio = {
 
 type TranscriptionRequest = {
   language?: string;
+};
+
+type RenderSubtitledVideoRequest = {
+  ass?: string;
+};
+
+type RenderedSubtitledVideo = {
+  hash: string;
+  videoUrl: string;
+  mimeType: string;
+  size: number;
+  createdAt: string;
 };
 
 type OpenAiTranscriptionSegment = {
@@ -263,6 +277,95 @@ export class SubsController {
     return transcript;
   }
 
+  @Post('videos/:hash/render')
+  async renderSubtitledVideo(
+    @Param('hash') hash: string,
+    @Body() body: RenderSubtitledVideoRequest,
+  ): Promise<RenderedSubtitledVideo> {
+    this.assertHash(hash);
+
+    const ass = (body?.ass || '').trim();
+    if (!ass) {
+      throw new BadRequestException('ASS content is required');
+    }
+
+    const renderId = this.createHash();
+    const assPath = join(tmpdir(), `subs-${hash}-${renderId}.ass`);
+    const outputPath = join(tmpdir(), `subs-${hash}-${renderId}.mp4`);
+    const fontsDir = join(process.cwd(), 'web', 'subs', 'fonts');
+    const videoUrl = this.storageService.getSubsVideoUrl(hash);
+
+    try {
+      await writeFile(assPath, ass, 'utf8');
+      await this.runFfmpeg([
+        '-y',
+        '-i',
+        videoUrl,
+        '-vf',
+        `subtitles=${this.escapeFfmpegFilterPath(assPath)}:fontsdir=${this.escapeFfmpegFilterPath(fontsDir)}`,
+        '-c:v',
+        'libx264',
+        '-preset',
+        'veryfast',
+        '-crf',
+        '18',
+        '-c:a',
+        'copy',
+        '-movflags',
+        '+faststart',
+        outputPath,
+      ]);
+
+      const outputStat = await stat(outputPath);
+      const renderedUrl =
+        await this.storageService.uploadSubsRenderedVideoStream(
+          createReadStream(outputPath),
+          'video/mp4',
+          hash,
+        );
+
+      return {
+        hash,
+        videoUrl: renderedUrl,
+        mimeType: 'video/mp4',
+        size: outputStat.size,
+        createdAt: new Date().toISOString(),
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new InternalServerErrorException(
+        `Failed to render subtitled video: ${message}`,
+      );
+    } finally {
+      await Promise.all([
+        unlink(assPath).catch(() => undefined),
+        unlink(outputPath).catch(() => undefined),
+      ]);
+    }
+  }
+
+  @Get('videos/:hash/render/download')
+  @Header('Content-Type', 'video/mp4')
+  @Header('Content-Disposition', 'attachment; filename="subtitled-video.mp4"')
+  async downloadRenderedVideo(
+    @Param('hash') hash: string,
+    @Res() res: Response,
+  ) {
+    this.assertHash(hash);
+
+    try {
+      const buffer = await this.storageService.downloadFile(
+        this.storageService.getSubsRenderedVideoUrl(hash),
+      );
+      res.send(buffer);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new InternalServerErrorException(
+        `Failed to download rendered video: ${message}`,
+      );
+    }
+  }
+
   private createHash(): string {
     return randomBytes(12).toString('hex');
   }
@@ -287,6 +390,13 @@ export class SubsController {
     }
 
     return normalized;
+  }
+
+  private escapeFfmpegFilterPath(path: string): string {
+    return path
+      .replace(/\\/g, '\\\\')
+      .replace(/:/g, '\\:')
+      .replace(/'/g, "\\'");
   }
 
   private async requestOpenAiTranscription(
