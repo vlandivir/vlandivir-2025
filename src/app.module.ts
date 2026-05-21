@@ -7,6 +7,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { ServicesModule } from './services/services.module';
 import { MiniAppController } from './mini-app/mini-app.controller';
 import { SubsController } from './subs.controller';
+import { NotesApiController } from './notes-api.controller';
 
 @Module({
   imports: [
@@ -17,7 +18,12 @@ import { SubsController } from './subs.controller';
     ServicesModule,
     TelegramBotModule,
   ],
-  controllers: [AppController, MiniAppController, SubsController],
+  controllers: [
+    AppController,
+    MiniAppController,
+    SubsController,
+    NotesApiController,
+  ],
   providers: [AppService],
 })
 export class AppModule {}
