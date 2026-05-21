@@ -5,7 +5,9 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { NotesApiController } from './notes-api.controller';
 import { PrismaService } from './prisma/prisma.service';
+import { LlmService } from './services/llm.service';
 import { StorageService } from './services/storage.service';
+import { TelegramBotService } from './telegram-bot/telegram-bot.service';
 
 describe('NotesApiController', () => {
   let controller: NotesApiController;
@@ -19,6 +21,12 @@ describe('NotesApiController', () => {
   };
   let configService: {
     get: jest.Mock;
+  };
+  let llmService: {
+    describeImage: jest.Mock;
+  };
+  let telegramBotService: {
+    sendApiNotePhoto: jest.Mock;
   };
   let tmpDir: string;
 
@@ -41,11 +49,19 @@ describe('NotesApiController', () => {
     configService = {
       get: jest.fn().mockReturnValue('secret'),
     };
+    llmService = {
+      describeImage: jest.fn().mockResolvedValue('AI image description'),
+    };
+    telegramBotService = {
+      sendApiNotePhoto: jest.fn(),
+    };
 
     controller = new NotesApiController(
       prisma as unknown as PrismaService,
       storageService as unknown as StorageService,
       configService as unknown as ConfigService,
+      llmService as unknown as LlmService,
+      telegramBotService as unknown as TelegramBotService,
     );
   });
 
@@ -73,6 +89,10 @@ describe('NotesApiController', () => {
       'image/jpeg',
       150847737,
     );
+    expect(llmService.describeImage).toHaveBeenCalledWith(
+      Buffer.from('image'),
+      'hello note',
+    );
     expect(prisma.note.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -81,11 +101,18 @@ describe('NotesApiController', () => {
           images: {
             create: {
               url: 'https://example.com/image.jpg',
-              description: 'hello note',
+              description: 'AI image description',
             },
           },
         }),
       }),
+    );
+    expect(telegramBotService.sendApiNotePhoto).toHaveBeenCalledWith(
+      150847737,
+      'https://example.com/image.jpg',
+      'hello note',
+      'AI image description',
+      new Date('2026-05-21T10:00:00.000Z'),
     );
     expect(result).toEqual({
       id: 10,
@@ -93,6 +120,7 @@ describe('NotesApiController', () => {
       text: 'hello note',
       date: '2026-05-21T10:00:00.000Z',
       imageUrl: 'https://example.com/image.jpg',
+      imageDescription: 'AI image description',
     });
   });
 

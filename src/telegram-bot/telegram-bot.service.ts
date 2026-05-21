@@ -142,6 +142,43 @@ export class TelegramBotService {
     this.bot.stop();
   }
 
+  async sendApiNotePhoto(
+    chatId: number,
+    photoUrl: string,
+    text: string,
+    imageDescription: string,
+    noteDate: Date,
+  ): Promise<void> {
+    const caption = [
+      `Заметка от ${format(noteDate, 'd MMMM yyyy', { locale: ru })}`,
+      '',
+      text,
+      '',
+      `Описание: ${imageDescription}`,
+    ].join('\n');
+
+    if (caption.length <= 1024) {
+      await this.bot.telegram.sendPhoto(chatId, photoUrl, { caption });
+      return;
+    }
+
+    const shortCaption = [
+      `Заметка от ${format(noteDate, 'd MMMM yyyy', { locale: ru })}`,
+      '',
+      text,
+    ]
+      .join('\n')
+      .slice(0, 1021);
+
+    await this.bot.telegram.sendPhoto(chatId, photoUrl, {
+      caption: `${shortCaption}...`,
+    });
+    await this.bot.telegram.sendMessage(
+      chatId,
+      `Описание: ${imageDescription}`,
+    );
+  }
+
   private setupCommands() {
     // Регистрируем команды для личных чатов и групп
     this.bot.command(['dairy', 'd'], (ctx) => {

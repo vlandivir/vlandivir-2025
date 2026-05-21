@@ -16,7 +16,9 @@ import { readFile, unlink } from 'fs/promises';
 import { tmpdir } from 'os';
 import { Prisma } from './generated/prisma-client';
 import { PrismaService } from './prisma/prisma.service';
+import { LlmService } from './services/llm.service';
 import { StorageService } from './services/storage.service';
+import { TelegramBotService } from './telegram-bot/telegram-bot.service';
 
 type UploadedImage = {
   path: string;
@@ -39,6 +41,8 @@ export class NotesApiController {
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
     private readonly configService: ConfigService,
+    private readonly llmService: LlmService,
+    private readonly telegramBotService: TelegramBotService,
   ) {}
 
   @Post('notes')
@@ -82,6 +86,10 @@ export class NotesApiController {
         image.mimetype,
         PRIMARY_CHAT_ID,
       );
+      const imageDescription = await this.llmService.describeImage(
+        imageBuffer,
+        text,
+      );
 
       const note = await this.prisma.note.create({
         data: {
@@ -92,6 +100,7 @@ export class NotesApiController {
             source: 'notes-api',
             text,
             date: body.date,
+            imageDescription,
             image: {
               originalName: image.originalname,
               mimeType: image.mimetype,
@@ -101,7 +110,7 @@ export class NotesApiController {
           images: {
             create: {
               url: imageUrl,
-              description: text,
+              description: imageDescription,
             },
           },
         },
@@ -110,12 +119,21 @@ export class NotesApiController {
         },
       });
 
+      await this.telegramBotService.sendApiNotePhoto(
+        PRIMARY_CHAT_ID,
+        imageUrl,
+        text,
+        imageDescription,
+        noteDate,
+      );
+
       return {
         id: note.id,
         chatId: PRIMARY_CHAT_ID,
         text: note.content,
         date: note.noteDate.toISOString(),
         imageUrl: note.images[0]?.url,
+        imageDescription,
       };
     } finally {
       await unlink(image.path).catch(() => undefined);
