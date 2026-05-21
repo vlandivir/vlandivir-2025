@@ -32,6 +32,8 @@ function extractTextFromAssistantContent(content: unknown): {
   return { text: joined.length > 0 ? joined : null, refusals };
 }
 
+const IMAGE_DESCRIPTION_MAX_COMPLETION_TOKENS = 1600;
+
 @Injectable()
 export class LlmService {
   constructor(
@@ -106,7 +108,8 @@ export class LlmService {
                   ],
                 },
               ],
-              max_completion_tokens: 400,
+              max_completion_tokens: IMAGE_DESCRIPTION_MAX_COMPLETION_TOKENS,
+              reasoning_effort: 'minimal',
             }),
             signal: timeoutSignal,
           },

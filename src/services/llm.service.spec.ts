@@ -72,5 +72,29 @@ describe('LlmService', () => {
       const result = await service.describeImage(Buffer.from('test'));
       expect(result).toBe('Краткое описание');
     });
+
+    it('should use enough completion budget for reasoning image models', async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            choices: [
+              {
+                finish_reason: 'stop',
+                message: {
+                  content: 'Краткое описание',
+                },
+              },
+            ],
+          }),
+      });
+
+      await service.describeImage(Buffer.from('test'));
+
+      const [, request] = (global.fetch as jest.Mock).mock.calls[0];
+      const body = JSON.parse(request.body);
+      expect(body.max_completion_tokens).toBe(1600);
+      expect(body.reasoning_effort).toBe('minimal');
+    });
   });
 });
