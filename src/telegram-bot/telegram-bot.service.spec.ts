@@ -11,6 +11,7 @@ import { ForeignCommandsService } from './foreign-commands.service';
 import { HistoryCommandsService } from './history-commands.service';
 import { CollageCommandsService } from './collage-commands.service';
 import { Context } from 'telegraf';
+import { DebugLogService } from '../services/debug-log.service';
 
 describe('TelegramBotService', () => {
   let service: TelegramBotService;
@@ -163,6 +164,14 @@ describe('TelegramBotService', () => {
             cancel: jest.fn(),
             generate: jest.fn(),
             isActive: jest.fn().mockReturnValue(false),
+          },
+        },
+        {
+          provide: DebugLogService,
+          useValue: {
+            info: jest.fn(),
+            warn: jest.fn(),
+            error: jest.fn(),
           },
         },
       ],

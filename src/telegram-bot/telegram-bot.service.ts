@@ -20,12 +20,15 @@ import { ForeignCommandsService } from './foreign-commands.service';
 import { HistoryCommandsService } from './history-commands.service';
 import { CollageCommandsService } from './collage-commands.service';
 import { DebugLogService } from '../services/debug-log.service';
+import * as sharp from 'sharp';
 // import { getUserTimeZone } from '../utils/timezone';
 import { Readable } from 'stream';
 
 // Telegram Bot API limitation: bots cannot download files larger than ~20 MB via getFile
 const MAX_TELEGRAM_FILE_DOWNLOAD_BYTES = 20 * 1024 * 1024;
 const MAX_TELEGRAM_PHOTO_UPLOAD_BYTES = 10 * 1024 * 1024;
+const TARGET_TELEGRAM_PHOTO_BYTES = 9 * 1024 * 1024;
+const MAX_TELEGRAM_PHOTO_DIMENSION_SUM = 10000;
 const BAR_PIVSKI_ZABAVNIK = {
   name: 'Pivski Zabavnik',
   city: 'Belgrade',
@@ -37,6 +40,11 @@ type TelegramUpdate =
   | Update.CallbackQueryUpdate
   | Update.MessageUpdate
   | { channel_post: Message.TextMessage };
+
+type TelegramPhotoFile = {
+  source: Buffer;
+  filename: string;
+};
 
 @Injectable()
 export class TelegramBotService {
@@ -152,6 +160,10 @@ export class TelegramBotService {
     imageDescription: string,
     noteDate: Date,
   ): Promise<void> {
+    const photoFile = await this.prepareApiNotePhotoForTelegram(
+      imageBuffer,
+      originalName,
+    );
     const caption = [
       `Заметка от ${format(noteDate, 'd MMMM yyyy', { locale: ru })}`,
       '',
@@ -160,19 +172,13 @@ export class TelegramBotService {
       `Описание: ${imageDescription}`,
     ].join('\n');
 
-    const file = {
-      source: imageBuffer,
-      filename: originalName || 'note-image.jpg',
-    };
-    const isLargePhoto = imageBuffer.length > MAX_TELEGRAM_PHOTO_UPLOAD_BYTES;
-
     if (caption.length <= 1024) {
-      if (isLargePhoto) {
-        await this.bot.telegram.sendDocument(chatId, file, { caption });
+      if (photoFile.source.length > MAX_TELEGRAM_PHOTO_UPLOAD_BYTES) {
+        await this.bot.telegram.sendDocument(chatId, photoFile, { caption });
         return;
       }
 
-      await this.bot.telegram.sendPhoto(chatId, file, { caption });
+      await this.bot.telegram.sendPhoto(chatId, photoFile, { caption });
       return;
     }
 
@@ -184,12 +190,12 @@ export class TelegramBotService {
       .join('\n')
       .slice(0, 1021);
 
-    if (isLargePhoto) {
-      await this.bot.telegram.sendDocument(chatId, file, {
+    if (photoFile.source.length > MAX_TELEGRAM_PHOTO_UPLOAD_BYTES) {
+      await this.bot.telegram.sendDocument(chatId, photoFile, {
         caption: `${shortCaption}...`,
       });
     } else {
-      await this.bot.telegram.sendPhoto(chatId, file, {
+      await this.bot.telegram.sendPhoto(chatId, photoFile, {
         caption: `${shortCaption}...`,
       });
     }
@@ -197,6 +203,125 @@ export class TelegramBotService {
       chatId,
       `Описание: ${imageDescription}`,
     );
+  }
+
+  private async prepareApiNotePhotoForTelegram(
+    imageBuffer: Buffer,
+    originalName: string,
+  ): Promise<TelegramPhotoFile> {
+    const fallbackFile = {
+      source: imageBuffer,
+      filename: originalName || 'note-image.jpg',
+    };
+
+    try {
+      const metadata = await sharp(imageBuffer).metadata();
+      const width = metadata.width || 0;
+      const height = metadata.height || 0;
+      const needsResize =
+        width + height > MAX_TELEGRAM_PHOTO_DIMENSION_SUM ||
+        imageBuffer.length > TARGET_TELEGRAM_PHOTO_BYTES;
+
+      if (!needsResize) {
+        this.debugLogService.info(
+          'telegram.apiNotePhoto',
+          'Using original image for Telegram',
+          {
+            imageBytes: imageBuffer.length,
+            width,
+            height,
+          },
+        );
+        return fallbackFile;
+      }
+
+      const maxDimensionCandidates = [4096, 3600, 3200, 2560, 2048];
+      const qualityCandidates = [92, 88, 84, 80, 76, 72, 68];
+
+      let smallestCandidate: Buffer | undefined;
+      let smallestMeta: Record<string, unknown> | undefined;
+
+      for (const maxDimension of maxDimensionCandidates) {
+        for (const quality of qualityCandidates) {
+          const candidate = await sharp(imageBuffer)
+            .rotate()
+            .resize({
+              width: maxDimension,
+              height: maxDimension,
+              fit: 'inside',
+              withoutEnlargement: true,
+            })
+            .flatten({ background: '#ffffff' })
+            .jpeg({
+              quality,
+              mozjpeg: true,
+              chromaSubsampling: '4:4:4',
+            })
+            .toBuffer();
+
+          const meta = {
+            originalBytes: imageBuffer.length,
+            outputBytes: candidate.length,
+            originalWidth: width,
+            originalHeight: height,
+            maxDimension,
+            quality,
+          };
+
+          if (
+            !smallestCandidate ||
+            candidate.length < smallestCandidate.length
+          ) {
+            smallestCandidate = candidate;
+            smallestMeta = meta;
+          }
+
+          if (candidate.length <= TARGET_TELEGRAM_PHOTO_BYTES) {
+            this.debugLogService.info(
+              'telegram.apiNotePhoto',
+              'Compressed image for Telegram',
+              meta,
+            );
+            return {
+              source: candidate,
+              filename: this.toJpegFilename(originalName),
+            };
+          }
+        }
+      }
+
+      this.debugLogService.warn(
+        'telegram.apiNotePhoto',
+        'Compressed image is still above Telegram photo target',
+        smallestMeta,
+      );
+
+      if (smallestCandidate) {
+        return {
+          source: smallestCandidate,
+          filename: this.toJpegFilename(originalName),
+        };
+      }
+    } catch (error) {
+      this.debugLogService.warn(
+        'telegram.apiNotePhoto',
+        'Failed to compress image for Telegram, falling back to original',
+        {
+          imageBytes: imageBuffer.length,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        },
+      );
+    }
+
+    return fallbackFile;
+  }
+
+  private toJpegFilename(originalName: string): string {
+    const fallback = 'note-image.jpg';
+    if (!originalName) return fallback;
+
+    const baseName = originalName.replace(/\.[^.]+$/, '');
+    return `${baseName || 'note-image'}.jpg`;
   }
 
   private setupCommands() {
