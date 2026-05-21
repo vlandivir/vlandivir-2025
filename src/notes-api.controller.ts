@@ -184,7 +184,9 @@ export class NotesApiController {
         );
         await this.telegramBotService.sendApiNotePhoto(
           PRIMARY_CHAT_ID,
-          imageUrl,
+          imageBuffer,
+          image.mimetype,
+          image.originalname,
           text,
           imageDescription,
           noteDate,

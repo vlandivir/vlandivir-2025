@@ -25,6 +25,7 @@ import { Readable } from 'stream';
 
 // Telegram Bot API limitation: bots cannot download files larger than ~20 MB via getFile
 const MAX_TELEGRAM_FILE_DOWNLOAD_BYTES = 20 * 1024 * 1024;
+const MAX_TELEGRAM_PHOTO_UPLOAD_BYTES = 10 * 1024 * 1024;
 const BAR_PIVSKI_ZABAVNIK = {
   name: 'Pivski Zabavnik',
   city: 'Belgrade',
@@ -144,7 +145,9 @@ export class TelegramBotService {
 
   async sendApiNotePhoto(
     chatId: number,
-    photoUrl: string,
+    imageBuffer: Buffer,
+    mimeType: string,
+    originalName: string,
     text: string,
     imageDescription: string,
     noteDate: Date,
@@ -157,8 +160,19 @@ export class TelegramBotService {
       `Описание: ${imageDescription}`,
     ].join('\n');
 
+    const file = {
+      source: imageBuffer,
+      filename: originalName || 'note-image.jpg',
+    };
+    const isLargePhoto = imageBuffer.length > MAX_TELEGRAM_PHOTO_UPLOAD_BYTES;
+
     if (caption.length <= 1024) {
-      await this.bot.telegram.sendPhoto(chatId, photoUrl, { caption });
+      if (isLargePhoto) {
+        await this.bot.telegram.sendDocument(chatId, file, { caption });
+        return;
+      }
+
+      await this.bot.telegram.sendPhoto(chatId, file, { caption });
       return;
     }
 
@@ -170,9 +184,15 @@ export class TelegramBotService {
       .join('\n')
       .slice(0, 1021);
 
-    await this.bot.telegram.sendPhoto(chatId, photoUrl, {
-      caption: `${shortCaption}...`,
-    });
+    if (isLargePhoto) {
+      await this.bot.telegram.sendDocument(chatId, file, {
+        caption: `${shortCaption}...`,
+      });
+    } else {
+      await this.bot.telegram.sendPhoto(chatId, file, {
+        caption: `${shortCaption}...`,
+      });
+    }
     await this.bot.telegram.sendMessage(
       chatId,
       `Описание: ${imageDescription}`,

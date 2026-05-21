@@ -121,7 +121,9 @@ describe('NotesApiController', () => {
     );
     expect(telegramBotService.sendApiNotePhoto).toHaveBeenCalledWith(
       150847737,
-      'https://example.com/image.jpg',
+      Buffer.from('image'),
+      'image/jpeg',
+      'image.jpg',
       'hello note',
       'AI image description',
       new Date('2026-05-21T10:00:00.000Z'),
