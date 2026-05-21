@@ -11,11 +11,12 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { timingSafeEqual } from 'crypto';
+import { randomUUID, timingSafeEqual } from 'crypto';
 import { readFile, unlink } from 'fs/promises';
 import { tmpdir } from 'os';
 import { Prisma } from './generated/prisma-client';
 import { PrismaService } from './prisma/prisma.service';
+import { DebugLogService } from './services/debug-log.service';
 import { LlmService } from './services/llm.service';
 import { StorageService } from './services/storage.service';
 import { TelegramBotService } from './telegram-bot/telegram-bot.service';
@@ -43,6 +44,7 @@ export class NotesApiController {
     private readonly configService: ConfigService,
     private readonly llmService: LlmService,
     private readonly telegramBotService: TelegramBotService,
+    private readonly debugLogService: DebugLogService,
   ) {}
 
   @Post('notes')
@@ -70,27 +72,73 @@ export class NotesApiController {
     @Body() body: CreateNoteBody,
     @UploadedFile() image?: UploadedImage,
   ) {
-    this.assertApiKey(apiKey);
+    const requestId = randomUUID();
 
-    if (!image) {
-      throw new BadRequestException('Image is required');
-    }
-
-    const text = this.parseText(body.text);
-    const noteDate = this.parseDate(body.date);
+    this.debugLogService.info('notes-api.createNote', 'Request received', {
+      requestId,
+      hasImage: Boolean(image),
+      imageBytes: image?.size,
+      imageMimeType: image?.mimetype,
+      textLength: typeof body.text === 'string' ? body.text.length : undefined,
+      hasDate: typeof body.date === 'string',
+    });
 
     try {
+      this.assertApiKey(apiKey);
+      this.debugLogService.info('notes-api.createNote', 'API key accepted', {
+        requestId,
+      });
+
+      if (!image) {
+        throw new BadRequestException('Image is required');
+      }
+
+      const text = this.parseText(body.text);
+      const noteDate = this.parseDate(body.date);
+      this.debugLogService.info('notes-api.createNote', 'Request parsed', {
+        requestId,
+        chatId: PRIMARY_CHAT_ID,
+        noteDate: noteDate.toISOString(),
+        textLength: text.length,
+      });
+
+      this.debugLogService.info('notes-api.createNote', 'Reading image file', {
+        requestId,
+        path: image.path,
+      });
       const imageBuffer = await readFile(image.path);
+      this.debugLogService.info('notes-api.createNote', 'Uploading image', {
+        requestId,
+        imageBytes: imageBuffer.length,
+        mimeType: image.mimetype,
+      });
       const imageUrl = await this.storageService.uploadFile(
         imageBuffer,
         image.mimetype,
         PRIMARY_CHAT_ID,
       );
+      this.debugLogService.info('notes-api.createNote', 'Image uploaded', {
+        requestId,
+        imageUrl,
+      });
+
+      this.debugLogService.info('notes-api.createNote', 'Describing image', {
+        requestId,
+      });
       const imageDescription = await this.llmService.describeImage(
         imageBuffer,
         text,
       );
+      this.debugLogService.info('notes-api.createNote', 'Image described', {
+        requestId,
+        descriptionLength: imageDescription.length,
+        descriptionPreview: imageDescription.slice(0, 160),
+      });
 
+      this.debugLogService.info('notes-api.createNote', 'Creating note', {
+        requestId,
+        chatId: PRIMARY_CHAT_ID,
+      });
       const note = await this.prisma.note.create({
         data: {
           content: text,
@@ -118,14 +166,47 @@ export class NotesApiController {
           images: true,
         },
       });
+      this.debugLogService.info('notes-api.createNote', 'Note created', {
+        requestId,
+        noteId: note.id,
+        imageCount: note.images.length,
+      });
 
-      await this.telegramBotService.sendApiNotePhoto(
-        PRIMARY_CHAT_ID,
-        imageUrl,
-        text,
-        imageDescription,
-        noteDate,
-      );
+      let telegramSent = false;
+      try {
+        this.debugLogService.info(
+          'notes-api.createNote',
+          'Sending Telegram notification',
+          {
+            requestId,
+            chatId: PRIMARY_CHAT_ID,
+          },
+        );
+        await this.telegramBotService.sendApiNotePhoto(
+          PRIMARY_CHAT_ID,
+          imageUrl,
+          text,
+          imageDescription,
+          noteDate,
+        );
+        telegramSent = true;
+        this.debugLogService.info(
+          'notes-api.createNote',
+          'Telegram notification sent',
+          {
+            requestId,
+          },
+        );
+      } catch (error) {
+        this.debugLogService.error(
+          'notes-api.createNote',
+          'Telegram notification failed after note creation',
+          {
+            requestId,
+            ...this.serializeError(error),
+          },
+        );
+      }
 
       return {
         id: note.id,
@@ -134,9 +215,28 @@ export class NotesApiController {
         date: note.noteDate.toISOString(),
         imageUrl: note.images[0]?.url,
         imageDescription,
+        telegramSent,
       };
+    } catch (error) {
+      this.debugLogService.error('notes-api.createNote', 'Request failed', {
+        requestId,
+        ...this.serializeError(error),
+      });
+      throw error;
     } finally {
-      await unlink(image.path).catch(() => undefined);
+      if (image) {
+        await unlink(image.path).catch((error) => {
+          this.debugLogService.warn(
+            'notes-api.createNote',
+            'Failed to delete temporary image file',
+            {
+              requestId,
+              path: image.path,
+              ...this.serializeError(error),
+            },
+          );
+        });
+      }
     }
   }
 
@@ -181,5 +281,17 @@ export class NotesApiController {
     }
 
     return parsedDate;
+  }
+
+  private serializeError(error: unknown): Record<string, unknown> {
+    if (!(error instanceof Error)) {
+      return { error };
+    }
+
+    return {
+      errorName: error.name,
+      errorMessage: error.message,
+      stack: error.stack,
+    };
   }
 }

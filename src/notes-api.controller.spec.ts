@@ -5,6 +5,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { NotesApiController } from './notes-api.controller';
 import { PrismaService } from './prisma/prisma.service';
+import { DebugLogService } from './services/debug-log.service';
 import { LlmService } from './services/llm.service';
 import { StorageService } from './services/storage.service';
 import { TelegramBotService } from './telegram-bot/telegram-bot.service';
@@ -27,6 +28,11 @@ describe('NotesApiController', () => {
   };
   let telegramBotService: {
     sendApiNotePhoto: jest.Mock;
+  };
+  let debugLogService: {
+    info: jest.Mock;
+    warn: jest.Mock;
+    error: jest.Mock;
   };
   let tmpDir: string;
 
@@ -55,6 +61,11 @@ describe('NotesApiController', () => {
     telegramBotService = {
       sendApiNotePhoto: jest.fn(),
     };
+    debugLogService = {
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+    };
 
     controller = new NotesApiController(
       prisma as unknown as PrismaService,
@@ -62,6 +73,7 @@ describe('NotesApiController', () => {
       configService as unknown as ConfigService,
       llmService as unknown as LlmService,
       telegramBotService as unknown as TelegramBotService,
+      debugLogService as unknown as DebugLogService,
     );
   });
 
@@ -121,7 +133,13 @@ describe('NotesApiController', () => {
       date: '2026-05-21T10:00:00.000Z',
       imageUrl: 'https://example.com/image.jpg',
       imageDescription: 'AI image description',
+      telegramSent: true,
     });
+    expect(debugLogService.info).toHaveBeenCalledWith(
+      'notes-api.createNote',
+      'Note created',
+      expect.objectContaining({ noteId: 10 }),
+    );
   });
 
   it('rejects requests with a wrong API key', async () => {
@@ -131,5 +149,38 @@ describe('NotesApiController', () => {
         date: '2026-05-21T10:00:00.000Z',
       }),
     ).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('keeps the saved note response when Telegram notification fails', async () => {
+    const imagePath = join(tmpDir, 'telegram-fail.jpg');
+    await writeFile(imagePath, Buffer.from('image'));
+    telegramBotService.sendApiNotePhoto.mockRejectedValue(
+      new Error('Telegram failed'),
+    );
+
+    const result = await controller.createNote(
+      'secret',
+      { text: 'hello note', date: '2026-05-21T10:00:00.000Z' },
+      {
+        path: imagePath,
+        originalname: 'image.jpg',
+        mimetype: 'image/jpeg',
+        size: 5,
+      },
+    );
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        id: 10,
+        telegramSent: false,
+      }),
+    );
+    expect(debugLogService.error).toHaveBeenCalledWith(
+      'notes-api.createNote',
+      'Telegram notification failed after note creation',
+      expect.objectContaining({
+        errorMessage: 'Telegram failed',
+      }),
+    );
   });
 });
