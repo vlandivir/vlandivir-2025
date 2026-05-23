@@ -5,6 +5,11 @@ import { DateParserService } from '../services/date-parser.service';
 import { DebugLogService } from '../services/debug-log.service';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import { ru } from 'date-fns/locale';
+import * as sharp from 'sharp';
+
+const MAX_TELEGRAM_PHOTO_UPLOAD_BYTES = 10 * 1024 * 1024;
+const TARGET_TELEGRAM_PHOTO_BYTES = 9 * 1024 * 1024;
+const MAX_TELEGRAM_PHOTO_DIMENSION_SUM = 10000;
 
 @Injectable()
 export class DairyCommandsService {
@@ -167,9 +172,7 @@ export class DairyCommandsService {
       if (note.images && note.images.length > 0) {
         hasMedia = true;
         for (const image of note.images) {
-          await ctx.replyWithPhoto(image.url, {
-            caption: note.content || undefined,
-          });
+          await this.sendDairyImage(ctx, image.url, note.content || undefined);
         }
       }
       if (note.videos && note.videos.length > 0) {
@@ -294,9 +297,11 @@ export class DairyCommandsService {
         if (note.images && note.images.length > 0) {
           hasMedia = true;
           for (const image of note.images) {
-            await ctx.replyWithPhoto(image.url, {
-              caption: note.content || undefined,
-            });
+            await this.sendDairyImage(
+              ctx,
+              image.url,
+              note.content || undefined,
+            );
           }
         }
         if (note.videos && note.videos.length > 0) {
@@ -322,6 +327,165 @@ export class DairyCommandsService {
           await ctx.reply(note.content || '');
         }
       }
+    }
+  }
+
+  private async sendDairyImage(
+    ctx: Context,
+    imageUrl: string,
+    caption?: string,
+  ): Promise<void> {
+    try {
+      this.debugLogService.info('dairy-send', 'Downloading image for send', {
+        chatId: ctx.chat?.id,
+        imageUrl,
+      });
+
+      const originalBuffer = await this.downloadImage(imageUrl);
+      const preparedBuffer =
+        await this.prepareDairyImageForTelegram(originalBuffer);
+      const safeCaption = this.toTelegramCaption(caption);
+
+      if (preparedBuffer.length > MAX_TELEGRAM_PHOTO_UPLOAD_BYTES) {
+        await ctx.replyWithDocument(
+          {
+            source: preparedBuffer,
+            filename: this.getImageFileName(imageUrl),
+          },
+          {
+            caption: safeCaption,
+          },
+        );
+      } else {
+        await ctx.replyWithPhoto(
+          {
+            source: preparedBuffer,
+            filename: this.getImageFileName(imageUrl),
+          },
+          {
+            caption: safeCaption,
+          },
+        );
+      }
+
+      if (caption && safeCaption && caption !== safeCaption) {
+        await ctx.reply(caption);
+      }
+    } catch (error) {
+      this.debugLogService.warn(
+        'dairy-send',
+        'Sending image buffer failed, falling back to URL',
+        {
+          chatId: ctx.chat?.id,
+          imageUrl,
+          error: error instanceof Error ? error.message : 'unknown',
+        },
+      );
+      const fallback = caption
+        ? `⚠️ ${caption}\n\n(Ссылка на картинку: ${imageUrl})`
+        : `⚠️ Ссылка на картинку: ${imageUrl}`;
+      await ctx.reply(fallback);
+    }
+  }
+
+  private async downloadImage(imageUrl: string): Promise<Buffer> {
+    const response = await fetch(imageUrl);
+    if (!response.ok) {
+      throw new Error(`Image download failed: ${response.status}`);
+    }
+
+    return Buffer.from(await response.arrayBuffer());
+  }
+
+  private async prepareDairyImageForTelegram(
+    imageBuffer: Buffer,
+  ): Promise<Buffer> {
+    const metadata = await sharp(imageBuffer).metadata();
+    const width = metadata.width || 0;
+    const height = metadata.height || 0;
+    const needsResize =
+      width + height > MAX_TELEGRAM_PHOTO_DIMENSION_SUM ||
+      imageBuffer.length > TARGET_TELEGRAM_PHOTO_BYTES;
+
+    if (!needsResize) {
+      this.debugLogService.info('dairy-send', 'Using original image buffer', {
+        imageBytes: imageBuffer.length,
+        width,
+        height,
+      });
+      return imageBuffer;
+    }
+
+    const maxDimensionCandidates = [4096, 3600, 3200, 2560, 2048];
+    const qualityCandidates = [92, 88, 84, 80, 76, 72, 68];
+    let smallestCandidate: Buffer | undefined;
+    let smallestMeta: Record<string, unknown> | undefined;
+
+    for (const maxDimension of maxDimensionCandidates) {
+      for (const quality of qualityCandidates) {
+        const candidate = await sharp(imageBuffer)
+          .rotate()
+          .resize({
+            width: maxDimension,
+            height: maxDimension,
+            fit: 'inside',
+            withoutEnlargement: true,
+          })
+          .flatten({ background: '#ffffff' })
+          .jpeg({
+            quality,
+            mozjpeg: true,
+            chromaSubsampling: '4:4:4',
+          })
+          .toBuffer();
+
+        const meta = {
+          originalBytes: imageBuffer.length,
+          outputBytes: candidate.length,
+          originalWidth: width,
+          originalHeight: height,
+          maxDimension,
+          quality,
+        };
+
+        if (!smallestCandidate || candidate.length < smallestCandidate.length) {
+          smallestCandidate = candidate;
+          smallestMeta = meta;
+        }
+
+        if (candidate.length <= TARGET_TELEGRAM_PHOTO_BYTES) {
+          this.debugLogService.info(
+            'dairy-send',
+            'Compressed image for Telegram',
+            meta,
+          );
+          return candidate;
+        }
+      }
+    }
+
+    this.debugLogService.warn(
+      'dairy-send',
+      'Compressed image is still above Telegram photo target',
+      smallestMeta,
+    );
+
+    return smallestCandidate || imageBuffer;
+  }
+
+  private toTelegramCaption(caption?: string): string | undefined {
+    if (!caption) return undefined;
+    if (caption.length <= 1024) return caption;
+    return `${caption.slice(0, 1021)}...`;
+  }
+
+  private getImageFileName(imageUrl: string): string {
+    try {
+      const pathname = new URL(imageUrl).pathname;
+      const fileName = pathname.split('/').pop();
+      return fileName && fileName.includes('.') ? fileName : 'diary-image.jpg';
+    } catch {
+      return 'diary-image.jpg';
     }
   }
 }

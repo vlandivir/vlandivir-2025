@@ -218,6 +218,7 @@ describe('TelegramBotService', () => {
       '/bar - Distance to Pivski Zabavnik',
       '/c or /collage - Create image collage',
       '/d or /dairy - Dairy Notes',
+      '/dl or /debuglog - Export in-memory debug log',
       '/help - Show this help message',
       '/history - Chat History',
       '/p or /phrase - Translate between RU/EN/SR',
