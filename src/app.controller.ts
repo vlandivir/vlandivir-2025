@@ -53,4 +53,9 @@ export class AppController {
       path.join(process.cwd(), 'web', 'subs', 'archive', 'index.html'),
     );
   }
+
+  @Get('files')
+  getFiles(@Res() res: Response): void {
+    res.sendFile(path.join(process.cwd(), 'web', 'files', 'index.html'));
+  }
 }

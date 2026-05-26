@@ -44,6 +44,8 @@ async function bootstrap() {
     // Static GPX → PNG tool (plain HTML/CSS/JS)
     const gpxRoutePng = path.join(process.cwd(), 'web', 'gpx-route-png');
     app.useStaticAssets(gpxRoutePng, { prefix: '/gpx-route-png' });
+    const filesPage = path.join(process.cwd(), 'web', 'files');
+    app.useStaticAssets(filesPage, { prefix: '/files' });
     const subsPage = path.join(process.cwd(), 'web', 'subs');
     const fontPage = path.join(subsPage, 'font');
     const archivePage = path.join(subsPage, 'archive');
@@ -60,6 +62,9 @@ async function bootstrap() {
     });
     instance.get(/^\/gpx-route-png\/en\/?$/, (_req: unknown, res: Response) => {
       res.sendFile(path.join(gpxRoutePng, 'en.html'));
+    });
+    instance.get(/^\/files\/?$/, (_req: unknown, res: Response) => {
+      res.sendFile(path.join(filesPage, 'index.html'));
     });
     instance.get(
       /^\/subs(?:\/[a-f0-9]{24})?\/?$/,
@@ -92,6 +97,8 @@ async function bootstrap() {
     app.useStaticAssets(sharedAssets, { prefix: '/shared' });
     const gpxRoutePng = path.join(process.cwd(), 'web', 'gpx-route-png');
     app.useStaticAssets(gpxRoutePng, { prefix: '/gpx-route-png' });
+    const filesPage = path.join(process.cwd(), 'web', 'files');
+    app.useStaticAssets(filesPage, { prefix: '/files' });
     const subsPage = path.join(process.cwd(), 'web', 'subs');
     const fontPage = path.join(subsPage, 'font');
     const archivePage = path.join(subsPage, 'archive');
@@ -107,6 +114,9 @@ async function bootstrap() {
     });
     instance.get(/^\/gpx-route-png\/en\/?$/, (_req: unknown, res: Response) => {
       res.sendFile(path.join(gpxRoutePng, 'en.html'));
+    });
+    instance.get(/^\/files\/?$/, (_req: unknown, res: Response) => {
+      res.sendFile(path.join(filesPage, 'index.html'));
     });
     instance.get(
       /^\/subs(?:\/[a-f0-9]{24})?\/?$/,

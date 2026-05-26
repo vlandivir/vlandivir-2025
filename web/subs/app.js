@@ -639,6 +639,71 @@ function formatBytes(bytes) {
   return `${value.toFixed(value >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
 }
 
+function rememberUserFile(file) {
+  if (!window.UserFilesRegistry?.upsert) return Promise.resolve(null);
+  return window.UserFilesRegistry.upsert(file).catch((error) => {
+    console.warn('Failed to remember user file', error);
+    return null;
+  });
+}
+
+function describeSubsVideo(video) {
+  const parts = [];
+  if (video.originalName) parts.push(video.originalName);
+  if (video.hash) parts.push(`hash ${video.hash}`);
+  if (video.size) parts.push(formatBytes(video.size));
+  return parts.join(' · ');
+}
+
+function rememberSubsSourceVideo(video) {
+  if (!video?.videoUrl) return Promise.resolve(null);
+  return rememberUserFile({
+    id: `subs:${video.hash}:source`,
+    sourceApp: 'subs',
+    origin: 'subs-source',
+    name: video.originalName || `${TEXT.videoName} ${video.hash}`,
+    url: video.videoUrl,
+    pageUrl: video.pageUrl,
+    mimeType: video.mimeType || 'video',
+    size: video.size || 0,
+    createdAt: video.createdAt,
+    description: `Исходное видео, загруженное на странице Subs. ${describeSubsVideo(video)}`,
+  });
+}
+
+function rememberSubsAudioFile(hash, audio) {
+  if (!hash || !audio?.audioUrl) return Promise.resolve(null);
+  return rememberUserFile({
+    id: `subs:${hash}:audio`,
+    sourceApp: 'subs',
+    origin: 'subs-audio',
+    name: `${hash}-audio.mp3`,
+    url: audio.audioUrl,
+    pageUrl: getSubsPagePath(hash),
+    mimeType: audio.mimeType || 'audio/mpeg',
+    size: audio.size || 0,
+    createdAt: audio.createdAt,
+    description: `Аудиодорожка, извлеченная из видео ${hash} на странице Subs.`,
+  });
+}
+
+function rememberSubsRenderedFile(renderedVideo) {
+  if (!renderedVideo?.videoUrl) return Promise.resolve(null);
+  const hash = renderedVideo.hash || currentVideoHash;
+  return rememberUserFile({
+    id: `subs:${hash}:render`,
+    sourceApp: 'subs',
+    origin: 'subs-render',
+    name: `${hash}-subtitled.mp4`,
+    url: renderedVideo.videoUrl,
+    pageUrl: getSubsPagePath(hash),
+    mimeType: renderedVideo.mimeType || 'video/mp4',
+    size: renderedVideo.size || 0,
+    createdAt: renderedVideo.createdAt,
+    description: `Финальное видео с наложенными ASS-субтитрами для ${hash}.`,
+  });
+}
+
 function formatText(template, values) {
   return template.replace(/\{(\w+)}/g, (_match, key) =>
     Object.prototype.hasOwnProperty.call(values, key) ? values[key] : '',
@@ -2113,6 +2178,7 @@ async function extractAudio() {
       updatedAt: new Date().toISOString(),
     };
     const updated = await SF.patchVideoByHash(currentVideoHash, patch);
+    await rememberSubsAudioFile(currentVideoHash, payload);
     renderAudioPanel(updated || { ...patch, hash: currentVideoHash });
     await refreshList();
   } catch (error) {
@@ -2285,6 +2351,7 @@ async function renderSubtitledVideo() {
       renderedVideo,
       updatedAt: new Date().toISOString(),
     });
+    await rememberSubsRenderedFile(renderedVideo);
     showRenderedVideoLinks(renderedVideo);
   } catch (error) {
     renderSubtitledVideoStatus.textContent =
@@ -2380,6 +2447,7 @@ async function loadCurrentVideo() {
       mimeType: 'video',
       size: 0,
     });
+    await rememberSubsSourceVideo(saved);
     renderAudioPanel(saved);
     renderSubtitledVideoControls();
     return;
@@ -2395,6 +2463,8 @@ async function loadCurrentVideo() {
     pageUrl: localizedVideo.pageUrl,
     ...getAudioPatch(localizedVideo.audio),
   });
+  await rememberSubsSourceVideo(patched || existing);
+  if (localizedVideo.audio) await rememberSubsAudioFile(hash, localizedVideo.audio);
   renderAudioPanel(patched || existing);
   renderSubtitledVideoControls();
 }
@@ -2448,6 +2518,7 @@ form.addEventListener('submit', async (event) => {
       absolutePageUrl: getAbsoluteSubsPageUrl(uploaded.hash),
     };
     await saveVideo(localizedUpload);
+    await rememberSubsSourceVideo(localizedUpload);
     await refreshList();
     uploadStatus.textContent = `${TEXT.done}: ${localizedUpload.absolutePageUrl}`;
     window.history.replaceState(null, '', localizedUpload.pageUrl);
@@ -2654,6 +2725,20 @@ positionForm.addEventListener('submit', async (event) => {
 downloadAssButton.addEventListener('click', () => {
   const blob = new Blob([assOutput.value], {
     type: 'text/plain;charset=utf-8',
+  });
+  void rememberUserFile({
+    id: `subs:${currentVideoHash || 'draft'}:ass`,
+    sourceApp: 'subs',
+    origin: 'subs-ass',
+    name: 'subtitles.ass',
+    blob,
+    mimeType: 'text/plain;charset=utf-8',
+    size: blob.size,
+    createdAt: new Date().toISOString(),
+    pageUrl: currentVideoHash ? getSubsPagePath(currentVideoHash) : '/subs/',
+    description: currentVideoHash
+      ? `ASS-файл субтитров для видео ${currentVideoHash}.`
+      : 'ASS-файл субтитров, созданный на странице Subs.',
   });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');

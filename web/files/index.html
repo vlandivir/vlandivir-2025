@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Локальный список файлов, созданных или сохраненных через страницы Subs и GPX." />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: blob:; media-src 'self' https://fra1.digitaloceanspaces.com blob:; font-src 'self';" />
+  <title>Ваши файлы</title>
+  <link rel="stylesheet" href="/files/styles.css?v=20260526-1" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">Vlandivir</a>
+    <nav aria-label="Навигация">
+      <a href="/subs/">Subs</a>
+      <a href="/gpx-route-png/">GPX</a>
+      <a aria-current="page" href="/files/">Ваши файлы</a>
+    </nav>
+  </header>
+
+  <main class="shell">
+    <section class="page-head" aria-labelledby="page-title">
+      <div>
+        <h1 id="page-title">Ваши файлы</h1>
+        <p>Файлы, о которых браузер узнал через страницы Subs и GPX на этом устройстве.</p>
+      </div>
+      <button class="refresh-button" id="refreshButton" type="button">Обновить</button>
+    </section>
+
+    <section class="summary" aria-label="Сводка">
+      <div>
+        <span class="summary__value" id="totalCount">0</span>
+        <span class="summary__label">файлов</span>
+      </div>
+      <div>
+        <span class="summary__value" id="totalSize">0 Б</span>
+        <span class="summary__label">известный размер</span>
+      </div>
+      <div>
+        <span class="summary__value" id="sourceCount">0</span>
+        <span class="summary__label">источников</span>
+      </div>
+    </section>
+
+    <section class="file-list" id="fileList" aria-live="polite"></section>
+    <p class="empty" id="emptyState" hidden>Пока нет файлов. Загрузите видео на /subs или скачайте результат на /gpx-route-png.</p>
+  </main>
+
+  <script src="/subs/fonts-shared.js?v=20260520-1"></script>
+  <script src="/files/registry.js?v=20260526-1"></script>
+  <script src="/files/app.js?v=20260526-1"></script>
+</body>
+</html>

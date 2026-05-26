@@ -922,6 +922,31 @@
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
+  function rememberUserFile(file) {
+    if (!window.UserFilesRegistry?.upsert) return;
+    window.UserFilesRegistry.upsert(file).catch((error) => {
+      console.warn('Failed to remember user file', error);
+    });
+  }
+
+  function rememberGpxFile(blob, filename, origin, description) {
+    rememberUserFile({
+      id: `gpx:${origin}:${filename}`,
+      sourceApp: 'gpx-route-png',
+      origin,
+      name: filename,
+      blob,
+      mimeType: blob.type || 'application/octet-stream',
+      size: blob.size,
+      createdAt: new Date().toISOString(),
+      pageUrl: window.location.pathname,
+      description,
+      context: currentState
+        ? `${currentState.fileName || 'GPX'} · ${currentState.originalCount || 0} точек · ${formatKm(currentState.distanceKm || 0)} км`
+        : undefined,
+    });
+  }
+
   function delayMs(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
@@ -1115,7 +1140,9 @@
       await stopped;
 
       const blob = new Blob(chunks, { type: mimeType });
-      downloadBlob(blob, `${safeTrackBaseName()}-track-anim.webm`);
+      const filename = `${safeTrackBaseName()}-track-anim.webm`;
+      rememberGpxFile(blob, filename, 'gpx-animation', 'WebM-анимация прохождения трека с альфа-каналом.');
+      downloadBlob(blob, filename);
     } catch (err) {
       console.error(err);
       showError(copy.exportFailed);
@@ -1154,10 +1181,10 @@
       });
 
       const zipBytes = buildStoredZipArchive(zipEntries);
-      downloadBlob(
-        new Blob([zipBytes], { type: 'application/zip' }),
-        `${safeTrackBaseName()}-track-anim-frames.zip`,
-      );
+      const blob = new Blob([zipBytes], { type: 'application/zip' });
+      const filename = `${safeTrackBaseName()}-track-anim-frames.zip`;
+      rememberGpxFile(blob, filename, 'gpx-frames', 'ZIP-архив PNG-кадров и ffmpeg-инструкции для анимации трека.');
+      downloadBlob(blob, filename);
     } catch (err) {
       console.error(err);
       showError(copy.exportFailed);
@@ -1738,12 +1765,14 @@
     drawTrackOverlayLayers(x, geo);
     exportCanvas.toBlob((blob) => {
       if (!blob) return;
+      const base =
+        (currentState.fileName || 'gpx-track').replace(/[^\wа-яА-Я\-_. ]+/g, '').trim() || 'gpx-track';
+      const filename = base + '-track-alpha.png';
+      rememberGpxFile(blob, filename, 'gpx-track-alpha', 'PNG-слой трека на прозрачном фоне для монтажа.');
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      const base =
-        (currentState.fileName || 'gpx-track').replace(/[^\wа-яА-Я\-_. ]+/g, '').trim() || 'gpx-track';
-      a.download = base + '-track-alpha.png';
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -2012,11 +2041,13 @@
     if (!currentState) return;
     canvas.toBlob((blob) => {
       if (!blob) return;
+      const safeName = (currentState.fileName || 'gpx-track').replace(/[^\wа-яА-Я\-_. ]+/g, '').trim() || 'gpx-track';
+      const filename = safeName + '-1080x1920.png';
+      rememberGpxFile(blob, filename, 'gpx-poster', 'PNG-постер 1080x1920 с линией маршрута, точками и подписями.');
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      const safeName = (currentState.fileName || 'gpx-track').replace(/[^\wа-яА-Я\-_. ]+/g, '').trim() || 'gpx-track';
-      a.download = safeName + '-1080x1920.png';
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       a.remove();
