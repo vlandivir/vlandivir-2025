@@ -26,38 +26,6 @@ a {
   color: inherit;
 }
 
-.topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 18px clamp(16px, 4vw, 44px);
-  border-bottom: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.86);
-}
-
-.brand {
-  font-weight: 800;
-  text-decoration: none;
-}
-
-nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-nav a {
-  color: var(--muted);
-  font-size: 14px;
-  text-decoration: none;
-}
-
-nav a[aria-current="page"] {
-  color: var(--accent-strong);
-  font-weight: 700;
-}
-
 .shell {
   width: min(1120px, calc(100% - 32px));
   margin: 34px auto 56px;
@@ -231,7 +199,6 @@ h1 {
 }
 
 @media (max-width: 720px) {
-  .topbar,
   .page-head,
   .file-card {
     align-items: stretch;
