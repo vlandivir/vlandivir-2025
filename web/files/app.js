@@ -6,23 +6,98 @@
   const sourceCount = document.querySelector('#sourceCount');
   const refreshButton = document.querySelector('#refreshButton');
   const objectUrls = new Map();
+  const isEn = document.documentElement.lang?.toLowerCase().startsWith('en');
+  const TEXT = isEn
+    ? {
+        bytes: ['B', 'KB', 'MB', 'GB'],
+        missingDate: 'date unknown',
+        origins: {
+          'subs-source': 'Subs · source video',
+          'subs-audio': 'Subs · audio',
+          'subs-render': 'Subs · final video',
+          'subs-ass': 'Subs · ASS subtitles',
+          'gpx-poster': 'GPX · poster',
+          'gpx-track-alpha': 'GPX · transparent PNG',
+          'gpx-animation': 'GPX · animation',
+          'gpx-frames': 'GPX · frames',
+        },
+        file: 'File',
+        video: 'Video',
+        sourceVideoDescription: 'Source video uploaded on the Subs page.',
+        audioDescription: 'Audio track extracted from video {hash} on the Subs page.',
+        renderedDescription:
+          'Final video with burned-in ASS subtitles for {hash}.',
+        descriptions: {
+          'subs-source': 'Source video uploaded on the Subs page.',
+          'subs-audio': 'Audio track extracted on the Subs page.',
+          'subs-render': 'Final video with burned-in ASS subtitles.',
+          'subs-ass': 'ASS subtitle file created on the Subs page.',
+          'gpx-poster': '1080x1920 PNG poster with the route line, points, and labels.',
+          'gpx-track-alpha': 'Transparent PNG route layer for editing.',
+          'gpx-animation': 'WebM route traversal animation with alpha channel.',
+          'gpx-frames': 'ZIP archive with PNG animation frames and ffmpeg notes.',
+        },
+        untitled: 'Untitled file',
+        remoteBadge: 'DO / link',
+        localBadge: 'local',
+        unknownType: 'type unknown',
+        noDetails: 'No short information was saved.',
+        open: 'Open',
+        download: 'Download',
+        locale: 'en-US',
+      }
+    : {
+        bytes: ['Б', 'КБ', 'МБ', 'ГБ'],
+        missingDate: 'дата неизвестна',
+        origins: {
+          'subs-source': 'Subs · исходное видео',
+          'subs-audio': 'Subs · аудио',
+          'subs-render': 'Subs · финальное видео',
+          'subs-ass': 'Subs · ASS субтитры',
+          'gpx-poster': 'GPX · постер',
+          'gpx-track-alpha': 'GPX · прозрачный PNG',
+          'gpx-animation': 'GPX · анимация',
+          'gpx-frames': 'GPX · кадры',
+        },
+        file: 'Файл',
+        video: 'Видео',
+        sourceVideoDescription: 'Исходное видео, загруженное на странице Subs.',
+        audioDescription:
+          'Аудиодорожка, извлеченная из видео {hash} на странице Subs.',
+        renderedDescription:
+          'Финальное видео с наложенными ASS-субтитрами для {hash}.',
+        descriptions: {},
+        untitled: 'Файл без названия',
+        remoteBadge: 'DO / ссылка',
+        localBadge: 'локально',
+        unknownType: 'тип неизвестен',
+        noDetails: 'Краткая информация не сохранена.',
+        open: 'Открыть',
+        download: 'Скачать',
+        locale: 'ru-RU',
+      };
 
   function formatBytes(bytes) {
-    if (!Number.isFinite(bytes) || bytes <= 0) return '0 Б';
-    const units = ['Б', 'КБ', 'МБ', 'ГБ'];
+    if (!Number.isFinite(bytes) || bytes <= 0) return `0 ${TEXT.bytes[0]}`;
     let value = bytes;
     let unit = 0;
-    while (value >= 1024 && unit < units.length - 1) {
+    while (value >= 1024 && unit < TEXT.bytes.length - 1) {
       value /= 1024;
       unit += 1;
     }
-    return `${value.toFixed(value >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
+    return `${value.toFixed(value >= 10 || unit === 0 ? 0 : 1)} ${TEXT.bytes[unit]}`;
   }
 
   function formatDate(value) {
     const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return 'дата неизвестна';
-    return date.toLocaleString('ru-RU');
+    if (Number.isNaN(date.getTime())) return TEXT.missingDate;
+    return date.toLocaleString(TEXT.locale);
+  }
+
+  function formatText(template, values) {
+    return template.replace(/\{(\w+)}/g, (_match, key) =>
+      Object.prototype.hasOwnProperty.call(values, key) ? values[key] : '',
+    );
   }
 
   function fileHref(file) {
@@ -35,15 +110,7 @@
   }
 
   function originLabel(file) {
-    if (file.origin === 'subs-source') return 'Subs · исходное видео';
-    if (file.origin === 'subs-audio') return 'Subs · аудио';
-    if (file.origin === 'subs-render') return 'Subs · финальное видео';
-    if (file.origin === 'subs-ass') return 'Subs · ASS субтитры';
-    if (file.origin === 'gpx-poster') return 'GPX · постер';
-    if (file.origin === 'gpx-track-alpha') return 'GPX · прозрачный PNG';
-    if (file.origin === 'gpx-animation') return 'GPX · анимация';
-    if (file.origin === 'gpx-frames') return 'GPX · кадры';
-    return file.sourceApp || 'Файл';
+    return TEXT.origins[file.origin] || file.sourceApp || TEXT.file;
   }
 
   function describeSubsVideo(video) {
@@ -60,14 +127,14 @@
         id: `subs:${video.hash}:source`,
         sourceApp: 'subs',
         origin: 'subs-source',
-        name: video.originalName || `Видео ${video.hash}`,
+        name: video.originalName || `${TEXT.video} ${video.hash}`,
         url: video.videoUrl,
         pageUrl: video.pageUrl,
         mimeType: video.mimeType || 'video',
         size: video.size || 0,
         createdAt: video.createdAt,
         updatedAt: video.updatedAt,
-        description: `Исходное видео, загруженное на странице Subs. ${describeSubsVideo(video)}`,
+        description: `${TEXT.sourceVideoDescription} ${describeSubsVideo(video)}`,
       });
     }
 
@@ -83,7 +150,7 @@
         size: video.audioSize || 0,
         createdAt: video.audioCreatedAt || video.updatedAt || video.createdAt,
         updatedAt: video.updatedAt,
-        description: `Аудиодорожка, извлеченная из видео ${video.hash} на странице Subs.`,
+        description: formatText(TEXT.audioDescription, { hash: video.hash }),
       });
     }
 
@@ -99,7 +166,9 @@
         size: video.renderedVideo.size || 0,
         createdAt: video.renderedVideo.createdAt || video.updatedAt || video.createdAt,
         updatedAt: video.updatedAt,
-        description: `Финальное видео с наложенными ASS-субтитрами для ${video.hash}.`,
+        description: formatText(TEXT.renderedDescription, {
+          hash: video.hash,
+        }),
       });
     }
 
@@ -131,21 +200,25 @@
     head.className = 'file-card__head';
 
     const title = document.createElement('h2');
-    title.textContent = file.name || 'Файл без названия';
+    title.textContent = file.name || TEXT.untitled;
 
     const badge = document.createElement('span');
     badge.className = `badge${file.url ? '' : ' badge--local'}`;
-    badge.textContent = file.url ? 'DO / ссылка' : 'локально';
+    badge.textContent = file.url ? TEXT.remoteBadge : TEXT.localBadge;
 
     head.append(title, badge);
 
     const meta = document.createElement('p');
     meta.className = 'file-card__meta';
-    meta.textContent = `${originLabel(file)} · ${formatDate(file.createdAt)} · ${formatBytes(file.size)} · ${file.mimeType || 'тип неизвестен'}`;
+    meta.textContent = `${originLabel(file)} · ${formatDate(file.createdAt)} · ${formatBytes(file.size)} · ${file.mimeType || TEXT.unknownType}`;
 
     const details = document.createElement('p');
     details.className = 'file-card__details';
-    details.textContent = file.description || file.context || 'Краткая информация не сохранена.';
+    details.textContent =
+      TEXT.descriptions[file.origin] ||
+      file.description ||
+      file.context ||
+      TEXT.noDetails;
 
     content.append(head, meta, details);
 
@@ -169,13 +242,13 @@
       open.href = href;
       open.target = '_blank';
       open.rel = 'noopener noreferrer';
-      open.textContent = 'Открыть';
+      open.textContent = TEXT.open;
 
       const download = document.createElement('a');
       download.className = 'file-card__button';
       download.href = href;
       download.download = file.name || 'file';
-      download.textContent = 'Скачать';
+      download.textContent = TEXT.download;
       actions.append(open, download);
     }
 

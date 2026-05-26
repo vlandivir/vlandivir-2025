@@ -1,0 +1,300 @@
+:root {
+  color-scheme: light;
+  --v-bg: #f4f7f6;
+  --v-surface: #ffffff;
+  --v-surface-soft: #f8fbfa;
+  --v-text: #15201d;
+  --v-muted: #65716d;
+  --v-line: #dbe4e1;
+  --v-accent: #2b7a78;
+  --v-accent-strong: #174c4b;
+  --v-warm: #c86136;
+  --v-shadow: 0 18px 46px rgba(20, 32, 29, 0.08);
+  --font-sans:
+    Inter, Satoshi, Montserrat, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+  --font-mono:
+    "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, Consolas,
+    monospace;
+  --page: var(--v-bg);
+  --paper: var(--v-surface);
+  --bg: var(--v-bg);
+  --surface: var(--v-surface);
+  --ink: var(--v-text);
+  --text: var(--v-text);
+  --muted: var(--v-muted);
+  --ink-muted: var(--v-muted);
+  --line: var(--v-line);
+  --border: var(--v-line);
+  --accent: var(--v-accent);
+  --green: var(--v-accent);
+}
+
+html,
+body {
+  background: var(--v-bg);
+  color: var(--v-text);
+}
+
+body {
+  font-family: var(--font-sans);
+  letter-spacing: 0;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(244, 247, 246, 0.94)),
+    radial-gradient(circle at 14% 16%, rgba(43, 122, 120, 0.07), transparent 28%),
+    radial-gradient(circle at 88% 12%, rgba(200, 97, 54, 0.07), transparent 26%);
+}
+
+.grid-bg {
+  opacity: 0.18;
+}
+
+.page-shell,
+main,
+.container,
+.shell,
+.archive-page,
+.font-page {
+  width: min(1160px, calc(100% - 40px));
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.page-shell,
+main,
+.container,
+.shell {
+  padding-top: 34px;
+}
+
+h1,
+h2,
+h3 {
+  color: var(--v-text);
+  letter-spacing: 0;
+}
+
+h1 {
+  font-size: clamp(36px, 5.4vw, 64px);
+  line-height: 1;
+}
+
+h2 {
+  font-size: clamp(26px, 3.8vw, 42px);
+}
+
+p,
+.lead,
+.lede,
+.workflow-step-text,
+.page-head p,
+.tool-block p,
+.archive-page__lead,
+.font-page-intro__lead,
+.render-video-card__text,
+.file-card__meta,
+.file-card__details {
+  color: var(--v-muted);
+}
+
+.eyebrow,
+.section-kicker {
+  color: var(--v-warm);
+}
+
+.tool-block,
+.upload-panel,
+.saved-links,
+.audio-panel,
+.editor-card,
+.workflow-step,
+.step2-panel,
+.step3-panel,
+.stats-panel,
+.summary,
+.file-card,
+.archive-section,
+.font-page-intro,
+.font-list,
+.drop-zone,
+.preview-wrap {
+  border: 1px solid var(--v-line);
+  border-radius: 8px;
+  background: var(--v-surface);
+  box-shadow: none;
+}
+
+.preview-wrap {
+  padding: 22px;
+}
+
+.tool-block {
+  padding: 28px;
+  margin-bottom: 14px;
+}
+
+.tool-block:last-child {
+  border-bottom: 1px solid var(--v-line);
+}
+
+.upload-panel,
+.saved-links,
+.audio-panel,
+.workflow-step,
+.archive-section,
+.font-page-intro {
+  padding: 28px;
+}
+
+.editor-card,
+.stats-panel,
+.file-card {
+  padding: 18px;
+}
+
+.summary {
+  overflow: hidden;
+  background: var(--v-line);
+}
+
+.summary > div {
+  background: var(--v-surface);
+}
+
+.workflow-step + .workflow-step,
+.archive-section + .archive-section {
+  margin-top: 18px;
+}
+
+.workflow-step {
+  border-bottom: 1px solid var(--v-line);
+}
+
+.workflow-step:last-of-type {
+  border-bottom: 1px solid var(--v-line);
+}
+
+.workflow-step .workbench,
+.results,
+.step2-panel,
+.step3-panel {
+  margin-top: 22px;
+}
+
+.step2-panel,
+.step3-panel {
+  padding: 18px;
+}
+
+.drop-zone {
+  border-style: dashed;
+  background: var(--v-surface-soft);
+}
+
+.primary-link,
+.secondary-link,
+.primary-btn,
+.ghost-btn,
+.refresh-button,
+.file-card__button,
+.link-button,
+.tool-link,
+.sample-btn,
+.mini-btn {
+  min-height: 40px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-weight: 750;
+  letter-spacing: 0;
+  text-decoration: none;
+}
+
+.primary-link,
+.primary-btn,
+.file-card__button--primary {
+  border-color: var(--v-accent);
+  background: var(--v-accent);
+  color: #ffffff;
+}
+
+.primary-link:hover,
+.primary-btn:hover,
+.file-card__button--primary:hover {
+  border-color: var(--v-accent-strong);
+  background: var(--v-accent-strong);
+}
+
+.secondary-link,
+.ghost-btn,
+.refresh-button,
+.file-card__button,
+.link-button,
+.tool-link,
+.sample-btn,
+.mini-btn {
+  border-color: var(--v-line);
+  background: var(--v-surface);
+  color: var(--v-accent-strong);
+}
+
+.secondary-link:hover,
+.ghost-btn:hover,
+.refresh-button:hover,
+.file-card__button:hover,
+.link-button:hover,
+.tool-link:hover,
+.sample-btn:hover,
+.mini-btn:hover {
+  border-color: var(--v-accent);
+  background: #eef7f6;
+  color: var(--v-accent-strong);
+  transform: none;
+}
+
+.badge,
+.workflow-step-badge,
+.meta-chip {
+  border-radius: 999px;
+  background: #e8f2f1;
+  color: var(--v-accent-strong);
+}
+
+.badge--local {
+  background: #f7eadf;
+  color: var(--v-warm);
+}
+
+input,
+select,
+textarea {
+  border-radius: 8px;
+}
+
+@media (max-width: 820px) {
+  .page-shell,
+  main,
+  .container,
+  .shell,
+  .archive-page,
+  .font-page {
+    width: min(100% - 28px, 620px);
+  }
+
+  .tool-block,
+  .upload-panel,
+  .saved-links,
+  .audio-panel,
+  .workflow-step,
+  .archive-section,
+  .font-page-intro {
+    padding: 20px;
+  }
+}

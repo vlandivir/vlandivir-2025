@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Локальный список файлов, созданных или сохраненных через страницы Subs и GPX." />
+  <meta name="description" content="A local list of files created or saved through the Subs and GPX pages." />
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: blob:; media-src 'self' https://fra1.digitaloceanspaces.com blob:; font-src 'self';" />
-  <title>Ваши файлы</title>
+  <title>Your files</title>
   <link rel="stylesheet" href="/shared/site-header.css?v=20260527-1" />
   <link rel="stylesheet" href="/files/styles.css?v=20260526-1" />
   <link rel="stylesheet" href="/shared/site-theme.css?v=20260527-1" />
@@ -17,29 +17,29 @@
   <main class="shell">
     <section class="page-head" aria-labelledby="page-title">
       <div>
-        <h1 id="page-title">Ваши файлы</h1>
-        <p>Файлы, о которых браузер узнал через страницы Subs и GPX на этом устройстве.</p>
+        <h1 id="page-title">Your files</h1>
+        <p>Files this browser learned about through the Subs and GPX pages on this device.</p>
       </div>
-      <button class="refresh-button" id="refreshButton" type="button">Обновить</button>
+      <button class="refresh-button" id="refreshButton" type="button">Refresh</button>
     </section>
 
-    <section class="summary" aria-label="Сводка">
+    <section class="summary" aria-label="Summary">
       <div>
         <span class="summary__value" id="totalCount">0</span>
-        <span class="summary__label">файлов</span>
+        <span class="summary__label">files</span>
       </div>
       <div>
-        <span class="summary__value" id="totalSize">0 Б</span>
-        <span class="summary__label">известный размер</span>
+        <span class="summary__value" id="totalSize">0 B</span>
+        <span class="summary__label">known size</span>
       </div>
       <div>
         <span class="summary__value" id="sourceCount">0</span>
-        <span class="summary__label">источников</span>
+        <span class="summary__label">sources</span>
       </div>
     </section>
 
     <section class="file-list" id="fileList" aria-live="polite"></section>
-    <p class="empty" id="emptyState" hidden>Пока нет файлов. Загрузите видео на /subs или скачайте результат на /gpx-route-png.</p>
+    <p class="empty" id="emptyState" hidden>No files yet. Upload a video on /subs or download a result from /gpx-route-png.</p>
   </main>
 
   <script src="/subs/fonts-shared.js?v=20260520-1"></script>

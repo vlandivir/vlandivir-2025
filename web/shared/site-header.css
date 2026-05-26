@@ -23,26 +23,32 @@
   color: inherit;
 }
 
+.v-site-header__left,
 .v-site-header__brand {
   display: inline-flex;
   align-items: center;
   gap: 10px;
   min-width: 0;
+}
+
+.v-site-header__brand {
   color: #15201d;
   text-decoration: none;
 }
 
-.v-site-header__mark {
+.v-site-header__instagram {
   display: grid;
   place-items: center;
   width: 32px;
   height: 32px;
   border: 1px solid currentColor;
   border-radius: 7px;
-  color: #2b7a78;
-  font-size: 13px;
-  font-weight: 900;
-  letter-spacing: 0;
+  color: #c86136;
+  text-decoration: none;
+}
+
+.v-site-header__instagram:hover {
+  background: rgba(200, 97, 54, 0.1);
 }
 
 .v-site-header__name {
@@ -125,4 +131,3 @@
     border-left: 0;
   }
 }
-

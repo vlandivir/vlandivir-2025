@@ -11,6 +11,7 @@
       gpx: 'GPX',
       files: 'Ваши файлы',
       instagram: 'Instagram',
+      instagramLabel: 'Открыть Instagram @vlandivir',
     },
     en: {
       brand: 'vlandivir',
@@ -21,6 +22,7 @@
       gpx: 'GPX',
       files: 'Files',
       instagram: 'Instagram',
+      instagramLabel: 'Open Instagram @vlandivir',
     },
   };
 
@@ -35,7 +37,7 @@
       home: lang === 'en' ? '/en' : '/',
       subs: lang === 'en' ? '/subs/en' : '/subs/',
       gpx: lang === 'en' ? '/gpx-route-png/en' : '/gpx-route-png/',
-      files: '/files/',
+      files: lang === 'en' ? '/files/en' : '/files/',
     };
   }
 
@@ -60,6 +62,18 @@
 
     mount.className = 'v-site-header';
 
+    const left = document.createElement('div');
+    left.className = 'v-site-header__left';
+
+    const instagram = document.createElement('a');
+    instagram.className = 'v-site-header__instagram';
+    instagram.href = INSTAGRAM_URL;
+    instagram.target = '_blank';
+    instagram.rel = 'noopener noreferrer';
+    instagram.setAttribute('aria-label', copy.instagramLabel);
+    instagram.innerHTML =
+      '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="18" height="18" rx="5" ry="5" fill="none" stroke="currentColor" stroke-width="2"></rect><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"></circle><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor"></circle></svg>';
+
     const brand = makeLink({
       href: paths.home,
       text: '',
@@ -67,14 +81,11 @@
     brand.className = 'v-site-header__brand';
     brand.setAttribute('aria-label', copy.brand);
 
-    const mark = document.createElement('span');
-    mark.className = 'v-site-header__mark';
-    mark.textContent = 'VL';
-
     const name = document.createElement('span');
     name.className = 'v-site-header__name';
     name.textContent = copy.brand;
-    brand.append(mark, name);
+    brand.append(name);
+    left.append(instagram, brand);
 
     const right = document.createElement('div');
     right.className = 'v-site-header__right';
@@ -83,18 +94,12 @@
     nav.className = 'v-site-header__nav';
     nav.setAttribute('aria-label', copy.navLabel);
     nav.append(
-      makeLink({ href: paths.home, text: copy.home, active: active === 'home' }),
       makeLink({ href: paths.subs, text: copy.subs, active: active === 'subs' }),
       makeLink({ href: paths.gpx, text: copy.gpx, active: active === 'gpx' }),
       makeLink({
         href: paths.files,
         text: copy.files,
         active: active === 'files',
-      }),
-      makeLink({
-        href: INSTAGRAM_URL,
-        text: copy.instagram,
-        external: true,
       }),
     );
 
@@ -115,7 +120,7 @@
     );
 
     right.append(nav, langNav);
-    mount.replaceChildren(brand, right);
+    mount.replaceChildren(left, right);
   }
 
   document.querySelectorAll('[data-site-header]').forEach(renderHeader);

@@ -58,4 +58,9 @@ export class AppController {
   getFiles(@Res() res: Response): void {
     res.sendFile(path.join(process.cwd(), 'web', 'files', 'index.html'));
   }
+
+  @Get('files/en')
+  getFilesEn(@Res() res: Response): void {
+    res.sendFile(path.join(process.cwd(), 'web', 'files', 'en.html'));
+  }
 }
