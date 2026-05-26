@@ -13,7 +13,8 @@
 <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&f[]=jetbrains-mono@400&display=swap" rel="stylesheet" />
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&display=swap" rel="stylesheet" />
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23163029'/><path d='M7 22 L13 10 L18 18 L25 8' stroke='%23E07A3C' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>" />
-<link rel="stylesheet" href="/gpx-route-png/styles.css?v=20260515-9" />
+<link rel="stylesheet" href="/shared/color-picker.css?v=20260526-1" />
+<link rel="stylesheet" href="/gpx-route-png/styles.css?v=20260526-1" />
 </head>
 <body>
 <div class="grid-bg" aria-hidden="true"></div>
@@ -159,7 +160,12 @@
           </label>
           <label class="ctl">
             <span class="ctl-label">Цвет трека</span>
-            <div class="track-color-palette track-color-group" data-track-color-group role="radiogroup"></div>
+            <input id="trackColorInput" type="hidden" value="#e07a3c" />
+            <div
+              class="color-picker"
+              data-color-picker="trackColorInput"
+              data-allow-none="false"
+            ></div>
           </label>
         </div>
 
@@ -204,7 +210,11 @@
         </label>
           <label class="ctl">
             <span class="ctl-label">Цвет трека</span>
-            <div class="track-color-palette track-color-group" data-track-color-group role="radiogroup"></div>
+            <div
+              class="color-picker"
+              data-color-picker="trackColorInput"
+              data-allow-none="false"
+            ></div>
           </label>
         <div class="step2-actions">
           <button type="button" class="primary-btn" id="playAnimBtn" disabled>Воспроизвести</button>
@@ -234,7 +244,11 @@
       <div class="step3-controls">
           <label class="ctl">
             <span class="ctl-label">Цвет трека</span>
-            <div class="track-color-palette track-color-group" data-track-color-group role="radiogroup"></div>
+            <div
+              class="color-picker"
+              data-color-picker="trackColorInput"
+              data-allow-none="false"
+            ></div>
           </label>
       </div>
       <button type="button" class="primary-btn step3-panel-btn" id="downloadTransparentPngBtn" disabled>Скачать PNG (прозрачный фон)</button>
@@ -248,7 +262,8 @@
   <span>Без внешних карт и API.</span>
 </footer>
 
-<script src="/gpx-route-png/app.js?v=20260515-9"></script>
+<script src="/shared/color-picker.js?v=20260526-1"></script>
+<script src="/gpx-route-png/app.js?v=20260526-1"></script>
 <script data-pplx-inline-edit>
 (function () {
   if (window === window.top) return;

@@ -39,6 +39,8 @@ async function bootstrap() {
     // Main static page assets
     const homePage = path.join(process.cwd(), 'web', 'home');
     app.useStaticAssets(homePage, { prefix: '/home' });
+    const sharedAssets = path.join(process.cwd(), 'web', 'shared');
+    app.useStaticAssets(sharedAssets, { prefix: '/shared' });
     // Static GPX → PNG tool (plain HTML/CSS/JS)
     const gpxRoutePng = path.join(process.cwd(), 'web', 'gpx-route-png');
     app.useStaticAssets(gpxRoutePng, { prefix: '/gpx-route-png' });
@@ -86,6 +88,8 @@ async function bootstrap() {
     app.useStaticAssets(miniAppDist, { prefix: '/mini-app' });
     const homePage = path.join(process.cwd(), 'web', 'home');
     app.useStaticAssets(homePage, { prefix: '/home' });
+    const sharedAssets = path.join(process.cwd(), 'web', 'shared');
+    app.useStaticAssets(sharedAssets, { prefix: '/shared' });
     const gpxRoutePng = path.join(process.cwd(), 'web', 'gpx-route-png');
     app.useStaticAssets(gpxRoutePng, { prefix: '/gpx-route-png' });
     const subsPage = path.join(process.cwd(), 'web', 'subs');

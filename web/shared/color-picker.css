@@ -1,0 +1,162 @@
+.color-picker {
+  position: relative;
+}
+
+.color-picker__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.color-picker__trigger {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--color-picker-line, var(--line, var(--border-2, #d4ded8)));
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--color-picker-surface, #fff);
+  color: var(--color-picker-muted, var(--muted, var(--ink-muted, #607079)));
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+  text-align: left;
+}
+
+.color-picker__selected-swatch {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  border: 1px solid var(--color-picker-line, var(--line, var(--border-2, #d4ded8)));
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.42);
+}
+
+.color-picker__selected-swatch.is-none,
+.color-picker__swatch.is-none {
+  background:
+    linear-gradient(
+      135deg,
+      transparent 46%,
+      #d44 47%,
+      #d44 53%,
+      transparent 54%
+    ),
+    linear-gradient(45deg, #f5f5f5 25%, transparent 25%),
+    linear-gradient(-45deg, #f5f5f5 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #f5f5f5 75%),
+    linear-gradient(-45deg, transparent 75%, #f5f5f5 75%);
+  background-color: #fff;
+  background-position:
+    0 0,
+    0 0,
+    0 8px,
+    8px -8px,
+    -8px 0;
+  background-size:
+    100% 100%,
+    16px 16px,
+    16px 16px,
+    16px 16px,
+    16px 16px;
+}
+
+.color-picker__panel {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  left: 0;
+  display: none;
+  width: min(330px, calc(100vw - 48px));
+  border: 1px solid var(--color-picker-line, var(--line, var(--border-2, #d4ded8)));
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--color-picker-surface, #fff);
+  box-shadow: 0 18px 38px rgba(16, 24, 28, 0.16);
+}
+
+.color-picker.is-open .color-picker__panel {
+  display: grid;
+  gap: 9px;
+}
+
+.color-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.color-picker__swatch {
+  width: 100%;
+  min-width: 0;
+  aspect-ratio: 1;
+  border: 1px solid rgba(16, 24, 28, 0.18);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.color-picker__swatch.is-active {
+  outline: 2px solid var(--color-picker-active, var(--green, var(--accent, #24664f)));
+  outline-offset: 2px;
+}
+
+.color-picker__swatch.is-family-active:not(.is-active) {
+  box-shadow: 0 0 0 2px var(--color-picker-family-active, rgba(49, 111, 81, 0.2));
+}
+
+.color-picker__swatch--split {
+  position: relative;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: none;
+}
+
+.color-picker__swatch--split::before,
+.color-picker__swatch--split::after {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  content: '';
+}
+
+.color-picker__swatch--split::before {
+  left: -1px;
+  width: calc(50% + 1px);
+  background: #fff;
+}
+
+.color-picker__swatch--split::after {
+  right: -1px;
+  width: calc(50% + 1px);
+  background: #000;
+}
+
+.color-picker__reset {
+  display: inline-flex;
+  width: 36px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-picker-line, var(--line, var(--border-2, #d4ded8)));
+  border-radius: 8px;
+  background: var(--color-picker-surface, #fff);
+  color: var(--color-picker-muted, var(--muted, var(--ink-muted, #607079)));
+  cursor: pointer;
+}
+
+.color-picker__reset svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.5;
+}
+
+.color-picker__reset.is-active {
+  border-color: var(--color-picker-active, var(--green, var(--accent, #24664f)));
+  color: var(--color-picker-active, var(--green, var(--accent, #24664f)));
+}

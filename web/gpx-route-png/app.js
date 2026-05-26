@@ -151,7 +151,7 @@
   const pointScaleOutput = document.getElementById('pointScaleOutput');
   const minDistanceInput = document.getElementById('minDistanceInput');
   const minDistanceOutput = document.getElementById('minDistanceOutput');
-  const trackColorGroups = document.querySelectorAll('[data-track-color-group]');
+  const trackColorInput = document.getElementById('trackColorInput');
   const downloadTransparentPngBtn = document.getElementById('downloadTransparentPngBtn');
   const step2AnimCanvas = document.getElementById('step2AnimCanvas');
   const step2AnimPlaceholder = document.getElementById('step2AnimPlaceholder');
@@ -172,7 +172,7 @@
 
   let currentState = null; // { points, thinned, distance, source, bbox, fileName }
   let fileIngestGeneration = 0;
-  let currentTrackColorId = 'terracotta';
+  let currentTrackColor = '#e07a3c';
   let waypointCounter = 0;
   const DEFAULT_ROUTE_LINE_WIDTH = 14;
   const ROUTE_ANIM_UNREVEALED = '#FFFFFF';
@@ -542,7 +542,7 @@
     ctx.stroke();
   }
 
-  // ---------- Poster (fixed) + track color palette ----------
+  // ---------- Poster (fixed) + track color ----------
   const POSTER_THEME = {
     bg1: '#F1EADA',
     bg2: '#E2D6B5',
@@ -552,17 +552,15 @@
     inkMuted: '#6B776F',
   };
 
-  const TRACK_PALETTE = [
-    { id: 'lemon', line: '#FFE566' },
-    { id: 'sunflower', line: '#F7C948' },
-    { id: 'saffron', line: '#F0B429' },
-    { id: 'honey', line: '#E8A838' },
-    { id: 'tangerine', line: '#E8943A' },
-    { id: 'terracotta', line: '#E07A3C' },
-    { id: 'rust', line: '#C95A2B' },
-  ];
-
-  const TRACK_COLOR_IDS = new Set(TRACK_PALETTE.map((entry) => entry.id));
+  const LEGACY_TRACK_COLORS = {
+    lemon: '#ffe566',
+    sunflower: '#f7c948',
+    saffron: '#f0b429',
+    honey: '#e8a838',
+    tangerine: '#e8943a',
+    terracotta: '#e07a3c',
+    rust: '#c95a2b',
+  };
 
   const SETTINGS_STORAGE_KEY = 'gpx-route-png/v1';
   const DEFAULT_SETTINGS = {
@@ -573,7 +571,7 @@
     lineWidth: 14,
     pointScale: 3,
     minDistance: MIN_DIST_M,
-    trackColor: 'terracotta',
+    trackColor: '#e07a3c',
     animDuration: 5,
     animFps: 30,
     waypoints: [],
@@ -585,6 +583,15 @@
   function clampSettingNumber(value, min, max, fallback) {
     const n = Number(value);
     return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback;
+  }
+
+  function normalizeTrackColor(value) {
+    if (typeof value !== 'string') return DEFAULT_SETTINGS.trackColor;
+    const color = value.trim().toLowerCase();
+    if (Object.prototype.hasOwnProperty.call(LEGACY_TRACK_COLORS, color)) {
+      return LEGACY_TRACK_COLORS[color];
+    }
+    return /^#[0-9a-f]{6}$/.test(color) ? color : DEFAULT_SETTINGS.trackColor;
   }
 
   function collectWaypointsForStorage() {
@@ -606,7 +613,7 @@
       lineWidth: Number.parseInt(lineWidthInput.value, 10) || DEFAULT_SETTINGS.lineWidth,
       pointScale: Number.parseFloat(pointScaleInput.value) || DEFAULT_SETTINGS.pointScale,
       minDistance: Number.parseInt(minDistanceInput.value, 10) || DEFAULT_SETTINGS.minDistance,
-      trackColor: currentTrackColorId,
+      trackColor: currentTrackColor,
       animDuration: Number.parseFloat(animDurationInput?.value || String(DEFAULT_SETTINGS.animDuration)) || DEFAULT_SETTINGS.animDuration,
       animFps: ANIM_EXPORT_FPS_OPTIONS.includes(fps) ? fps : DEFAULT_SETTINGS.animFps,
       waypoints: collectWaypointsForStorage(),
@@ -618,7 +625,7 @@
     const labelFont = Object.prototype.hasOwnProperty.call(LABEL_FONTS, raw.labelFont)
       ? raw.labelFont
       : DEFAULT_SETTINGS.labelFont;
-    const trackColor = TRACK_COLOR_IDS.has(raw.trackColor) ? raw.trackColor : DEFAULT_SETTINGS.trackColor;
+    const trackColor = normalizeTrackColor(raw.trackColor);
     const animFps = Number.parseInt(raw.animFps, 10);
     const waypoints = Array.isArray(raw.waypoints)
       ? raw.waypoints.map((entry) => ({
@@ -692,8 +699,8 @@
     pointScaleOutput.textContent = String(normalized.pointScale);
     minDistanceInput.value = String(normalized.minDistance);
     minDistanceOutput.textContent = String(normalized.minDistance);
-    currentTrackColorId = normalized.trackColor;
-    syncTrackColorSwatches(normalized.trackColor);
+    currentTrackColor = normalized.trackColor;
+    syncTrackColorInput(normalized.trackColor);
     if (animDurationInput) {
       animDurationInput.value = String(normalized.animDuration);
       if (animDurationOutput) animDurationOutput.textContent = String(normalized.animDuration);
@@ -742,44 +749,34 @@
     persistSettings();
   }
 
-  function getTrackColorLine(colorId = currentTrackColorId) {
-    const entry = TRACK_PALETTE.find((item) => item.id === colorId);
-    return entry ? entry.line : TRACK_PALETTE[5].line;
+  function getTrackColorLine(color = currentTrackColor) {
+    return normalizeTrackColor(color);
   }
 
-  function syncTrackColorSwatches(colorId = currentTrackColorId) {
-    trackColorGroups.forEach((group) => {
-      [...group.querySelectorAll('.track-color-swatch')].forEach((btn) => {
-        const active = btn.dataset.trackColor === colorId;
-        btn.classList.toggle('is-active', active);
-        btn.setAttribute('aria-checked', active ? 'true' : 'false');
-      });
+  function syncTrackColorInput(color = currentTrackColor) {
+    if (!trackColorInput) return;
+    const normalized = normalizeTrackColor(color);
+    if (trackColorInput.value.toLowerCase() === normalized) return;
+    trackColorInput.value = normalized;
+    trackColorInput.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function initTrackColorPicker() {
+    window.VlandivirColorPicker?.initialize({
+      text: {
+        chooseColor: copy.trackColorLabel,
+        shade: LANG === 'en' ? 'Shade' : 'Оттенок',
+        whiteAndBlack: LANG === 'en' ? 'white and black' : 'белый и черный',
+      },
     });
+    syncTrackColorInput();
   }
 
-  function initTrackColorPalette() {
-    if (trackColorGroups.length === 0) return;
-    trackColorGroups.forEach((group) => {
-      group.textContent = '';
-      group.setAttribute('aria-label', copy.trackColorAria);
-      TRACK_PALETTE.forEach((entry) => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'track-color-swatch';
-        btn.dataset.trackColor = entry.id;
-        btn.style.setProperty('--swatch', entry.line);
-        btn.setAttribute('role', 'radio');
-        btn.setAttribute('aria-label', copy.trackColorLabels[entry.id] || entry.id);
-        group.appendChild(btn);
-      });
-    });
-    syncTrackColorSwatches();
-  }
-
-  function setTrackColor(colorId) {
-    if (!TRACK_COLOR_IDS.has(colorId) || colorId === currentTrackColorId) return;
-    currentTrackColorId = colorId;
-    syncTrackColorSwatches(colorId);
+  function setTrackColor(color) {
+    const normalized = normalizeTrackColor(color);
+    if (normalized === currentTrackColor) return;
+    currentTrackColor = normalized;
+    syncTrackColorInput(normalized);
     invalidateRoutePathCache();
     if (currentState) {
       render();
@@ -2154,16 +2151,11 @@
     schedulePersistSettings();
   });
 
-  trackColorGroups.forEach((group) => {
-    group.addEventListener('click', (e) => {
-      const btn = e.target.closest('.track-color-swatch');
-      if (!btn || !group.contains(btn)) return;
-      const colorId = btn.dataset.trackColor;
-      if (colorId) setTrackColor(colorId);
-    });
+  trackColorInput?.addEventListener('change', () => {
+    setTrackColor(trackColorInput.value);
   });
 
-  initTrackColorPalette();
+  initTrackColorPicker();
   const hadStoredSettings = restoreStoredSettings();
   updateStep2Controls();
   updateStep3Controls();
