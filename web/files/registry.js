@@ -70,6 +70,17 @@
     });
   }
 
+  async function get(id) {
+    const db = await openDb();
+
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readonly');
+      const request = tx.objectStore(STORE).get(id);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
   async function remove(id) {
     const db = await openDb();
 
@@ -84,6 +95,7 @@
   window.UserFilesRegistry = {
     upsert,
     list,
+    get,
     remove,
   };
 })();

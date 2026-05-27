@@ -49,6 +49,11 @@ const TEXT = IS_EN
       uploading: 'Uploading',
       preparingUpload: 'Preparing upload...',
       uploadFailed: 'Failed to upload video',
+      importingSourceVideo: 'Importing video from files...',
+      importSourceVideoFailed: 'Failed to import video from files.',
+      sourceVideoNotFound: 'Video was not found in files.',
+      sourceVideoUnavailable:
+        'This video can only be opened from its original page.',
       extractAudio: 'Extracting audio on backend...',
       extractAudioFailed: 'Failed to extract audio',
       transcribing: 'Transcribing speech on backend...',
@@ -118,6 +123,11 @@ const TEXT = IS_EN
       uploading: 'Загрузка',
       preparingUpload: 'Подготовка загрузки...',
       uploadFailed: 'Не удалось загрузить видео',
+      importingSourceVideo: 'Импортирую видео из файлов...',
+      importSourceVideoFailed: 'Не удалось импортировать видео из файлов.',
+      sourceVideoNotFound: 'Видео не найдено в файлах.',
+      sourceVideoUnavailable:
+        'Это видео можно открыть только с исходной страницы.',
       extractAudio: 'Выделяю audio на backend...',
       extractAudioFailed: 'Не удалось выделить audio',
       transcribing: 'Распознаю речь на backend...',
@@ -701,6 +711,53 @@ function rememberSubsRenderedFile(renderedVideo) {
     size: renderedVideo.size || 0,
     createdAt: renderedVideo.createdAt,
     description: `Финальное видео с наложенными ASS-субтитрами для ${hash}.`,
+  });
+}
+
+function getSourceFileIdFromQuery() {
+  return new URLSearchParams(window.location.search).get('sourceFile');
+}
+
+function sourceDownloadPathForRegistryRecord(record) {
+  const match = String(record?.id || '').match(/^subs:([a-f0-9]{24}):(source|render)$/);
+  if (!match) return '';
+  const [, hash, kind] = match;
+  return kind === 'source'
+    ? `/subs-api/videos/${hash}/source/download`
+    : `/subs-api/videos/${hash}/render/download`;
+}
+
+function fileNameFromRecord(record, fallback) {
+  return String(record?.name || fallback || TEXT.videoName).trim() || TEXT.videoName;
+}
+
+async function registryRecordToVideoFile(record) {
+  if (!record) throw new Error(TEXT.sourceVideoNotFound);
+
+  const name = fileNameFromRecord(record, 'source-video.mp4');
+  const type = record.mimeType && record.mimeType !== 'video' ? record.mimeType : 'video/mp4';
+
+  if (record.blob) {
+    return new File([record.blob], name, {
+      type: record.blob.type || type,
+      lastModified: Date.parse(record.updatedAt || record.createdAt) || Date.now(),
+    });
+  }
+
+  const downloadPath = sourceDownloadPathForRegistryRecord(record);
+  if (!downloadPath) {
+    throw new Error(TEXT.sourceVideoUnavailable);
+  }
+
+  const response = await fetch(downloadPath);
+  if (!response.ok) {
+    throw new Error(TEXT.importSourceVideoFailed);
+  }
+
+  const blob = await response.blob();
+  return new File([blob], name, {
+    type: blob.type?.startsWith('video/') ? blob.type : type,
+    lastModified: Date.parse(record.updatedAt || record.createdAt) || Date.now(),
   });
 }
 
@@ -2153,6 +2210,46 @@ function uploadVideo(file) {
   });
 }
 
+async function uploadAndOpenVideoFile(file, options = {}) {
+  const { statusText = TEXT.preparingUpload } = options;
+
+  uploadButton.disabled = true;
+  uploadStatus.textContent = statusText;
+  fileMeta.textContent = `${file.name} · ${formatBytes(file.size)} · ${file.type || 'video'}`;
+  progress.hidden = true;
+  progressBar.style.width = '0%';
+
+  try {
+    await validateUploadVideoFile(file);
+  } catch (error) {
+    uploadStatus.textContent =
+      error instanceof Error ? error.message : TEXT.videoMetadataFailed;
+    return null;
+  }
+
+  try {
+    const uploaded = await uploadVideo(file);
+    const localizedUpload = {
+      ...uploaded,
+      pageUrl: getSubsPagePath(uploaded.hash),
+      absolutePageUrl: getAbsoluteSubsPageUrl(uploaded.hash),
+    };
+    await saveVideo(localizedUpload);
+    await rememberSubsSourceVideo(localizedUpload);
+    await refreshList();
+    uploadStatus.textContent = `${TEXT.done}: ${localizedUpload.absolutePageUrl}`;
+    window.history.replaceState(null, '', localizedUpload.pageUrl);
+    await loadCurrentVideo();
+    return localizedUpload;
+  } catch (error) {
+    uploadStatus.textContent =
+      error instanceof Error ? error.message : TEXT.uploadFailed;
+    return null;
+  } finally {
+    uploadButton.disabled = false;
+  }
+}
+
 async function extractAudio() {
   if (!currentVideoHash) return;
 
@@ -2499,36 +2596,7 @@ form.addEventListener('submit', async (event) => {
   const file = input.files?.[0];
   if (!file) return;
 
-  uploadButton.disabled = true;
-  uploadStatus.textContent = TEXT.preparingUpload;
-
-  try {
-    await validateUploadVideoFile(file);
-  } catch (error) {
-    uploadStatus.textContent =
-      error instanceof Error ? error.message : TEXT.videoMetadataFailed;
-    return;
-  }
-
-  try {
-    const uploaded = await uploadVideo(file);
-    const localizedUpload = {
-      ...uploaded,
-      pageUrl: getSubsPagePath(uploaded.hash),
-      absolutePageUrl: getAbsoluteSubsPageUrl(uploaded.hash),
-    };
-    await saveVideo(localizedUpload);
-    await rememberSubsSourceVideo(localizedUpload);
-    await refreshList();
-    uploadStatus.textContent = `${TEXT.done}: ${localizedUpload.absolutePageUrl}`;
-    window.history.replaceState(null, '', localizedUpload.pageUrl);
-    await loadCurrentVideo();
-  } catch (error) {
-    uploadStatus.textContent =
-      error instanceof Error ? error.message : TEXT.uploadFailed;
-  } finally {
-    uploadButton.disabled = false;
-  }
+  await uploadAndOpenVideoFile(file);
 });
 
 clearLinksButton.addEventListener('click', async () => {
@@ -2802,6 +2870,32 @@ function initEditorSections() {
     });
 }
 
+async function importSourceFileFromQuery() {
+  const sourceFileId = getSourceFileIdFromQuery();
+  if (!sourceFileId || getVideoHashFromPath()) return;
+
+  if (!window.UserFilesRegistry?.get) {
+    uploadStatus.textContent = TEXT.importSourceVideoFailed;
+    return;
+  }
+
+  uploadStatus.textContent = TEXT.importingSourceVideo;
+
+  try {
+    const storedRecord = await window.UserFilesRegistry.get(sourceFileId);
+    const record = storedRecord || (/^subs:[a-f0-9]{24}:(source|render)$/.test(sourceFileId)
+      ? { id: sourceFileId }
+      : null);
+    const file = await registryRecordToVideoFile(record);
+    await uploadAndOpenVideoFile(file, {
+      statusText: TEXT.importingSourceVideo,
+    });
+  } catch (error) {
+    uploadStatus.textContent =
+      error instanceof Error ? error.message : TEXT.importSourceVideoFailed;
+  }
+}
+
 async function init() {
   await loadEnabledFontFamilies();
   populateStyleFontOptions();
@@ -2811,6 +2905,7 @@ async function init() {
   initEditorSections();
   updateVideoControls();
   await loadCurrentVideo();
+  await importSourceFileFromQuery();
   await ensureDefaultPositions();
   cachedPositions = await readPositions();
   await ensureDefaultStyle();

@@ -17,9 +17,11 @@
           'subs-render': 'Subs · final video',
           'subs-ass': 'Subs · ASS subtitles',
           'gpx-poster': 'GPX · poster',
+          'gpx-source-video': 'GPX · source video',
           'gpx-track-alpha': 'GPX · transparent PNG',
           'gpx-animation': 'GPX · animation',
           'gpx-frames': 'GPX · frames',
+          'gpx-final-video': 'GPX · final video',
         },
         file: 'File',
         video: 'Video',
@@ -33,9 +35,11 @@
           'subs-render': 'Final video with burned-in ASS subtitles.',
           'subs-ass': 'ASS subtitle file created on the Subs page.',
           'gpx-poster': '1080x1920 PNG poster with the route line, points, and labels.',
+          'gpx-source-video': 'Source video selected on the GPX page.',
           'gpx-track-alpha': 'Transparent PNG route layer for editing.',
           'gpx-animation': 'WebM route traversal animation with alpha channel.',
           'gpx-frames': 'ZIP archive with PNG animation frames and ffmpeg notes.',
+          'gpx-final-video': 'Final video with the route animation over the source video.',
         },
         untitled: 'Untitled file',
         remoteBadge: 'DO / link',
@@ -44,6 +48,8 @@
         noDetails: 'No short information was saved.',
         open: 'Open',
         download: 'Download',
+        useInSubs: 'Use in Subs',
+        useInTrack: 'Use in track',
         locale: 'en-US',
       }
     : {
@@ -55,9 +61,11 @@
           'subs-render': 'Subs · финальное видео',
           'subs-ass': 'Subs · ASS субтитры',
           'gpx-poster': 'GPX · постер',
+          'gpx-source-video': 'GPX · исходное видео',
           'gpx-track-alpha': 'GPX · прозрачный PNG',
           'gpx-animation': 'GPX · анимация',
           'gpx-frames': 'GPX · кадры',
+          'gpx-final-video': 'GPX · финальное видео',
         },
         file: 'Файл',
         video: 'Видео',
@@ -74,6 +82,8 @@
         noDetails: 'Краткая информация не сохранена.',
         open: 'Открыть',
         download: 'Скачать',
+        useInSubs: 'В Subs',
+        useInTrack: 'В трек',
         locale: 'ru-RU',
       };
 
@@ -107,6 +117,28 @@
       objectUrls.set(file.id, URL.createObjectURL(file.blob));
     }
     return objectUrls.get(file.id);
+  }
+
+  function isVideoFile(file) {
+    const mimeType = String(file.mimeType || '').toLowerCase();
+    if (mimeType === 'video' || mimeType.startsWith('video/')) return true;
+    if (file.origin === 'subs-source' || file.origin === 'subs-render') return true;
+    return file.origin === 'gpx-source-video' || file.origin === 'gpx-final-video';
+  }
+
+  function sourceFileUrl(path, file) {
+    const url = new URL(path, window.location.origin);
+    url.searchParams.set('sourceFile', file.id);
+    return url.pathname + url.search;
+  }
+
+  function subsTargetUrl(file) {
+    if (file.origin === 'subs-source' && file.pageUrl) return file.pageUrl;
+    return sourceFileUrl(isEn ? '/subs/en' : '/subs/', file);
+  }
+
+  function trackTargetUrl(file) {
+    return sourceFileUrl(isEn ? '/gpx-route-png/en' : '/gpx-route-png/', file);
   }
 
   function originLabel(file) {
@@ -250,6 +282,20 @@
       download.download = file.name || 'file';
       download.textContent = TEXT.download;
       actions.append(open, download);
+    }
+
+    if (isVideoFile(file)) {
+      const useInSubs = document.createElement('a');
+      useInSubs.className = 'file-card__button';
+      useInSubs.href = subsTargetUrl(file);
+      useInSubs.textContent = TEXT.useInSubs;
+
+      const useInTrack = document.createElement('a');
+      useInTrack.className = 'file-card__button';
+      useInTrack.href = trackTargetUrl(file);
+      useInTrack.textContent = TEXT.useInTrack;
+
+      actions.append(useInSubs, useInTrack);
     }
 
     card.append(content, actions);

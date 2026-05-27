@@ -705,60 +705,6 @@ pre {
   margin: 0;
 }
 
-.editor-section {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.84);
-}
-
-.editor-section__summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 16px 22px;
-  cursor: pointer;
-  list-style: none;
-  user-select: none;
-}
-
-.editor-section__summary::-webkit-details-marker {
-  display: none;
-}
-
-.editor-section__summary::after {
-  content: '';
-  flex-shrink: 0;
-  width: 8px;
-  height: 8px;
-  margin-top: -4px;
-  border-right: 2px solid var(--muted);
-  border-bottom: 2px solid var(--muted);
-  transform: rotate(45deg);
-  transition: transform 0.15s ease;
-}
-
-.editor-section[open] > .editor-section__summary::after {
-  transform: rotate(-135deg);
-  margin-top: 2px;
-}
-
-.editor-section__title {
-  margin: 0;
-  font-size: clamp(22px, 3vw, 28px);
-  line-height: 1.1;
-}
-
-.editor-section__body {
-  display: grid;
-  gap: 16px;
-  padding: 0 22px 22px;
-}
-
-.editor-section__body.editor-grid {
-  padding-top: 0;
-}
-
 .video-bound-panel {
   display: grid;
   gap: 16px;

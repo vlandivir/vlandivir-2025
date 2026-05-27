@@ -37,6 +37,16 @@ export class AppController {
     res.sendFile(path.join(process.cwd(), 'web', 'subs', 'index.html'));
   }
 
+  @Get('subs/en')
+  getSubsEn(@Res() res: Response): void {
+    res.sendFile(path.join(process.cwd(), 'web', 'subs', 'en.html'));
+  }
+
+  @Get('subs/en/:hash')
+  getSubsEnVideoPage(@Res() res: Response): void {
+    res.sendFile(path.join(process.cwd(), 'web', 'subs', 'en.html'));
+  }
+
   @Get('subs/:hash')
   getSubsVideoPage(@Res() res: Response): void {
     res.sendFile(path.join(process.cwd(), 'web', 'subs', 'index.html'));

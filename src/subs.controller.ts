@@ -377,6 +377,28 @@ export class SubsController {
     }
   }
 
+  @Get('videos/:hash/source/download')
+  @Header('Content-Type', 'video/mp4')
+  @Header('Content-Disposition', 'attachment; filename="subs-source-video"')
+  async downloadSourceVideo(
+    @Param('hash') hash: string,
+    @Res() res: Response,
+  ) {
+    this.assertHash(hash);
+
+    try {
+      const buffer = await this.storageService.downloadFile(
+        this.storageService.getSubsVideoUrl(hash),
+      );
+      res.send(buffer);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new InternalServerErrorException(
+        `Failed to download source video: ${message}`,
+      );
+    }
+  }
+
   private createHash(): string {
     return randomBytes(12).toString('hex');
   }

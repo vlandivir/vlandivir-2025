@@ -4,9 +4,9 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta http-equiv="Referrer-Policy" content="no-referrer" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' https://api.fontshare.com https://fonts.googleapis.com; font-src https://api.fontshare.com https://cdn.fontshare.com https://fonts.gstatic.com; connect-src 'self'; img-src 'self' data: blob:;" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' https://api.fontshare.com https://fonts.googleapis.com; font-src https://api.fontshare.com https://cdn.fontshare.com https://fonts.gstatic.com; connect-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:;" />
 <title>How to Make a Bike Track Animation</title>
-<meta name="description" content="Step 1: 1080×1920 PNG from GPX in the browser. Step 2: track traversal animation and ffmpeg export. Step 3: transparent track PNG." />
+<meta name="description" content="Step 1: 1080×1920 PNG from GPX in the browser. Step 2: track traversal animation and transparent PNG. Step 3: final video with the track." />
 <link rel="preconnect" href="https://api.fontshare.com" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -15,8 +15,9 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23163029'/><path d='M7 22 L13 10 L18 18 L25 8' stroke='%23E07A3C' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>" />
 <link rel="stylesheet" href="/shared/site-header.css?v=20260527-1" />
 <link rel="stylesheet" href="/shared/color-picker.css?v=20260526-1" />
-<link rel="stylesheet" href="/gpx-route-png/styles.css?v=20260526-1" />
-<link rel="stylesheet" href="/shared/site-theme.css?v=20260527-1" />
+<link rel="stylesheet" href="/gpx-route-png/styles.css?v=20260527-2" />
+<link rel="stylesheet" href="/shared/video-upload-block.css?v=20260527-1" />
+<link rel="stylesheet" href="/shared/site-theme.css?v=20260527-2" />
 </head>
 <body>
 <div class="grid-bg" aria-hidden="true"></div>
@@ -28,14 +29,14 @@
     <h1>How to Make a Bike Track Animation</h1>
   </section>
 
-  <section class="workflow-step" aria-labelledby="step1-title">
-    <div class="workflow-step-head">
+  <details class="workflow-step" data-gpx-section="track" open aria-labelledby="step1-title">
+    <summary class="workflow-step-head">
       <span class="workflow-step-badge" aria-hidden="true">1</span>
       <div>
         <h2 class="workflow-step-title" id="step1-title">Generate the image</h2>
         <p class="workflow-step-text">Upload a GPX file and get a 1080×1920 PNG with the route line, points, and labels. Everything is processed locally in your browser.</p>
       </div>
-    </div>
+    </summary>
     <div class="workbench">
     <div class="drop-zone" id="dropZone" tabindex="0" role="button" aria-label="GPX file upload area">
       <input type="file" id="fileInput" hidden />
@@ -134,16 +135,16 @@
       </aside>
     </div>
     </div>
-  </section>
+  </details>
 
-  <section class="workflow-step" aria-labelledby="step2-title">
-    <div class="workflow-step-head">
+  <details class="workflow-step" data-gpx-section="animation" open aria-labelledby="step2-title">
+    <summary class="workflow-step-head">
       <span class="workflow-step-badge" aria-hidden="true">2</span>
       <div>
-        <h2 class="workflow-step-title" id="step2-title">Track traversal animation</h2>
-        <p class="workflow-step-text">The route draws from start to finish: the full line and all points start white, then your chosen color travels along the path. Labels and points recolor when the animation reaches them. Uses the same settings as step&nbsp;1.</p>
+        <h2 class="workflow-step-title" id="step2-title">Animation and track PNG</h2>
+        <p class="workflow-step-text">The route draws from start to finish. You can also download a transparent track layer for editing here.</p>
       </div>
-    </div>
+    </summary>
     <div class="step2-panel">
       <div class="step2-preview-shell step2-anim-preview-shell">
         <img class="step2-preview-shell__bg" src="/gpx-route-png/images/step2-demo-bg.jpg?v=20260514b" alt="" width="1080" height="1920" decoding="async" fetchpriority="high" />
@@ -178,51 +179,66 @@
           <button type="button" class="primary-btn" id="playAnimBtn" disabled>Play</button>
           <button type="button" class="ghost-btn" id="downloadAnimWebmBtn" disabled>Download WebM (alpha)</button>
           <button type="button" class="ghost-btn" id="downloadAnimPngZipBtn" disabled>Download PNG frames (ZIP)</button>
+          <button type="button" class="ghost-btn" id="downloadTransparentPngBtn" disabled>Download PNG (transparent background)</button>
         </div>
       </div>
     </div>
-  </section>
+  </details>
 
-  <section class="workflow-step" aria-labelledby="step3-title">
-    <div class="workflow-step-head">
+  <details class="workflow-step" data-gpx-section="video" open aria-labelledby="step3-title">
+    <summary class="workflow-step-head">
       <span class="workflow-step-badge" aria-hidden="true">3</span>
       <div>
-        <h2 class="workflow-step-title" id="step3-title">Transparent track PNG</h2>
-        <p class="workflow-step-text">Same geometry as step&nbsp;1: a track layer on a transparent background for photo or video overlays.</p>
+        <h2 class="workflow-step-title" id="step3-title">Final video</h2>
+        <p class="workflow-step-text">Choose a source video or open it from /files, and the route will be overlaid on the frame and exported as WebM.</p>
       </div>
-    </div>
-    <div class="step3-panel">
-      <div class="step2-preview-shell step3-preview-shell">
-        <img class="step2-preview-shell__bg" src="/gpx-route-png/images/step2-demo-bg.jpg?v=20260514b" alt="" width="1080" height="1920" decoding="async" />
-        <canvas id="step3TrackPreviewCanvas" class="step2-preview-shell__track" width="1080" height="1920" hidden aria-label="Track layer over photo"></canvas>
-        <div id="step3TrackPlaceholder" class="step2-preview-placeholder">
-          Upload a GPX in step&nbsp;1 and the track will appear over the photo here.
+    </summary>
+    <section
+      data-video-upload-block
+      data-title-id="source-video-title"
+      data-eyebrow="Video"
+      data-title="Source video"
+      data-description="Choose a vertical 1080×1920 px video up to 200 MB. It will stay in the browser local database and be used as the track background."
+      data-form-id="sourceVideoForm"
+      data-input-id="sourceVideoInput"
+      data-meta-id="sourceVideoMeta"
+      data-picker-title="Choose video"
+      data-picker-meta="Vertical 1080×1920 px only, up to 200 MB"
+      data-button-id="browseSourceVideoBtn"
+      data-button-type="button"
+      data-button-label="Choose"
+      data-progress-id="sourceVideoProgress"
+      data-progress-bar-id="sourceVideoProgressBar"
+      data-status-id="sourceVideoStatus"
+    ></section>
+    <div class="final-video-panel">
+      <div class="final-video-preview-shell">
+        <video id="sourceVideoPreview" playsinline muted controls hidden></video>
+        <canvas id="finalVideoOverlayCanvas" width="1080" height="1920" hidden aria-label="Final video preview with route overlay"></canvas>
+        <div id="sourceVideoPlaceholder" class="step2-preview-placeholder">
+          Choose a video and the track overlay preview will appear here.
         </div>
       </div>
-      <div class="step3-controls">
-          <label class="ctl">
-            <span class="ctl-label">Track color</span>
-            <div
-              class="color-picker"
-              data-color-picker="trackColorInput"
-              data-allow-none="false"
-            ></div>
-          </label>
+      <div class="final-video-controls">
+        <div class="step2-actions">
+          <button type="button" class="ghost-btn" id="playFinalPreviewBtn" disabled>Preview</button>
+          <button type="button" class="ghost-btn" id="renderFinalVideoBtn" disabled>Render final WebM</button>
+        </div>
+        <div class="final-video-result" id="finalVideoResult" hidden>
+          <a class="render-video-link" id="finalVideoLink" href="#" target="_blank" rel="noopener noreferrer">Video</a>
+          <a class="render-video-download-link" id="finalVideoDownloadLink" href="#" download="gpx-track-final.webm">Download</a>
+        </div>
+        <p class="final-video-status" id="finalVideoStatus">Upload a GPX and choose a video first.</p>
       </div>
-      <button type="button" class="primary-btn step3-panel-btn" id="downloadTransparentPngBtn" disabled>Download PNG (transparent background)</button>
     </div>
-  </section>
+  </details>
 
 </main>
 
-<footer class="site-footer">
-  <span>Files never leave your browser.</span>
-  <span>No external maps or APIs.</span>
-</footer>
-
 <script src="/shared/color-picker.js?v=20260526-1"></script>
 <script src="/shared/site-header.js?v=20260527-1"></script>
-<script src="/files/registry.js?v=20260526-1"></script>
-<script src="/gpx-route-png/app.js?v=20260526-1"></script>
+<script src="/files/registry.js?v=20260527-1"></script>
+<script src="/shared/video-upload-block.js?v=20260527-1"></script>
+<script src="/gpx-route-png/app.js?v=20260527-2"></script>
 </body>
 </html>

@@ -86,22 +86,6 @@ h1 {
   background: var(--panel);
 }
 
-.summary__value,
-.summary__label {
-  display: block;
-}
-
-.summary__value {
-  font-size: 26px;
-  font-weight: 800;
-}
-
-.summary__label {
-  margin-top: 4px;
-  color: var(--muted);
-  font-size: 13px;
-}
-
 .file-list {
   display: grid;
   gap: 12px;
@@ -171,7 +155,9 @@ h1 {
 
 .file-card__actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: start;
+  justify-content: flex-end;
   gap: 8px;
 }
 

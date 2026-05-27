@@ -41,6 +41,24 @@
       exportingPngFrame: (current, total) => `Кадры: ${current}/${total}…`,
       exportFailed: 'Не удалось экспортировать анимацию. Попробуйте ещё раз.',
       webmUnsupported: 'WebM не поддерживается в этом браузере. Скачайте PNG (ZIP).',
+      chooseSourceVideo: 'Выбрать видео',
+      sourceVideoEmpty: 'Видео ещё не выбрано.',
+      sourceVideoReady: 'Видео готово',
+      sourceVideoFromFiles: 'Загружаю видео из /files…',
+      sourceVideoNotFound: 'Видео не найдено в /files.',
+      sourceVideoUnavailable: 'Это видео можно открыть только с исходной страницы.',
+      sourceVideoLoadFailed: 'Не удалось загрузить видео из /files.',
+      finalVideoNeedsTrackAndVideo: 'Сначала загрузите GPX и выберите видео.',
+      playFinalPreview: 'Превью',
+      playingFinalPreview: 'Превью…',
+      renderFinalVideo: 'Собрать финальное WebM',
+      renderingFinalVideo: 'Собираю финальное WebM…',
+      finalVideoReady: 'Готовое видео собрано.',
+      downloadFinalVideo: 'Скачать',
+      finalVideoUnsupported: 'WebM-запись не поддерживается в этом браузере.',
+      finalVideoExportFailed: 'Не удалось собрать финальное видео.',
+      sourceVideoDescription: 'Исходное видео, выбранное на странице GPX-трека.',
+      finalVideoDescription: 'Финальное WebM-видео с наложенной анимацией трека.',
       ffmpegReadme: (fps) =>
         [
           'PNG-последовательность трека 1080×1920, прозрачный фон.',
@@ -99,6 +117,24 @@
       exportingPngFrame: (current, total) => `Frames: ${current}/${total}…`,
       exportFailed: 'Could not export the animation. Try again.',
       webmUnsupported: 'WebM is not supported in this browser. Download PNG (ZIP) instead.',
+      chooseSourceVideo: 'Choose video',
+      sourceVideoEmpty: 'No video selected yet.',
+      sourceVideoReady: 'Video ready',
+      sourceVideoFromFiles: 'Loading video from /files...',
+      sourceVideoNotFound: 'Video was not found in /files.',
+      sourceVideoUnavailable: 'This video can only be opened from its original page.',
+      sourceVideoLoadFailed: 'Could not load video from /files.',
+      finalVideoNeedsTrackAndVideo: 'Upload a GPX and choose a video first.',
+      playFinalPreview: 'Preview',
+      playingFinalPreview: 'Previewing...',
+      renderFinalVideo: 'Render final WebM',
+      renderingFinalVideo: 'Rendering final WebM...',
+      finalVideoReady: 'Final video is ready.',
+      downloadFinalVideo: 'Download',
+      finalVideoUnsupported: 'WebM recording is not supported in this browser.',
+      finalVideoExportFailed: 'Could not render the final video.',
+      sourceVideoDescription: 'Source video selected on the GPX route page.',
+      finalVideoDescription: 'Final WebM video with the track animation overlay.',
       ffmpegReadme: (fps) =>
         [
           'Track PNG sequence 1080×1920, transparent background.',
@@ -163,6 +199,19 @@
   const playAnimBtn = document.getElementById('playAnimBtn');
   const downloadAnimWebmBtn = document.getElementById('downloadAnimWebmBtn');
   const downloadAnimPngZipBtn = document.getElementById('downloadAnimPngZipBtn');
+  const sourceVideoInput = document.getElementById('sourceVideoInput');
+  const browseSourceVideoBtn = document.getElementById('browseSourceVideoBtn');
+  const sourceVideoPreview = document.getElementById('sourceVideoPreview');
+  const sourceVideoPlaceholder = document.getElementById('sourceVideoPlaceholder');
+  const sourceVideoMeta = document.getElementById('sourceVideoMeta');
+  const sourceVideoStatus = document.getElementById('sourceVideoStatus');
+  const finalVideoOverlayCanvas = document.getElementById('finalVideoOverlayCanvas');
+  const playFinalPreviewBtn = document.getElementById('playFinalPreviewBtn');
+  const renderFinalVideoBtn = document.getElementById('renderFinalVideoBtn');
+  const finalVideoResult = document.getElementById('finalVideoResult');
+  const finalVideoLink = document.getElementById('finalVideoLink');
+  const finalVideoDownloadLink = document.getElementById('finalVideoDownloadLink');
+  const finalVideoStatus = document.getElementById('finalVideoStatus');
 
   const statSource = document.getElementById('statSource');
   const statOriginal = document.getElementById('statOriginal');
@@ -181,6 +230,13 @@
   let routeAnimRafId = null;
   let routeAnimPlaying = false;
   let animExportInProgress = false;
+  let sourceVideoFile = null;
+  let selectedSourceVideoFileId = '';
+  let sourceVideoObjectUrl = '';
+  let finalVideoObjectUrl = '';
+  let finalPreviewRafId = null;
+  let finalPreviewPlaying = false;
+  let finalVideoExportInProgress = false;
 
   const LABEL_FONTS = {
     satoshi: '"Satoshi", sans-serif',
@@ -563,6 +619,12 @@
   };
 
   const SETTINGS_STORAGE_KEY = 'gpx-route-png/v1';
+  const SECTION_PREFS_STORAGE_KEY = 'gpx-route-png/sections/v1';
+  const DEFAULT_SECTION_OPEN = {
+    track: true,
+    animation: true,
+    video: true,
+  };
   const DEFAULT_SETTINGS = {
     v: 1,
     title: '',
@@ -574,6 +636,7 @@
     trackColor: '#e07a3c',
     animDuration: 5,
     animFps: 30,
+    sourceVideoFileId: '',
     waypoints: [],
   };
 
@@ -616,6 +679,7 @@
       trackColor: currentTrackColor,
       animDuration: Number.parseFloat(animDurationInput?.value || String(DEFAULT_SETTINGS.animDuration)) || DEFAULT_SETTINGS.animDuration,
       animFps: ANIM_EXPORT_FPS_OPTIONS.includes(fps) ? fps : DEFAULT_SETTINGS.animFps,
+      sourceVideoFileId: selectedSourceVideoFileId,
       waypoints: collectWaypointsForStorage(),
     };
   }
@@ -646,6 +710,7 @@
       trackColor,
       animDuration: clampSettingNumber(raw.animDuration, 1, 30, DEFAULT_SETTINGS.animDuration),
       animFps: ANIM_EXPORT_FPS_OPTIONS.includes(animFps) ? animFps : DEFAULT_SETTINGS.animFps,
+      sourceVideoFileId: typeof raw.sourceVideoFileId === 'string' ? raw.sourceVideoFileId : '',
       waypoints,
     };
   }
@@ -686,6 +751,55 @@
     }
   }
 
+  function sanitizeSectionPrefs(raw) {
+    const result = { ...DEFAULT_SECTION_OPEN };
+    if (!raw || typeof raw !== 'object') return result;
+    for (const key of Object.keys(DEFAULT_SECTION_OPEN)) {
+      if (typeof raw[key] === 'boolean') result[key] = raw[key];
+    }
+    return result;
+  }
+
+  function readSectionPrefs() {
+    try {
+      const raw = localStorage.getItem(SECTION_PREFS_STORAGE_KEY);
+      return raw ? sanitizeSectionPrefs(JSON.parse(raw)) : { ...DEFAULT_SECTION_OPEN };
+    } catch (_e) {
+      return { ...DEFAULT_SECTION_OPEN };
+    }
+  }
+
+  function writeSectionPrefs(prefs) {
+    try {
+      localStorage.setItem(SECTION_PREFS_STORAGE_KEY, JSON.stringify(sanitizeSectionPrefs(prefs)));
+    } catch (_e) {
+      /* private mode or quota */
+    }
+  }
+
+  function initWorkflowSections() {
+    const sections = [...document.querySelectorAll('.workflow-step[data-gpx-section]')];
+    if (sections.length === 0) return;
+
+    let prefs = readSectionPrefs();
+    sections.forEach((section) => {
+      const key = section.dataset.gpxSection;
+      if (key in prefs) section.open = prefs[key];
+    });
+
+    sections.forEach((section) => {
+      section.addEventListener('toggle', () => {
+        const key = section.dataset.gpxSection;
+        if (!key) return;
+        prefs = {
+          ...prefs,
+          [key]: section.open,
+        };
+        writeSectionPrefs(prefs);
+      });
+    });
+  }
+
   function applySettings(settings, { skipRender = false } = {}) {
     const normalized = normalizeStoredSettings(settings) || { ...DEFAULT_SETTINGS, waypoints: [] };
     settingsPersistSuspended = true;
@@ -706,6 +820,7 @@
       if (animDurationOutput) animDurationOutput.textContent = String(normalized.animDuration);
     }
     if (animFpsSelect) animFpsSelect.value = String(normalized.animFps);
+    selectedSourceVideoFileId = normalized.sourceVideoFileId;
     waypointList.textContent = '';
     waypointCounter = 0;
     normalized.waypoints.forEach((waypoint) => {
@@ -923,9 +1038,10 @@
   }
 
   function rememberUserFile(file) {
-    if (!window.UserFilesRegistry?.upsert) return;
-    window.UserFilesRegistry.upsert(file).catch((error) => {
+    if (!window.UserFilesRegistry?.upsert) return Promise.resolve(null);
+    return window.UserFilesRegistry.upsert(file).catch((error) => {
       console.warn('Failed to remember user file', error);
+      return null;
     });
   }
 
@@ -942,9 +1058,442 @@
       pageUrl: window.location.pathname,
       description,
       context: currentState
-        ? `${currentState.fileName || 'GPX'} · ${currentState.originalCount || 0} точек · ${formatKm(currentState.distanceKm || 0)} км`
+        ? `${currentState.fileName || 'GPX'} · ${currentState.original || 0} точек · ${formatKm((currentState.distance || 0) / 1000)} км`
         : undefined,
     });
+  }
+
+  function formatBytes(bytes) {
+    if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    const unit = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+    const value = bytes / 1024 ** unit;
+    return `${value.toFixed(value >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
+  }
+
+  function sourceDownloadPathForRegistryRecord(record) {
+    const match = String(record?.id || '').match(/^subs:([a-f0-9]{24}):(source|render)$/);
+    if (!match) return '';
+    const [, hash, kind] = match;
+    return kind === 'source'
+      ? `/subs-api/videos/${hash}/source/download`
+      : `/subs-api/videos/${hash}/render/download`;
+  }
+
+  function registryFileName(record, fallback = 'source-video.mp4') {
+    return String(record?.name || fallback).trim() || fallback;
+  }
+
+  async function registryRecordToVideoFile(record) {
+    if (!record) throw new Error(copy.sourceVideoNotFound);
+    const name = registryFileName(record);
+    const type = record.mimeType && record.mimeType !== 'video' ? record.mimeType : 'video/mp4';
+
+    if (record.blob) {
+      return new File([record.blob], name, {
+        type: record.blob.type || type,
+        lastModified: Date.parse(record.updatedAt || record.createdAt) || Date.now(),
+      });
+    }
+
+    const sameOriginPath = sourceDownloadPathForRegistryRecord(record);
+    if (!sameOriginPath) throw new Error(copy.sourceVideoUnavailable);
+
+    const response = await fetch(sameOriginPath);
+    if (!response.ok) throw new Error(copy.sourceVideoLoadFailed);
+    const blob = await response.blob();
+    return new File([blob], name, {
+      type: blob.type?.startsWith('video/') ? blob.type : type,
+      lastModified: Date.parse(record.updatedAt || record.createdAt) || Date.now(),
+    });
+  }
+
+  function sourceFileIdFromQuery() {
+    return new URLSearchParams(window.location.search).get('sourceFile');
+  }
+
+  function clearFinalVideoResult() {
+    if (finalVideoObjectUrl) URL.revokeObjectURL(finalVideoObjectUrl);
+    finalVideoObjectUrl = '';
+    if (finalVideoResult) finalVideoResult.hidden = true;
+    if (finalVideoLink) finalVideoLink.href = '#';
+    if (finalVideoDownloadLink) finalVideoDownloadLink.href = '#';
+  }
+
+  function setFinalVideoResult(blob, filename) {
+    clearFinalVideoResult();
+    finalVideoObjectUrl = URL.createObjectURL(blob);
+    if (finalVideoLink) finalVideoLink.href = finalVideoObjectUrl;
+    if (finalVideoDownloadLink) {
+      finalVideoDownloadLink.href = finalVideoObjectUrl;
+      finalVideoDownloadLink.download = filename;
+      finalVideoDownloadLink.textContent = copy.downloadFinalVideo;
+    }
+    if (finalVideoResult) finalVideoResult.hidden = false;
+  }
+
+  function rememberGpxSourceVideo(file) {
+    if (!file) return Promise.resolve(null);
+    const id = `gpx:source-video:${file.name}:${file.size}:${file.lastModified || 0}`;
+    return rememberUserFile({
+      id,
+      sourceApp: 'gpx-route-png',
+      origin: 'gpx-source-video',
+      name: file.name || 'source-video',
+      blob: file,
+      mimeType: file.type || 'video',
+      size: file.size,
+      createdAt: new Date().toISOString(),
+      pageUrl: window.location.pathname,
+      description: copy.sourceVideoDescription,
+    });
+  }
+
+  function updateFinalVideoControls() {
+    const hasTrack = Boolean(currentState);
+    const hasVideo = Boolean(sourceVideoFile);
+    const locked = finalPreviewPlaying || finalVideoExportInProgress;
+    if (playFinalPreviewBtn) {
+      playFinalPreviewBtn.disabled = !hasTrack || !hasVideo || locked;
+      playFinalPreviewBtn.textContent = finalPreviewPlaying ? copy.playingFinalPreview : copy.playFinalPreview;
+    }
+    if (renderFinalVideoBtn) {
+      renderFinalVideoBtn.disabled = !hasTrack || !hasVideo || locked;
+      renderFinalVideoBtn.textContent = finalVideoExportInProgress
+        ? copy.renderingFinalVideo
+        : copy.renderFinalVideo;
+    }
+    if (browseSourceVideoBtn) {
+      browseSourceVideoBtn.disabled = locked;
+      browseSourceVideoBtn.textContent = copy.chooseSourceVideo;
+    }
+    if (sourceVideoInput) sourceVideoInput.disabled = locked;
+    if (finalVideoStatus && (!hasTrack || !hasVideo) && !finalVideoExportInProgress) {
+      finalVideoStatus.textContent = copy.finalVideoNeedsTrackAndVideo;
+    }
+  }
+
+  function renderFinalVideoOverlayPreview(progress = 1) {
+    if (!finalVideoOverlayCanvas) return;
+    if (!currentState || !sourceVideoFile) {
+      finalVideoOverlayCanvas.hidden = true;
+      return;
+    }
+    const overlayCtx = finalVideoOverlayCanvas.getContext('2d');
+    const geo = computeRouteGeometry();
+    if (!geo) return;
+    finalVideoOverlayCanvas.hidden = false;
+    overlayCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    if (progress >= 1) drawTrackOverlayLayers(overlayCtx, geo);
+    else drawTrackTraversalLayers(overlayCtx, geo, progress);
+  }
+
+  async function setSourceVideoFile(file, options = {}) {
+    if (!file) return null;
+    const { remember = true, recordId = '' } = options;
+    if (sourceVideoObjectUrl) URL.revokeObjectURL(sourceVideoObjectUrl);
+    sourceVideoObjectUrl = URL.createObjectURL(file);
+    sourceVideoFile = file;
+    selectedSourceVideoFileId = recordId;
+    clearFinalVideoResult();
+
+    if (sourceVideoPreview) {
+      sourceVideoPreview.src = sourceVideoObjectUrl;
+      sourceVideoPreview.hidden = false;
+      sourceVideoPreview.load();
+    }
+    if (sourceVideoPlaceholder) sourceVideoPlaceholder.hidden = true;
+    if (sourceVideoMeta) {
+      sourceVideoMeta.textContent = `${file.name || 'video'} · ${formatBytes(file.size)} · ${file.type || 'video'}`;
+    }
+    if (sourceVideoStatus) sourceVideoStatus.textContent = copy.sourceVideoReady;
+    if (finalVideoStatus) finalVideoStatus.textContent = copy.sourceVideoReady;
+    if (remember) {
+      const record = await rememberGpxSourceVideo(file);
+      if (record?.id) selectedSourceVideoFileId = record.id;
+    }
+    schedulePersistSettings();
+    renderFinalVideoOverlayPreview(1);
+    updateFinalVideoControls();
+    return sourceVideoFile;
+  }
+
+  async function loadSourceVideoFromFiles() {
+    const sourceFileId = sourceFileIdFromQuery();
+    if (!sourceFileId) return false;
+    if (!window.UserFilesRegistry?.get) {
+      if (finalVideoStatus) finalVideoStatus.textContent = copy.sourceVideoLoadFailed;
+      return false;
+    }
+
+    if (sourceVideoStatus) sourceVideoStatus.textContent = copy.sourceVideoFromFiles;
+    if (finalVideoStatus) finalVideoStatus.textContent = copy.sourceVideoFromFiles;
+    try {
+      const storedRecord = await window.UserFilesRegistry.get(sourceFileId);
+      const record = storedRecord || (/^subs:[a-f0-9]{24}:(source|render)$/.test(sourceFileId)
+        ? { id: sourceFileId }
+        : null);
+      const file = await registryRecordToVideoFile(record);
+      await setSourceVideoFile(file, {
+        remember: !storedRecord,
+        recordId: storedRecord?.id || sourceFileId,
+      });
+      const url = new URL(window.location.href);
+      url.searchParams.delete('sourceFile');
+      window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+      return true;
+    } catch (error) {
+      if (sourceVideoStatus) {
+        sourceVideoStatus.textContent =
+          error instanceof Error ? error.message : copy.sourceVideoLoadFailed;
+      }
+      finalVideoStatus.textContent =
+        error instanceof Error ? error.message : copy.sourceVideoLoadFailed;
+      return false;
+    }
+  }
+
+  async function restoreStoredSourceVideo() {
+    if (!selectedSourceVideoFileId || sourceVideoFile || !window.UserFilesRegistry?.get) {
+      return false;
+    }
+
+    try {
+      const record = await window.UserFilesRegistry.get(selectedSourceVideoFileId);
+      if (!record) return false;
+      const file = await registryRecordToVideoFile(record);
+      await setSourceVideoFile(file, {
+        remember: false,
+        recordId: record.id,
+      });
+      return true;
+    } catch (error) {
+      console.warn('Failed to restore source video', error);
+      return false;
+    }
+  }
+
+  function drawVideoCoverFrame(targetCtx, video, width, height) {
+    const videoWidth = video.videoWidth || width;
+    const videoHeight = video.videoHeight || height;
+    const scale = Math.max(width / videoWidth, height / videoHeight);
+    const drawWidth = videoWidth * scale;
+    const drawHeight = videoHeight * scale;
+    const dx = (width - drawWidth) / 2;
+    const dy = (height - drawHeight) / 2;
+    targetCtx.drawImage(video, dx, dy, drawWidth, drawHeight);
+  }
+
+  function waitForVideoMetadata(video) {
+    if (video.readyState >= 1) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      video.onloadedmetadata = () => resolve();
+      video.onerror = () => reject(new Error(copy.sourceVideoLoadFailed));
+    });
+  }
+
+  function waitForVideoPlaying(video) {
+    if (!video.paused && video.readyState >= 2) return Promise.resolve();
+    return new Promise((resolve) => {
+      let settled = false;
+      const onPlaying = () => {
+        if (settled) return;
+        settled = true;
+        video.removeEventListener('playing', onPlaying);
+        resolve();
+      };
+      video.addEventListener('playing', onPlaying);
+      void video.play()
+        .then(() => {
+          if (video.readyState < 2 || settled) return;
+          onPlaying();
+        })
+        .catch(() => {
+          if (settled) return;
+          settled = true;
+          video.removeEventListener('playing', onPlaying);
+          resolve();
+        });
+    });
+  }
+
+  function stopFinalPreviewPlayback() {
+    if (finalPreviewRafId !== null) {
+      cancelAnimationFrame(finalPreviewRafId);
+      finalPreviewRafId = null;
+    }
+    finalPreviewPlaying = false;
+    if (sourceVideoPreview) {
+      sourceVideoPreview.pause();
+      sourceVideoPreview.currentTime = 0;
+    }
+    renderFinalVideoOverlayPreview(1);
+    updateFinalVideoControls();
+  }
+
+  async function playFinalPreview() {
+    if (!currentState || !sourceVideoFile || finalPreviewPlaying || finalVideoExportInProgress) return;
+    stopFinalPreviewPlayback();
+    finalPreviewPlaying = true;
+    updateFinalVideoControls();
+    sourceVideoPreview.currentTime = 0;
+    await waitForVideoPlaying(sourceVideoPreview);
+    const durationMs = Math.min(
+      getAnimDurationMs(),
+      Number.isFinite(sourceVideoPreview.duration) ? sourceVideoPreview.duration * 1000 : getAnimDurationMs(),
+    );
+    const startedAt = performance.now();
+
+    const tick = (now) => {
+      const progress = Math.min(1, (now - startedAt) / durationMs);
+      renderFinalVideoOverlayPreview(progress);
+      if (progress < 1 && !sourceVideoPreview.ended) {
+        finalPreviewRafId = requestAnimationFrame(tick);
+        return;
+      }
+      finalPreviewRafId = null;
+      finalPreviewPlaying = false;
+      sourceVideoPreview.pause();
+      renderFinalVideoOverlayPreview(1);
+      updateFinalVideoControls();
+    };
+
+    renderFinalVideoOverlayPreview(0);
+    finalPreviewRafId = requestAnimationFrame(tick);
+  }
+
+  function setFinalVideoExportBusy(busy) {
+    finalVideoExportInProgress = busy;
+    updateFinalVideoControls();
+  }
+
+  async function exportFinalVideo() {
+    if (!currentState || !sourceVideoFile || finalVideoExportInProgress) return;
+    if (typeof MediaRecorder === 'undefined') {
+      finalVideoStatus.textContent = copy.finalVideoUnsupported;
+      return;
+    }
+
+    const exportCanvas = document.createElement('canvas');
+    if (!exportCanvas.captureStream) {
+      finalVideoStatus.textContent = copy.finalVideoUnsupported;
+      return;
+    }
+
+    const mimeType = pickFinalWebmMimeType();
+    if (!mimeType) {
+      finalVideoStatus.textContent = copy.finalVideoUnsupported;
+      return;
+    }
+
+    const controls = getPosterControls();
+    if (document.fonts?.ready) {
+      try {
+        await document.fonts.ready;
+      } catch (_e) {
+        /* ignore */
+      }
+    }
+    if (document.fonts && controls.labelFontKey !== 'georgia') {
+      await document.fonts.load(`${controls.labelSize}px ${controls.labelFontFamily}`).catch(() => {});
+    }
+
+    const geo = computeRouteGeometry();
+    if (!geo) return;
+    getRoutePathCache(geo.pts, geo.labelMarkers);
+
+    stopFinalPreviewPlayback();
+    setFinalVideoExportBusy(true);
+    clearFinalVideoResult();
+    finalVideoStatus.textContent = copy.renderingFinalVideo;
+
+    exportCanvas.width = CANVAS_W;
+    exportCanvas.height = CANVAS_H;
+    const exportCtx = exportCanvas.getContext('2d', { alpha: false });
+    const exportVideo = document.createElement('video');
+    exportVideo.src = sourceVideoObjectUrl;
+    exportVideo.muted = true;
+    exportVideo.playsInline = true;
+    exportVideo.preload = 'auto';
+
+    let stream;
+    let sourceStream;
+    try {
+      await waitForVideoMetadata(exportVideo);
+      exportVideo.currentTime = 0;
+      const fps = getAnimExportFps();
+      const durationMs = Math.max(
+        500,
+        Math.min(
+          getAnimDurationMs(),
+          Number.isFinite(exportVideo.duration) ? exportVideo.duration * 1000 : getAnimDurationMs(),
+        ),
+      );
+
+      stream = exportCanvas.captureStream(fps);
+      if (exportVideo.captureStream && (mimeType.includes('opus') || mimeType === 'video/webm')) {
+        sourceStream = exportVideo.captureStream();
+        sourceStream.getAudioTracks().forEach((track) => stream.addTrack(track));
+      }
+
+      const chunks = [];
+      const recorder = new MediaRecorder(stream, {
+        mimeType,
+        videoBitsPerSecond: 12_000_000,
+      });
+      recorder.ondataavailable = (event) => {
+        if (event.data?.size) chunks.push(event.data);
+      };
+      const stopped = new Promise((resolve) => {
+        recorder.onstop = resolve;
+      });
+
+      const drawFrame = (progress) => {
+        exportCtx.fillStyle = '#000';
+        exportCtx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+        drawVideoCoverFrame(exportCtx, exportVideo, CANVAS_W, CANVAS_H);
+        if (progress >= 1) drawTrackOverlayLayers(exportCtx, geo);
+        else drawTrackTraversalLayers(exportCtx, geo, progress);
+      };
+
+      recorder.start();
+      await waitForVideoPlaying(exportVideo);
+      const startedAt = performance.now();
+      await new Promise((resolve) => {
+        const tick = (now) => {
+          const progress = Math.min(1, (now - startedAt) / durationMs);
+          drawFrame(progress);
+          if (progress < 1 && !exportVideo.ended) {
+            requestAnimationFrame(tick);
+            return;
+          }
+          drawFrame(1);
+          resolve();
+        };
+        requestAnimationFrame(tick);
+      });
+      recorder.stop();
+      await stopped;
+
+      if (chunks.length === 0) throw new Error(copy.finalVideoExportFailed);
+      const blob = new Blob(chunks, { type: mimeType });
+      const filename = `${safeTrackBaseName()}-final-track.webm`;
+      rememberGpxFile(blob, filename, 'gpx-final-video', copy.finalVideoDescription);
+      setFinalVideoResult(blob, filename);
+      finalVideoStatus.textContent = `${copy.finalVideoReady} · ${formatBytes(blob.size)}`;
+    } catch (error) {
+      console.error(error);
+      finalVideoStatus.textContent =
+        error instanceof Error ? error.message : copy.finalVideoExportFailed;
+    } finally {
+      exportVideo.pause();
+      exportVideo.removeAttribute('src');
+      exportVideo.load();
+      stream?.getTracks().forEach((track) => track.stop());
+      sourceStream?.getTracks().forEach((track) => track.stop());
+      setFinalVideoExportBusy(false);
+      renderFinalVideoOverlayPreview(1);
+    }
   }
 
   function delayMs(ms) {
@@ -1056,6 +1605,18 @@
   function pickWebmMimeType() {
     if (typeof MediaRecorder === 'undefined') return null;
     const candidates = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+    return candidates.find((type) => MediaRecorder.isTypeSupported(type)) || null;
+  }
+
+  function pickFinalWebmMimeType() {
+    if (typeof MediaRecorder === 'undefined') return null;
+    const candidates = [
+      'video/webm;codecs=vp9,opus',
+      'video/webm;codecs=vp8,opus',
+      'video/webm;codecs=vp9',
+      'video/webm;codecs=vp8',
+      'video/webm',
+    ];
     return candidates.find((type) => MediaRecorder.isTypeSupported(type)) || null;
   }
 
@@ -1706,14 +2267,18 @@
       invalidateRoutePathCache();
       updateStep2Controls();
       updateStep3Controls();
+      updateFinalVideoControls();
       renderStep3TrackPreview();
       renderStep2AnimPreview(1);
+      renderFinalVideoOverlayPreview(1);
       return;
     }
     updateStep2Controls();
     updateStep3Controls();
+    updateFinalVideoControls();
     renderStep3TrackPreview();
     renderStep2AnimPreview(1);
+    renderFinalVideoOverlayPreview(1);
   }
 
   function updateStep2Controls() {
@@ -1924,6 +2489,7 @@
         fileName: file.name.replace(/\.gpx$/i, ''),
       };
 
+      clearFinalVideoResult();
       invalidateRoutePathCache();
       if (!preserveWaypoints) resetDefaultLabels();
       updateStatsPanel(currentState);
@@ -2036,6 +2602,10 @@
       }
     });
   });
+  window.addEventListener('beforeunload', () => {
+    if (sourceVideoObjectUrl) URL.revokeObjectURL(sourceVideoObjectUrl);
+    if (finalVideoObjectUrl) URL.revokeObjectURL(finalVideoObjectUrl);
+  });
 
   downloadBtn.addEventListener('click', () => {
     if (!currentState) return;
@@ -2074,9 +2644,44 @@
       void exportAnimPngZip();
     });
   }
+  if (browseSourceVideoBtn && sourceVideoInput) {
+    browseSourceVideoBtn.addEventListener('click', () => {
+      sourceVideoInput.click();
+    });
+    sourceVideoInput.addEventListener('change', (event) => {
+      const file = event.target.files && event.target.files[0];
+      if (file) void setSourceVideoFile(file);
+      sourceVideoInput.value = '';
+    });
+  }
+  if (sourceVideoPreview) {
+    sourceVideoPreview.addEventListener('loadedmetadata', () => {
+      if (!sourceVideoFile || !sourceVideoMeta) return;
+      const seconds = Number.isFinite(sourceVideoPreview.duration)
+        ? ` · ${sourceVideoPreview.duration.toFixed(1)} s`
+        : '';
+      sourceVideoMeta.textContent = `${sourceVideoFile.name || 'video'} · ${formatBytes(sourceVideoFile.size)} · ${sourceVideoFile.type || 'video'}${seconds}`;
+      if (sourceVideoPreview.currentTime === 0 && Number.isFinite(sourceVideoPreview.duration) && sourceVideoPreview.duration > 0.2) {
+        sourceVideoPreview.currentTime = 0.1;
+      }
+    });
+    sourceVideoPreview.addEventListener('play', () => renderFinalVideoOverlayPreview(1));
+    sourceVideoPreview.addEventListener('seeked', () => renderFinalVideoOverlayPreview(1));
+  }
+  if (playFinalPreviewBtn) {
+    playFinalPreviewBtn.addEventListener('click', () => {
+      void playFinalPreview();
+    });
+  }
+  if (renderFinalVideoBtn) {
+    renderFinalVideoBtn.addEventListener('click', () => {
+      void exportFinalVideo();
+    });
+  }
   if (animDurationInput) {
     animDurationInput.addEventListener('input', () => {
       if (animDurationOutput) animDurationOutput.textContent = animDurationInput.value;
+      renderFinalVideoOverlayPreview(1);
       schedulePersistSettings();
     });
   }
@@ -2090,8 +2695,10 @@
 
   resetBtn.addEventListener('click', () => {
     stopRouteAnimPlayback();
+    stopFinalPreviewPlayback();
     invalidateRoutePathCache();
     currentState = null;
+    clearFinalVideoResult();
     results.hidden = true;
     clearError();
     titleInput.value = '';
@@ -2186,11 +2793,18 @@
     setTrackColor(trackColorInput.value);
   });
 
+  initWorkflowSections();
   initTrackColorPicker();
   const hadStoredSettings = restoreStoredSettings();
   updateStep2Controls();
   updateStep3Controls();
+  updateFinalVideoControls();
   renderStep2AnimPreview(1);
+  renderFinalVideoOverlayPreview(1);
+  void loadSourceVideoFromFiles().then((loadedFromQuery) => {
+    if (!loadedFromQuery) return restoreStoredSourceVideo();
+    return null;
+  });
   void loadSampleTrack({
     quiet: true,
     applyDemoContent: !hadStoredSettings,

@@ -12,12 +12,14 @@
     <link rel="stylesheet" href="/shared/site-header.css?v=20260527-1" />
     <link rel="stylesheet" href="/shared/color-picker.css?v=20260526-1" />
     <link rel="stylesheet" href="styles.css?v=20260520-3" />
-    <link rel="stylesheet" href="/shared/site-theme.css?v=20260527-1" />
-    <script src="/files/registry.js?v=20260526-1"></script>
+    <link rel="stylesheet" href="/shared/video-upload-block.css?v=20260527-1" />
+    <link rel="stylesheet" href="/shared/site-theme.css?v=20260527-2" />
+    <script src="/files/registry.js?v=20260527-1"></script>
     <script src="fonts-shared.js?v=20260520-1"></script>
     <script src="/shared/site-header.js?v=20260527-1" defer></script>
     <script src="/shared/color-picker.js?v=20260526-1" defer></script>
-    <script src="app.js?v=20260520-4" defer></script>
+    <script src="/shared/video-upload-block.js?v=20260527-1" defer></script>
+    <script src="app.js?v=20260527-1" defer></script>
   </head>
   <body>
     <header data-site-header data-active="subs" data-lang-ru="/subs/" data-lang-en="/subs/en"></header>
@@ -29,41 +31,24 @@
         </div>
       </section>
 
-      <section class="upload-panel" aria-labelledby="upload-title">
-        <div class="upload-copy">
-          <p class="eyebrow">Video</p>
-          <h2 id="upload-title">Upload to storage</h2>
-          <p>
-            Choose a vertical 1080×1920 px video up to 200 MB. It will be
-            uploaded to DigitalOcean Spaces, and this page will save a link like
-            <code>/subs/en/&lt;hash&gt;</code> in the browser local database.
-          </p>
-        </div>
-
-        <div class="upload-card">
-          <form class="upload-form" id="uploadForm">
-            <label class="file-picker" for="videoInput">
-              <span class="file-picker__title">Choose video</span>
-              <span class="file-picker__meta" id="fileMeta"
-                >Vertical 1080×1920 px only, up to 200 MB</span
-              >
-            </label>
-            <input id="videoInput" name="video" type="file" accept="video/*" />
-            <button
-              class="primary-link upload-button"
-              id="uploadButton"
-              type="submit"
-              disabled
-            >
-              Upload
-            </button>
-          </form>
-          <div class="progress" id="uploadProgress" hidden>
-            <div class="progress-bar" id="uploadProgressBar"></div>
-          </div>
-          <p class="upload-status" id="uploadStatus" role="status"></p>
-        </div>
-      </section>
+      <section
+        data-video-upload-block
+        data-title-id="upload-title"
+        data-eyebrow="Video"
+        data-title="Upload to storage"
+        data-description="Choose a vertical 1080×1920 px video up to 200 MB. It will be uploaded to DigitalOcean Spaces, and this page will save a link like /subs/en/&lt;hash&gt; in the browser local database."
+        data-form-id="uploadForm"
+        data-input-id="videoInput"
+        data-meta-id="fileMeta"
+        data-picker-title="Choose video"
+        data-picker-meta="Vertical 1080×1920 px only, up to 200 MB"
+        data-button-id="uploadButton"
+        data-button-label="Upload"
+        data-button-disabled="true"
+        data-progress-id="uploadProgress"
+        data-progress-bar-id="uploadProgressBar"
+        data-status-id="uploadStatus"
+      ></section>
 
       <section
         class="audio-panel editor-card"
