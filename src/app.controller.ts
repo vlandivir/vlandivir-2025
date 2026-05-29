@@ -32,6 +32,26 @@ export class AppController {
     res.sendFile(path.join(process.cwd(), 'web', 'home', 'en.html'));
   }
 
+  @Get('gpx-route-png')
+  getGpxRoutePng(@Res() res: Response): void {
+    res.sendFile(path.join(process.cwd(), 'web', 'gpx-route-png', 'index.html'));
+  }
+
+  @Get('gpx-route-png/en')
+  getGpxRoutePngEn(@Res() res: Response): void {
+    res.sendFile(path.join(process.cwd(), 'web', 'gpx-route-png', 'en.html'));
+  }
+
+  @Get('gpx-route-png/en/:videoId')
+  getGpxRoutePngEnVideoPage(@Res() res: Response): void {
+    res.sendFile(path.join(process.cwd(), 'web', 'gpx-route-png', 'en.html'));
+  }
+
+  @Get('gpx-route-png/:videoId')
+  getGpxRoutePngVideoPage(@Res() res: Response): void {
+    res.sendFile(path.join(process.cwd(), 'web', 'gpx-route-png', 'index.html'));
+  }
+
   @Get('subs')
   getSubs(@Res() res: Response): void {
     res.sendFile(path.join(process.cwd(), 'web', 'subs', 'index.html'));

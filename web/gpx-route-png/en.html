@@ -15,9 +15,9 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23163029'/><path d='M7 22 L13 10 L18 18 L25 8' stroke='%23E07A3C' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>" />
 <link rel="stylesheet" href="/shared/site-header.css?v=20260527-1" />
 <link rel="stylesheet" href="/shared/color-picker.css?v=20260526-1" />
-<link rel="stylesheet" href="/gpx-route-png/styles.css?v=20260527-2" />
+<link rel="stylesheet" href="/gpx-route-png/styles.css?v=20260529-1" />
 <link rel="stylesheet" href="/shared/video-upload-block.css?v=20260527-1" />
-<link rel="stylesheet" href="/shared/site-theme.css?v=20260527-2" />
+<link rel="stylesheet" href="/shared/site-theme.css?v=20260527-3" />
 </head>
 <body>
 <div class="grid-bg" aria-hidden="true"></div>
@@ -220,6 +220,22 @@
         </div>
       </div>
       <div class="final-video-controls">
+        <div class="final-overlay-controls" aria-label="Track overlay settings">
+          <label class="ctl" for="finalOverlayScaleInput">
+            <span class="ctl-label">Track size, % of video: <output id="finalOverlayScaleOutput">100</output></span>
+            <input id="finalOverlayScaleInput" type="range" min="20" max="180" step="1" value="100" />
+          </label>
+          <div class="field-grid">
+            <label class="ctl" for="finalOverlayOffsetXInput">
+              <span class="ctl-label">X offset, px</span>
+              <input id="finalOverlayOffsetXInput" type="number" min="-1080" max="1080" step="1" value="0" inputmode="numeric" />
+            </label>
+            <label class="ctl" for="finalOverlayOffsetYInput">
+              <span class="ctl-label">Y offset, px</span>
+              <input id="finalOverlayOffsetYInput" type="number" min="-1920" max="1920" step="1" value="0" inputmode="numeric" />
+            </label>
+          </div>
+        </div>
         <div class="step2-actions">
           <button type="button" class="ghost-btn" id="playFinalPreviewBtn" disabled>Preview</button>
           <button type="button" class="ghost-btn" id="renderFinalVideoBtn" disabled>Render final WebM</button>
@@ -239,6 +255,6 @@
 <script src="/shared/site-header.js?v=20260527-1"></script>
 <script src="/files/registry.js?v=20260527-1"></script>
 <script src="/shared/video-upload-block.js?v=20260527-1"></script>
-<script src="/gpx-route-png/app.js?v=20260527-2"></script>
+<script src="/gpx-route-png/app.js?v=20260529-1"></script>
 </body>
 </html>

@@ -187,6 +187,7 @@ main > .hero:first-child h1,
 .workflow-step,
 .step2-panel,
 .step3-panel,
+.final-video-panel,
 .stats-panel,
 .summary,
 .file-card,
@@ -363,12 +364,14 @@ main > .hero:first-child h1,
 .workflow-step .workbench,
 .results,
 .step2-panel,
-.step3-panel {
+.step3-panel,
+.final-video-panel {
   margin-top: 22px;
 }
 
 .step2-panel,
-.step3-panel {
+.step3-panel,
+.final-video-panel {
   padding: 18px;
 }
 

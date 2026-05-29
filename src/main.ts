@@ -63,6 +63,12 @@ async function bootstrap() {
     instance.get(/^\/gpx-route-png\/en\/?$/, (_req: unknown, res: Response) => {
       res.sendFile(path.join(gpxRoutePng, 'en.html'));
     });
+    instance.get(/^\/gpx-route-png\/en\/[^/]+\/?$/, (_req: unknown, res: Response) => {
+      res.sendFile(path.join(gpxRoutePng, 'en.html'));
+    });
+    instance.get(/^\/gpx-route-png\/(?!en(?:\/|$))[^/]+\/?$/, (_req: unknown, res: Response) => {
+      res.sendFile(path.join(gpxRoutePng, 'index.html'));
+    });
     instance.get(/^\/files\/?$/, (_req: unknown, res: Response) => {
       res.sendFile(path.join(filesPage, 'index.html'));
     });
@@ -117,6 +123,12 @@ async function bootstrap() {
     });
     instance.get(/^\/gpx-route-png\/en\/?$/, (_req: unknown, res: Response) => {
       res.sendFile(path.join(gpxRoutePng, 'en.html'));
+    });
+    instance.get(/^\/gpx-route-png\/en\/[^/]+\/?$/, (_req: unknown, res: Response) => {
+      res.sendFile(path.join(gpxRoutePng, 'en.html'));
+    });
+    instance.get(/^\/gpx-route-png\/(?!en(?:\/|$))[^/]+\/?$/, (_req: unknown, res: Response) => {
+      res.sendFile(path.join(gpxRoutePng, 'index.html'));
     });
     instance.get(/^\/files\/?$/, (_req: unknown, res: Response) => {
       res.sendFile(path.join(filesPage, 'index.html'));

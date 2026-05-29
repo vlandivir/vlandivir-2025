@@ -132,13 +132,27 @@
     return url.pathname + url.search;
   }
 
+  function cacheFolderId(file) {
+    const hash =
+      file.hash ||
+      String(file.id || '').match(/^subs:([a-f0-9]{24}):(source|render)$/)?.[1] ||
+      String(file.pageUrl || '').match(/^\/subs(?:\/en)?\/([a-f0-9]{24})\/?$/)?.[1];
+    return hash || encodeURIComponent(file.id);
+  }
+
+  function sourceFilePath(path, file) {
+    const base = path.endsWith('/') ? path : `${path}/`;
+    return `${base}${cacheFolderId(file)}`;
+  }
+
   function subsTargetUrl(file) {
     if (file.origin === 'subs-source' && file.pageUrl) return file.pageUrl;
     return sourceFileUrl(isEn ? '/subs/en' : '/subs/', file);
   }
 
   function trackTargetUrl(file) {
-    return sourceFileUrl(isEn ? '/gpx-route-png/en' : '/gpx-route-png/', file);
+    const base = isEn ? '/gpx-route-png/en/' : '/gpx-route-png/';
+    return `${base}${encodeURIComponent(file.id)}`;
   }
 
   function originLabel(file) {
@@ -157,6 +171,7 @@
     if (video.videoUrl) {
       files.push({
         id: `subs:${video.hash}:source`,
+        hash: video.hash,
         sourceApp: 'subs',
         origin: 'subs-source',
         name: video.originalName || `${TEXT.video} ${video.hash}`,
@@ -173,6 +188,7 @@
     if (video.audioUrl) {
       files.push({
         id: `subs:${video.hash}:audio`,
+        hash: video.hash,
         sourceApp: 'subs',
         origin: 'subs-audio',
         name: `${video.hash}-audio.mp3`,
@@ -189,6 +205,7 @@
     if (video.renderedVideo?.videoUrl) {
       files.push({
         id: `subs:${video.hash}:render`,
+        hash: video.hash,
         sourceApp: 'subs',
         origin: 'subs-render',
         name: `${video.hash}-subtitled.mp4`,

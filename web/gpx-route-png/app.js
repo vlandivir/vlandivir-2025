@@ -168,6 +168,7 @@
   const fileInput = document.getElementById('fileInput');
   const browseBtn = document.getElementById('browseBtn');
   const sampleBtn = document.getElementById('sampleBtn');
+  const sampleLine = sampleBtn?.closest('.sample-line');
   const errorBox = document.getElementById('errorBox');
   const results = document.getElementById('results');
   const canvas = document.getElementById('previewCanvas');
@@ -191,6 +192,7 @@
   const downloadTransparentPngBtn = document.getElementById('downloadTransparentPngBtn');
   const step2AnimCanvas = document.getElementById('step2AnimCanvas');
   const step2AnimPlaceholder = document.getElementById('step2AnimPlaceholder');
+  const step2AnimBg = document.querySelector('.step2-anim-preview-shell .step2-preview-shell__bg');
   const step3TrackPreviewCanvas = document.getElementById('step3TrackPreviewCanvas');
   const step3TrackPlaceholder = document.getElementById('step3TrackPlaceholder');
   const animDurationInput = document.getElementById('animDurationInput');
@@ -212,6 +214,10 @@
   const finalVideoLink = document.getElementById('finalVideoLink');
   const finalVideoDownloadLink = document.getElementById('finalVideoDownloadLink');
   const finalVideoStatus = document.getElementById('finalVideoStatus');
+  const finalOverlayScaleInput = document.getElementById('finalOverlayScaleInput');
+  const finalOverlayScaleOutput = document.getElementById('finalOverlayScaleOutput');
+  const finalOverlayOffsetXInput = document.getElementById('finalOverlayOffsetXInput');
+  const finalOverlayOffsetYInput = document.getElementById('finalOverlayOffsetYInput');
 
   const statSource = document.getElementById('statSource');
   const statOriginal = document.getElementById('statOriginal');
@@ -233,6 +239,7 @@
   let sourceVideoFile = null;
   let selectedSourceVideoFileId = '';
   let sourceVideoObjectUrl = '';
+  let step2VideoFrameDataUrl = '';
   let finalVideoObjectUrl = '';
   let finalPreviewRafId = null;
   let finalPreviewPlaying = false;
@@ -618,8 +625,39 @@
     rust: '#c95a2b',
   };
 
-  const SETTINGS_STORAGE_KEY = 'gpx-route-png/v1';
-  const SECTION_PREFS_STORAGE_KEY = 'gpx-route-png/sections/v1';
+  function sourceFileIdFromQuery() {
+    return new URLSearchParams(window.location.search).get('sourceFile');
+  }
+
+  function videoFileIdFromPath() {
+    const pathname = window.location.pathname.replace(/\/+$/, '');
+    const pattern = LANG === 'en'
+      ? /^\/gpx-route-png\/en\/(.+)$/
+      : /^\/gpx-route-png\/(?!en(?:\/|$))(.+)$/;
+    const match = pathname.match(pattern);
+    if (!match) return '';
+    try {
+      return decodeURIComponent(match[1]);
+    } catch (_e) {
+      return match[1];
+    }
+  }
+
+  function videoPagePath(fileId) {
+    const encoded = /^[a-f0-9]{24}$/.test(fileId) ? fileId : encodeURIComponent(fileId);
+    return LANG === 'en'
+      ? `/gpx-route-png/en/${encoded}`
+      : `/gpx-route-png/${encoded}`;
+  }
+
+  const PAGE_SOURCE_VIDEO_FILE_ID = videoFileIdFromPath() || sourceFileIdFromQuery() || '';
+  const IS_VIDEO_CONTEXT = Boolean(PAGE_SOURCE_VIDEO_FILE_ID);
+  const SETTINGS_STORAGE_KEY = IS_VIDEO_CONTEXT
+    ? `gpx-route-png/video/${PAGE_SOURCE_VIDEO_FILE_ID}/v1`
+    : 'gpx-route-png/v1';
+  const SECTION_PREFS_STORAGE_KEY = IS_VIDEO_CONTEXT
+    ? `gpx-route-png/video/${PAGE_SOURCE_VIDEO_FILE_ID}/sections/v1`
+    : 'gpx-route-png/sections/v1';
   const DEFAULT_SECTION_OPEN = {
     track: true,
     animation: true,
@@ -636,6 +674,9 @@
     trackColor: '#e07a3c',
     animDuration: 5,
     animFps: 30,
+    finalOverlayScale: 100,
+    finalOverlayOffsetX: 0,
+    finalOverlayOffsetY: 0,
     sourceVideoFileId: '',
     waypoints: [],
   };
@@ -679,7 +720,10 @@
       trackColor: currentTrackColor,
       animDuration: Number.parseFloat(animDurationInput?.value || String(DEFAULT_SETTINGS.animDuration)) || DEFAULT_SETTINGS.animDuration,
       animFps: ANIM_EXPORT_FPS_OPTIONS.includes(fps) ? fps : DEFAULT_SETTINGS.animFps,
-      sourceVideoFileId: selectedSourceVideoFileId,
+      finalOverlayScale: Number.parseInt(finalOverlayScaleInput?.value || String(DEFAULT_SETTINGS.finalOverlayScale), 10) || DEFAULT_SETTINGS.finalOverlayScale,
+      finalOverlayOffsetX: Number.parseInt(finalOverlayOffsetXInput?.value || String(DEFAULT_SETTINGS.finalOverlayOffsetX), 10) || DEFAULT_SETTINGS.finalOverlayOffsetX,
+      finalOverlayOffsetY: Number.parseInt(finalOverlayOffsetYInput?.value || String(DEFAULT_SETTINGS.finalOverlayOffsetY), 10) || DEFAULT_SETTINGS.finalOverlayOffsetY,
+      sourceVideoFileId: selectedSourceVideoFileId || PAGE_SOURCE_VIDEO_FILE_ID,
       waypoints: collectWaypointsForStorage(),
     };
   }
@@ -710,6 +754,9 @@
       trackColor,
       animDuration: clampSettingNumber(raw.animDuration, 1, 30, DEFAULT_SETTINGS.animDuration),
       animFps: ANIM_EXPORT_FPS_OPTIONS.includes(animFps) ? animFps : DEFAULT_SETTINGS.animFps,
+      finalOverlayScale: clampSettingNumber(raw.finalOverlayScale, 20, 180, DEFAULT_SETTINGS.finalOverlayScale),
+      finalOverlayOffsetX: clampSettingNumber(raw.finalOverlayOffsetX, -1080, 1080, DEFAULT_SETTINGS.finalOverlayOffsetX),
+      finalOverlayOffsetY: clampSettingNumber(raw.finalOverlayOffsetY, -1920, 1920, DEFAULT_SETTINGS.finalOverlayOffsetY),
       sourceVideoFileId: typeof raw.sourceVideoFileId === 'string' ? raw.sourceVideoFileId : '',
       waypoints,
     };
@@ -820,7 +867,11 @@
       if (animDurationOutput) animDurationOutput.textContent = String(normalized.animDuration);
     }
     if (animFpsSelect) animFpsSelect.value = String(normalized.animFps);
-    selectedSourceVideoFileId = normalized.sourceVideoFileId;
+    if (finalOverlayScaleInput) finalOverlayScaleInput.value = String(normalized.finalOverlayScale);
+    if (finalOverlayScaleOutput) finalOverlayScaleOutput.textContent = String(normalized.finalOverlayScale);
+    if (finalOverlayOffsetXInput) finalOverlayOffsetXInput.value = String(normalized.finalOverlayOffsetX);
+    if (finalOverlayOffsetYInput) finalOverlayOffsetYInput.value = String(normalized.finalOverlayOffsetY);
+    selectedSourceVideoFileId = normalized.sourceVideoFileId || PAGE_SOURCE_VIDEO_FILE_ID;
     waypointList.textContent = '';
     waypointCounter = 0;
     normalized.waypoints.forEach((waypoint) => {
@@ -1000,6 +1051,25 @@
     return seconds * 1000;
   }
 
+  function getFinalOverlayControls() {
+    return {
+      scale: clampSettingNumber(finalOverlayScaleInput?.value, 20, 180, DEFAULT_SETTINGS.finalOverlayScale) / 100,
+      offsetX: clampSettingNumber(finalOverlayOffsetXInput?.value, -1080, 1080, DEFAULT_SETTINGS.finalOverlayOffsetX),
+      offsetY: clampSettingNumber(finalOverlayOffsetYInput?.value, -1920, 1920, DEFAULT_SETTINGS.finalOverlayOffsetY),
+    };
+  }
+
+  function drawFinalTrackOverlay(targetCtx, geo, progress = 1) {
+    const overlay = getFinalOverlayControls();
+    targetCtx.save();
+    targetCtx.translate(CANVAS_W / 2 + overlay.offsetX, CANVAS_H / 2 + overlay.offsetY);
+    targetCtx.scale(overlay.scale, overlay.scale);
+    targetCtx.translate(-CANVAS_W / 2, -CANVAS_H / 2);
+    if (progress >= 1) drawTrackOverlayLayers(targetCtx, geo);
+    else drawTrackTraversalLayers(targetCtx, geo, progress);
+    targetCtx.restore();
+  }
+
   function getAnimExportFps() {
     const fps = parseInt(animFpsSelect?.value || '30', 10);
     return ANIM_EXPORT_FPS_OPTIONS.includes(fps) ? fps : 30;
@@ -1080,6 +1150,23 @@
       : `/subs-api/videos/${hash}/render/download`;
   }
 
+  async function findSourceVideoRecord(id) {
+    if (!window.UserFilesRegistry?.get) return null;
+
+    const direct = await window.UserFilesRegistry.get(id);
+    if (direct) return direct;
+
+    if (/^[a-f0-9]{24}$/.test(id)) {
+      const source = await window.UserFilesRegistry.get(`subs:${id}:source`);
+      if (source) return source;
+      const rendered = await window.UserFilesRegistry.get(`subs:${id}:render`);
+      if (rendered) return rendered;
+      return { id: `subs:${id}:source`, hash: id };
+    }
+
+    return null;
+  }
+
   function registryFileName(record, fallback = 'source-video.mp4') {
     return String(record?.name || fallback).trim() || fallback;
   }
@@ -1106,10 +1193,6 @@
       type: blob.type?.startsWith('video/') ? blob.type : type,
       lastModified: Date.parse(record.updatedAt || record.createdAt) || Date.now(),
     });
-  }
-
-  function sourceFileIdFromQuery() {
-    return new URLSearchParams(window.location.search).get('sourceFile');
   }
 
   function clearFinalVideoResult() {
@@ -1168,8 +1251,34 @@
       browseSourceVideoBtn.textContent = copy.chooseSourceVideo;
     }
     if (sourceVideoInput) sourceVideoInput.disabled = locked;
+    [finalOverlayScaleInput, finalOverlayOffsetXInput, finalOverlayOffsetYInput].forEach((input) => {
+      if (input) input.disabled = locked;
+    });
     if (finalVideoStatus && (!hasTrack || !hasVideo) && !finalVideoExportInProgress) {
       finalVideoStatus.textContent = copy.finalVideoNeedsTrackAndVideo;
+    }
+  }
+
+  function updateSampleButtonVisibility() {
+    if (!sampleLine && !sampleBtn) return;
+    const shouldHide = IS_VIDEO_CONTEXT || Boolean(currentState) || Boolean(sourceVideoFile);
+    const target = sampleLine || sampleBtn;
+    target.hidden = shouldHide;
+  }
+
+  function updateStep2VideoFrameBackground() {
+    if (!step2AnimBg || !sourceVideoPreview || !sourceVideoFile) return;
+    if (sourceVideoPreview.readyState < 2) return;
+    try {
+      const frameCanvas = document.createElement('canvas');
+      frameCanvas.width = CANVAS_W;
+      frameCanvas.height = CANVAS_H;
+      const frameCtx = frameCanvas.getContext('2d');
+      drawVideoFrameCover(sourceVideoPreview, frameCtx, CANVAS_W, CANVAS_H);
+      step2VideoFrameDataUrl = frameCanvas.toDataURL('image/jpeg', 0.88);
+      step2AnimBg.src = step2VideoFrameDataUrl;
+    } catch (error) {
+      console.warn('Failed to use source video frame as animation background', error);
     }
   }
 
@@ -1184,8 +1293,7 @@
     if (!geo) return;
     finalVideoOverlayCanvas.hidden = false;
     overlayCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
-    if (progress >= 1) drawTrackOverlayLayers(overlayCtx, geo);
-    else drawTrackTraversalLayers(overlayCtx, geo, progress);
+    drawFinalTrackOverlay(overlayCtx, geo, progress);
   }
 
   async function setSourceVideoFile(file, options = {}) {
@@ -1212,6 +1320,8 @@
       const record = await rememberGpxSourceVideo(file);
       if (record?.id) selectedSourceVideoFileId = record.id;
     }
+    updateSampleButtonVisibility();
+    updateStep2VideoFrameBackground();
     schedulePersistSettings();
     renderFinalVideoOverlayPreview(1);
     updateFinalVideoControls();
@@ -1219,7 +1329,8 @@
   }
 
   async function loadSourceVideoFromFiles() {
-    const sourceFileId = sourceFileIdFromQuery();
+    const querySourceFileId = sourceFileIdFromQuery();
+    const sourceFileId = PAGE_SOURCE_VIDEO_FILE_ID || querySourceFileId;
     if (!sourceFileId) return false;
     if (!window.UserFilesRegistry?.get) {
       if (finalVideoStatus) finalVideoStatus.textContent = copy.sourceVideoLoadFailed;
@@ -1229,18 +1340,18 @@
     if (sourceVideoStatus) sourceVideoStatus.textContent = copy.sourceVideoFromFiles;
     if (finalVideoStatus) finalVideoStatus.textContent = copy.sourceVideoFromFiles;
     try {
-      const storedRecord = await window.UserFilesRegistry.get(sourceFileId);
+      const storedRecord = await findSourceVideoRecord(sourceFileId);
       const record = storedRecord || (/^subs:[a-f0-9]{24}:(source|render)$/.test(sourceFileId)
         ? { id: sourceFileId }
         : null);
       const file = await registryRecordToVideoFile(record);
       await setSourceVideoFile(file, {
         remember: !storedRecord,
-        recordId: storedRecord?.id || sourceFileId,
+        recordId: /^[a-f0-9]{24}$/.test(sourceFileId) ? sourceFileId : storedRecord?.id || sourceFileId,
       });
-      const url = new URL(window.location.href);
-      url.searchParams.delete('sourceFile');
-      window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+      if (querySourceFileId) {
+        window.history.replaceState(null, '', videoPagePath(sourceFileId));
+      }
       return true;
     } catch (error) {
       if (sourceVideoStatus) {
@@ -1259,7 +1370,7 @@
     }
 
     try {
-      const record = await window.UserFilesRegistry.get(selectedSourceVideoFileId);
+      const record = await findSourceVideoRecord(selectedSourceVideoFileId);
       if (!record) return false;
       const file = await registryRecordToVideoFile(record);
       await setSourceVideoFile(file, {
@@ -1317,13 +1428,14 @@
     });
   }
 
-  function stopFinalPreviewPlayback() {
+  function stopFinalPreviewPlayback(options = {}) {
+    const { resetVideo = true } = options;
     if (finalPreviewRafId !== null) {
       cancelAnimationFrame(finalPreviewRafId);
       finalPreviewRafId = null;
     }
     finalPreviewPlaying = false;
-    if (sourceVideoPreview) {
+    if (sourceVideoPreview && resetVideo) {
       sourceVideoPreview.pause();
       sourceVideoPreview.currentTime = 0;
     }
@@ -1331,12 +1443,13 @@
     updateFinalVideoControls();
   }
 
-  async function playFinalPreview() {
+  async function playFinalPreview(options = {}) {
+    const { resetVideo = true } = options;
     if (!currentState || !sourceVideoFile || finalPreviewPlaying || finalVideoExportInProgress) return;
-    stopFinalPreviewPlayback();
+    stopFinalPreviewPlayback({ resetVideo });
     finalPreviewPlaying = true;
     updateFinalVideoControls();
-    sourceVideoPreview.currentTime = 0;
+    if (resetVideo) sourceVideoPreview.currentTime = 0;
     await waitForVideoPlaying(sourceVideoPreview);
     const durationMs = Math.min(
       getAnimDurationMs(),
@@ -1452,8 +1565,7 @@
         exportCtx.fillStyle = '#000';
         exportCtx.fillRect(0, 0, CANVAS_W, CANVAS_H);
         drawVideoCoverFrame(exportCtx, exportVideo, CANVAS_W, CANVAS_H);
-        if (progress >= 1) drawTrackOverlayLayers(exportCtx, geo);
-        else drawTrackTraversalLayers(exportCtx, geo, progress);
+        drawFinalTrackOverlay(exportCtx, geo, progress);
       };
 
       recorder.start();
@@ -2495,6 +2607,7 @@
       updateStatsPanel(currentState);
       render();
       results.hidden = false;
+      updateSampleButtonVisibility();
       schedulePersistSettings();
       if (scrollToResults) {
         results.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -2663,10 +2776,21 @@
       sourceVideoMeta.textContent = `${sourceVideoFile.name || 'video'} · ${formatBytes(sourceVideoFile.size)} · ${sourceVideoFile.type || 'video'}${seconds}`;
       if (sourceVideoPreview.currentTime === 0 && Number.isFinite(sourceVideoPreview.duration) && sourceVideoPreview.duration > 0.2) {
         sourceVideoPreview.currentTime = 0.1;
+      } else {
+        updateStep2VideoFrameBackground();
       }
     });
-    sourceVideoPreview.addEventListener('play', () => renderFinalVideoOverlayPreview(1));
-    sourceVideoPreview.addEventListener('seeked', () => renderFinalVideoOverlayPreview(1));
+    sourceVideoPreview.addEventListener('play', () => {
+      if (currentState && !finalPreviewPlaying && !finalVideoExportInProgress) {
+        void playFinalPreview({ resetVideo: false });
+        return;
+      }
+      renderFinalVideoOverlayPreview(1);
+    });
+    sourceVideoPreview.addEventListener('seeked', () => {
+      updateStep2VideoFrameBackground();
+      renderFinalVideoOverlayPreview(1);
+    });
   }
   if (playFinalPreviewBtn) {
     playFinalPreviewBtn.addEventListener('click', () => {
@@ -2688,6 +2812,20 @@
   if (animFpsSelect) {
     animFpsSelect.addEventListener('change', () => schedulePersistSettings());
   }
+  if (finalOverlayScaleInput) {
+    finalOverlayScaleInput.addEventListener('input', () => {
+      if (finalOverlayScaleOutput) finalOverlayScaleOutput.textContent = finalOverlayScaleInput.value;
+      renderFinalVideoOverlayPreview(1);
+      schedulePersistSettings();
+    });
+  }
+  [finalOverlayOffsetXInput, finalOverlayOffsetYInput].forEach((input) => {
+    if (!input) return;
+    input.addEventListener('input', () => {
+      renderFinalVideoOverlayPreview(1);
+      schedulePersistSettings();
+    });
+  });
 
   if (resetSettingsBtn) {
     resetSettingsBtn.addEventListener('click', () => resetSettingsToDefaults());
@@ -2705,6 +2843,7 @@
     waypointList.textContent = '';
     waypointCounter = 0;
     refreshWorkflowOutputs();
+    updateSampleButtonVisibility();
     schedulePersistSettings();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   });
@@ -2799,17 +2938,20 @@
   updateStep2Controls();
   updateStep3Controls();
   updateFinalVideoControls();
+  updateSampleButtonVisibility();
   renderStep2AnimPreview(1);
   renderFinalVideoOverlayPreview(1);
   void loadSourceVideoFromFiles().then((loadedFromQuery) => {
     if (!loadedFromQuery) return restoreStoredSourceVideo();
     return null;
   });
-  void loadSampleTrack({
-    quiet: true,
-    applyDemoContent: !hadStoredSettings,
-    preserveWaypoints: hadStoredSettings,
-  }).then(() => {
-    if (!hadStoredSettings) persistSettings();
-  });
+  if (!IS_VIDEO_CONTEXT) {
+    void loadSampleTrack({
+      quiet: true,
+      applyDemoContent: !hadStoredSettings,
+      preserveWaypoints: hadStoredSettings,
+    }).then(() => {
+      if (!hadStoredSettings) persistSettings();
+    });
+  }
 })();
