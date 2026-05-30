@@ -218,6 +218,7 @@
   const finalOverlayScaleOutput = document.getElementById('finalOverlayScaleOutput');
   const finalOverlayOffsetXInput = document.getElementById('finalOverlayOffsetXInput');
   const finalOverlayOffsetYInput = document.getElementById('finalOverlayOffsetYInput');
+  const finalAnimationStartInput = document.getElementById('finalAnimationStartInput');
 
   const statSource = document.getElementById('statSource');
   const statOriginal = document.getElementById('statOriginal');
@@ -677,6 +678,7 @@
     finalOverlayScale: 100,
     finalOverlayOffsetX: 0,
     finalOverlayOffsetY: 0,
+    finalAnimationStart: 0,
     sourceVideoFileId: '',
     waypoints: [],
   };
@@ -687,6 +689,10 @@
   function clampSettingNumber(value, min, max, fallback) {
     const n = Number(value);
     return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback;
+  }
+
+  function clampFinalAnimationStart(value) {
+    return Math.round(clampSettingNumber(value, 0, 600, DEFAULT_SETTINGS.finalAnimationStart) * 10) / 10;
   }
 
   function normalizeTrackColor(value) {
@@ -723,6 +729,7 @@
       finalOverlayScale: Number.parseInt(finalOverlayScaleInput?.value || String(DEFAULT_SETTINGS.finalOverlayScale), 10) || DEFAULT_SETTINGS.finalOverlayScale,
       finalOverlayOffsetX: Number.parseInt(finalOverlayOffsetXInput?.value || String(DEFAULT_SETTINGS.finalOverlayOffsetX), 10) || DEFAULT_SETTINGS.finalOverlayOffsetX,
       finalOverlayOffsetY: Number.parseInt(finalOverlayOffsetYInput?.value || String(DEFAULT_SETTINGS.finalOverlayOffsetY), 10) || DEFAULT_SETTINGS.finalOverlayOffsetY,
+      finalAnimationStart: clampFinalAnimationStart(finalAnimationStartInput?.value),
       sourceVideoFileId: selectedSourceVideoFileId || PAGE_SOURCE_VIDEO_FILE_ID,
       waypoints: collectWaypointsForStorage(),
     };
@@ -757,6 +764,7 @@
       finalOverlayScale: clampSettingNumber(raw.finalOverlayScale, 20, 180, DEFAULT_SETTINGS.finalOverlayScale),
       finalOverlayOffsetX: clampSettingNumber(raw.finalOverlayOffsetX, -1080, 1080, DEFAULT_SETTINGS.finalOverlayOffsetX),
       finalOverlayOffsetY: clampSettingNumber(raw.finalOverlayOffsetY, -1920, 1920, DEFAULT_SETTINGS.finalOverlayOffsetY),
+      finalAnimationStart: clampFinalAnimationStart(raw.finalAnimationStart),
       sourceVideoFileId: typeof raw.sourceVideoFileId === 'string' ? raw.sourceVideoFileId : '',
       waypoints,
     };
@@ -871,6 +879,7 @@
     if (finalOverlayScaleOutput) finalOverlayScaleOutput.textContent = String(normalized.finalOverlayScale);
     if (finalOverlayOffsetXInput) finalOverlayOffsetXInput.value = String(normalized.finalOverlayOffsetX);
     if (finalOverlayOffsetYInput) finalOverlayOffsetYInput.value = String(normalized.finalOverlayOffsetY);
+    if (finalAnimationStartInput) finalAnimationStartInput.value = normalized.finalAnimationStart.toFixed(1);
     selectedSourceVideoFileId = normalized.sourceVideoFileId || PAGE_SOURCE_VIDEO_FILE_ID;
     waypointList.textContent = '';
     waypointCounter = 0;
@@ -1049,6 +1058,17 @@
     const seconds = parseFloat(animDurationInput?.value || '5');
     if (!Number.isFinite(seconds) || seconds <= 0) return 5000;
     return seconds * 1000;
+  }
+
+  function getFinalAnimationStartMs() {
+    const seconds = clampFinalAnimationStart(finalAnimationStartInput?.value);
+    return seconds * 1000;
+  }
+
+  function getFinalTrackProgress(elapsedMs) {
+    const startMs = getFinalAnimationStartMs();
+    if (elapsedMs < startMs) return 0;
+    return Math.min(1, (elapsedMs - startMs) / getAnimDurationMs());
   }
 
   function getFinalOverlayControls() {
@@ -1251,7 +1271,7 @@
       browseSourceVideoBtn.textContent = copy.chooseSourceVideo;
     }
     if (sourceVideoInput) sourceVideoInput.disabled = locked;
-    [finalOverlayScaleInput, finalOverlayOffsetXInput, finalOverlayOffsetYInput].forEach((input) => {
+    [finalOverlayScaleInput, finalOverlayOffsetXInput, finalOverlayOffsetYInput, finalAnimationStartInput].forEach((input) => {
       if (input) input.disabled = locked;
     });
     if (finalVideoStatus && (!hasTrack || !hasVideo) && !finalVideoExportInProgress) {
@@ -1451,27 +1471,29 @@
     updateFinalVideoControls();
     if (resetVideo) sourceVideoPreview.currentTime = 0;
     await waitForVideoPlaying(sourceVideoPreview);
+    const totalAnimationMs = getFinalAnimationStartMs() + getAnimDurationMs();
     const durationMs = Math.min(
-      getAnimDurationMs(),
-      Number.isFinite(sourceVideoPreview.duration) ? sourceVideoPreview.duration * 1000 : getAnimDurationMs(),
+      totalAnimationMs,
+      Number.isFinite(sourceVideoPreview.duration) ? sourceVideoPreview.duration * 1000 : totalAnimationMs,
     );
     const startedAt = performance.now();
 
     const tick = (now) => {
-      const progress = Math.min(1, (now - startedAt) / durationMs);
+      const elapsedMs = now - startedAt;
+      const progress = getFinalTrackProgress(elapsedMs);
       renderFinalVideoOverlayPreview(progress);
-      if (progress < 1 && !sourceVideoPreview.ended) {
+      if (elapsedMs < durationMs && progress < 1 && !sourceVideoPreview.ended) {
         finalPreviewRafId = requestAnimationFrame(tick);
         return;
       }
       finalPreviewRafId = null;
       finalPreviewPlaying = false;
       sourceVideoPreview.pause();
-      renderFinalVideoOverlayPreview(1);
+      renderFinalVideoOverlayPreview(getFinalTrackProgress(durationMs));
       updateFinalVideoControls();
     };
 
-    renderFinalVideoOverlayPreview(0);
+    renderFinalVideoOverlayPreview(getFinalTrackProgress(0));
     finalPreviewRafId = requestAnimationFrame(tick);
   }
 
@@ -1535,11 +1557,12 @@
       await waitForVideoMetadata(exportVideo);
       exportVideo.currentTime = 0;
       const fps = getAnimExportFps();
+      const totalAnimationMs = getFinalAnimationStartMs() + getAnimDurationMs();
       const durationMs = Math.max(
         500,
         Math.min(
-          getAnimDurationMs(),
-          Number.isFinite(exportVideo.duration) ? exportVideo.duration * 1000 : getAnimDurationMs(),
+          totalAnimationMs,
+          Number.isFinite(exportVideo.duration) ? exportVideo.duration * 1000 : totalAnimationMs,
         ),
       );
 
@@ -1573,13 +1596,14 @@
       const startedAt = performance.now();
       await new Promise((resolve) => {
         const tick = (now) => {
-          const progress = Math.min(1, (now - startedAt) / durationMs);
+          const elapsedMs = now - startedAt;
+          const progress = getFinalTrackProgress(elapsedMs);
           drawFrame(progress);
-          if (progress < 1 && !exportVideo.ended) {
+          if (elapsedMs < durationMs && progress < 1 && !exportVideo.ended) {
             requestAnimationFrame(tick);
             return;
           }
-          drawFrame(1);
+          drawFrame(getFinalTrackProgress(durationMs));
           resolve();
         };
         requestAnimationFrame(tick);
@@ -2819,13 +2843,19 @@
       schedulePersistSettings();
     });
   }
-  [finalOverlayOffsetXInput, finalOverlayOffsetYInput].forEach((input) => {
+  [finalOverlayOffsetXInput, finalOverlayOffsetYInput, finalAnimationStartInput].forEach((input) => {
     if (!input) return;
     input.addEventListener('input', () => {
       renderFinalVideoOverlayPreview(1);
       schedulePersistSettings();
     });
   });
+  if (finalAnimationStartInput) {
+    finalAnimationStartInput.addEventListener('change', () => {
+      finalAnimationStartInput.value = clampFinalAnimationStart(finalAnimationStartInput.value).toFixed(1);
+      schedulePersistSettings();
+    });
+  }
 
   if (resetSettingsBtn) {
     resetSettingsBtn.addEventListener('click', () => resetSettingsToDefaults());
