@@ -5,7 +5,10 @@
   const totalSize = document.querySelector('#totalSize');
   const sourceCount = document.querySelector('#sourceCount');
   const refreshButton = document.querySelector('#refreshButton');
+  const searchInput = document.querySelector('#searchInput');
   const objectUrls = new Map();
+  const commentSaveTimers = new Map();
+  let allFiles = [];
   const isEn = document.documentElement.lang?.toLowerCase().startsWith('en');
   const TEXT = isEn
     ? {
@@ -50,6 +53,10 @@
         download: 'Download',
         useInSubs: 'Use in Subs',
         useInTrack: 'Use in track',
+        commentLabel: 'Comment',
+        commentPlaceholder: 'One-line note to find this file later',
+        empty: 'No files yet. Upload a video on /subs or download a result from /gpx-route-png.',
+        noMatches: 'No files match this search.',
         locale: 'en-US',
       }
     : {
@@ -84,6 +91,10 @@
         download: 'Скачать',
         useInSubs: 'В Subs',
         useInTrack: 'В трек',
+        commentLabel: 'Комментарий',
+        commentPlaceholder: 'Однострочная заметка, чтобы потом найти файл',
+        empty: 'Пока нет файлов. Загрузите видео на /subs или скачайте результат на /gpx-route-png.',
+        noMatches: 'По этому запросу файлы не найдены.',
         locale: 'ru-RU',
       };
 
@@ -240,6 +251,53 @@
     );
   }
 
+  function searchableText(file) {
+    return [
+      file.name,
+      file.url,
+      file.pageUrl,
+      file.mimeType,
+      originLabel(file),
+      TEXT.descriptions[file.origin],
+      file.description,
+      file.context,
+      file.comment,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+  }
+
+  function filterFiles(files) {
+    const query = searchInput?.value.trim().toLowerCase();
+    if (!query) return files;
+    return files.filter((file) => searchableText(file).includes(query));
+  }
+
+  function saveComment(file, comment) {
+    const nextComment = comment.trim();
+    if ((file.comment || '') === nextComment) return;
+
+    file.comment = nextComment;
+    window.UserFilesRegistry.upsert({
+      ...file,
+      comment: nextComment,
+    }).catch((error) => {
+      console.error('Failed to save file comment', error);
+    });
+  }
+
+  function scheduleCommentSave(file, input) {
+    clearTimeout(commentSaveTimers.get(file.id));
+    commentSaveTimers.set(
+      file.id,
+      window.setTimeout(() => {
+        commentSaveTimers.delete(file.id);
+        saveComment(file, input.value);
+      }, 350),
+    );
+  }
+
   function makeCard(file) {
     const card = document.createElement('article');
     card.className = 'file-card';
@@ -270,6 +328,30 @@
       TEXT.noDetails;
 
     content.append(head, meta, details);
+
+    const commentField = document.createElement('label');
+    commentField.className = 'file-card__comment';
+    const commentLabel = document.createElement('span');
+    commentLabel.textContent = TEXT.commentLabel;
+    const commentInput = document.createElement('input');
+    commentInput.type = 'text';
+    commentInput.maxLength = 180;
+    commentInput.dataset.fileId = file.id;
+    commentInput.value = file.comment || '';
+    commentInput.placeholder = TEXT.commentPlaceholder;
+    commentInput.addEventListener('input', () => {
+      scheduleCommentSave(file, commentInput);
+    });
+    commentInput.addEventListener('change', () => {
+      clearTimeout(commentSaveTimers.get(file.id));
+      commentSaveTimers.delete(file.id);
+      saveComment(file, commentInput.value);
+    });
+    commentInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') commentInput.blur();
+    });
+    commentField.append(commentLabel, commentInput);
+    content.append(commentField);
 
     if (file.url) {
       const url = document.createElement('a');
@@ -319,13 +401,14 @@
     return card;
   }
 
-  async function render() {
+  function renderList() {
     for (const url of objectUrls.values()) URL.revokeObjectURL(url);
     objectUrls.clear();
 
-    const files = await listFiles();
+    const files = filterFiles(allFiles);
     fileList.replaceChildren(...files.map(makeCard));
     emptyState.hidden = files.length > 0;
+    emptyState.textContent = allFiles.length > 0 ? TEXT.noMatches : TEXT.empty;
 
     const knownSize = files.reduce((sum, file) => sum + (Number(file.size) || 0), 0);
     totalCount.textContent = String(files.length);
@@ -333,11 +416,24 @@
     sourceCount.textContent = String(new Set(files.map((file) => file.sourceApp || file.origin)).size);
   }
 
+  async function render() {
+    allFiles = await listFiles();
+    renderList();
+  }
+
   refreshButton.addEventListener('click', () => {
     void render();
   });
 
+  searchInput?.addEventListener('input', renderList);
+
   window.addEventListener('beforeunload', () => {
+    for (const [id, timer] of commentSaveTimers) {
+      clearTimeout(timer);
+      const file = allFiles.find((item) => item.id === id);
+      const input = fileList.querySelector(`.file-card__comment input[data-file-id="${CSS.escape(id)}"]`);
+      if (file && input) saveComment(file, input.value);
+    }
     for (const url of objectUrls.values()) URL.revokeObjectURL(url);
   });
 

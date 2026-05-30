@@ -86,6 +86,30 @@ h1 {
   background: var(--panel);
 }
 
+.file-search {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 18px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.file-search input,
+.file-card__comment input {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+}
+
+.file-search input {
+  padding: 0 14px;
+}
+
 .file-list {
   display: grid;
   gap: 12px;
@@ -142,6 +166,21 @@ h1 {
 
 .file-card__details {
   margin-top: 8px;
+}
+
+.file-card__comment {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.file-card__comment input {
+  padding: 0 12px;
+  font-size: 14px;
+  font-weight: 400;
 }
 
 .file-card__url {
