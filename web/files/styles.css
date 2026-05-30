@@ -117,7 +117,8 @@ h1 {
 
 .file-card {
   display: grid;
-  grid-template-columns: 132px minmax(0, 1fr) auto;
+  grid-template-columns: clamp(160px, 11vw, 190px) minmax(0, 1fr) 124px;
+  align-items: start;
   gap: 18px;
   padding: 18px;
   border: 1px solid var(--line);
@@ -128,8 +129,8 @@ h1 {
 .file-card__preview {
   display: grid;
   place-items: center;
-  width: 132px;
-  aspect-ratio: 16 / 10;
+  width: 100%;
+  aspect-ratio: 9 / 16;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -225,7 +226,7 @@ h1 {
 
 .file-card__actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   align-items: start;
   justify-content: flex-end;
   gap: 8px;
@@ -234,8 +235,9 @@ h1 {
 .file-card__button {
   display: inline-grid;
   place-items: center;
+  width: 100%;
   min-width: 44px;
-  padding: 0 14px;
+  padding: 0 10px;
   text-decoration: none;
 }
 
@@ -271,6 +273,7 @@ h1 {
   }
 
   .file-card__actions {
+    flex-direction: row;
     flex-wrap: wrap;
   }
 }
