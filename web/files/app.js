@@ -57,6 +57,7 @@
         commentPlaceholder: 'One-line note to find this file later',
         empty: 'No files yet. Upload a video on /subs or download a result from /gpx-route-png.',
         noMatches: 'No files match this search.',
+        preview: 'Preview',
         locale: 'en-US',
       }
     : {
@@ -95,6 +96,7 @@
         commentPlaceholder: 'Однострочная заметка, чтобы потом найти файл',
         empty: 'Пока нет файлов. Загрузите видео на /subs или скачайте результат на /gpx-route-png.',
         noMatches: 'По этому запросу файлы не найдены.',
+        preview: 'Превью',
         locale: 'ru-RU',
       };
 
@@ -135,6 +137,23 @@
     if (mimeType === 'video' || mimeType.startsWith('video/')) return true;
     if (file.origin === 'subs-source' || file.origin === 'subs-render') return true;
     return file.origin === 'gpx-source-video' || file.origin === 'gpx-final-video';
+  }
+
+  function isImageFile(file) {
+    const mimeType = String(file.mimeType || '').toLowerCase();
+    const name = String(file.name || '').toLowerCase();
+    if (mimeType.startsWith('image/')) return true;
+    if (file.origin === 'gpx-poster' || file.origin === 'gpx-track-alpha') return true;
+    return /\.(avif|gif|jpe?g|png|webp)$/i.test(name);
+  }
+
+  function fileTypeLabel(file) {
+    const name = String(file.name || '');
+    const extension = name.match(/\.([a-z0-9]{1,6})$/i)?.[1];
+    if (extension) return extension.toUpperCase();
+    const mimeType = String(file.mimeType || '');
+    const subtype = mimeType.split('/')[1]?.split(';')[0];
+    return (subtype || mimeType || 'FILE').slice(0, 8).toUpperCase();
   }
 
   function sourceFileUrl(path, file) {
@@ -298,9 +317,42 @@
     );
   }
 
+  function makePreview(file, href) {
+    const preview = document.createElement('div');
+    preview.className = 'file-card__preview';
+
+    if (href && isImageFile(file)) {
+      const image = document.createElement('img');
+      image.src = href;
+      image.alt = `${TEXT.preview}: ${file.name || TEXT.untitled}`;
+      image.loading = 'lazy';
+      preview.append(image);
+      return preview;
+    }
+
+    if (href && isVideoFile(file)) {
+      const video = document.createElement('video');
+      video.src = href;
+      video.muted = true;
+      video.playsInline = true;
+      video.preload = 'metadata';
+      video.setAttribute('aria-label', `${TEXT.preview}: ${file.name || TEXT.untitled}`);
+      preview.append(video);
+      return preview;
+    }
+
+    const fallback = document.createElement('span');
+    fallback.className = 'file-card__preview-type';
+    fallback.textContent = fileTypeLabel(file);
+    preview.append(fallback);
+    return preview;
+  }
+
   function makeCard(file) {
     const card = document.createElement('article');
     card.className = 'file-card';
+    const href = fileHref(file);
+    const preview = makePreview(file, href);
 
     const content = document.createElement('div');
     const head = document.createElement('div');
@@ -366,7 +418,6 @@
     const actions = document.createElement('div');
     actions.className = 'file-card__actions';
 
-    const href = fileHref(file);
     if (href) {
       const open = document.createElement('a');
       open.className = 'file-card__button file-card__button--primary';
@@ -397,7 +448,7 @@
       actions.append(useInSubs, useInTrack);
     }
 
-    card.append(content, actions);
+    card.append(preview, content, actions);
     return card;
   }
 
