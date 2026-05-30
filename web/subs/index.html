@@ -19,7 +19,7 @@
     <script src="/shared/site-header.js?v=20260527-1" defer></script>
     <script src="/shared/color-picker.js?v=20260526-1" defer></script>
     <script src="/shared/video-upload-block.js?v=20260527-1" defer></script>
-    <script src="app.js?v=20260527-1" defer></script>
+    <script src="app.js?v=20260530-1" defer></script>
   </head>
   <body>
     <header data-site-header data-active="subs" data-lang-ru="/subs/" data-lang-en="/subs/en"></header>
@@ -508,6 +508,28 @@
                   <span>Стиль</span>
                   <select id="cueStyleInput" required></select>
                 </label>
+                <div class="editor-field-grid">
+                  <label class="editor-field">
+                    <span>Цвет только этой реплики</span>
+                    <input id="cueColorInput" type="hidden" value="none" />
+                    <div
+                      class="color-picker"
+                      data-color-picker="cueColorInput"
+                      data-allow-none="true"
+                    ></div>
+                  </label>
+                  <label class="editor-field">
+                    <span>Размер только этой реплики, px</span>
+                    <input
+                      id="cueFontSizeInput"
+                      type="number"
+                      min="12"
+                      max="260"
+                      step="1"
+                      placeholder="Из стиля"
+                    />
+                  </label>
+                </div>
                 <div class="cue-motion">
                   <p class="cue-motion__title">
                     Сдвиг позиции <code>{\move}</code>

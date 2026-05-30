@@ -76,6 +76,9 @@ const TEXT = IS_EN
       editStyle: 'Edit style',
       editCue: 'Edit cue',
       deleteCue: 'Delete cue',
+      cueOverrides: 'overrides',
+      cueColorOverride: 'color',
+      cueSizeOverride: 'size',
       pause: 'Pause',
       play: 'Play',
       unmute: 'Unmute',
@@ -150,6 +153,9 @@ const TEXT = IS_EN
       editStyle: 'Редактировать стиль',
       editCue: 'Редактировать реплику',
       deleteCue: 'Удалить реплику',
+      cueOverrides: 'переопределения',
+      cueColorOverride: 'цвет',
+      cueSizeOverride: 'размер',
       pause: 'Пауза',
       play: 'Воспроизвести',
       unmute: 'Включить звук',
@@ -386,6 +392,8 @@ const cueTextInput = document.querySelector('#cueTextInput');
 const cueStartInput = document.querySelector('#cueStartInput');
 const cueEndInput = document.querySelector('#cueEndInput');
 const cueStyleInput = document.querySelector('#cueStyleInput');
+const cueColorInput = document.querySelector('#cueColorInput');
+const cueFontSizeInput = document.querySelector('#cueFontSizeInput');
 const cueMotionDxInput = document.querySelector('#cueMotionDxInput');
 const cueMotionDyInput = document.querySelector('#cueMotionDyInput');
 const cueMotionStartMsInput = document.querySelector('#cueMotionStartMsInput');
@@ -1219,6 +1227,10 @@ function colorToAss(color) {
   return `&H00${blue}${green}${red}`.toUpperCase();
 }
 
+function isHexColor(value) {
+  return /^#[0-9a-f]{6}$/i.test(String(value || ''));
+}
+
 function setColorInputValue(input, value) {
   if (window.VlandivirColorPicker) {
     window.VlandivirColorPicker.setColorInputValue(input, value);
@@ -1301,6 +1313,55 @@ function formatCueMotionLabel(cue) {
 
   const endMs = motion.motionStartMs + motion.motionMs;
   return ` · move Δ${motion.motionDx},${motion.motionDy} ${motion.motionStartMs}→${endMs}ms`;
+}
+
+function normalizeCueOverrides(cue) {
+  const color = String(cue?.colorOverride || cue?.primaryColor || '').trim();
+  const fontSize = Math.round(Number(cue?.fontSizeOverride));
+  return {
+    colorOverride: isHexColor(color) ? color.toLowerCase() : '',
+    fontSizeOverride:
+      Number.isFinite(fontSize) && fontSize >= 12 && fontSize <= 260
+        ? fontSize
+        : 0,
+  };
+}
+
+function readCueOverridesFromForm() {
+  return normalizeCueOverrides({
+    colorOverride: cueColorInput?.value,
+    fontSizeOverride: cueFontSizeInput?.value,
+  });
+}
+
+function cueStyleWithOverrides(style, cue) {
+  const normalizedStyle = normalizeStyle(style || {});
+  const overrides = normalizeCueOverrides(cue);
+  return {
+    ...normalizedStyle,
+    primaryColor: overrides.colorOverride || normalizedStyle.primaryColor,
+    fontSize: overrides.fontSizeOverride || normalizedStyle.fontSize,
+  };
+}
+
+function formatCueOverrideLabel(cue) {
+  const overrides = normalizeCueOverrides(cue);
+  const parts = [];
+  if (overrides.colorOverride) {
+    parts.push(`${TEXT.cueColorOverride} ${overrides.colorOverride.toUpperCase()}`);
+  }
+  if (overrides.fontSizeOverride) {
+    parts.push(`${TEXT.cueSizeOverride} ${overrides.fontSizeOverride}px`);
+  }
+  return parts.length ? ` · ${TEXT.cueOverrides}: ${parts.join(', ')}` : '';
+}
+
+function buildCueOverridePrefix(cue) {
+  const overrides = normalizeCueOverrides(cue);
+  const tags = [];
+  if (overrides.fontSizeOverride) tags.push(`\\fs${overrides.fontSizeOverride}`);
+  if (overrides.colorOverride) tags.push(`\\c${colorToAss(overrides.colorOverride)}`);
+  return tags.length ? `{${tags.join('')}}` : '';
 }
 
 function buildCuePositionPrefix(style, cue) {
@@ -1550,6 +1611,7 @@ function generateAss() {
   const cueLines = cachedCues.map((cue) => {
     const style = normalizeStyle(getStyleById(cue.styleId) || {});
     const positionPrefix = buildCuePositionPrefix(style, cue);
+    const overridePrefix = buildCueOverridePrefix(cue);
     return [
       'Dialogue: 0',
       formatAssTime(cue.start),
@@ -1560,7 +1622,7 @@ function generateAss() {
       0,
       0,
       '',
-      `${positionPrefix}${escapeAssText(cue.text)}`,
+      `${positionPrefix}${overridePrefix}${escapeAssText(cue.text)}`,
     ].join(',');
   });
 
@@ -1757,6 +1819,7 @@ function renderCues() {
 
   for (const cue of cachedCues) {
     const style = normalizeStyle(getStyleById(cue.styleId) || {});
+    const cuePreviewStyle = cueStyleWithOverrides(style, cue);
     const item = document.createElement('article');
     item.className = 'cue-item';
 
@@ -1767,12 +1830,12 @@ function renderCues() {
     const text = document.createElement('p');
     text.className = 'cue-item__text';
     text.textContent = stripAssMarkup(cue.text) || cue.text;
-    applySubtitlePreviewStyle(text, style, 0.34);
+    applySubtitlePreviewStyle(text, cuePreviewStyle, 0.34);
 
     const meta = document.createElement('p');
     meta.className = 'cue-item__meta';
     meta.textContent = style.name
-      ? `${style.name} · ${positionLabel(style.position)}${formatCueMotionLabel(cue)}`
+      ? `${style.name} · ${positionLabel(style.position)}${formatCueMotionLabel(cue)}${formatCueOverrideLabel(cue)}`
       : TEXT.styleDeleted;
 
     const actions = document.createElement('div');
@@ -1824,6 +1887,8 @@ function resetStyleForm() {
 function resetCueForm() {
   editingCueId = undefined;
   cueForm.reset();
+  if (cueColorInput) setColorInputValue(cueColorInput, 'none');
+  if (cueFontSizeInput) cueFontSizeInput.value = '';
   if (cueMotionDxInput) cueMotionDxInput.value = '';
   if (cueMotionDyInput) cueMotionDyInput.value = '';
   if (cueMotionStartMsInput) cueMotionStartMsInput.value = '';
@@ -1867,6 +1932,15 @@ function startCueEdit(cue) {
   cueStartInput.value = formatTimeInput(cue.start);
   cueEndInput.value = formatTimeInput(cue.end);
   cueStyleInput.value = cue.styleId;
+  const overrides = normalizeCueOverrides(cue);
+  if (cueColorInput) {
+    setColorInputValue(cueColorInput, overrides.colorOverride || 'none');
+  }
+  if (cueFontSizeInput) {
+    cueFontSizeInput.value = overrides.fontSizeOverride
+      ? String(overrides.fontSizeOverride)
+      : '';
+  }
   const motion = normalizeCueMotion(cue);
   if (cueMotionDxInput)
     cueMotionDxInput.value = motion ? String(motion.motionDx) : '';
@@ -1944,11 +2018,12 @@ function renderVideoSubtitleOverlay(cue, style) {
 
   videoSubtitleOverlay.hidden = false;
   const normalizedStyle = normalizeStyle(style || {});
+  const cuePreviewStyle = cueStyleWithOverrides(normalizedStyle, cue);
   videoSubtitleOverlay.className = `video-subtitle-overlay video-subtitle-overlay--${
     normalizedStyle.position.legacy || 'bottom-center'
   }`;
   videoSubtitleOverlay.textContent = stripAssMarkup(cue.text) || cue.text;
-  applySubtitlePreviewStyle(videoSubtitleOverlay, normalizedStyle, 0.5);
+  applySubtitlePreviewStyle(videoSubtitleOverlay, cuePreviewStyle, 0.5);
 }
 
 function syncSafeZoneOverlay() {
@@ -2741,6 +2816,7 @@ cueForm.addEventListener('submit', async (event) => {
     ? cachedCues.find((cue) => cue.id === editingCueId)
     : undefined;
   const motion = readCueMotionFromForm();
+  const overrides = readCueOverridesFromForm();
   await saveCue({
     id: editingCueId || createId('cue'),
     videoHash: currentVideoHash,
@@ -2748,6 +2824,8 @@ cueForm.addEventListener('submit', async (event) => {
     start: formatTimeInput(cueStartInput.value),
     end: formatTimeInput(cueEndInput.value),
     styleId: cueStyleInput.value,
+    colorOverride: overrides.colorOverride,
+    fontSizeOverride: overrides.fontSizeOverride,
     motionDx: motion.motionDx,
     motionDy: motion.motionDy,
     motionStartMs: motion.motionStartMs,
