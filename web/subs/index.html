@@ -51,20 +51,20 @@
       ></section>
 
       <details
-        class="audio-panel editor-card editor-section"
+        class="audio-panel editor-section"
         id="audioPanel"
         data-section="audio"
         open
         hidden
         aria-labelledby="audio-title"
       >
-        <summary class="audio-panel__summary">
+        <summary class="audio-panel__summary editor-section__summary">
           <div>
             <p class="eyebrow">Звук</p>
-            <h3 id="audio-title">Audio</h3>
+            <h3 class="editor-section__title" id="audio-title">Audio</h3>
           </div>
         </summary>
-        <div class="audio-panel__body">
+        <div class="audio-panel__body editor-section__body">
           <button
             class="secondary-link audio-extract-button"
             id="extractAudioButton"
@@ -140,13 +140,13 @@
       </details>
 
       <details class="saved-links editor-section" data-section="saved" open aria-labelledby="saved-title">
-        <summary class="saved-links__summary">
+        <summary class="saved-links__summary editor-section__summary">
           <div>
             <p class="eyebrow">IndexedDB</p>
-            <h2 id="saved-title">Сохраненные ссылки</h2>
+            <h2 class="editor-section__title" id="saved-title">Сохраненные ссылки</h2>
           </div>
         </summary>
-        <div class="saved-links__body">
+        <div class="saved-links__body editor-section__body">
           <div class="saved-links__toolbar">
             <a class="secondary-link" href="/subs/archive">Архив</a>
             <button
