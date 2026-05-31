@@ -11,15 +11,15 @@
     <link rel="stylesheet" href="fonts/fonts.css?v=20260517-9" />
     <link rel="stylesheet" href="/shared/site-header.css?v=20260527-1" />
     <link rel="stylesheet" href="/shared/color-picker.css?v=20260526-1" />
-    <link rel="stylesheet" href="styles.css?v=20260520-3" />
+    <link rel="stylesheet" href="styles.css?v=20260531-1" />
     <link rel="stylesheet" href="/shared/video-upload-block.css?v=20260527-1" />
     <link rel="stylesheet" href="/shared/site-theme.css?v=20260527-2" />
     <script src="/files/registry.js?v=20260527-1"></script>
-    <script src="fonts-shared.js?v=20260520-1"></script>
+    <script src="fonts-shared.js?v=20260531-1"></script>
     <script src="/shared/site-header.js?v=20260527-1" defer></script>
     <script src="/shared/color-picker.js?v=20260526-1" defer></script>
     <script src="/shared/video-upload-block.js?v=20260527-1" defer></script>
-    <script src="app.js?v=20260530-1" defer></script>
+    <script src="app.js?v=20260531-1" defer></script>
   </head>
   <body>
     <header data-site-header data-active="subs" data-lang-ru="/subs/" data-lang-en="/subs/en"></header>
@@ -50,17 +50,21 @@
         data-status-id="uploadStatus"
       ></section>
 
-      <section
-        class="audio-panel editor-card"
+      <details
+        class="audio-panel editor-card editor-section"
         id="audioPanel"
+        data-section="audio"
+        open
         hidden
         aria-labelledby="audio-title"
       >
-        <div class="audio-panel__head">
+        <summary class="audio-panel__summary">
           <div>
             <p class="eyebrow">Audio</p>
             <h3 id="audio-title">Audio</h3>
           </div>
+        </summary>
+        <div class="audio-panel__body">
           <button
             class="secondary-link audio-extract-button"
             id="extractAudioButton"
@@ -68,81 +72,83 @@
           >
             Extract audio
           </button>
-        </div>
-        <p class="audio-status" id="audioStatus">
-          Audio has not been extracted yet.
-        </p>
-        <div class="audio-waveform" id="audioWaveformWrap" hidden>
-          <canvas
-            id="audioWaveformCanvas"
-            width="720"
-            height="150"
-            aria-label="Waveform"
-          ></canvas>
-        </div>
-        <audio class="audio-player" id="audioPlayer" controls hidden></audio>
-        <div class="transcription-panel" id="transcriptionPanel" hidden>
-          <div class="transcription-controls">
-            <label class="editor-field transcription-language">
-              <span>Recognition language</span>
-              <select id="transcriptionLanguageInput">
-                <option value="auto">Auto</option>
-                <option value="ru">Russian</option>
-                <option value="sr">Serbian</option>
-                <option value="en">English</option>
-              </select>
-            </label>
-            <button
-              class="secondary-link transcription-button"
-              id="transcribeAudioButton"
-              type="button"
-            >
-              Transcribe speech
-            </button>
-          </div>
-          <p class="transcription-status" id="transcriptionStatus">
-            Transcription has not been run yet.
+          <p class="audio-status" id="audioStatus">
+            Audio has not been extracted yet.
           </p>
-          <textarea
-            class="transcription-output"
-            id="transcriptionOutput"
-            spellcheck="false"
-            hidden
-          ></textarea>
-          <button
-            class="secondary-link transcription-save-button"
-            id="saveTranscriptionButton"
-            type="button"
-            hidden
-          >
-            Save text
-          </button>
-          <div
-            class="transcription-to-cues"
-            id="transcriptionToCuesPanel"
-            hidden
-          >
-            <label class="editor-field transcription-cue-style">
-              <span>Cue style</span>
-              <select id="transcriptionCueStyleInput"></select>
-            </label>
+          <div class="audio-waveform" id="audioWaveformWrap" hidden>
+            <canvas
+              id="audioWaveformCanvas"
+              width="720"
+              height="150"
+              aria-label="Waveform"
+            ></canvas>
+          </div>
+          <audio class="audio-player" id="audioPlayer" controls hidden></audio>
+          <div class="transcription-panel" id="transcriptionPanel" hidden>
+            <div class="transcription-controls">
+              <label class="editor-field transcription-language">
+                <span>Recognition language</span>
+                <select id="transcriptionLanguageInput">
+                  <option value="auto">Auto</option>
+                  <option value="ru">Russian</option>
+                  <option value="sr">Serbian</option>
+                  <option value="en">English</option>
+                </select>
+              </label>
+              <button
+                class="secondary-link transcription-button"
+                id="transcribeAudioButton"
+                type="button"
+              >
+                Transcribe speech
+              </button>
+            </div>
+            <p class="transcription-status" id="transcriptionStatus">
+              Transcription has not been run yet.
+            </p>
+            <textarea
+              class="transcription-output"
+              id="transcriptionOutput"
+              spellcheck="false"
+              hidden
+            ></textarea>
             <button
-              class="primary-link transcription-cues-button"
-              id="createCuesFromTranscriptionButton"
+              class="secondary-link transcription-save-button"
+              id="saveTranscriptionButton"
               type="button"
+              hidden
             >
-              Convert to cues
+              Save text
             </button>
+            <div
+              class="transcription-to-cues"
+              id="transcriptionToCuesPanel"
+              hidden
+            >
+              <label class="editor-field transcription-cue-style">
+                <span>Cue style</span>
+                <select id="transcriptionCueStyleInput"></select>
+              </label>
+              <button
+                class="primary-link transcription-cues-button"
+                id="createCuesFromTranscriptionButton"
+                type="button"
+              >
+                Convert to cues
+              </button>
+            </div>
           </div>
         </div>
-      </section>
+      </details>
 
-      <section class="saved-links" aria-labelledby="saved-title">
-        <div class="saved-links__head">
+      <details class="saved-links editor-section" data-section="saved" open aria-labelledby="saved-title">
+        <summary class="saved-links__summary">
           <div>
             <p class="eyebrow">IndexedDB</p>
             <h2 id="saved-title">Saved links</h2>
           </div>
+        </summary>
+        <div class="saved-links__body">
           <div class="saved-links__toolbar">
             <a class="secondary-link" href="/subs/archive">Archive</a>
             <button
@@ -153,12 +159,12 @@
               Clear list
             </button>
           </div>
+          <div class="links-list" id="linksList"></div>
+          <p class="empty-state" id="emptyState">
+            No saved videos yet. Links will appear here after upload.
+          </p>
         </div>
-        <div class="links-list" id="linksList"></div>
-        <p class="empty-state" id="emptyState">
-          No saved videos yet. Links will appear here after upload.
-        </p>
-      </section>
+      </details>
 
       <section class="subtitle-editor" aria-label="Subtitle editor">
         <p class="eyebrow subtitle-editor__eyebrow">Editor</p>

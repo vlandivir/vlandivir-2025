@@ -15,6 +15,8 @@
   const UI_SECTIONS_ID = 'sections';
 
   const DEFAULT_SECTIONS_OPEN = {
+    audio: true,
+    saved: true,
     positions: true,
     styles: true,
     cues: true,
