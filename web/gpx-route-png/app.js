@@ -1067,7 +1067,7 @@
 
   function getFinalTrackProgress(elapsedMs) {
     const startMs = getFinalAnimationStartMs();
-    if (elapsedMs < startMs) return 0;
+    if (elapsedMs < startMs) return null;
     return Math.min(1, (elapsedMs - startMs) / getAnimDurationMs());
   }
 
@@ -1080,6 +1080,7 @@
   }
 
   function drawFinalTrackOverlay(targetCtx, geo, progress = 1) {
+    if (progress === null) return;
     const overlay = getFinalOverlayControls();
     targetCtx.save();
     targetCtx.translate(CANVAS_W / 2 + overlay.offsetX, CANVAS_H / 2 + overlay.offsetY);
@@ -1313,6 +1314,7 @@
     if (!geo) return;
     finalVideoOverlayCanvas.hidden = false;
     overlayCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    if (progress === null) return;
     drawFinalTrackOverlay(overlayCtx, geo, progress);
   }
 
