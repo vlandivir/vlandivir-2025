@@ -28,6 +28,20 @@
       <section class="hero" aria-labelledby="page-title">
         <div class="hero-copy">
           <h1 id="page-title">Субтитры для видео в формате ASS</h1>
+          <div class="quick-guide" aria-label="Краткая инструкция">
+            <div class="quick-guide__block">
+              Загрузите вертикальное видео 1080×1920 px или откройте уже сохранённую страницу видео.
+            </div>
+            <div class="quick-guide__block">
+              Выделите звук и распознайте речь либо добавьте реплики вручную.
+            </div>
+            <div class="quick-guide__block">
+              Настройте позиции, стили и переопределения для отдельных реплик.
+            </div>
+            <div class="quick-guide__block">
+              Проверьте превью и скачайте ASS-файл или готовое видео с субтитрами.
+            </div>
+          </div>
         </div>
       </section>
 
@@ -745,6 +759,12 @@
                   >
                     Наложить субтитры
                   </button>
+                  <span
+                    class="render-video-spinner"
+                    id="renderSubtitledVideoSpinner"
+                    hidden
+                    aria-label="Наложение субтитров"
+                  ></span>
                 </div>
                 <div
                   class="render-video-result"

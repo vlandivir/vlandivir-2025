@@ -466,6 +466,9 @@ const ffmpegCommandExample = document.querySelector('#ffmpegCommandExample');
 const renderSubtitledVideoButton = document.querySelector(
   '#renderSubtitledVideoButton',
 );
+const renderSubtitledVideoSpinner = document.querySelector(
+  '#renderSubtitledVideoSpinner',
+);
 const renderedVideoResult = document.querySelector('#renderedVideoResult');
 const renderedVideoLink = document.querySelector('#renderedVideoLink');
 const renderedVideoDownloadLink = document.querySelector(
@@ -2556,8 +2559,8 @@ async function renderSubtitledVideo() {
   if (!currentVideoHash || cachedCues.length === 0) return;
 
   renderSubtitledVideoButton.disabled = true;
+  renderSubtitledVideoSpinner.hidden = false;
   renderedVideoResult.hidden = true;
-  renderSubtitledVideoStatus.textContent = TEXT.rendering;
 
   try {
     const response = await fetch(
@@ -2594,6 +2597,7 @@ async function renderSubtitledVideo() {
     renderSubtitledVideoStatus.textContent =
       error instanceof Error ? error.message : TEXT.renderFailed;
   } finally {
+    renderSubtitledVideoSpinner.hidden = true;
     renderSubtitledVideoButton.disabled = !(
       currentVideoHash && cachedCues.length > 0
     );

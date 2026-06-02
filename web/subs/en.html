@@ -28,6 +28,20 @@
       <section class="hero" aria-labelledby="page-title">
         <div class="hero-copy">
           <h1 id="page-title">ASS subtitles for video</h1>
+          <div class="quick-guide" aria-label="Quick guide">
+            <div class="quick-guide__block">
+              Upload a vertical 1080×1920 px video or open an already saved video page.
+            </div>
+            <div class="quick-guide__block">
+              Extract audio and transcribe speech, or add cues manually.
+            </div>
+            <div class="quick-guide__block">
+              Tune positions, styles, and per-cue overrides.
+            </div>
+            <div class="quick-guide__block">
+              Check the preview and download the ASS file or the finished subtitled video.
+            </div>
+          </div>
         </div>
       </section>
 
@@ -746,6 +760,12 @@
                   >
                     Burn subtitles
                   </button>
+                  <span
+                    class="render-video-spinner"
+                    id="renderSubtitledVideoSpinner"
+                    hidden
+                    aria-label="Burning subtitles"
+                  ></span>
                 </div>
                 <div
                   class="render-video-result"
