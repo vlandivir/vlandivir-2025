@@ -466,6 +466,10 @@
                         В ASS: <code>{\move(x1,y1,x2,y2,200,700)}</code> — сдвиг
                         с 200 до 700 мс.
                       </li>
+                      <li>
+                        Без времени смещения ΔX/ΔY применяются сразу к этой
+                        реплике как <code>{\pos}</code>.
+                      </li>
                     </ul>
                   </article>
                   <article>
@@ -515,6 +519,12 @@
                   <select id="cueStyleInput" required></select>
                 </label>
                 <div class="editor-field-grid">
+                  <label class="editor-field">
+                    <span>Шрифт только этой реплики</span>
+                    <select id="cueFontInput" data-default-label="Из стиля">
+                      <option value="">Из стиля</option>
+                    </select>
+                  </label>
                   <label class="editor-field">
                     <span>Цвет только этой реплики</span>
                     <input id="cueColorInput" type="hidden" value="none" />

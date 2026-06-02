@@ -469,6 +469,10 @@
                         In ASS: <code>{\move(x1,y1,x2,y2,200,700)}</code> moves
                         from 200 to 700 ms.
                       </li>
+                      <li>
+                        Without move timing, ΔX/ΔY are applied immediately to
+                        this cue as <code>{\pos}</code>.
+                      </li>
                     </ul>
                   </article>
                   <article>
@@ -518,6 +522,12 @@
                   <select id="cueStyleInput" required></select>
                 </label>
                 <div class="editor-field-grid">
+                  <label class="editor-field">
+                    <span>Font for this cue only</span>
+                    <select id="cueFontInput" data-default-label="From style">
+                      <option value="">From style</option>
+                    </select>
+                  </label>
                   <label class="editor-field">
                     <span>Color for this cue only</span>
                     <input id="cueColorInput" type="hidden" value="none" />

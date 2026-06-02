@@ -77,6 +77,7 @@ const TEXT = IS_EN
       editCue: 'Edit cue',
       deleteCue: 'Delete cue',
       cueOverrides: 'overrides',
+      cueFontOverride: 'font',
       cueColorOverride: 'color',
       cueSizeOverride: 'size',
       pause: 'Pause',
@@ -154,6 +155,7 @@ const TEXT = IS_EN
       editCue: 'Редактировать реплику',
       deleteCue: 'Удалить реплику',
       cueOverrides: 'переопределения',
+      cueFontOverride: 'шрифт',
       cueColorOverride: 'цвет',
       cueSizeOverride: 'размер',
       pause: 'Пауза',
@@ -240,6 +242,7 @@ function getPickerSubtitleFonts() {
 function getJassubSubtitleFonts() {
   const usedFamilies = [
     ...cachedStyles.map((style) => style.font),
+    ...cachedCues.map((cue) => cue.fontOverride),
     ...cachedCues.map((cue) => getStyleById(cue.styleId)?.font),
   ].filter((font) => typeof font === 'string' && font.trim());
   const families = [...new Set([...enabledFontFamilies, ...usedFamilies])];
@@ -301,12 +304,39 @@ function populateStyleFontOptions() {
   styleFontInput.value = hasCurrent ? currentValue : fallback;
 }
 
+function populateCueFontOptions() {
+  if (!cueFontInput) return;
+
+  const currentValue = cueFontInput.value;
+  const pickerFonts = getPickerSubtitleFonts().sort((a, b) =>
+    a.family.localeCompare(b.family, 'ru', { sensitivity: 'base' }),
+  );
+  cueFontInput.replaceChildren();
+
+  const styleOption = document.createElement('option');
+  styleOption.value = '';
+  styleOption.textContent = cueFontInput.dataset.defaultLabel || 'From style';
+  cueFontInput.append(styleOption);
+
+  for (const font of pickerFonts) {
+    const option = document.createElement('option');
+    option.value = font.family;
+    option.textContent = font.family;
+    cueFontInput.append(option);
+  }
+
+  cueFontInput.value = pickerFonts.some((font) => font.family === currentValue)
+    ? currentValue
+    : '';
+}
+
 async function reloadFontPickerFromDb() {
   const previous = enabledFontFamilies.join('\0');
   await loadEnabledFontFamilies();
   if (previous === enabledFontFamilies.join('\0')) return;
 
   populateStyleFontOptions();
+  populateCueFontOptions();
   await destroyJassubRenderer();
   await renderJassubPreview();
 }
@@ -392,6 +422,7 @@ const cueTextInput = document.querySelector('#cueTextInput');
 const cueStartInput = document.querySelector('#cueStartInput');
 const cueEndInput = document.querySelector('#cueEndInput');
 const cueStyleInput = document.querySelector('#cueStyleInput');
+const cueFontInput = document.querySelector('#cueFontInput');
 const cueColorInput = document.querySelector('#cueColorInput');
 const cueFontSizeInput = document.querySelector('#cueFontSizeInput');
 const cueMotionDxInput = document.querySelector('#cueMotionDxInput');
@@ -1280,8 +1311,10 @@ function normalizeCueMotion(cue) {
   const motionDx = Math.round(Number(cue.motionDx) || 0);
   const motionDy = Math.round(Number(cue.motionDy) || 0);
 
-  if (!Number.isFinite(motionMs) || motionMs <= 0) return null;
   if (motionDx === 0 && motionDy === 0) return null;
+  if (!Number.isFinite(motionMs) || motionMs <= 0) {
+    return { motionDx, motionDy, motionStartMs: 0, motionMs: 0 };
+  }
 
   return { motionDx, motionDy, motionStartMs, motionMs };
 }
@@ -1295,10 +1328,19 @@ function readCueMotionFromForm() {
   const motionDx = Math.round(Number(cueMotionDxInput?.value) || 0);
   const motionDy = Math.round(Number(cueMotionDyInput?.value) || 0);
 
-  if (!Number.isFinite(motionMs) || motionMs <= 0) {
+  if (motionDx === 0 && motionDy === 0) {
     return {
       motionDx: 0,
       motionDy: 0,
+      motionStartMs: 0,
+      motionMs: 0,
+    };
+  }
+
+  if (!Number.isFinite(motionMs) || motionMs <= 0) {
+    return {
+      motionDx,
+      motionDy,
       motionStartMs: 0,
       motionMs: 0,
     };
@@ -1311,14 +1353,20 @@ function formatCueMotionLabel(cue) {
   const motion = normalizeCueMotion(cue);
   if (!motion) return '';
 
+  if (motion.motionMs <= 0) {
+    return ` · pos Δ${motion.motionDx},${motion.motionDy}`;
+  }
+
   const endMs = motion.motionStartMs + motion.motionMs;
   return ` · move Δ${motion.motionDx},${motion.motionDy} ${motion.motionStartMs}→${endMs}ms`;
 }
 
 function normalizeCueOverrides(cue) {
   const color = String(cue?.colorOverride || cue?.primaryColor || '').trim();
+  const font = String(cue?.fontOverride || '').trim();
   const fontSize = Math.round(Number(cue?.fontSizeOverride));
   return {
+    fontOverride: BUNDLED_FONT_FAMILIES.has(font) ? font : '',
     colorOverride: isHexColor(color) ? color.toLowerCase() : '',
     fontSizeOverride:
       Number.isFinite(fontSize) && fontSize >= 12 && fontSize <= 260
@@ -1329,6 +1377,7 @@ function normalizeCueOverrides(cue) {
 
 function readCueOverridesFromForm() {
   return normalizeCueOverrides({
+    fontOverride: cueFontInput?.value,
     colorOverride: cueColorInput?.value,
     fontSizeOverride: cueFontSizeInput?.value,
   });
@@ -1339,6 +1388,7 @@ function cueStyleWithOverrides(style, cue) {
   const overrides = normalizeCueOverrides(cue);
   return {
     ...normalizedStyle,
+    font: overrides.fontOverride || normalizedStyle.font,
     primaryColor: overrides.colorOverride || normalizedStyle.primaryColor,
     fontSize: overrides.fontSizeOverride || normalizedStyle.fontSize,
   };
@@ -1347,6 +1397,9 @@ function cueStyleWithOverrides(style, cue) {
 function formatCueOverrideLabel(cue) {
   const overrides = normalizeCueOverrides(cue);
   const parts = [];
+  if (overrides.fontOverride) {
+    parts.push(`${TEXT.cueFontOverride} ${overrides.fontOverride}`);
+  }
   if (overrides.colorOverride) {
     parts.push(`${TEXT.cueColorOverride} ${overrides.colorOverride.toUpperCase()}`);
   }
@@ -1359,6 +1412,7 @@ function formatCueOverrideLabel(cue) {
 function buildCueOverridePrefix(cue) {
   const overrides = normalizeCueOverrides(cue);
   const tags = [];
+  if (overrides.fontOverride) tags.push(`\\fn${overrides.fontOverride}`);
   if (overrides.fontSizeOverride) tags.push(`\\fs${overrides.fontSizeOverride}`);
   if (overrides.colorOverride) tags.push(`\\c${colorToAss(overrides.colorOverride)}`);
   return tags.length ? `{${tags.join('')}}` : '';
@@ -1375,6 +1429,10 @@ function buildCuePositionPrefix(style, cue) {
 
   const endX = x + motion.motionDx;
   const endY = y + motion.motionDy;
+  if (motion.motionMs <= 0) {
+    return `{\\pos(${endX},${endY})}`;
+  }
+
   const moveStartMs = motion.motionStartMs;
   const moveEndMs = motion.motionStartMs + motion.motionMs;
   return `{\\move(${x},${y},${endX},${endY},${moveStartMs},${moveEndMs})}`;
@@ -1888,6 +1946,7 @@ function resetCueForm() {
   editingCueId = undefined;
   cueForm.reset();
   if (cueColorInput) setColorInputValue(cueColorInput, 'none');
+  if (cueFontInput) cueFontInput.value = '';
   if (cueFontSizeInput) cueFontSizeInput.value = '';
   if (cueMotionDxInput) cueMotionDxInput.value = '';
   if (cueMotionDyInput) cueMotionDyInput.value = '';
@@ -1933,6 +1992,9 @@ function startCueEdit(cue) {
   cueEndInput.value = formatTimeInput(cue.end);
   cueStyleInput.value = cue.styleId;
   const overrides = normalizeCueOverrides(cue);
+  if (cueFontInput) {
+    cueFontInput.value = overrides.fontOverride;
+  }
   if (cueColorInput) {
     setColorInputValue(cueColorInput, overrides.colorOverride || 'none');
   }
@@ -1948,10 +2010,13 @@ function startCueEdit(cue) {
     cueMotionDyInput.value = motion ? String(motion.motionDy) : '';
   if (cueMotionStartMsInput) {
     cueMotionStartMsInput.value =
-      motion && motion.motionStartMs > 0 ? String(motion.motionStartMs) : '';
+      motion && motion.motionMs > 0 && motion.motionStartMs > 0
+        ? String(motion.motionStartMs)
+        : '';
   }
   if (cueMotionMsInput) {
-    cueMotionMsInput.value = motion ? String(motion.motionMs) : '';
+    cueMotionMsInput.value =
+      motion && motion.motionMs > 0 ? String(motion.motionMs) : '';
   }
   cueSubmitButton.textContent = TEXT.saveCue;
   cancelCueEditButton.hidden = false;
@@ -2824,6 +2889,7 @@ cueForm.addEventListener('submit', async (event) => {
     start: formatTimeInput(cueStartInput.value),
     end: formatTimeInput(cueEndInput.value),
     styleId: cueStyleInput.value,
+    fontOverride: overrides.fontOverride,
     colorOverride: overrides.colorOverride,
     fontSizeOverride: overrides.fontSizeOverride,
     motionDx: motion.motionDx,
@@ -2977,6 +3043,7 @@ async function importSourceFileFromQuery() {
 async function init() {
   await loadEnabledFontFamilies();
   populateStyleFontOptions();
+  populateCueFontOptions();
   initializeColorPickers();
   renderAlignControl();
   applyEditorSectionPrefs(await SF.readEditorSectionPrefs());
