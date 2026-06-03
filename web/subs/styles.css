@@ -376,7 +376,7 @@ pre {
   margin-bottom: clamp(42px, 6vw, 64px);
 }
 
-.workflow-step:last-of-type {
+.workflow-step:last-child {
   margin-bottom: 0;
 }
 

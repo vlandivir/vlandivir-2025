@@ -291,7 +291,7 @@ main > .hero:first-child h1,
   border-bottom: 1px solid var(--v-line);
 }
 
-.workflow-step:last-of-type {
+.workflow-step:last-child {
   margin-bottom: 0;
   border-bottom: 1px solid var(--v-line);
 }
