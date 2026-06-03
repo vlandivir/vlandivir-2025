@@ -8,6 +8,7 @@ import { ServicesModule } from './services/services.module';
 import { MiniAppController } from './mini-app/mini-app.controller';
 import { SubsController } from './subs.controller';
 import { NotesApiController } from './notes-api.controller';
+import { NotificationsApiController } from './notifications-api.controller';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { NotesApiController } from './notes-api.controller';
     MiniAppController,
     SubsController,
     NotesApiController,
+    NotificationsApiController,
   ],
   providers: [AppService],
 })

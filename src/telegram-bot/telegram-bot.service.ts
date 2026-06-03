@@ -151,6 +151,14 @@ export class TelegramBotService {
     this.bot.stop();
   }
 
+  async sendDirectMessage(
+    chatId: number,
+    text: string,
+  ): Promise<{ messageId: number }> {
+    const message = await this.bot.telegram.sendMessage(chatId, text);
+    return { messageId: message.message_id };
+  }
+
   async sendApiNotePhoto(
     chatId: number,
     imageBuffer: Buffer,
