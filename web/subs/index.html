@@ -13,7 +13,7 @@
     <link rel="stylesheet" href="/shared/color-picker.css?v=20260526-1" />
     <link rel="stylesheet" href="styles.css?v=20260531-1" />
     <link rel="stylesheet" href="/shared/video-upload-block.css?v=20260527-1" />
-    <link rel="stylesheet" href="/shared/site-theme.css?v=20260603-1" />
+    <link rel="stylesheet" href="/shared/site-theme.css?v=20260603-2" />
     <script src="/files/registry.js?v=20260527-1"></script>
     <script src="fonts-shared.js?v=20260531-1"></script>
     <script src="/shared/site-header.js?v=20260527-1" defer></script>
@@ -72,38 +72,6 @@
           data-progress-bar-id="uploadProgressBar"
           data-status-id="uploadStatus"
         ></section>
-
-        <details
-          class="saved-links editor-section"
-          data-section="saved"
-          open
-          aria-labelledby="saved-title"
-        >
-          <summary class="saved-links__summary editor-section__summary">
-            <div>
-              <p class="eyebrow">IndexedDB</p>
-              <h2 class="editor-section__title" id="saved-title">
-                Сохраненные ссылки
-              </h2>
-            </div>
-          </summary>
-          <div class="saved-links__body editor-section__body">
-            <div class="saved-links__toolbar">
-              <a class="secondary-link" href="/subs/archive">Архив</a>
-              <button
-                class="secondary-link clear-button"
-                id="clearLinksButton"
-                type="button"
-              >
-                Очистить список
-              </button>
-            </div>
-            <div class="links-list" id="linksList"></div>
-            <p class="empty-state" id="emptyState">
-              Пока нет сохраненных видео. После загрузки ссылки появятся здесь.
-            </p>
-          </div>
-        </details>
       </details>
 
       <section class="subtitle-editor" aria-label="Редактор субтитров">

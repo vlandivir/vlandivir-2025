@@ -1110,6 +1110,8 @@ function getAudioPatch(audio) {
 }
 
 function renderVideos(videos) {
+  if (!linksList || !emptyState || !clearLinksButton) return;
+
   linksList.replaceChildren();
   emptyState.hidden = videos.length > 0;
   clearLinksButton.hidden = videos.length === 0;
@@ -2605,6 +2607,8 @@ async function renderSubtitledVideo() {
 }
 
 async function refreshList() {
+  if (!linksList || !emptyState || !clearLinksButton) return;
+
   renderVideos(await readVideos());
 }
 
@@ -2743,13 +2747,15 @@ form.addEventListener('submit', async (event) => {
   await uploadAndOpenVideoFile(file);
 });
 
-clearLinksButton.addEventListener('click', async () => {
-  const active = await readVideos();
-  await Promise.all(
-    active.map((video) => deleteRecord(VIDEO_STORE, video.hash)),
-  );
-  await refreshList();
-});
+if (clearLinksButton) {
+  clearLinksButton.addEventListener('click', async () => {
+    const active = await readVideos();
+    await Promise.all(
+      active.map((video) => deleteRecord(VIDEO_STORE, video.hash)),
+    );
+    await refreshList();
+  });
+}
 
 currentVideo.addEventListener('timeupdate', () => {
   updateVideoControls();
