@@ -380,8 +380,8 @@ pre {
   margin-bottom: 0;
 }
 
-.workflow-step[open] > .workflow-step-head {
-  margin-bottom: 24px;
+.workflow-step[open]:has(> :not(summary):not([hidden])) > .workflow-step-head {
+  margin-bottom: var(--v-panel-padding, 24px);
 }
 
 .workflow-step-head {

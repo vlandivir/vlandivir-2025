@@ -296,6 +296,10 @@ main > .hero:first-child h1,
   border-bottom: 1px solid var(--v-line);
 }
 
+.workflow-step[open]:has(> :not(summary):not([hidden])) > .workflow-step-head {
+  margin-bottom: var(--v-panel-padding);
+}
+
 .archive-section {
   margin: 0 0 var(--v-section-gap);
 }
