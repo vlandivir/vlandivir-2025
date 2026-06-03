@@ -28,6 +28,7 @@ import {
   type SubsTranscriptCue,
   type SubsTranscriptWord,
 } from './services/storage.service';
+import { TelegramBotService } from './telegram-bot/telegram-bot.service';
 
 type UploadedVideo = {
   hash: string;
@@ -99,12 +100,14 @@ type VideoDimensions = {
 const MAX_SUBS_VIDEO_SIZE_BYTES = 200 * 1024 * 1024;
 const REQUIRED_SUBS_VIDEO_WIDTH = 1080;
 const REQUIRED_SUBS_VIDEO_HEIGHT = 1920;
+const PRIMARY_CHAT_ID = 150847737;
 
 @Controller('subs-api')
 export class SubsController {
   constructor(
     private readonly storageService: StorageService,
     private readonly configService: ConfigService,
+    private readonly telegramBotService: TelegramBotService,
   ) {}
 
   @Post('videos')
@@ -145,11 +148,20 @@ export class SubsController {
         file.mimetype,
         hash,
       );
+      const absolutePageUrl = this.getAbsolutePageUrl(req, hash);
+      await this.notifySubsVideoUploaded({
+        hash,
+        videoUrl,
+        absolutePageUrl,
+        originalName: file.originalname,
+        mimeType: file.mimetype,
+        size: file.size,
+      });
 
       return {
         hash,
         pageUrl: `/subs/${hash}`,
-        absolutePageUrl: this.getAbsolutePageUrl(req, hash),
+        absolutePageUrl,
         videoUrl,
         originalName: file.originalname,
         mimeType: file.mimetype,
@@ -413,6 +425,43 @@ export class SubsController {
     const forwardedProto = req.header('x-forwarded-proto');
     const proto = forwardedProto?.split(',')[0]?.trim() || req.protocol;
     return `${proto}://${req.get('host')}/subs/${hash}`;
+  }
+
+  private async notifySubsVideoUploaded(video: {
+    hash: string;
+    videoUrl: string;
+    absolutePageUrl: string;
+    originalName: string;
+    mimeType: string;
+    size: number;
+  }): Promise<void> {
+    const message = [
+      'В Subs загрузили видео',
+      '',
+      `Файл: ${video.originalName || video.hash}`,
+      `Размер: ${this.formatBytes(video.size)}`,
+      `Тип: ${video.mimeType || 'video'}`,
+      `Страница: ${video.absolutePageUrl}`,
+      `DO файл: ${video.videoUrl}`,
+    ].join('\n');
+
+    try {
+      await this.telegramBotService.sendDirectMessage(PRIMARY_CHAT_ID, message);
+    } catch (error) {
+      console.warn('Failed to send Subs upload notification', error);
+    }
+  }
+
+  private formatBytes(bytes: number): string {
+    if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+
+    const units = ['B', 'KB', 'MB', 'GB'];
+    const unit = Math.min(
+      Math.floor(Math.log(bytes) / Math.log(1024)),
+      units.length - 1,
+    );
+    const value = bytes / 1024 ** unit;
+    return `${value.toFixed(value >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
   }
 
   private async assertUploadVideoMeetsRequirements(
