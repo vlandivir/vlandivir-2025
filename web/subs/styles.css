@@ -110,7 +110,7 @@ main {
 }
 
 .hero {
-  padding: 30px 0 64px;
+  padding: 30px 0 48px;
 }
 
 .hero-copy {
@@ -124,25 +124,6 @@ main {
 
 .hero .lead {
   max-width: none;
-}
-
-.quick-guide {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 26px;
-}
-
-.quick-guide__block {
-  min-height: 92px;
-  padding: 16px;
-  border: 1px solid rgba(29, 31, 36, 0.12);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.72);
-  color: var(--ink);
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 1.42;
 }
 
 .eyebrow {
@@ -389,6 +370,86 @@ pre {
 .subtitle-editor {
   border-top: 1px solid var(--line);
   padding: 48px 0;
+}
+
+.workflow-step {
+  margin-bottom: clamp(42px, 6vw, 64px);
+}
+
+.workflow-step:last-of-type {
+  margin-bottom: 0;
+}
+
+.workflow-step[open] > .workflow-step-head {
+  margin-bottom: 24px;
+}
+
+.workflow-step-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.workflow-step-head::-webkit-details-marker {
+  display: none;
+}
+
+.workflow-step-badge {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--ink);
+  color: #fff;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.workflow-step-title {
+  margin: 0 0 10px;
+  color: var(--ink);
+  font-size: clamp(22px, 2.4vw, 30px);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: 0;
+}
+
+.workflow-step-text {
+  max-width: 68ch;
+  margin: 0;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+.workflow-step > .upload-panel,
+.workflow-step > .editor-section,
+.workflow-step > .saved-links,
+.workflow-step > .video-bound-panel {
+  margin-left: 56px;
+}
+
+.workflow-step > .upload-panel {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.workflow-step > .editor-section:first-of-type,
+.workflow-step > .video-bound-panel > .editor-section:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.subtitle-editor {
+  border-top: 0;
+  padding-top: 0;
 }
 
 .saved-links {
@@ -1657,12 +1718,22 @@ pre {
     padding-bottom: 44px;
   }
 
-  .quick-guide {
-    grid-template-columns: 1fr;
+  .workflow-step-head {
+    gap: 12px;
   }
 
-  .quick-guide__block {
-    min-height: 0;
+  .workflow-step-badge {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    font-size: 15px;
+  }
+
+  .workflow-step > .upload-panel,
+  .workflow-step > .editor-section,
+  .workflow-step > .saved-links,
+  .workflow-step > .video-bound-panel {
+    margin-left: 0;
   }
 
   h1 {
