@@ -12,28 +12,7 @@
     if (!root || root.dataset.videoUploadBlockReady === 'true') return;
     root.dataset.videoUploadBlockReady = 'true';
     root.classList.add('upload-panel');
-
-    const titleId = read(root, 'titleId', 'video-upload-title');
-    root.setAttribute('aria-labelledby', titleId);
-
-    const copy = document.createElement('div');
-    copy.className = 'upload-copy';
-
-    const eyebrow = document.createElement('p');
-    eyebrow.className = 'eyebrow';
-    eyebrow.textContent = read(root, 'eyebrow', 'Video');
-
-    const title = document.createElement('h2');
-    title.id = titleId;
-    title.textContent = read(root, 'title', 'Upload video');
-
-    const description = document.createElement('p');
-    description.textContent = read(root, 'description');
-
-    copy.append(eyebrow, title, description);
-
-    const card = document.createElement('div');
-    card.className = 'upload-card';
+    root.setAttribute('aria-label', read(root, 'label', 'Video upload'));
 
     const form = document.createElement('form');
     form.className = 'upload-form';
@@ -48,12 +27,17 @@
     pickerTitle.className = 'file-picker__title';
     pickerTitle.textContent = read(root, 'pickerTitle', 'Choose video');
 
-    const pickerMeta = document.createElement('span');
-    pickerMeta.className = 'file-picker__meta';
-    setOptionalId(pickerMeta, read(root, 'metaId'));
-    pickerMeta.textContent = read(root, 'pickerMeta');
+    picker.append(pickerTitle);
 
-    picker.append(pickerTitle, pickerMeta);
+    const pickerMetaId = read(root, 'metaId');
+    const pickerMetaText = read(root, 'pickerMeta');
+    if (pickerMetaId || pickerMetaText) {
+      const pickerMeta = document.createElement('span');
+      pickerMeta.className = 'file-picker__meta';
+      setOptionalId(pickerMeta, pickerMetaId);
+      pickerMeta.textContent = pickerMetaText;
+      picker.append(pickerMeta);
+    }
 
     const input = document.createElement('input');
     input.id = inputId;
@@ -85,8 +69,7 @@
     setOptionalId(status, read(root, 'statusId'));
     status.setAttribute('role', 'status');
 
-    card.append(form, progress, status);
-    root.replaceChildren(copy, card);
+    root.replaceChildren(form, progress, status);
   }
 
   function renderAll() {

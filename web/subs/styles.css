@@ -365,7 +365,6 @@ pre {
   line-height: 1.65;
 }
 
-.upload-panel,
 .saved-links,
 .subtitle-editor {
   border-top: 1px solid var(--line);
@@ -437,8 +436,7 @@ pre {
 }
 
 .workflow-step > .upload-panel {
-  border-top: 0;
-  padding-top: 0;
+  padding: 0;
 }
 
 .workflow-step > .editor-section:first-of-type,
@@ -459,28 +457,19 @@ pre {
 }
 
 .upload-panel {
-  display: grid;
-  grid-template-columns: minmax(0, 0.85fr) minmax(320px, 1.15fr);
-  gap: 34px;
-  align-items: start;
+  display: block;
 }
 
-.upload-copy p:last-child,
 .empty-state,
 .link-item p {
   margin-bottom: 0;
   color: var(--muted);
 }
 
-.upload-card,
 .link-item {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.82);
-}
-
-.upload-card {
-  padding: 22px;
 }
 
 .upload-form {

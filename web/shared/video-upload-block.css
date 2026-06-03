@@ -1,21 +1,6 @@
 .upload-panel {
-  display: grid;
-  grid-template-columns: minmax(0, 0.85fr) minmax(320px, 1.15fr);
-  gap: 34px;
-  align-items: start;
-  margin-bottom: 18px;
-}
-
-.upload-copy p:last-child {
+  display: block;
   margin-bottom: 0;
-  color: var(--muted);
-}
-
-.upload-card {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.82);
-  padding: 22px;
 }
 
 .upload-form {
@@ -48,7 +33,11 @@
   overflow-wrap: anywhere;
 }
 
-.upload-form input[type="file"] {
+.file-picker__meta:empty {
+  display: none;
+}
+
+.upload-form input[type='file'] {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -92,7 +81,6 @@
 }
 
 @media (max-width: 820px) {
-  .upload-panel,
   .upload-form {
     grid-template-columns: 1fr;
   }

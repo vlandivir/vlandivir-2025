@@ -233,7 +233,6 @@ main > .hero:first-child h1,
 }
 
 .tool-block,
-.upload-panel,
 .saved-links,
 .audio-panel,
 .editor-card,
@@ -269,7 +268,6 @@ main > .hero:first-child h1,
   border-bottom: 1px solid hsl(var(--shadcn-border));
 }
 
-.upload-panel,
 .saved-links,
 .audio-panel,
 .workflow-step,
@@ -620,14 +618,6 @@ button:disabled,
   border-left-color: hsl(var(--shadcn-border));
 }
 
-.upload-card {
-  border: 1px solid hsl(var(--shadcn-border));
-  border-radius: var(--radius);
-  background: hsl(var(--card));
-  color: hsl(var(--card-foreground));
-  box-shadow: var(--v-shadow);
-}
-
 .file-picker {
   border-color: hsl(var(--primary));
   border-radius: var(--radius);
@@ -701,7 +691,6 @@ button:disabled,
   }
 
   .tool-block,
-  .upload-panel,
   .saved-links,
   .audio-panel,
   .workflow-step,

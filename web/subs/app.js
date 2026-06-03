@@ -66,7 +66,7 @@ const TEXT = IS_EN
       renderFailed: 'Failed to burn subtitles',
       linkFetchFailed: 'Failed to fetch data for this link.',
       videoName: 'Video',
-      fileMeta: 'Vertical 1080×1920 px only, up to 200 MB',
+      fileMeta: '',
       videoTooLarge: 'Video must be 200 MB or smaller.',
       videoWrongDimensions:
         'Video must be vertical 1080p: 1080×1920 px. Selected video is {width}×{height} px.',
@@ -144,7 +144,7 @@ const TEXT = IS_EN
       renderFailed: 'Не удалось наложить субтитры',
       linkFetchFailed: 'Не удалось получить данные по этой ссылке.',
       videoName: 'Видео',
-      fileMeta: 'Только вертикальное 1080×1920 px, до 200 МБ',
+      fileMeta: '',
       videoTooLarge: 'Видео должно быть не больше 200 МБ.',
       videoWrongDimensions:
         'Видео должно быть вертикальным 1080p: 1080×1920 px. Выбранное видео: {width}×{height} px.',
@@ -761,7 +761,9 @@ function getSourceFileIdFromQuery() {
 }
 
 function sourceDownloadPathForRegistryRecord(record) {
-  const match = String(record?.id || '').match(/^subs:([a-f0-9]{24}):(source|render)$/);
+  const match = String(record?.id || '').match(
+    /^subs:([a-f0-9]{24}):(source|render)$/,
+  );
   if (!match) return '';
   const [, hash, kind] = match;
   return kind === 'source'
@@ -770,19 +772,25 @@ function sourceDownloadPathForRegistryRecord(record) {
 }
 
 function fileNameFromRecord(record, fallback) {
-  return String(record?.name || fallback || TEXT.videoName).trim() || TEXT.videoName;
+  return (
+    String(record?.name || fallback || TEXT.videoName).trim() || TEXT.videoName
+  );
 }
 
 async function registryRecordToVideoFile(record) {
   if (!record) throw new Error(TEXT.sourceVideoNotFound);
 
   const name = fileNameFromRecord(record, 'source-video.mp4');
-  const type = record.mimeType && record.mimeType !== 'video' ? record.mimeType : 'video/mp4';
+  const type =
+    record.mimeType && record.mimeType !== 'video'
+      ? record.mimeType
+      : 'video/mp4';
 
   if (record.blob) {
     return new File([record.blob], name, {
       type: record.blob.type || type,
-      lastModified: Date.parse(record.updatedAt || record.createdAt) || Date.now(),
+      lastModified:
+        Date.parse(record.updatedAt || record.createdAt) || Date.now(),
     });
   }
 
@@ -799,7 +807,8 @@ async function registryRecordToVideoFile(record) {
   const blob = await response.blob();
   return new File([blob], name, {
     type: blob.type?.startsWith('video/') ? blob.type : type,
-    lastModified: Date.parse(record.updatedAt || record.createdAt) || Date.now(),
+    lastModified:
+      Date.parse(record.updatedAt || record.createdAt) || Date.now(),
   });
 }
 
@@ -1406,7 +1415,9 @@ function formatCueOverrideLabel(cue) {
     parts.push(`${TEXT.cueFontOverride} ${overrides.fontOverride}`);
   }
   if (overrides.colorOverride) {
-    parts.push(`${TEXT.cueColorOverride} ${overrides.colorOverride.toUpperCase()}`);
+    parts.push(
+      `${TEXT.cueColorOverride} ${overrides.colorOverride.toUpperCase()}`,
+    );
   }
   if (overrides.fontSizeOverride) {
     parts.push(`${TEXT.cueSizeOverride} ${overrides.fontSizeOverride}px`);
@@ -1418,8 +1429,10 @@ function buildCueOverridePrefix(cue) {
   const overrides = normalizeCueOverrides(cue);
   const tags = [];
   if (overrides.fontOverride) tags.push(`\\fn${overrides.fontOverride}`);
-  if (overrides.fontSizeOverride) tags.push(`\\fs${overrides.fontSizeOverride}`);
-  if (overrides.colorOverride) tags.push(`\\c${colorToAss(overrides.colorOverride)}`);
+  if (overrides.fontSizeOverride)
+    tags.push(`\\fs${overrides.fontSizeOverride}`);
+  if (overrides.colorOverride)
+    tags.push(`\\c${colorToAss(overrides.colorOverride)}`);
   return tags.length ? `{${tags.join('')}}` : '';
 }
 
@@ -2709,7 +2722,8 @@ async function loadCurrentVideo() {
     ...getAudioPatch(localizedVideo.audio),
   });
   await rememberSubsSourceVideo(patched || existing);
-  if (localizedVideo.audio) await rememberSubsAudioFile(hash, localizedVideo.audio);
+  if (localizedVideo.audio)
+    await rememberSubsAudioFile(hash, localizedVideo.audio);
   renderAudioPanel(patched || existing);
   renderSubtitledVideoControls();
 }
@@ -3037,9 +3051,11 @@ async function importSourceFileFromQuery() {
 
   try {
     const storedRecord = await window.UserFilesRegistry.get(sourceFileId);
-    const record = storedRecord || (/^subs:[a-f0-9]{24}:(source|render)$/.test(sourceFileId)
-      ? { id: sourceFileId }
-      : null);
+    const record =
+      storedRecord ||
+      (/^subs:[a-f0-9]{24}:(source|render)$/.test(sourceFileId)
+        ? { id: sourceFileId }
+        : null);
     const file = await registryRecordToVideoFile(record);
     await uploadAndOpenVideoFile(file, {
       statusText: TEXT.importingSourceVideo,
