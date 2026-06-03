@@ -46,11 +46,9 @@ export class NotificationsApiController {
   }
 
   private assertApiKey(receivedKey?: string): void {
-    const expectedKey = this.configService.get<string>('NOTIFICATION_API_KEY');
+    const expectedKey = this.configService.get<string>('NOTE_API_KEY');
     if (!expectedKey) {
-      throw new InternalServerErrorException(
-        'NOTIFICATION_API_KEY is not configured',
-      );
+      throw new InternalServerErrorException('NOTE_API_KEY is not configured');
     }
 
     if (!receivedKey || !this.isSameSecret(receivedKey, expectedKey)) {
