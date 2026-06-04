@@ -326,6 +326,12 @@ main > .hero:first-child h1,
   margin-bottom: var(--v-panel-padding);
 }
 
+.workflow-step > .editor-section + .editor-section,
+.workflow-step > .editor-section + .video-bound-panel,
+.workflow-step > .video-bound-panel + .editor-section {
+  margin-top: var(--v-group-gap);
+}
+
 .archive-section {
   margin: 0 0 var(--v-section-gap);
 }
