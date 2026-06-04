@@ -1295,7 +1295,7 @@
       frameCanvas.width = CANVAS_W;
       frameCanvas.height = CANVAS_H;
       const frameCtx = frameCanvas.getContext('2d');
-      drawVideoFrameCover(sourceVideoPreview, frameCtx, CANVAS_W, CANVAS_H);
+      drawVideoCoverFrame(frameCtx, sourceVideoPreview, CANVAS_W, CANVAS_H);
       step2VideoFrameDataUrl = frameCanvas.toDataURL('image/jpeg', 0.88);
       step2AnimBg.src = step2VideoFrameDataUrl;
     } catch (error) {
