@@ -391,8 +391,12 @@ export class SubsController {
 
   @Get('videos/:hash/source')
   @Header('Content-Type', 'video/mp4')
-  async streamSourceVideo(@Param('hash') hash: string, @Res() res: Response) {
-    await this.sendSourceVideo(hash, res);
+  async streamSourceVideo(
+    @Param('hash') hash: string,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    await this.sendSourceVideo(hash, res, req.header('range'));
   }
 
   @Get('videos/:hash/source/download')
@@ -405,20 +409,86 @@ export class SubsController {
     await this.sendSourceVideo(hash, res);
   }
 
-  private async sendSourceVideo(hash: string, res: Response) {
+  private async sendSourceVideo(
+    hash: string,
+    res: Response,
+    rangeHeader?: string,
+  ) {
     this.assertHash(hash);
 
     try {
       const buffer = await this.storageService.downloadFile(
         this.storageService.getSubsVideoUrl(hash),
       );
-      res.send(buffer);
+      this.sendVideoBuffer(buffer, res, rangeHeader);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new InternalServerErrorException(
         `Failed to download source video: ${message}`,
       );
     }
+  }
+
+  private sendVideoBuffer(
+    buffer: Buffer,
+    res: Response,
+    rangeHeader?: string,
+  ) {
+    const totalSize = buffer.length;
+    res.set({
+      'Accept-Ranges': 'bytes',
+      'Content-Type': 'video/mp4',
+    });
+
+    if (!rangeHeader) {
+      res.set('Content-Length', String(totalSize));
+      res.send(buffer);
+      return;
+    }
+
+    const match = rangeHeader.match(/^bytes=(\d*)-(\d*)$/);
+    if (!match) {
+      res.status(416);
+      res.set('Content-Range', `bytes */${totalSize}`);
+      res.send();
+      return;
+    }
+
+    const [, startText, endText] = match;
+    let start = startText ? Number.parseInt(startText, 10) : Number.NaN;
+    let end = endText ? Number.parseInt(endText, 10) : Number.NaN;
+
+    if (Number.isNaN(start) && Number.isNaN(end)) {
+      res.status(416);
+      res.set('Content-Range', `bytes */${totalSize}`);
+      res.send();
+      return;
+    }
+
+    if (Number.isNaN(start)) {
+      const suffixSize = Math.min(end, totalSize);
+      start = totalSize - suffixSize;
+      end = totalSize - 1;
+    } else if (Number.isNaN(end)) {
+      end = totalSize - 1;
+    }
+
+    if (start < 0 || start >= totalSize || end < start) {
+      res.status(416);
+      res.set('Content-Range', `bytes */${totalSize}`);
+      res.send();
+      return;
+    }
+
+    end = Math.min(end, totalSize - 1);
+    const chunk = buffer.subarray(start, end + 1);
+
+    res.status(206);
+    res.set({
+      'Content-Range': `bytes ${start}-${end}/${totalSize}`,
+      'Content-Length': String(chunk.length),
+    });
+    res.send(chunk);
   }
 
   private createHash(): string {

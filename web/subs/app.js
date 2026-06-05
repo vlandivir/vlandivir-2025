@@ -1372,14 +1372,15 @@ function assAlphaFromCss(alpha) {
   return colorToHexByte((1 - clampColorNumber(alpha ?? 1, 0, 1)) * 255);
 }
 
-function normalizeSubtitleColor(color, fallback = '#ffffff') {
+function formatRgbaSubtitleColor(color) {
+  return `rgba(${color.red}, ${color.green}, ${color.blue}, ${formatCssAlpha(color.alpha ?? 1)})`;
+}
+
+function normalizeSubtitleColor(color, fallback = 'rgba(255, 255, 255, 1)') {
   const parsed = parseSubtitleColor(color);
-  if (!parsed) return fallback;
-  const red = colorToHexByte(parsed.red);
-  const green = colorToHexByte(parsed.green);
-  const blue = colorToHexByte(parsed.blue);
-  if ((parsed.alpha ?? 1) >= 1) return `#${red}${green}${blue}`;
-  return `rgba(${parsed.red}, ${parsed.green}, ${parsed.blue}, ${formatCssAlpha(parsed.alpha)})`;
+  if (parsed) return formatRgbaSubtitleColor(parsed);
+  const fallbackColor = parseSubtitleColor(fallback);
+  return fallbackColor ? formatRgbaSubtitleColor(fallbackColor) : fallback;
 }
 
 function normalizeOptionalSubtitleColor(color, fallback) {
@@ -1387,7 +1388,7 @@ function normalizeOptionalSubtitleColor(color, fallback) {
 }
 
 function formatSubtitleColor(color) {
-  return color.startsWith('#') ? color.toUpperCase() : color;
+  return normalizeSubtitleColor(color, color);
 }
 
 function colorToAss(color) {
@@ -1636,7 +1637,8 @@ function fontVariantLabel(value) {
 }
 
 function normalizeStyle(style) {
-  const primaryColor = style.primaryColor || style.color || '#ffffff';
+  const primaryColor =
+    style.primaryColor || style.color || 'rgba(255, 255, 255, 1)';
   const resolvedPosition =
     getPositionById(style.positionId) ||
     getPositionByLegacy(style.position) ||
@@ -1649,11 +1651,11 @@ function normalizeStyle(style) {
     fontSize: Number(style.fontSize) || 72,
     fontVariant: normalizeFontVariant(style.fontVariant),
     primaryColor: isNoneColor(primaryColor)
-      ? '#ffffff'
-      : normalizeSubtitleColor(primaryColor, '#ffffff'),
+      ? 'rgba(255, 255, 255, 1)'
+      : normalizeSubtitleColor(primaryColor, 'rgba(255, 255, 255, 1)'),
     secondaryColor: normalizeOptionalSubtitleColor(
-      style.secondaryColor ?? '#000000',
-      '#000000',
+      style.secondaryColor ?? 'rgba(0, 0, 0, 1)',
+      'rgba(0, 0, 0, 1)',
     ),
     outlineColor: normalizeOptionalSubtitleColor(style.outlineColor ?? 'none', 'none'),
     backColor: normalizeOptionalSubtitleColor(style.backColor ?? 'none', 'none'),
@@ -1792,8 +1794,8 @@ function generateAss() {
           font: 'Montserrat',
           fontSize: 72,
           fontVariant: 'regular',
-          primaryColor: '#ffffff',
-          secondaryColor: '#000000',
+          primaryColor: 'rgba(255, 255, 255, 1)',
+          secondaryColor: 'rgba(0, 0, 0, 1)',
           outlineColor: 'none',
           backColor: 'none',
           positionId: defaultPosition().id,
@@ -1947,8 +1949,15 @@ function syncEditorFormLayout(form, list, editingId) {
   if (!grid) return;
 
   const gridRect = grid.getBoundingClientRect();
+  const gridStyles = window.getComputedStyle(grid);
   const itemRect = activeItem.getBoundingClientRect();
-  const offset = Math.max(0, itemRect.top - gridRect.top);
+  const formRect = form.getBoundingClientRect();
+  const gridBottomPadding =
+    Number.parseFloat(gridStyles.paddingBottom || '0') || 0;
+  const parentBottom = gridRect.bottom - gridBottomPadding;
+  const desiredOffset = Math.max(0, itemRect.top - formRect.top);
+  const maxOffset = Math.max(0, parentBottom - formRect.bottom);
+  const offset = Math.min(desiredOffset, maxOffset);
 
   form.style.setProperty('--editor-edit-offset', `${Math.round(offset)}px`);
 }
@@ -2162,8 +2171,8 @@ function resetStyleForm() {
   styleFontInput.value = 'Montserrat';
   styleFontSizeInput.value = '72';
   styleFontVariantInput.value = 'regular';
-  setColorInputValue(stylePrimaryColorInput, '#ffffff');
-  setColorInputValue(styleSecondaryColorInput, '#000000');
+  setColorInputValue(stylePrimaryColorInput, 'rgba(255, 255, 255, 1)');
+  setColorInputValue(styleSecondaryColorInput, 'rgba(0, 0, 0, 1)');
   setColorInputValue(styleOutlineColorInput, 'none');
   setColorInputValue(styleBackColorInput, 'none');
   stylePositionInput.value = defaultPosition().id;
@@ -2396,6 +2405,7 @@ function handleVideoColorPointerDown(event) {
   event.preventDefault();
   event.stopPropagation();
   if (sampleVideoColorFromEvent(event)) {
+    setVideoColorPickerActive(false);
     videoColorInput.select();
   }
 }
@@ -2649,8 +2659,8 @@ async function ensureDefaultStyle() {
     font: 'Montserrat',
     fontSize: 72,
     fontVariant: 'regular',
-    primaryColor: '#ffffff',
-    secondaryColor: '#000000',
+    primaryColor: 'rgba(255, 255, 255, 1)',
+    secondaryColor: 'rgba(0, 0, 0, 1)',
     outlineColor: 'none',
     backColor: 'none',
     positionId: defaultPosition().id,

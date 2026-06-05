@@ -9,7 +9,7 @@
       customColor: 'Custom RGBA',
       customColorPlaceholder: 'rgba(255, 255, 255, 0.65)',
       applyCustomColor: 'Apply color',
-      invalidColor: 'Use #RRGGBB or rgba(255, 255, 255, 0.6)',
+      invalidColor: 'Use rgba(255, 255, 255, 0.6)',
       whiteAndBlack: 'white and black',
     },
     ru: {
@@ -19,7 +19,7 @@
       customColor: 'Свой RGBA',
       customColorPlaceholder: 'rgba(255, 255, 255, 0.65)',
       applyCustomColor: 'Применить цвет',
-      invalidColor: 'Введите #RRGGBB или rgba(255, 255, 255, 0.6)',
+      invalidColor: 'Введите rgba(255, 255, 255, 0.6)',
       whiteAndBlack: 'белый и черный',
     },
   };
@@ -140,7 +140,6 @@
     const green = Math.round(clampNumber(color.green, 0, 255));
     const blue = Math.round(clampNumber(color.blue, 0, 255));
     const alpha = clampNumber(color.alpha ?? 1, 0, 1);
-    if (alpha >= 1) return rgbToHex([red, green, blue]);
     return `rgba(${red}, ${green}, ${blue}, ${formatAlpha(alpha)})`;
   }
 
@@ -151,8 +150,12 @@
       : '#ffffff';
   }
 
-  function normalizeColor(value, fallback = '#ffffff') {
-    return normalizeParsedColor(parseCssColor(value)) || fallback;
+  function normalizeColor(value, fallback = 'rgba(255, 255, 255, 1)') {
+    return (
+      normalizeParsedColor(parseCssColor(value)) ||
+      normalizeParsedColor(parseCssColor(fallback)) ||
+      fallback
+    );
   }
 
   function hexToRgb(hex) {
@@ -266,7 +269,7 @@
   }
 
   function formatColorLabel(value) {
-    return value.startsWith('#') ? value.toUpperCase() : value;
+    return normalizeColor(value, value);
   }
 
   function setColorInputValue(input, value) {
@@ -498,7 +501,7 @@
                 setColorInputValue(input, baseColor.value);
                 renderPicker();
               },
-              !isNone && value === baseColor.value,
+              !isNone && value === normalizeColor(baseColor.value),
               {
                 split: baseColor.split,
                 familyActive: !isNone && selectedBase.value === baseColor.value,
@@ -517,7 +520,7 @@
                 setColorInputValue(input, shade);
                 renderPicker();
               },
-              !isNone && value === shade,
+              !isNone && value === normalizeColor(shade),
             ),
           ),
         );

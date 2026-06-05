@@ -131,9 +131,18 @@ describe('SubsController', () => {
 
   it('serves the source video through the app for canvas-safe preview', async () => {
     const send = jest.fn();
-    const res = { send } as unknown as Response;
+    const set = jest.fn();
+    const status = jest.fn();
+    const rangeReq = {
+      header: jest.fn().mockReturnValue(undefined),
+    } as unknown as Request;
+    const res = { send, set, status } as unknown as Response;
 
-    await controller.streamSourceVideo('aea4b8455e75d098f37454f9', res);
+    await controller.streamSourceVideo(
+      'aea4b8455e75d098f37454f9',
+      rangeReq,
+      res,
+    );
 
     expect(storageService.getSubsVideoUrl).toHaveBeenCalledWith(
       'aea4b8455e75d098f37454f9',
@@ -141,6 +150,40 @@ describe('SubsController', () => {
     expect(storageService.downloadFile).toHaveBeenCalledWith(
       'https://fra1.digitaloceanspaces.com/vlandivir-2025/subs/videos/hash/source',
     );
+    expect(set).toHaveBeenCalledWith({
+      'Accept-Ranges': 'bytes',
+      'Content-Type': 'video/mp4',
+    });
+    expect(set).toHaveBeenCalledWith('Content-Length', '5');
     expect(send).toHaveBeenCalledWith(Buffer.from('video'));
+    expect(status).not.toHaveBeenCalled();
+  });
+
+  it('serves source video byte ranges for browser seeking', async () => {
+    storageService.downloadFile.mockResolvedValue(Buffer.from('video-frame'));
+    const send = jest.fn();
+    const set = jest.fn();
+    const status = jest.fn();
+    const rangeReq = {
+      header: jest.fn().mockReturnValue('bytes=6-10'),
+    } as unknown as Request;
+    const res = { send, set, status } as unknown as Response;
+
+    await controller.streamSourceVideo(
+      'aea4b8455e75d098f37454f9',
+      rangeReq,
+      res,
+    );
+
+    expect(status).toHaveBeenCalledWith(206);
+    expect(set).toHaveBeenCalledWith({
+      'Accept-Ranges': 'bytes',
+      'Content-Type': 'video/mp4',
+    });
+    expect(set).toHaveBeenCalledWith({
+      'Content-Range': 'bytes 6-10/11',
+      'Content-Length': '5',
+    });
+    expect(send).toHaveBeenCalledWith(Buffer.from('frame'));
   });
 });
