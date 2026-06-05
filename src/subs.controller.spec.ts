@@ -30,12 +30,15 @@ describe('SubsController', () => {
         .mockReturnValue(
           'https://fra1.digitaloceanspaces.com/vlandivir-2025/subs/videos/hash/source',
         ),
-      uploadSubsVideoStream: jest.fn().mockImplementation(async (stream: Readable) => {
-        for await (const _chunk of stream) {
-          // Drain the stream like the real DO upload does before the tmp file is removed.
-        }
-        return 'https://fra1.digitaloceanspaces.com/vlandivir-2025/subs/videos/hash/source';
-      }),
+      uploadSubsVideoStream: jest
+        .fn()
+        .mockImplementation(async (stream: Readable) => {
+          for await (const chunk of stream) {
+            void chunk;
+            // Drain the stream like the real DO upload does before the tmp file is removed.
+          }
+          return 'https://fra1.digitaloceanspaces.com/vlandivir-2025/subs/videos/hash/source';
+        }),
     };
     telegramBotService = {
       sendDirectMessage: jest.fn().mockResolvedValue({ messageId: 123 }),
@@ -47,7 +50,10 @@ describe('SubsController', () => {
       telegramBotService as unknown as TelegramBotService,
     );
     jest
-      .spyOn(controller as unknown as { createHash: () => string }, 'createHash')
+      .spyOn(
+        controller as unknown as { createHash: () => string },
+        'createHash',
+      )
       .mockReturnValue('aea4b8455e75d098f37454f9');
     jest
       .spyOn(
@@ -86,15 +92,16 @@ describe('SubsController', () => {
     expect(result).toEqual(
       expect.objectContaining({
         hash: 'aea4b8455e75d098f37454f9',
-        absolutePageUrl:
-          'https://vlandivir.com/subs/aea4b8455e75d098f37454f9',
+        absolutePageUrl: 'https://vlandivir.com/subs/aea4b8455e75d098f37454f9',
         videoUrl:
           'https://fra1.digitaloceanspaces.com/vlandivir-2025/subs/videos/hash/source',
       }),
     );
     expect(telegramBotService.sendDirectMessage).toHaveBeenCalledWith(
       150847737,
-      expect.stringContaining('DO файл: https://fra1.digitaloceanspaces.com/vlandivir-2025/subs/videos/hash/source'),
+      expect.stringContaining(
+        'DO файл: https://fra1.digitaloceanspaces.com/vlandivir-2025/subs/videos/hash/source',
+      ),
     );
     expect(telegramBotService.sendDirectMessage).toHaveBeenCalledWith(
       150847737,

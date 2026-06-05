@@ -34,7 +34,9 @@ export class AppController {
 
   @Get('gpx-route-png')
   getGpxRoutePng(@Res() res: Response): void {
-    res.sendFile(path.join(process.cwd(), 'web', 'gpx-route-png', 'index.html'));
+    res.sendFile(
+      path.join(process.cwd(), 'web', 'gpx-route-png', 'index.html'),
+    );
   }
 
   @Get('gpx-route-png/en')
@@ -49,7 +51,9 @@ export class AppController {
 
   @Get('gpx-route-png/:videoId')
   getGpxRoutePngVideoPage(@Res() res: Response): void {
-    res.sendFile(path.join(process.cwd(), 'web', 'gpx-route-png', 'index.html'));
+    res.sendFile(
+      path.join(process.cwd(), 'web', 'gpx-route-png', 'index.html'),
+    );
   }
 
   @Get('subs')

@@ -83,6 +83,7 @@ const TEXT = IS_EN
       cueFontOverride: 'font',
       cueColorOverride: 'color',
       cueSizeOverride: 'size',
+      cueLineSpacingOverride: 'line spacing',
       pause: 'Pause',
       play: 'Play',
       unmute: 'Unmute',
@@ -164,6 +165,7 @@ const TEXT = IS_EN
       cueFontOverride: 'шрифт',
       cueColorOverride: 'цвет',
       cueSizeOverride: 'размер',
+      cueLineSpacingOverride: 'интервал',
       pause: 'Пауза',
       play: 'Воспроизвести',
       unmute: 'Включить звук',
@@ -438,6 +440,7 @@ const cueStyleInput = document.querySelector('#cueStyleInput');
 const cueFontInput = document.querySelector('#cueFontInput');
 const cueColorInput = document.querySelector('#cueColorInput');
 const cueFontSizeInput = document.querySelector('#cueFontSizeInput');
+const cueLineSpacingInput = document.querySelector('#cueLineSpacingInput');
 const cueMotionDxInput = document.querySelector('#cueMotionDxInput');
 const cueMotionDyInput = document.querySelector('#cueMotionDyInput');
 const cueMotionStartMsInput = document.querySelector('#cueMotionStartMsInput');
@@ -1519,6 +1522,7 @@ function normalizeCueOverrides(cue) {
   const color = String(cue?.colorOverride || cue?.primaryColor || '').trim();
   const font = String(cue?.fontOverride || '').trim();
   const fontSize = Math.round(Number(cue?.fontSizeOverride));
+  const lineSpacing = Math.round(Number(cue?.lineSpacingOverride));
   return {
     fontOverride: BUNDLED_FONT_FAMILIES.has(font) ? font : '',
     colorOverride: normalizeSubtitleColor(color, ''),
@@ -1526,6 +1530,7 @@ function normalizeCueOverrides(cue) {
       Number.isFinite(fontSize) && fontSize >= 12 && fontSize <= 260
         ? fontSize
         : 0,
+    lineSpacingOverride: Number.isFinite(lineSpacing) ? lineSpacing : 0,
   };
 }
 
@@ -1534,6 +1539,7 @@ function readCueOverridesFromForm() {
     fontOverride: cueFontInput?.value,
     colorOverride: cueColorInput?.value,
     fontSizeOverride: cueFontSizeInput?.value,
+    lineSpacingOverride: cueLineSpacingInput?.value,
   });
 }
 
@@ -1545,6 +1551,7 @@ function cueStyleWithOverrides(style, cue) {
     font: overrides.fontOverride || normalizedStyle.font,
     primaryColor: overrides.colorOverride || normalizedStyle.primaryColor,
     fontSize: overrides.fontSizeOverride || normalizedStyle.fontSize,
+    lineSpacingOverride: overrides.lineSpacingOverride,
   };
 }
 
@@ -1562,6 +1569,12 @@ function formatCueOverrideLabel(cue) {
   if (overrides.fontSizeOverride) {
     parts.push(`${TEXT.cueSizeOverride} ${overrides.fontSizeOverride}px`);
   }
+  if (overrides.lineSpacingOverride) {
+    const sign = overrides.lineSpacingOverride > 0 ? '+' : '';
+    parts.push(
+      `${TEXT.cueLineSpacingOverride} ${sign}${overrides.lineSpacingOverride}px`,
+    );
+  }
   return parts.length ? ` · ${TEXT.cueOverrides}: ${parts.join(', ')}` : '';
 }
 
@@ -1576,9 +1589,9 @@ function buildCueOverridePrefix(cue) {
   return tags.length ? `{${tags.join('')}}` : '';
 }
 
-function buildCuePositionPrefix(style, cue) {
+function buildCuePositionPrefix(style, cue, yOffset = 0) {
   const x = Math.round(style.position.x);
-  const y = Math.round(style.position.y);
+  const y = Math.round(style.position.y + yOffset);
   const motion = normalizeCueMotion(cue);
 
   if (!motion) {
@@ -1594,6 +1607,15 @@ function buildCuePositionPrefix(style, cue) {
   const moveStartMs = motion.motionStartMs;
   const moveEndMs = motion.motionStartMs + motion.motionMs;
   return `{\\move(${x},${y},${endX},${endY},${moveStartMs},${moveEndMs})}`;
+}
+
+function cueLineYOffset(style, lineIndex, lineCount, lineSpacing) {
+  const step = Math.max(1, Math.round(Number(style.fontSize) + lineSpacing));
+  const alignment = Number(style.position?.alignment) || 2;
+
+  if (alignment >= 7) return lineIndex * step;
+  if (alignment >= 4) return (lineIndex - (lineCount - 1) / 2) * step;
+  return (lineIndex - (lineCount - 1)) * step;
 }
 
 function setCurrentVideoMetaLink(url, fallbackText = '') {
@@ -1672,6 +1694,9 @@ function applySubtitlePreviewStyle(element, style, scale = 1) {
   element.style.color = normalizedStyle.primaryColor;
   element.style.fontFamily = formatPreviewFontFamily(normalizedStyle.font);
   element.style.fontSize = `${fontSize}px`;
+  element.style.lineHeight = normalizedStyle.lineSpacingOverride
+    ? `${Math.max(1, Math.round(fontSize + normalizedStyle.lineSpacingOverride * scale))}px`
+    : '';
   element.style.fontStyle =
     normalizedStyle.fontVariant === 'italic' ? 'italic' : 'normal';
   element.style.fontWeight =
@@ -1832,9 +1857,8 @@ function generateAss() {
     ].join(',');
   });
 
-  const cueLines = cachedCues.map((cue) => {
-    const style = normalizeStyle(getStyleById(cue.styleId) || {});
-    const positionPrefix = buildCuePositionPrefix(style, cue);
+  function buildDialogueLine(cue, style, text, yOffset = 0) {
+    const positionPrefix = buildCuePositionPrefix(style, cue, yOffset);
     const overridePrefix = buildCueOverridePrefix(cue);
     return [
       'Dialogue: 0',
@@ -1846,8 +1870,34 @@ function generateAss() {
       0,
       0,
       '',
-      `${positionPrefix}${overridePrefix}${escapeAssText(cue.text)}`,
+      `${positionPrefix}${overridePrefix}${text || '\\h'}`,
     ].join(',');
+  }
+
+  const cueLines = cachedCues.flatMap((cue) => {
+    const style = normalizeStyle(getStyleById(cue.styleId) || {});
+    const cueStyle = cueStyleWithOverrides(style, cue);
+    const overrides = normalizeCueOverrides(cue);
+    const text = escapeAssText(cue.text);
+    const textLines = text.split(/\\N/g);
+
+    if (!overrides.lineSpacingOverride || textLines.length <= 1) {
+      return [buildDialogueLine(cue, style, text)];
+    }
+
+    return textLines.map((line, index) =>
+      buildDialogueLine(
+        cue,
+        style,
+        line,
+        cueLineYOffset(
+          cueStyle,
+          index,
+          textLines.length,
+          overrides.lineSpacingOverride,
+        ),
+      ),
+    );
   });
 
   return [
@@ -2191,6 +2241,7 @@ function resetCueForm() {
   if (cueColorInput) setColorInputValue(cueColorInput, 'none');
   if (cueFontInput) cueFontInput.value = '';
   if (cueFontSizeInput) cueFontSizeInput.value = '';
+  if (cueLineSpacingInput) cueLineSpacingInput.value = '';
   if (cueMotionDxInput) cueMotionDxInput.value = '';
   if (cueMotionDyInput) cueMotionDyInput.value = '';
   if (cueMotionStartMsInput) cueMotionStartMsInput.value = '';
@@ -2255,6 +2306,11 @@ function startCueEdit(cue, options = {}) {
   if (cueFontSizeInput) {
     cueFontSizeInput.value = overrides.fontSizeOverride
       ? String(overrides.fontSizeOverride)
+      : '';
+  }
+  if (cueLineSpacingInput) {
+    cueLineSpacingInput.value = overrides.lineSpacingOverride
+      ? String(overrides.lineSpacingOverride)
       : '';
   }
   const motion = normalizeCueMotion(cue);
@@ -3304,6 +3360,7 @@ cueForm.addEventListener('submit', async (event) => {
     fontOverride: overrides.fontOverride,
     colorOverride: overrides.colorOverride,
     fontSizeOverride: overrides.fontSizeOverride,
+    lineSpacingOverride: overrides.lineSpacingOverride,
     motionDx: motion.motionDx,
     motionDy: motion.motionDy,
     motionStartMs: motion.motionStartMs,

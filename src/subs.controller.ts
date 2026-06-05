@@ -402,10 +402,7 @@ export class SubsController {
   @Get('videos/:hash/source/download')
   @Header('Content-Type', 'video/mp4')
   @Header('Content-Disposition', 'attachment; filename="subs-source-video"')
-  async downloadSourceVideo(
-    @Param('hash') hash: string,
-    @Res() res: Response,
-  ) {
+  async downloadSourceVideo(@Param('hash') hash: string, @Res() res: Response) {
     await this.sendSourceVideo(hash, res);
   }
 
@@ -429,11 +426,7 @@ export class SubsController {
     }
   }
 
-  private sendVideoBuffer(
-    buffer: Buffer,
-    res: Response,
-    rangeHeader?: string,
-  ) {
+  private sendVideoBuffer(buffer: Buffer, res: Response, rangeHeader?: string) {
     const totalSize = buffer.length;
     res.set({
       'Accept-Ranges': 'bytes',
