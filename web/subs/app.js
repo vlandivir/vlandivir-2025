@@ -1969,6 +1969,7 @@ function getEditorItemById(list, id) {
 
 function clearEditorFormOffset(form) {
   form?.style.removeProperty('--editor-edit-offset');
+  if (form) delete form.dataset.editorLayoutId;
 }
 
 function focusEditorControl(control) {
@@ -1989,11 +1990,25 @@ function syncEditorFormLayout(form, list, editingId) {
   });
 
   form.classList.toggle('is-editing', Boolean(editingId));
-  clearEditorFormOffset(form);
-  if (!editingId || !activeItem) return;
+  if (!editingId || !activeItem) {
+    clearEditorFormOffset(form);
+    return;
+  }
 
   const isStacked = window.matchMedia?.('(max-width: 820px)').matches;
-  if (isStacked) return;
+  if (isStacked) {
+    clearEditorFormOffset(form);
+    return;
+  }
+
+  if (
+    form.dataset.editorLayoutId === editingId &&
+    form.style.getPropertyValue('--editor-edit-offset')
+  ) {
+    return;
+  }
+
+  clearEditorFormOffset(form);
 
   const grid = form.closest('.editor-grid');
   if (!grid) return;
@@ -2010,6 +2025,7 @@ function syncEditorFormLayout(form, list, editingId) {
   const offset = Math.min(desiredOffset, maxOffset);
 
   form.style.setProperty('--editor-edit-offset', `${Math.round(offset)}px`);
+  form.dataset.editorLayoutId = editingId;
 }
 
 function syncEditorLayouts() {
