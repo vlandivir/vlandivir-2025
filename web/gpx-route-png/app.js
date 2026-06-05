@@ -701,7 +701,8 @@
     if (Object.prototype.hasOwnProperty.call(LEGACY_TRACK_COLORS, color)) {
       return LEGACY_TRACK_COLORS[color];
     }
-    return /^#[0-9a-f]{6}$/.test(color) ? color : DEFAULT_SETTINGS.trackColor;
+    const customColor = window.VlandivirColorPicker?.normalizeColor?.(color, '');
+    return customColor || DEFAULT_SETTINGS.trackColor;
   }
 
   function collectWaypointsForStorage() {

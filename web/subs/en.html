@@ -10,16 +10,16 @@
     <title>Subs ASS</title>
     <link rel="stylesheet" href="fonts/fonts.css?v=20260517-9" />
     <link rel="stylesheet" href="/shared/site-header.css?v=20260527-1" />
-    <link rel="stylesheet" href="/shared/color-picker.css?v=20260526-1" />
-    <link rel="stylesheet" href="styles.css?v=20260603-1" />
+    <link rel="stylesheet" href="/shared/color-picker.css?v=20260605-1" />
+    <link rel="stylesheet" href="styles.css?v=20260605-1" />
     <link rel="stylesheet" href="/shared/video-upload-block.css?v=20260603-1" />
     <link rel="stylesheet" href="/shared/site-theme.css?v=20260604-1" />
     <script src="/files/registry.js?v=20260527-1"></script>
     <script src="fonts-shared.js?v=20260531-1"></script>
     <script src="/shared/site-header.js?v=20260527-1" defer></script>
-    <script src="/shared/color-picker.js?v=20260526-1" defer></script>
+    <script src="/shared/color-picker.js?v=20260605-1" defer></script>
     <script src="/shared/video-upload-block.js?v=20260603-1" defer></script>
-    <script src="app.js?v=20260603-1" defer></script>
+    <script src="app.js?v=20260605-1" defer></script>
   </head>
   <body>
     <header
@@ -273,6 +273,14 @@
                     Add position
                   </button>
                   <button
+                    class="secondary-link editor-new"
+                    id="newPositionButton"
+                    type="button"
+                    hidden
+                  >
+                    New position
+                  </button>
+                  <button
                     class="secondary-link editor-cancel"
                     id="cancelPositionEditButton"
                     type="button"
@@ -417,6 +425,14 @@
                     Add style
                   </button>
                   <button
+                    class="secondary-link editor-new"
+                    id="newStyleButton"
+                    type="button"
+                    hidden
+                  >
+                    New style
+                  </button>
+                  <button
                     class="secondary-link editor-cancel"
                     id="cancelStyleEditButton"
                     type="button"
@@ -477,6 +493,11 @@
                           <code>&amp;H00FFFFFF&amp;</code>, red
                           <code>#FF0000</code> →
                           <code>&amp;H000000FF&amp;</code>
+                        </li>
+                        <li>
+                          <code>{\1a&amp;H80&amp;}</code> — fill transparency around
+                          50%; <code>&amp;H00</code> is opaque,
+                          <code>&amp;HFF</code> is invisible
                         </li>
                       </ul>
                     </article>
@@ -636,6 +657,14 @@
                       Add cue
                     </button>
                     <button
+                      class="secondary-link editor-new"
+                      id="newCueButton"
+                      type="button"
+                      hidden
+                    >
+                      New cue
+                    </button>
+                    <button
                       class="secondary-link editor-cancel"
                       id="cancelCueEditButton"
                       type="button"
@@ -735,7 +764,7 @@
                     </div>
                   </div>
                   <div class="video-preview-frame">
-                    <div class="video-stage">
+                    <div class="video-stage" id="videoStage">
                       <video
                         id="currentVideo"
                         playsinline
@@ -782,6 +811,41 @@
                         type="button"
                         aria-label="Mute"
                       ></button>
+                    </div>
+                    <div class="video-eyedropper" aria-label="Color eyedropper">
+                      <button
+                        class="secondary-link video-eyedropper__button"
+                        id="videoColorPickerButton"
+                        type="button"
+                        aria-pressed="false"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="m14 5 5 5" />
+                          <path d="m5 19 5-1 8-8-4-4-8 8-1 5Z" />
+                          <path d="m12 7 5-5 5 5-5 5" />
+                        </svg>
+                        <span>Picker</span>
+                      </button>
+                      <div
+                        class="video-eyedropper__result"
+                        id="videoColorPickerResult"
+                        hidden
+                      >
+                        <span
+                          class="video-eyedropper__swatch"
+                          id="videoColorSwatch"
+                          aria-hidden="true"
+                        ></span>
+                        <input
+                          class="video-eyedropper__input"
+                          id="videoColorInput"
+                          type="text"
+                          value=""
+                          placeholder="#RRGGBB"
+                          aria-label="Color code"
+                          readonly
+                        />
+                      </div>
                     </div>
                   </div>
                 </section>

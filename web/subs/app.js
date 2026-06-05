@@ -39,6 +39,9 @@ const TEXT = IS_EN
       noCueAtCurrentTime: 'No cue at the current time',
       loadVideoForPreview: 'Upload video for preview',
       addCuesForPreview: 'Add cues for preview',
+      pickVideoColor: 'Pick color',
+      pickVideoColorActive: 'Click the video to pick a color',
+      pickVideoColorFailed: 'Could not read this video frame.',
       jassubLoading: 'JASSUB is loading renderer...',
       jassubFailed: 'JASSUB failed to render subtitles',
       addCues: 'Add cues.',
@@ -117,6 +120,9 @@ const TEXT = IS_EN
       noCueAtCurrentTime: 'На текущем времени нет реплики',
       loadVideoForPreview: 'Загрузите видео для превью',
       addCuesForPreview: 'Добавьте реплики для превью',
+      pickVideoColor: 'Пипетка',
+      pickVideoColorActive: 'Кликните по видео, чтобы выбрать цвет',
+      pickVideoColorFailed: 'Не удалось прочитать этот кадр видео.',
       jassubLoading: 'JASSUB загружает renderer...',
       jassubFailed: 'JASSUB не смог отрендерить субтитры',
       addCues: 'Добавьте реплики.',
@@ -369,6 +375,7 @@ const emptyState = document.querySelector('#emptyState');
 const clearLinksButton = document.querySelector('#clearLinksButton');
 const videoBoundPanel = document.querySelector('#videoBoundPanel');
 const currentVideoSection = document.querySelector('#currentVideoSection');
+const videoStage = document.querySelector('#videoStage');
 const currentVideo = document.querySelector('#currentVideo');
 const currentVideoMeta = document.querySelector('#currentVideoMeta');
 const videoSubtitleOverlay = document.querySelector('#videoSubtitleOverlay');
@@ -378,6 +385,10 @@ const videoPlayButton = document.querySelector('#videoPlayButton');
 const videoSeekInput = document.querySelector('#videoSeekInput');
 const videoTimeLabel = document.querySelector('#videoTimeLabel');
 const videoMuteButton = document.querySelector('#videoMuteButton');
+const videoColorPickerButton = document.querySelector('#videoColorPickerButton');
+const videoColorPickerResult = document.querySelector('#videoColorPickerResult');
+const videoColorSwatch = document.querySelector('#videoColorSwatch');
+const videoColorInput = document.querySelector('#videoColorInput');
 const styleForm = document.querySelector('#styleForm');
 const styleNameInput = document.querySelector('#styleNameInput');
 const styleLivePreviewText = document.querySelector('#styleLivePreviewText');
@@ -400,6 +411,7 @@ const styleOutlineColorInput = document.querySelector(
 const styleBackColorInput = document.querySelector('#styleBackColorInput');
 const stylePositionInput = document.querySelector('#stylePositionInput');
 const styleSubmitButton = document.querySelector('#styleSubmitButton');
+const newStyleButton = document.querySelector('#newStyleButton');
 const cancelStyleEditButton = document.querySelector('#cancelStyleEditButton');
 const styleList = document.querySelector('#styleList');
 const stylesEmptyState = document.querySelector('#stylesEmptyState');
@@ -412,6 +424,7 @@ const positionAlignmentInput = document.querySelector(
 );
 const alignControlButtons = document.querySelectorAll('[data-align-cell]');
 const positionSubmitButton = document.querySelector('#positionSubmitButton');
+const newPositionButton = document.querySelector('#newPositionButton');
 const cancelPositionEditButton = document.querySelector(
   '#cancelPositionEditButton',
 );
@@ -430,6 +443,7 @@ const cueMotionDyInput = document.querySelector('#cueMotionDyInput');
 const cueMotionStartMsInput = document.querySelector('#cueMotionStartMsInput');
 const cueMotionMsInput = document.querySelector('#cueMotionMsInput');
 const cueSubmitButton = document.querySelector('#cueSubmitButton');
+const newCueButton = document.querySelector('#newCueButton');
 const cancelCueEditButton = document.querySelector('#cancelCueEditButton');
 const cueList = document.querySelector('#cueList');
 const cuesEmptyState = document.querySelector('#cuesEmptyState');
@@ -496,6 +510,10 @@ let currentVideoHash = null;
 let currentAudioWaveform = [];
 let audioAnimationFrame = null;
 let uploadValidationToken = 0;
+let isVideoColorPicking = false;
+const videoColorSampleCanvas = document.createElement('canvas');
+videoColorSampleCanvas.width = 1;
+videoColorSampleCanvas.height = 1;
 
 function openDb() {
   return SF.openDb();
@@ -1262,18 +1280,135 @@ function isNoneColor(color) {
   return color === 'none';
 }
 
+function clampColorNumber(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function parseColorChannel(value) {
+  const text = String(value || '').trim();
+  if (!text) return null;
+  const isPercent = text.endsWith('%');
+  const number = Number.parseFloat(isPercent ? text.slice(0, -1) : text);
+  if (!Number.isFinite(number)) return null;
+  return Math.round(clampColorNumber(isPercent ? (number / 100) * 255 : number, 0, 255));
+}
+
+function parseAlphaChannel(value) {
+  const text = String(value ?? '').trim();
+  if (!text) return 1;
+  const isPercent = text.endsWith('%');
+  const number = Number.parseFloat(isPercent ? text.slice(0, -1) : text);
+  if (!Number.isFinite(number)) return null;
+  return clampColorNumber(isPercent ? number / 100 : number, 0, 1);
+}
+
+function formatCssAlpha(alpha) {
+  return String(Math.round(alpha * 1000) / 1000)
+    .replace(/(\.\d*?)0+$/, '$1')
+    .replace(/\.$/, '');
+}
+
+function parseHexSubtitleColor(value) {
+  if (typeof value !== 'string') return null;
+  const match = value.trim().match(/^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i);
+  if (!match) return null;
+
+  let hex = match[1].toLowerCase();
+  if (hex.length === 3 || hex.length === 4) {
+    hex = [...hex].map((character) => character + character).join('');
+  }
+
+  const hasAlpha = hex.length === 8;
+  return {
+    red: Number.parseInt(hex.slice(0, 2), 16),
+    green: Number.parseInt(hex.slice(2, 4), 16),
+    blue: Number.parseInt(hex.slice(4, 6), 16),
+    alpha: hasAlpha ? Number.parseInt(hex.slice(6, 8), 16) / 255 : 1,
+  };
+}
+
+function parseRgbSubtitleColor(value) {
+  if (typeof value !== 'string') return null;
+  const match = value.trim().match(/^rgba?\((.+)\)$/i);
+  if (!match) return null;
+
+  const [colorPart, alphaPart = ''] = match[1].split('/').map((part) => part.trim());
+  const components = colorPart.includes(',')
+    ? colorPart.split(',').map((part) => part.trim())
+    : colorPart.split(/\s+/).filter(Boolean);
+  const inlineAlpha = components.length === 4 ? components.pop() : '';
+  if (components.length !== 3) return null;
+
+  const red = parseColorChannel(components[0]);
+  const green = parseColorChannel(components[1]);
+  const blue = parseColorChannel(components[2]);
+  const alpha = parseAlphaChannel(alphaPart || inlineAlpha);
+  if ([red, green, blue, alpha].some((channel) => channel === null)) return null;
+
+  return { red, green, blue, alpha };
+}
+
+function parseSubtitleColor(value) {
+  if (typeof value !== 'string') return null;
+  const color = value.trim().toLowerCase();
+  if (!color) return null;
+  if (color === 'transparent') {
+    return { red: 0, green: 0, blue: 0, alpha: 0 };
+  }
+  return parseHexSubtitleColor(color) || parseRgbSubtitleColor(color);
+}
+
+function colorToHexByte(value) {
+  return Math.round(clampColorNumber(value, 0, 255))
+    .toString(16)
+    .padStart(2, '0');
+}
+
+function assAlphaFromCss(alpha) {
+  return colorToHexByte((1 - clampColorNumber(alpha ?? 1, 0, 1)) * 255);
+}
+
+function normalizeSubtitleColor(color, fallback = '#ffffff') {
+  const parsed = parseSubtitleColor(color);
+  if (!parsed) return fallback;
+  const red = colorToHexByte(parsed.red);
+  const green = colorToHexByte(parsed.green);
+  const blue = colorToHexByte(parsed.blue);
+  if ((parsed.alpha ?? 1) >= 1) return `#${red}${green}${blue}`;
+  return `rgba(${parsed.red}, ${parsed.green}, ${parsed.blue}, ${formatCssAlpha(parsed.alpha)})`;
+}
+
+function normalizeOptionalSubtitleColor(color, fallback) {
+  return isNoneColor(color) ? 'none' : normalizeSubtitleColor(color, fallback);
+}
+
+function formatSubtitleColor(color) {
+  return color.startsWith('#') ? color.toUpperCase() : color;
+}
+
 function colorToAss(color) {
   if (isNoneColor(color)) return '&HFF000000';
 
-  const normalized = color.replace('#', '').padStart(6, '0');
-  const red = normalized.slice(0, 2);
-  const green = normalized.slice(2, 4);
-  const blue = normalized.slice(4, 6);
-  return `&H00${blue}${green}${red}`.toUpperCase();
+  const parsed = parseSubtitleColor(color) || parseSubtitleColor('#ffffff');
+  const red = colorToHexByte(parsed.red);
+  const green = colorToHexByte(parsed.green);
+  const blue = colorToHexByte(parsed.blue);
+  const alpha = assAlphaFromCss(parsed.alpha);
+  return `&H${alpha}${blue}${green}${red}`.toUpperCase();
 }
 
-function isHexColor(value) {
-  return /^#[0-9a-f]{6}$/i.test(String(value || ''));
+function colorToAssPrimaryOverrideTags(color) {
+  const parsed = parseSubtitleColor(color);
+  if (!parsed) return [];
+
+  const red = colorToHexByte(parsed.red);
+  const green = colorToHexByte(parsed.green);
+  const blue = colorToHexByte(parsed.blue);
+  const alpha = assAlphaFromCss(parsed.alpha).toUpperCase();
+  const bgr = `${blue}${green}${red}`.toUpperCase();
+  const tags = [`\\c&H${bgr}&`];
+  if (alpha !== '00') tags.push(`\\1a&H${alpha}&`);
+  return tags;
 }
 
 function setColorInputValue(input, value) {
@@ -1381,7 +1516,7 @@ function normalizeCueOverrides(cue) {
   const fontSize = Math.round(Number(cue?.fontSizeOverride));
   return {
     fontOverride: BUNDLED_FONT_FAMILIES.has(font) ? font : '',
-    colorOverride: isHexColor(color) ? color.toLowerCase() : '',
+    colorOverride: normalizeSubtitleColor(color, ''),
     fontSizeOverride:
       Number.isFinite(fontSize) && fontSize >= 12 && fontSize <= 260
         ? fontSize
@@ -1416,7 +1551,7 @@ function formatCueOverrideLabel(cue) {
   }
   if (overrides.colorOverride) {
     parts.push(
-      `${TEXT.cueColorOverride} ${overrides.colorOverride.toUpperCase()}`,
+      `${TEXT.cueColorOverride} ${formatSubtitleColor(overrides.colorOverride)}`,
     );
   }
   if (overrides.fontSizeOverride) {
@@ -1432,7 +1567,7 @@ function buildCueOverridePrefix(cue) {
   if (overrides.fontSizeOverride)
     tags.push(`\\fs${overrides.fontSizeOverride}`);
   if (overrides.colorOverride)
-    tags.push(`\\c${colorToAss(overrides.colorOverride)}`);
+    tags.push(...colorToAssPrimaryOverrideTags(overrides.colorOverride));
   return tags.length ? `{${tags.join('')}}` : '';
 }
 
@@ -1509,10 +1644,15 @@ function normalizeStyle(style) {
     font: style.font || 'Montserrat',
     fontSize: Number(style.fontSize) || 72,
     fontVariant: normalizeFontVariant(style.fontVariant),
-    primaryColor: isNoneColor(primaryColor) ? '#ffffff' : primaryColor,
-    secondaryColor: style.secondaryColor ?? '#000000',
-    outlineColor: style.outlineColor ?? 'none',
-    backColor: style.backColor ?? 'none',
+    primaryColor: isNoneColor(primaryColor)
+      ? '#ffffff'
+      : normalizeSubtitleColor(primaryColor, '#ffffff'),
+    secondaryColor: normalizeOptionalSubtitleColor(
+      style.secondaryColor ?? '#000000',
+      '#000000',
+    ),
+    outlineColor: normalizeOptionalSubtitleColor(style.outlineColor ?? 'none', 'none'),
+    backColor: normalizeOptionalSubtitleColor(style.backColor ?? 'none', 'none'),
     positionId: resolvedPosition.id,
     position: resolvedPosition,
   };
@@ -1584,7 +1724,9 @@ function createStylePreviewColor(label, value) {
   swatch.style.background = isNoneColor(value) ? 'transparent' : value;
 
   const text = document.createElement('span');
-  text.textContent = `${label}: ${isNoneColor(value) ? 'none' : value.toUpperCase()}`;
+  text.textContent = `${label}: ${
+    isNoneColor(value) ? 'none' : formatSubtitleColor(value)
+  }`;
 
   item.append(swatch, text);
   return item;
@@ -1762,6 +1904,68 @@ function renderPositionOptions() {
   renderStyleLivePreview();
 }
 
+let editorLayoutFrame = 0;
+
+function getEditorItemById(list, id) {
+  if (!list || !id) return null;
+  return [...list.children].find((item) => item.dataset.editorItemId === id);
+}
+
+function clearEditorFormOffset(form) {
+  form?.style.removeProperty('--editor-edit-offset');
+  form?.style.removeProperty('--editor-edit-min-height');
+}
+
+function syncEditorFormLayout(form, list, editingId) {
+  if (!form || !list) return;
+
+  const activeItem = getEditorItemById(list, editingId);
+  [...list.children].forEach((item) => {
+    item.classList.toggle('is-editing', item === activeItem);
+  });
+
+  form.classList.toggle('is-editing', Boolean(editingId));
+  clearEditorFormOffset(form);
+  if (!editingId || !activeItem) return;
+
+  const isStacked = window.matchMedia?.('(max-width: 820px)').matches;
+  if (isStacked) return;
+
+  const grid = form.closest('.editor-grid');
+  const listCard = list.closest('.editor-card');
+  if (!grid || !listCard) return;
+
+  const gridRect = grid.getBoundingClientRect();
+  const itemRect = activeItem.getBoundingClientRect();
+  const listCardRect = listCard.getBoundingClientRect();
+  const listCardStyles = window.getComputedStyle(listCard);
+  const listBottomPadding =
+    Number.parseFloat(listCardStyles.paddingBottom || '0') || 0;
+  const offset = Math.max(0, itemRect.top - gridRect.top);
+  const minHeight = Math.max(
+    0,
+    listCardRect.bottom - listBottomPadding - itemRect.top,
+  );
+
+  form.style.setProperty('--editor-edit-offset', `${Math.round(offset)}px`);
+  form.style.setProperty(
+    '--editor-edit-min-height',
+    `${Math.round(minHeight)}px`,
+  );
+}
+
+function syncEditorLayouts() {
+  editorLayoutFrame = 0;
+  syncEditorFormLayout(positionForm, positionList, editingPositionId);
+  syncEditorFormLayout(styleForm, styleList, editingStyleId);
+  syncEditorFormLayout(cueForm, cueList, editingCueId);
+}
+
+function scheduleEditorLayouts() {
+  if (editorLayoutFrame) window.cancelAnimationFrame(editorLayoutFrame);
+  editorLayoutFrame = window.requestAnimationFrame(syncEditorLayouts);
+}
+
 function renderPositions() {
   positionList.replaceChildren();
   positionsEmptyState.hidden = cachedPositions.length > 0;
@@ -1769,6 +1973,8 @@ function renderPositions() {
   for (const position of cachedPositions) {
     const item = document.createElement('article');
     item.className = 'position-item';
+    item.dataset.editorItemId = position.id;
+    item.classList.toggle('is-editing', editingPositionId === position.id);
 
     const body = document.createElement('div');
     const title = document.createElement('h4');
@@ -1830,6 +2036,7 @@ function renderPositions() {
   }
 
   renderPositionOptions();
+  scheduleEditorLayouts();
 }
 
 function renderStyles() {
@@ -1840,6 +2047,8 @@ function renderStyles() {
     const style = normalizeStyle(rawStyle);
     const item = document.createElement('article');
     item.className = 'style-item';
+    item.dataset.editorItemId = style.id;
+    item.classList.toggle('is-editing', editingStyleId === style.id);
 
     const swatch = document.createElement('span');
     swatch.className = 'style-swatch';
@@ -1887,6 +2096,7 @@ function renderStyles() {
   }
 
   renderStyleOptions();
+  scheduleEditorLayouts();
 }
 
 function renderCues() {
@@ -1898,6 +2108,8 @@ function renderCues() {
     const cuePreviewStyle = cueStyleWithOverrides(style, cue);
     const item = document.createElement('article');
     item.className = 'cue-item';
+    item.dataset.editorItemId = cue.id;
+    item.classList.toggle('is-editing', editingCueId === cue.id);
 
     const time = document.createElement('p');
     time.className = 'cue-item__time';
@@ -1942,6 +2154,7 @@ function renderCues() {
     item.append(time, text, meta, actions);
     cueList.append(item);
   }
+  scheduleEditorLayouts();
 }
 
 function resetStyleForm() {
@@ -1956,7 +2169,11 @@ function resetStyleForm() {
   setColorInputValue(styleBackColorInput, 'none');
   stylePositionInput.value = defaultPosition().id;
   styleSubmitButton.textContent = TEXT.addStyle;
+  if (newStyleButton) newStyleButton.hidden = true;
   cancelStyleEditButton.hidden = true;
+  styleForm.classList.remove('is-editing');
+  clearEditorFormOffset(styleForm);
+  scheduleEditorLayouts();
   renderStyleLivePreview();
 }
 
@@ -1971,7 +2188,11 @@ function resetCueForm() {
   if (cueMotionStartMsInput) cueMotionStartMsInput.value = '';
   if (cueMotionMsInput) cueMotionMsInput.value = '';
   cueSubmitButton.textContent = TEXT.addCue;
+  if (newCueButton) newCueButton.hidden = true;
   cancelCueEditButton.hidden = true;
+  cueForm.classList.remove('is-editing');
+  clearEditorFormOffset(cueForm);
+  scheduleEditorLayouts();
 }
 
 function resetPositionForm() {
@@ -1982,10 +2203,14 @@ function resetPositionForm() {
   positionAlignmentInput.value = '2';
   renderAlignControl();
   positionSubmitButton.textContent = TEXT.addPosition;
+  if (newPositionButton) newPositionButton.hidden = true;
   cancelPositionEditButton.hidden = true;
+  positionForm.classList.remove('is-editing');
+  clearEditorFormOffset(positionForm);
+  scheduleEditorLayouts();
 }
 
-function startStyleEdit(style) {
+function startStyleEdit(style, options = {}) {
   const normalizedStyle = normalizeStyle(style);
   editingStyleId = normalizedStyle.id;
   styleNameInput.value = normalizedStyle.name;
@@ -1998,12 +2223,15 @@ function startStyleEdit(style) {
   setColorInputValue(styleBackColorInput, normalizedStyle.backColor);
   stylePositionInput.value = normalizedStyle.positionId;
   styleSubmitButton.textContent = TEXT.saveStyle;
+  if (newStyleButton) newStyleButton.hidden = false;
   cancelStyleEditButton.hidden = false;
+  styleForm.classList.add('is-editing');
   renderStyleLivePreview();
-  styleNameInput.focus();
+  scheduleEditorLayouts();
+  if (options.focus !== false) styleNameInput.focus();
 }
 
-function startCueEdit(cue) {
+function startCueEdit(cue, options = {}) {
   editingCueId = cue.id;
   cueTextInput.value = cue.text;
   cueStartInput.value = formatTimeInput(cue.start);
@@ -2037,11 +2265,14 @@ function startCueEdit(cue) {
       motion && motion.motionMs > 0 ? String(motion.motionMs) : '';
   }
   cueSubmitButton.textContent = TEXT.saveCue;
+  if (newCueButton) newCueButton.hidden = false;
   cancelCueEditButton.hidden = false;
-  cueTextInput.focus();
+  cueForm.classList.add('is-editing');
+  scheduleEditorLayouts();
+  if (options.focus !== false) cueTextInput.focus();
 }
 
-function startPositionEdit(position) {
+function startPositionEdit(position, options = {}) {
   editingPositionId = position.id;
   positionNameInput.value = position.name;
   positionXInput.value = String(position.x);
@@ -2049,8 +2280,111 @@ function startPositionEdit(position) {
   positionAlignmentInput.value = String(position.alignment);
   renderAlignControl();
   positionSubmitButton.textContent = TEXT.savePosition;
+  if (newPositionButton) newPositionButton.hidden = false;
   cancelPositionEditButton.hidden = false;
-  positionNameInput.focus();
+  positionForm.classList.add('is-editing');
+  scheduleEditorLayouts();
+  if (options.focus !== false) positionNameInput.focus();
+}
+
+function setVideoColorPickerActive(active) {
+  isVideoColorPicking = Boolean(active && currentVideo?.src);
+  videoStage?.classList.toggle('is-picking-color', isVideoColorPicking);
+  videoColorPickerButton?.setAttribute(
+    'aria-pressed',
+    isVideoColorPicking ? 'true' : 'false',
+  );
+  videoColorPickerButton?.setAttribute(
+    'aria-label',
+    isVideoColorPicking ? TEXT.pickVideoColorActive : TEXT.pickVideoColor,
+  );
+  if (videoColorPickerButton) {
+    videoColorPickerButton.title = isVideoColorPicking
+      ? TEXT.pickVideoColorActive
+      : TEXT.pickVideoColor;
+  }
+}
+
+function clearPickedVideoColor() {
+  videoColorPickerResult.hidden = true;
+  videoColorSwatch.style.background = '';
+  videoColorInput.value = '';
+  setVideoColorPickerActive(false);
+}
+
+function getVideoContentPoint(event) {
+  if (!currentVideo?.videoWidth || !currentVideo.videoHeight) return null;
+
+  const rect = currentVideo.getBoundingClientRect();
+  const videoRatio = currentVideo.videoWidth / currentVideo.videoHeight;
+  const boxRatio = rect.width / rect.height;
+  let left = rect.left;
+  let top = rect.top;
+  let width = rect.width;
+  let height = rect.height;
+
+  if (boxRatio > videoRatio) {
+    width = rect.height * videoRatio;
+    left += (rect.width - width) / 2;
+  } else if (boxRatio < videoRatio) {
+    height = rect.width / videoRatio;
+    top += (rect.height - height) / 2;
+  }
+
+  const ratioX = (event.clientX - left) / width;
+  const ratioY = (event.clientY - top) / height;
+  if (ratioX < 0 || ratioX > 1 || ratioY < 0 || ratioY > 1) return null;
+
+  return {
+    x: Math.min(
+      currentVideo.videoWidth - 1,
+      Math.max(0, Math.floor(ratioX * currentVideo.videoWidth)),
+    ),
+    y: Math.min(
+      currentVideo.videoHeight - 1,
+      Math.max(0, Math.floor(ratioY * currentVideo.videoHeight)),
+    ),
+  };
+}
+
+function formatPickedVideoColor([red, green, blue]) {
+  return `#${[red, green, blue].map(colorToHexByte).join('')}`.toUpperCase();
+}
+
+function pickVideoColorFromEvent(event) {
+  if (!isVideoColorPicking) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+
+  const point = getVideoContentPoint(event);
+  if (!point) return;
+
+  try {
+    const context = videoColorSampleCanvas.getContext('2d', {
+      willReadFrequently: true,
+    });
+    context.drawImage(
+      currentVideo,
+      point.x,
+      point.y,
+      1,
+      1,
+      0,
+      0,
+      1,
+      1,
+    );
+    const color = formatPickedVideoColor(context.getImageData(0, 0, 1, 1).data);
+    videoColorSwatch.style.background = color;
+    videoColorInput.value = color;
+    videoColorPickerResult.hidden = false;
+    videoColorInput.select();
+    setVideoColorPickerActive(false);
+  } catch (error) {
+    setVideoColorPickerActive(false);
+    updatePreviewMeta(TEXT.pickVideoColorFailed);
+  }
 }
 
 function currentPreviewCue() {
@@ -2647,6 +2981,7 @@ async function applyVideoContext(hash) {
     renderSubtitledVideoControls();
     currentVideoSection.hidden = true;
     currentVideo.src = '';
+    clearPickedVideoColor();
     setCurrentVideoMetaLink(null, '');
     await destroyJassubRenderer();
     if (previousHash) {
@@ -2678,6 +3013,7 @@ async function loadCurrentVideo() {
   if (!response.ok) {
     setCurrentVideoMetaLink(null, TEXT.linkFetchFailed);
     currentVideo.src = '';
+    clearPickedVideoColor();
     currentVideoSection.hidden = false;
     updateVideoControls();
     return;
@@ -2691,6 +3027,7 @@ async function loadCurrentVideo() {
   };
   await destroyJassubRenderer();
   currentVideo.src = localizedVideo.videoUrl;
+  clearPickedVideoColor();
   setCurrentVideoMetaLink(localizedVideo.absolutePageUrl);
   currentVideoSection.hidden = false;
   updateVideoControls();
@@ -2782,6 +3119,7 @@ currentVideo.addEventListener('seeked', () => {
   void repaintJassubFrame();
 });
 currentVideo.addEventListener('loadedmetadata', () => {
+  clearPickedVideoColor();
   updateVideoControls();
   updatePreviewMeta();
   void renderJassubPreview();
@@ -2799,6 +3137,17 @@ currentVideo.addEventListener('volumechange', updateVideoControls);
 
 safeZoneOverlayToggle?.addEventListener('change', syncSafeZoneOverlay);
 syncSafeZoneOverlay();
+
+videoColorPickerButton?.addEventListener('click', () => {
+  setVideoColorPickerActive(!isVideoColorPicking);
+});
+videoStage?.addEventListener('click', pickVideoColorFromEvent);
+videoColorInput?.addEventListener('focus', () => {
+  videoColorInput.select();
+});
+videoColorInput?.addEventListener('click', () => {
+  videoColorInput.select();
+});
 
 videoPlayButton.addEventListener('click', () => {
   if (currentVideo.paused) {
@@ -2855,6 +3204,7 @@ audioPlayer.addEventListener('ended', () => {
   redrawCurrentAudioWaveform();
 });
 window.addEventListener('resize', redrawCurrentAudioWaveform);
+window.addEventListener('resize', scheduleEditorLayouts);
 
 [
   styleNameInput,
@@ -2874,11 +3224,13 @@ window.addEventListener('resize', redrawCurrentAudioWaveform);
 styleForm.addEventListener('submit', async (event) => {
   event.preventDefault();
 
+  const wasEditing = Boolean(editingStyleId);
+  const styleId = editingStyleId || createId('style');
   const existingStyle = editingStyleId
     ? getStyleById(editingStyleId)
     : undefined;
   await saveStyle({
-    id: editingStyleId || createId('style'),
+    id: styleId,
     name: styleNameInput.value.trim(),
     font: styleFontInput.value,
     fontSize: Number(styleFontSizeInput.value) || 72,
@@ -2891,9 +3243,18 @@ styleForm.addEventListener('submit', async (event) => {
     createdAt: existingStyle?.createdAt || new Date().toISOString(),
   });
 
-  resetStyleForm();
   await destroyJassubRenderer();
   await refreshEditor();
+  if (wasEditing) {
+    const savedStyle = getStyleById(styleId);
+    if (savedStyle) {
+      startStyleEdit(savedStyle, { focus: false });
+    } else {
+      resetStyleForm();
+    }
+  } else {
+    resetStyleForm();
+  }
 });
 
 cueForm.addEventListener('submit', async (event) => {
@@ -2901,13 +3262,15 @@ cueForm.addEventListener('submit', async (event) => {
 
   if (!currentVideoHash || !cueStyleInput.value) return;
 
+  const wasEditing = Boolean(editingCueId);
+  const cueId = editingCueId || createId('cue');
   const existingCue = editingCueId
     ? cachedCues.find((cue) => cue.id === editingCueId)
     : undefined;
   const motion = readCueMotionFromForm();
   const overrides = readCueOverridesFromForm();
   await saveCue({
-    id: editingCueId || createId('cue'),
+    id: cueId,
     videoHash: currentVideoHash,
     text: cueTextInput.value.trim(),
     start: formatTimeInput(cueStartInput.value),
@@ -2923,14 +3286,35 @@ cueForm.addEventListener('submit', async (event) => {
     createdAt: existingCue?.createdAt || new Date().toISOString(),
   });
 
-  resetCueForm();
   await touchCurrentVideoUpdated();
   await refreshEditor();
+  if (wasEditing) {
+    const savedCue = cachedCues.find((cue) => cue.id === cueId);
+    if (savedCue) {
+      startCueEdit(savedCue, { focus: false });
+    } else {
+      resetCueForm();
+    }
+  } else {
+    resetCueForm();
+  }
 });
 
 cancelStyleEditButton.addEventListener('click', resetStyleForm);
 cancelCueEditButton.addEventListener('click', resetCueForm);
 cancelPositionEditButton.addEventListener('click', resetPositionForm);
+newStyleButton?.addEventListener('click', () => {
+  resetStyleForm();
+  styleNameInput.focus();
+});
+newCueButton?.addEventListener('click', () => {
+  resetCueForm();
+  cueTextInput.focus();
+});
+newPositionButton?.addEventListener('click', () => {
+  resetPositionForm();
+  positionNameInput.focus();
+});
 alignControlButtons.forEach((button) => {
   button.addEventListener('click', () => {
     positionAlignmentInput.value = button.dataset.alignCell;
@@ -2941,11 +3325,13 @@ alignControlButtons.forEach((button) => {
 positionForm.addEventListener('submit', async (event) => {
   event.preventDefault();
 
+  const wasEditing = Boolean(editingPositionId);
+  const positionId = editingPositionId || createId('position');
   const existingPosition = editingPositionId
     ? cachedPositions.find((position) => position.id === editingPositionId)
     : undefined;
   await savePosition({
-    id: editingPositionId || createId('position'),
+    id: positionId,
     name: positionNameInput.value.trim(),
     x: Math.round(Number(positionXInput.value) || 0),
     y: Math.round(Number(positionYInput.value) || 0),
@@ -2953,9 +3339,20 @@ positionForm.addEventListener('submit', async (event) => {
     createdAt: existingPosition?.createdAt || new Date().toISOString(),
   });
 
-  resetPositionForm();
   await destroyJassubRenderer();
   await refreshEditor();
+  if (wasEditing) {
+    const savedPosition = cachedPositions.find(
+      (position) => position.id === positionId,
+    );
+    if (savedPosition) {
+      startPositionEdit(savedPosition, { focus: false });
+    } else {
+      resetPositionForm();
+    }
+  } else {
+    resetPositionForm();
+  }
 });
 
 downloadAssButton.addEventListener('click', () => {

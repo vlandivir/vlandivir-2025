@@ -6,12 +6,20 @@
       doNotDraw: 'Do not draw',
       chooseColor: 'Choose color',
       shade: 'Shade',
+      customColor: 'Custom RGBA',
+      customColorPlaceholder: 'rgba(255, 255, 255, 0.65)',
+      applyCustomColor: 'Apply color',
+      invalidColor: 'Use #RRGGBB or rgba(255, 255, 255, 0.6)',
       whiteAndBlack: 'white and black',
     },
     ru: {
       doNotDraw: 'Не рисовать',
       chooseColor: 'Выбрать цвет',
       shade: 'Оттенок',
+      customColor: 'Свой RGBA',
+      customColorPlaceholder: 'rgba(255, 255, 255, 0.65)',
+      applyCustomColor: 'Применить цвет',
+      invalidColor: 'Введите #RRGGBB или rgba(255, 255, 255, 0.6)',
       whiteAndBlack: 'белый и черный',
     },
   };
@@ -38,25 +46,130 @@
     return color === 'none';
   }
 
-  function normalizeHex(value) {
-    if (typeof value !== 'string') return '#ffffff';
-    const color = value.trim().toLowerCase();
-    return /^#[0-9a-f]{6}$/.test(color) ? color : '#ffffff';
-  }
-
-  function hexToRgb(hex) {
-    const normalized = normalizeHex(hex).replace('#', '');
-    return [
-      Number.parseInt(normalized.slice(0, 2), 16),
-      Number.parseInt(normalized.slice(2, 4), 16),
-      Number.parseInt(normalized.slice(4, 6), 16),
-    ];
+  function clampNumber(value, min, max) {
+    return Math.min(max, Math.max(min, value));
   }
 
   function rgbToHex([red, green, blue]) {
     return `#${[red, green, blue]
-      .map((channel) => Math.round(channel).toString(16).padStart(2, '0'))
+      .map((channel) =>
+        Math.round(clampNumber(channel, 0, 255))
+          .toString(16)
+          .padStart(2, '0'),
+      )
       .join('')}`;
+  }
+
+  function parseColorChannel(value) {
+    const text = String(value || '').trim();
+    if (!text) return null;
+    const isPercent = text.endsWith('%');
+    const number = Number.parseFloat(isPercent ? text.slice(0, -1) : text);
+    if (!Number.isFinite(number)) return null;
+    return Math.round(clampNumber(isPercent ? (number / 100) * 255 : number, 0, 255));
+  }
+
+  function parseAlphaChannel(value) {
+    const text = String(value ?? '').trim();
+    if (!text) return 1;
+    const isPercent = text.endsWith('%');
+    const number = Number.parseFloat(isPercent ? text.slice(0, -1) : text);
+    if (!Number.isFinite(number)) return null;
+    return clampNumber(isPercent ? number / 100 : number, 0, 1);
+  }
+
+  function formatAlpha(alpha) {
+    return String(Math.round(alpha * 1000) / 1000)
+      .replace(/(\.\d*?)0+$/, '$1')
+      .replace(/\.$/, '');
+  }
+
+  function parseHexColor(value) {
+    if (typeof value !== 'string') return null;
+    const match = value.trim().match(/^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i);
+    if (!match) return null;
+
+    let hex = match[1].toLowerCase();
+    if (hex.length === 3 || hex.length === 4) {
+      hex = [...hex].map((character) => character + character).join('');
+    }
+
+    const hasAlpha = hex.length === 8;
+    return {
+      red: Number.parseInt(hex.slice(0, 2), 16),
+      green: Number.parseInt(hex.slice(2, 4), 16),
+      blue: Number.parseInt(hex.slice(4, 6), 16),
+      alpha: hasAlpha ? Number.parseInt(hex.slice(6, 8), 16) / 255 : 1,
+    };
+  }
+
+  function parseRgbColor(value) {
+    if (typeof value !== 'string') return null;
+    const match = value.trim().match(/^rgba?\((.+)\)$/i);
+    if (!match) return null;
+
+    const [colorPart, alphaPart = ''] = match[1].split('/').map((part) => part.trim());
+    const components = colorPart.includes(',')
+      ? colorPart.split(',').map((part) => part.trim())
+      : colorPart.split(/\s+/).filter(Boolean);
+    const inlineAlpha = components.length === 4 ? components.pop() : '';
+    if (components.length !== 3) return null;
+
+    const red = parseColorChannel(components[0]);
+    const green = parseColorChannel(components[1]);
+    const blue = parseColorChannel(components[2]);
+    const alpha = parseAlphaChannel(alphaPart || inlineAlpha);
+    if ([red, green, blue, alpha].some((channel) => channel === null)) return null;
+
+    return { red, green, blue, alpha };
+  }
+
+  function parseCssColor(value) {
+    if (typeof value !== 'string') return null;
+    const color = value.trim().toLowerCase();
+    if (!color) return null;
+    if (color === 'transparent') {
+      return { red: 0, green: 0, blue: 0, alpha: 0 };
+    }
+    return parseHexColor(color) || parseRgbColor(color);
+  }
+
+  function normalizeParsedColor(color) {
+    if (!color) return '';
+    const red = Math.round(clampNumber(color.red, 0, 255));
+    const green = Math.round(clampNumber(color.green, 0, 255));
+    const blue = Math.round(clampNumber(color.blue, 0, 255));
+    const alpha = clampNumber(color.alpha ?? 1, 0, 1);
+    if (alpha >= 1) return rgbToHex([red, green, blue]);
+    return `rgba(${red}, ${green}, ${blue}, ${formatAlpha(alpha)})`;
+  }
+
+  function normalizeHex(value) {
+    const color = parseHexColor(value);
+    return color && color.alpha >= 1
+      ? rgbToHex([color.red, color.green, color.blue])
+      : '#ffffff';
+  }
+
+  function normalizeColor(value, fallback = '#ffffff') {
+    return normalizeParsedColor(parseCssColor(value)) || fallback;
+  }
+
+  function hexToRgb(hex) {
+    const color = parseCssColor(hex) || parseCssColor('#ffffff');
+    return [color.red, color.green, color.blue];
+  }
+
+  function hasColorAlpha(color) {
+    const parsed = parseCssColor(color);
+    return parsed ? parsed.alpha < 1 : false;
+  }
+
+  function paintSwatch(element, color) {
+    const normalized = normalizeColor(color);
+    element.style.setProperty('--color-picker-swatch-color', normalized);
+    element.classList.toggle('has-alpha', hasColorAlpha(normalized));
+    element.style.background = hasColorAlpha(normalized) ? '' : normalized;
   }
 
   function mixColor(color, target, amount) {
@@ -152,8 +265,12 @@
     ).baseColor;
   }
 
+  function formatColorLabel(value) {
+    return value.startsWith('#') ? value.toUpperCase() : value;
+  }
+
   function setColorInputValue(input, value) {
-    input.value = value === 'none' ? 'none' : normalizeHex(value);
+    input.value = value === 'none' ? 'none' : normalizeColor(value);
     input.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
@@ -226,6 +343,25 @@
       const shadeGrid = document.createElement('div');
       shadeGrid.className = 'color-picker__grid color-picker__grid--shades';
 
+      const customForm = document.createElement('form');
+      customForm.className = 'color-picker__custom';
+
+      const customInput = document.createElement('input');
+      customInput.className = 'color-picker__custom-input';
+      customInput.type = 'text';
+      customInput.placeholder = text.customColorPlaceholder;
+      customInput.setAttribute('aria-label', text.customColor);
+      customInput.spellcheck = false;
+
+      const customButton = document.createElement('button');
+      customButton.className = 'color-picker__custom-apply';
+      customButton.type = 'submit';
+      customButton.textContent = 'OK';
+      customButton.title = text.applyCustomColor;
+      customButton.setAttribute('aria-label', text.applyCustomColor);
+
+      customForm.append(customInput, customButton);
+
       const resetButton = document.createElement('button');
       resetButton.className = 'color-picker__reset';
       resetButton.type = 'button';
@@ -243,7 +379,7 @@
         renderPicker();
       });
 
-      panel.append(baseGrid, shadeGrid);
+      panel.append(baseGrid, shadeGrid, customForm);
       if (allowNone) {
         const pickerRow = document.createElement('div');
         pickerRow.className = 'color-picker__row';
@@ -276,7 +412,7 @@
         if (buttonOptions.split) {
           button.classList.add('color-picker__swatch--split');
         } else {
-          button.style.background = color;
+          paintSwatch(button, color);
         }
         if (isActive) button.classList.add('is-active');
         if (buttonOptions.familyActive) button.classList.add('is-family-active');
@@ -293,16 +429,58 @@
         return button;
       }
 
+      function applyCustomColor() {
+        const rawValue = customInput.value.trim();
+        if (allowNone && rawValue.toLowerCase() === 'none') {
+          setColorInputValue(input, 'none');
+          customInput.setCustomValidity('');
+          customInput.classList.remove('is-invalid');
+          renderPicker();
+          return;
+        }
+
+        const normalized = normalizeColor(rawValue, '');
+        if (!normalized) {
+          customInput.setCustomValidity(text.invalidColor);
+          customInput.classList.add('is-invalid');
+          customInput.reportValidity();
+          return;
+        }
+
+        customInput.setCustomValidity('');
+        customInput.classList.remove('is-invalid');
+        setColorInputValue(input, normalized);
+        renderPicker();
+      }
+
+      customForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        applyCustomColor();
+      });
+
+      customInput.addEventListener('input', () => {
+        customInput.setCustomValidity('');
+        customInput.classList.remove('is-invalid');
+      });
+
       function renderPicker() {
-        const value = input.value === 'none' ? 'none' : normalizeHex(input.value);
+        const value = input.value === 'none' ? 'none' : normalizeColor(input.value);
         const isNone = isNoneColor(value);
         const shades = getShades(selectedBase.value);
 
-        selectedSwatch.style.background = isNone ? 'transparent' : value;
         selectedSwatch.classList.toggle('is-none', isNone);
+        if (!isNone) {
+          paintSwatch(selectedSwatch, value);
+        } else {
+          selectedSwatch.style.background = '';
+          selectedSwatch.style.removeProperty('--color-picker-swatch-color');
+          selectedSwatch.classList.remove('has-alpha');
+        }
         selectedLabel.textContent = isNone
           ? text.doNotDraw.toLowerCase()
-          : value.toUpperCase();
+          : formatColorLabel(value);
+        customInput.value = isNone ? '' : value;
         triggerButton.setAttribute(
           'aria-label',
           `${text.chooseColor}: ${selectedLabel.textContent}`,
@@ -371,6 +549,7 @@
     closeAll: closeAllColorPickers,
     initialize,
     isNoneColor,
+    normalizeColor,
     setColorInputValue,
   };
 })();

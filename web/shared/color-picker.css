@@ -102,6 +102,32 @@
   outline-offset: 2px;
 }
 
+.color-picker__selected-swatch.has-alpha,
+.color-picker__swatch.has-alpha {
+  background:
+    linear-gradient(
+      var(--color-picker-swatch-color, transparent),
+      var(--color-picker-swatch-color, transparent)
+    ),
+    linear-gradient(45deg, #e6e8eb 25%, transparent 25%),
+    linear-gradient(-45deg, #e6e8eb 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e6e8eb 75%),
+    linear-gradient(-45deg, transparent 75%, #e6e8eb 75%);
+  background-color: #fff;
+  background-position:
+    0 0,
+    0 0,
+    0 5px,
+    5px -5px,
+    -5px 0;
+  background-size:
+    100% 100%,
+    10px 10px,
+    10px 10px,
+    10px 10px,
+    10px 10px;
+}
+
 .color-picker__swatch.is-family-active:not(.is-active) {
   box-shadow: 0 0 0 2px var(--color-picker-family-active, rgba(49, 111, 81, 0.2));
 }
@@ -159,4 +185,35 @@
 .color-picker__reset.is-active {
   border-color: var(--color-picker-active, var(--green, var(--accent, #24664f)));
   color: var(--color-picker-active, var(--green, var(--accent, #24664f)));
+}
+
+.color-picker__custom {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+}
+
+.color-picker__custom-input,
+.color-picker__custom-apply {
+  min-height: 36px;
+  border: 1px solid var(--color-picker-line, var(--line, var(--border-2, #d4ded8)));
+  border-radius: 8px;
+  background: var(--color-picker-surface, #fff);
+  color: var(--color-picker-muted, var(--muted, var(--ink-muted, #607079)));
+  font: inherit;
+}
+
+.color-picker__custom-input {
+  min-width: 0;
+  padding: 7px 9px;
+}
+
+.color-picker__custom-input.is-invalid {
+  border-color: #b91c1c;
+}
+
+.color-picker__custom-apply {
+  padding: 0 10px;
+  cursor: pointer;
+  font-weight: 800;
 }
