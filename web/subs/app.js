@@ -40,7 +40,7 @@ const TEXT = IS_EN
       loadVideoForPreview: 'Upload video for preview',
       addCuesForPreview: 'Add cues for preview',
       pickVideoColor: 'Pick color',
-      pickVideoColorActive: 'Click the video to pick a color',
+      pickVideoColorActive: 'Move over the video to pick a color',
       pickVideoColorFailed: 'Could not read this video frame.',
       jassubLoading: 'JASSUB is loading renderer...',
       jassubFailed: 'JASSUB failed to render subtitles',
@@ -121,7 +121,7 @@ const TEXT = IS_EN
       loadVideoForPreview: 'Загрузите видео для превью',
       addCuesForPreview: 'Добавьте реплики для превью',
       pickVideoColor: 'Пипетка',
-      pickVideoColorActive: 'Кликните по видео, чтобы выбрать цвет',
+      pickVideoColorActive: 'Ведите курсором по видео, чтобы выбрать цвет',
       pickVideoColorFailed: 'Не удалось прочитать этот кадр видео.',
       jassubLoading: 'JASSUB загружает renderer...',
       jassubFailed: 'JASSUB не смог отрендерить субтитры',
@@ -1913,7 +1913,15 @@ function getEditorItemById(list, id) {
 
 function clearEditorFormOffset(form) {
   form?.style.removeProperty('--editor-edit-offset');
-  form?.style.removeProperty('--editor-edit-min-height');
+}
+
+function focusEditorControl(control) {
+  if (!control) return;
+  try {
+    control.focus({ preventScroll: true });
+  } catch (error) {
+    control.focus();
+  }
 }
 
 function syncEditorFormLayout(form, list, editingId) {
@@ -1932,26 +1940,13 @@ function syncEditorFormLayout(form, list, editingId) {
   if (isStacked) return;
 
   const grid = form.closest('.editor-grid');
-  const listCard = list.closest('.editor-card');
-  if (!grid || !listCard) return;
+  if (!grid) return;
 
   const gridRect = grid.getBoundingClientRect();
   const itemRect = activeItem.getBoundingClientRect();
-  const listCardRect = listCard.getBoundingClientRect();
-  const listCardStyles = window.getComputedStyle(listCard);
-  const listBottomPadding =
-    Number.parseFloat(listCardStyles.paddingBottom || '0') || 0;
   const offset = Math.max(0, itemRect.top - gridRect.top);
-  const minHeight = Math.max(
-    0,
-    listCardRect.bottom - listBottomPadding - itemRect.top,
-  );
 
   form.style.setProperty('--editor-edit-offset', `${Math.round(offset)}px`);
-  form.style.setProperty(
-    '--editor-edit-min-height',
-    `${Math.round(minHeight)}px`,
-  );
 }
 
 function syncEditorLayouts() {
@@ -2228,7 +2223,7 @@ function startStyleEdit(style, options = {}) {
   styleForm.classList.add('is-editing');
   renderStyleLivePreview();
   scheduleEditorLayouts();
-  if (options.focus !== false) styleNameInput.focus();
+  if (options.focus !== false) focusEditorControl(styleNameInput);
 }
 
 function startCueEdit(cue, options = {}) {
@@ -2269,7 +2264,7 @@ function startCueEdit(cue, options = {}) {
   cancelCueEditButton.hidden = false;
   cueForm.classList.add('is-editing');
   scheduleEditorLayouts();
-  if (options.focus !== false) cueTextInput.focus();
+  if (options.focus !== false) focusEditorControl(cueTextInput);
 }
 
 function startPositionEdit(position, options = {}) {
@@ -2284,12 +2279,15 @@ function startPositionEdit(position, options = {}) {
   cancelPositionEditButton.hidden = false;
   positionForm.classList.add('is-editing');
   scheduleEditorLayouts();
-  if (options.focus !== false) positionNameInput.focus();
+  if (options.focus !== false) focusEditorControl(positionNameInput);
 }
 
 function setVideoColorPickerActive(active) {
   isVideoColorPicking = Boolean(active && currentVideo?.src);
   videoStage?.classList.toggle('is-picking-color', isVideoColorPicking);
+  if (isVideoColorPicking) {
+    videoColorPickerResult.hidden = false;
+  }
   videoColorPickerButton?.setAttribute(
     'aria-pressed',
     isVideoColorPicking ? 'true' : 'false',
@@ -2348,17 +2346,13 @@ function getVideoContentPoint(event) {
 }
 
 function formatPickedVideoColor([red, green, blue]) {
-  return `#${[red, green, blue].map(colorToHexByte).join('')}`.toUpperCase();
+  return `rgba(${red}, ${green}, ${blue}, 1)`;
 }
 
-function pickVideoColorFromEvent(event) {
-  if (!isVideoColorPicking) return;
-
-  event.preventDefault();
-  event.stopPropagation();
-
+function sampleVideoColorFromEvent(event) {
+  if (!isVideoColorPicking) return false;
   const point = getVideoContentPoint(event);
-  if (!point) return;
+  if (!point) return false;
 
   try {
     const context = videoColorSampleCanvas.getContext('2d', {
@@ -2379,11 +2373,26 @@ function pickVideoColorFromEvent(event) {
     videoColorSwatch.style.background = color;
     videoColorInput.value = color;
     videoColorPickerResult.hidden = false;
-    videoColorInput.select();
-    setVideoColorPickerActive(false);
+    return true;
   } catch (error) {
     setVideoColorPickerActive(false);
     updatePreviewMeta(TEXT.pickVideoColorFailed);
+    return false;
+  }
+}
+
+function handleVideoColorPointerMove(event) {
+  if (!isVideoColorPicking) return;
+  event.preventDefault();
+  sampleVideoColorFromEvent(event);
+}
+
+function handleVideoColorPointerDown(event) {
+  if (!isVideoColorPicking) return;
+  event.preventDefault();
+  event.stopPropagation();
+  if (sampleVideoColorFromEvent(event)) {
+    videoColorInput.select();
   }
 }
 
@@ -3141,7 +3150,8 @@ syncSafeZoneOverlay();
 videoColorPickerButton?.addEventListener('click', () => {
   setVideoColorPickerActive(!isVideoColorPicking);
 });
-videoStage?.addEventListener('click', pickVideoColorFromEvent);
+videoStage?.addEventListener('pointermove', handleVideoColorPointerMove);
+videoStage?.addEventListener('pointerdown', handleVideoColorPointerDown);
 videoColorInput?.addEventListener('focus', () => {
   videoColorInput.select();
 });
@@ -3305,15 +3315,15 @@ cancelCueEditButton.addEventListener('click', resetCueForm);
 cancelPositionEditButton.addEventListener('click', resetPositionForm);
 newStyleButton?.addEventListener('click', () => {
   resetStyleForm();
-  styleNameInput.focus();
+  focusEditorControl(styleNameInput);
 });
 newCueButton?.addEventListener('click', () => {
   resetCueForm();
-  cueTextInput.focus();
+  focusEditorControl(cueTextInput);
 });
 newPositionButton?.addEventListener('click', () => {
   resetPositionForm();
-  positionNameInput.focus();
+  focusEditorControl(positionNameInput);
 });
 alignControlButtons.forEach((button) => {
   button.addEventListener('click', () => {

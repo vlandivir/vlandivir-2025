@@ -958,16 +958,12 @@ pre {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  transition: margin-top 0.16s ease;
+  transition: top 0.16s ease;
 }
 
 .editor-form.is-editing {
-  min-height: var(--editor-edit-min-height, 0);
-  margin-top: var(--editor-edit-offset, 0);
-}
-
-.editor-form.is-editing .editor-actions {
-  margin-top: auto;
+  position: relative;
+  top: var(--editor-edit-offset, 0);
 }
 
 .cue-form {
@@ -1877,12 +1873,7 @@ pre {
   }
 
   .editor-form.is-editing {
-    min-height: 0;
-    margin-top: 0;
-  }
-
-  .editor-form.is-editing .editor-actions {
-    margin-top: 0;
+    top: 0;
   }
 
   .item-actions {
