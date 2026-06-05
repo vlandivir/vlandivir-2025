@@ -2,7 +2,7 @@ import { ConfigService } from '@nestjs/config';
 import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import type { Readable } from 'stream';
 import { StorageService } from './services/storage.service';
 import { SubsController } from './subs.controller';
@@ -11,6 +11,8 @@ import { TelegramBotService } from './telegram-bot/telegram-bot.service';
 describe('SubsController', () => {
   let controller: SubsController;
   let storageService: {
+    downloadFile: jest.Mock;
+    getSubsVideoUrl: jest.Mock;
     uploadSubsVideoStream: jest.Mock;
   };
   let telegramBotService: {
@@ -22,6 +24,12 @@ describe('SubsController', () => {
   beforeEach(async () => {
     tmpDir = await mkdtemp(join(tmpdir(), 'subs-controller-test-'));
     storageService = {
+      downloadFile: jest.fn().mockResolvedValue(Buffer.from('video')),
+      getSubsVideoUrl: jest
+        .fn()
+        .mockReturnValue(
+          'https://fra1.digitaloceanspaces.com/vlandivir-2025/subs/videos/hash/source',
+        ),
       uploadSubsVideoStream: jest.fn().mockImplementation(async (stream: Readable) => {
         for await (const _chunk of stream) {
           // Drain the stream like the real DO upload does before the tmp file is removed.
@@ -119,5 +127,20 @@ describe('SubsController', () => {
         hash: 'aea4b8455e75d098f37454f9',
       }),
     );
+  });
+
+  it('serves the source video through the app for canvas-safe preview', async () => {
+    const send = jest.fn();
+    const res = { send } as unknown as Response;
+
+    await controller.streamSourceVideo('aea4b8455e75d098f37454f9', res);
+
+    expect(storageService.getSubsVideoUrl).toHaveBeenCalledWith(
+      'aea4b8455e75d098f37454f9',
+    );
+    expect(storageService.downloadFile).toHaveBeenCalledWith(
+      'https://fra1.digitaloceanspaces.com/vlandivir-2025/subs/videos/hash/source',
+    );
+    expect(send).toHaveBeenCalledWith(Buffer.from('video'));
   });
 });

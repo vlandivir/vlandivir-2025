@@ -697,6 +697,10 @@ function getAbsoluteSubsPageUrl(hash) {
   return new URL(getSubsPagePath(hash), window.location.origin).href;
 }
 
+function getSubsSourceVideoUrl(hash) {
+  return `/subs-api/videos/${hash}/source`;
+}
+
 function formatBytes(bytes) {
   if (!bytes) return '0 B';
 
@@ -3035,7 +3039,8 @@ async function loadCurrentVideo() {
     absolutePageUrl: getAbsoluteSubsPageUrl(hash),
   };
   await destroyJassubRenderer();
-  currentVideo.src = localizedVideo.videoUrl;
+  currentVideo.crossOrigin = 'anonymous';
+  currentVideo.src = getSubsSourceVideoUrl(hash);
   clearPickedVideoColor();
   setCurrentVideoMetaLink(localizedVideo.absolutePageUrl);
   currentVideoSection.hidden = false;

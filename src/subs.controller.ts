@@ -389,6 +389,12 @@ export class SubsController {
     }
   }
 
+  @Get('videos/:hash/source')
+  @Header('Content-Type', 'video/mp4')
+  async streamSourceVideo(@Param('hash') hash: string, @Res() res: Response) {
+    await this.sendSourceVideo(hash, res);
+  }
+
   @Get('videos/:hash/source/download')
   @Header('Content-Type', 'video/mp4')
   @Header('Content-Disposition', 'attachment; filename="subs-source-video"')
@@ -396,6 +402,10 @@ export class SubsController {
     @Param('hash') hash: string,
     @Res() res: Response,
   ) {
+    await this.sendSourceVideo(hash, res);
+  }
+
+  private async sendSourceVideo(hash: string, res: Response) {
     this.assertHash(hash);
 
     try {
