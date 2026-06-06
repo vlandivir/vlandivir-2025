@@ -655,7 +655,7 @@
   const IS_VIDEO_CONTEXT = Boolean(PAGE_SOURCE_VIDEO_FILE_ID);
   const SETTINGS_STORAGE_KEY = IS_VIDEO_CONTEXT
     ? `gpx-route-png/video/${PAGE_SOURCE_VIDEO_FILE_ID}/v1`
-    : 'gpx-route-png/v1';
+    : '';
   const SECTION_PREFS_STORAGE_KEY = IS_VIDEO_CONTEXT
     ? `gpx-route-png/video/${PAGE_SOURCE_VIDEO_FILE_ID}/sections/v1`
     : 'gpx-route-png/sections/v1';
@@ -772,7 +772,7 @@
   }
 
   function persistSettings() {
-    if (settingsPersistSuspended) return;
+    if (settingsPersistSuspended || !IS_VIDEO_CONTEXT) return;
     try {
       localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(collectSettings()));
     } catch (_e) {
@@ -781,7 +781,7 @@
   }
 
   function schedulePersistSettings() {
-    if (settingsPersistSuspended) return;
+    if (settingsPersistSuspended || !IS_VIDEO_CONTEXT) return;
     if (saveSettingsTimer) clearTimeout(saveSettingsTimer);
     saveSettingsTimer = setTimeout(() => {
       saveSettingsTimer = null;
@@ -790,6 +790,7 @@
   }
 
   function loadStoredSettings() {
+    if (!IS_VIDEO_CONTEXT) return null;
     try {
       const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
       if (!raw) return null;
@@ -800,6 +801,7 @@
   }
 
   function clearStoredSettings() {
+    if (!IS_VIDEO_CONTEXT) return;
     try {
       localStorage.removeItem(SETTINGS_STORAGE_KEY);
     } catch (_e) {
@@ -1388,7 +1390,7 @@
   }
 
   async function restoreStoredSourceVideo() {
-    if (!selectedSourceVideoFileId || sourceVideoFile || !window.UserFilesRegistry?.get) {
+    if (!IS_VIDEO_CONTEXT || !selectedSourceVideoFileId || sourceVideoFile || !window.UserFilesRegistry?.get) {
       return false;
     }
 
@@ -2967,24 +2969,28 @@
 
   initWorkflowSections();
   initTrackColorPicker();
-  const hadStoredSettings = restoreStoredSettings();
+  if (IS_VIDEO_CONTEXT) {
+    restoreStoredSettings();
+  } else {
+    applyDefaultSettings({ skipRender: true });
+  }
   updateStep2Controls();
   updateStep3Controls();
   updateFinalVideoControls();
   updateSampleButtonVisibility();
   renderStep2AnimPreview(1);
   renderFinalVideoOverlayPreview(1);
-  void loadSourceVideoFromFiles().then((loadedFromQuery) => {
-    if (!loadedFromQuery) return restoreStoredSourceVideo();
-    return null;
-  });
+  if (IS_VIDEO_CONTEXT) {
+    void loadSourceVideoFromFiles().then((loadedFromQuery) => {
+      if (!loadedFromQuery) return restoreStoredSourceVideo();
+      return null;
+    });
+  }
   if (!IS_VIDEO_CONTEXT) {
     void loadSampleTrack({
       quiet: true,
-      applyDemoContent: !hadStoredSettings,
-      preserveWaypoints: hadStoredSettings,
-    }).then(() => {
-      if (!hadStoredSettings) persistSettings();
+      applyDemoContent: true,
+      preserveWaypoints: false,
     });
   }
 })();
