@@ -2013,16 +2013,9 @@ function syncEditorFormLayout(form, list, editingId) {
   const grid = form.closest('.editor-grid');
   if (!grid) return;
 
-  const gridRect = grid.getBoundingClientRect();
-  const gridStyles = window.getComputedStyle(grid);
   const itemRect = activeItem.getBoundingClientRect();
   const formRect = form.getBoundingClientRect();
-  const gridBottomPadding =
-    Number.parseFloat(gridStyles.paddingBottom || '0') || 0;
-  const parentBottom = gridRect.bottom - gridBottomPadding;
-  const desiredOffset = Math.max(0, itemRect.top - formRect.top);
-  const maxOffset = Math.max(0, parentBottom - formRect.bottom);
-  const offset = Math.min(desiredOffset, maxOffset);
+  const offset = Math.max(0, itemRect.top - formRect.top);
 
   form.style.setProperty('--editor-edit-offset', `${Math.round(offset)}px`);
   form.dataset.editorLayoutId = editingId;
@@ -2038,6 +2031,13 @@ function syncEditorLayouts() {
 function scheduleEditorLayouts() {
   if (editorLayoutFrame) window.cancelAnimationFrame(editorLayoutFrame);
   editorLayoutFrame = window.requestAnimationFrame(syncEditorLayouts);
+}
+
+function resyncEditorLayouts() {
+  clearEditorFormOffset(positionForm);
+  clearEditorFormOffset(styleForm);
+  clearEditorFormOffset(cueForm);
+  scheduleEditorLayouts();
 }
 
 function renderPositions() {
@@ -3301,7 +3301,7 @@ audioPlayer.addEventListener('ended', () => {
   redrawCurrentAudioWaveform();
 });
 window.addEventListener('resize', redrawCurrentAudioWaveform);
-window.addEventListener('resize', scheduleEditorLayouts);
+window.addEventListener('resize', resyncEditorLayouts);
 
 [
   styleNameInput,

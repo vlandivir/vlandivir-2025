@@ -964,6 +964,7 @@ pre {
 .editor-form.is-editing {
   position: relative;
   top: var(--editor-edit-offset, 0);
+  margin-bottom: var(--editor-edit-offset, 0);
 }
 
 .cue-form {
