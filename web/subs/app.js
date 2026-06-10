@@ -8,6 +8,10 @@ const MAX_UPLOAD_VIDEO_SIZE_BYTES = 200 * 1024 * 1024;
 const REQUIRED_UPLOAD_VIDEO_WIDTH = 1080;
 const REQUIRED_UPLOAD_VIDEO_HEIGHT = 1920;
 const IS_EN = document.documentElement.lang?.startsWith('en');
+const NAME_COLLATOR = new Intl.Collator(IS_EN ? 'en' : 'ru', {
+  numeric: true,
+  sensitivity: 'base',
+});
 const TEXT = IS_EN
   ? {
       bottomCenter: 'Bottom center',
@@ -590,8 +594,16 @@ async function touchCurrentVideoUpdated() {
   await SF.touchVideoUpdatedAt(currentVideoHash);
 }
 
+function compareRecordsByName(a, b) {
+  return (
+    NAME_COLLATOR.compare(String(a.name || ''), String(b.name || '')) ||
+    String(a.createdAt || '').localeCompare(String(b.createdAt || '')) ||
+    String(a.id || '').localeCompare(String(b.id || ''))
+  );
+}
+
 async function readStyles() {
-  return SF.readActiveStyles();
+  return (await SF.readActiveStyles()).sort(compareRecordsByName);
 }
 
 async function saveStyle(style) {
@@ -612,7 +624,7 @@ async function archiveStyle(id) {
 }
 
 async function readPositions() {
-  return SF.readActivePositions();
+  return (await SF.readActivePositions()).sort(compareRecordsByName);
 }
 
 async function savePosition(position) {
@@ -646,9 +658,13 @@ async function reloadStylePositionLookups() {
 }
 
 function sortCuesByStart(cues) {
-  return cues.sort(
-    (a, b) => parseTimeToSeconds(a.start) - parseTimeToSeconds(b.start),
-  );
+  return cues.sort((a, b) => {
+    return (
+      parseTimeToSeconds(a.start) - parseTimeToSeconds(b.start) ||
+      String(a.createdAt || '').localeCompare(String(b.createdAt || '')) ||
+      String(a.id || '').localeCompare(String(b.id || ''))
+    );
+  });
 }
 
 async function readCuesForVideo(videoHash) {
@@ -1236,7 +1252,13 @@ function getPositionByLegacy(legacy) {
 }
 
 function defaultPosition() {
-  return cachedPositions[0] || DEFAULT_POSITIONS[0];
+  return (
+    cachedPositions.find(
+      (position) => position.id === DEFAULT_POSITIONS[0].id,
+    ) ||
+    cachedPositions[0] ||
+    DEFAULT_POSITIONS[0]
+  );
 }
 
 function parseTimeToSeconds(value) {
@@ -2981,8 +3003,8 @@ async function createCuesFromTranscription() {
   }
 
   const cueDrafts = buildCuesFromWords(words);
-  const now = new Date().toISOString();
-  for (const cue of cueDrafts) {
+  const createdAt = Date.now();
+  for (const [index, cue] of cueDrafts.entries()) {
     await saveCue({
       id: createId('cue'),
       videoHash: currentVideoHash,
@@ -2990,7 +3012,7 @@ async function createCuesFromTranscription() {
       start: formatTimeInput(String(cue.start)),
       end: formatTimeInput(String(cue.end)),
       styleId: transcriptionCueStyleInput.value,
-      createdAt: now,
+      createdAt: new Date(createdAt + index).toISOString(),
     });
   }
 
