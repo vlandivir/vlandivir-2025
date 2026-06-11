@@ -1977,7 +1977,7 @@ function renderPositionOptions() {
   if (cachedPositions.some((position) => position.id === currentValue)) {
     stylePositionInput.value = currentValue;
   } else if (cachedPositions[0]) {
-    stylePositionInput.value = cachedPositions[0].id;
+    stylePositionInput.value = defaultPosition().id;
   }
   renderStyleLivePreview();
 }
