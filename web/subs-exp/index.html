@@ -556,7 +556,18 @@
                   id="cueForm"
                   hidden
                 >
-                  <h3>Реплика</h3>
+                  <div class="cue-form__head">
+                    <h3>Реплика</h3>
+                    <button
+                      class="icon-button cue-form__close"
+                      id="closeCueEditorButton"
+                      type="button"
+                      title="Закрыть редактор"
+                      aria-label="Закрыть редактор реплики"
+                    >
+                      ×
+                    </button>
+                  </div>
                   <label class="editor-field cue-text-field">
                     <span>Текст</span>
                     <textarea
@@ -685,6 +696,14 @@
                       hidden
                     >
                       Отменить
+                    </button>
+                    <button
+                      class="secondary-link editor-delete"
+                      id="deleteCueButton"
+                      type="button"
+                      hidden
+                    >
+                      Удалить реплику
                     </button>
                   </div>
                 </form>

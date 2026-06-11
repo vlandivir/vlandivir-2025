@@ -234,6 +234,11 @@ const JASSUB_DEFAULT_FONT_URL = new URL(
   SUBS_ASSET_BASE_URL,
 ).href;
 const STYLE_PREVIEW_TEXT = 'Preview Превью Događaj';
+const CUE_TIMELINE_SCALE_STORAGE_KEY = 'subs-exp-timeline-px-per-second';
+const CUE_TIMELINE_DEFAULT_PX_PER_SECOND = 200;
+const CUE_TIMELINE_MIN_PX_PER_SECOND = 50;
+const CUE_TIMELINE_MAX_PX_PER_SECOND = 400;
+const CUE_TIMELINE_MIN_HEIGHT = 96;
 
 function subsFontUrl(fileName) {
   return new URL(fileName, SUBS_FONTS_BASE_URL).href;
@@ -388,8 +393,12 @@ const videoPlayButton = document.querySelector('#videoPlayButton');
 const videoSeekInput = document.querySelector('#videoSeekInput');
 const videoTimeLabel = document.querySelector('#videoTimeLabel');
 const videoMuteButton = document.querySelector('#videoMuteButton');
-const videoColorPickerButton = document.querySelector('#videoColorPickerButton');
-const videoColorPickerResult = document.querySelector('#videoColorPickerResult');
+const videoColorPickerButton = document.querySelector(
+  '#videoColorPickerButton',
+);
+const videoColorPickerResult = document.querySelector(
+  '#videoColorPickerResult',
+);
 const videoColorSwatch = document.querySelector('#videoColorSwatch');
 const videoColorInput = document.querySelector('#videoColorInput');
 const styleForm = document.querySelector('#styleForm');
@@ -449,6 +458,8 @@ const cueMotionMsInput = document.querySelector('#cueMotionMsInput');
 const cueSubmitButton = document.querySelector('#cueSubmitButton');
 const newCueButton = document.querySelector('#newCueButton');
 const cancelCueEditButton = document.querySelector('#cancelCueEditButton');
+const closeCueEditorButton = document.querySelector('#closeCueEditorButton');
+const deleteCueButton = document.querySelector('#deleteCueButton');
 const cueList = document.querySelector('#cueList');
 const cuesEmptyState = document.querySelector('#cuesEmptyState');
 const cueTimelineCard = document.querySelector('#cueTimelineCard');
@@ -514,6 +525,8 @@ let editingPositionId;
 let cueEditorOpen = false;
 let cueEditorDock;
 let addCueButton;
+let cueTimelineScaleOutput;
+let cueTimelinePxPerSecond = readCueTimelineScale();
 let currentVideoHash = null;
 let currentAudioWaveform = [];
 let audioAnimationFrame = null;
@@ -532,12 +545,32 @@ function initExperimentalCueWorkbench() {
   timelineHead.className = 'cue-timeline__head';
 
   const timelineCopy = document.createElement('div');
+  timelineCopy.className = 'cue-timeline__copy';
   const title = document.createElement('h3');
   title.textContent = 'Вертикальный таймлайн';
-  const scale = document.createElement('p');
-  scale.className = 'cue-timeline__scale';
-  scale.textContent = 'Масштаб: 28 px = 1 секунда';
-  timelineCopy.append(title, scale);
+
+  const scaleControl = document.createElement('label');
+  scaleControl.className = 'cue-timeline__scale-control';
+  const scaleLabel = document.createElement('span');
+  scaleLabel.textContent = 'Масштаб';
+  const scaleInput = document.createElement('input');
+  scaleInput.type = 'range';
+  scaleInput.min = String(CUE_TIMELINE_MIN_PX_PER_SECOND);
+  scaleInput.max = String(CUE_TIMELINE_MAX_PX_PER_SECOND);
+  scaleInput.step = '10';
+  scaleInput.value = String(cueTimelinePxPerSecond);
+  scaleInput.setAttribute('aria-label', 'Масштаб таймлайна');
+  cueTimelineScaleOutput = document.createElement('output');
+  cueTimelineScaleOutput.className = 'cue-timeline__scale-output';
+  scaleInput.addEventListener('input', () => {
+    cueTimelinePxPerSecond = normalizeCueTimelineScale(scaleInput.value);
+    writeCueTimelineScale(cueTimelinePxPerSecond);
+    renderCueTimelineScaleOutput();
+    renderCues();
+  });
+  scaleControl.append(scaleLabel, scaleInput, cueTimelineScaleOutput);
+  timelineCopy.append(title, scaleControl);
+  renderCueTimelineScaleOutput();
 
   addCueButton = document.createElement('button');
   addCueButton.className = 'primary-link cue-timeline__add';
@@ -568,6 +601,41 @@ function initExperimentalCueWorkbench() {
   workbench.classList.add('cue-workbench');
   workbench.replaceChildren(cueTimelineCard, previewPanel);
   if (cheatsheet) workbench.append(cheatsheet);
+}
+
+function normalizeCueTimelineScale(value) {
+  if (value === null || value === undefined || value === '') {
+    return CUE_TIMELINE_DEFAULT_PX_PER_SECOND;
+  }
+  const number = Number(value);
+  if (!Number.isFinite(number)) return CUE_TIMELINE_DEFAULT_PX_PER_SECOND;
+  return Math.min(
+    CUE_TIMELINE_MAX_PX_PER_SECOND,
+    Math.max(CUE_TIMELINE_MIN_PX_PER_SECOND, Math.round(number / 10) * 10),
+  );
+}
+
+function readCueTimelineScale() {
+  try {
+    return normalizeCueTimelineScale(
+      window.localStorage.getItem(CUE_TIMELINE_SCALE_STORAGE_KEY),
+    );
+  } catch (error) {
+    return CUE_TIMELINE_DEFAULT_PX_PER_SECOND;
+  }
+}
+
+function writeCueTimelineScale(value) {
+  try {
+    window.localStorage.setItem(CUE_TIMELINE_SCALE_STORAGE_KEY, String(value));
+  } catch (error) {
+    // The scale still works for this page when storage is unavailable.
+  }
+}
+
+function renderCueTimelineScaleOutput() {
+  if (!cueTimelineScaleOutput) return;
+  cueTimelineScaleOutput.textContent = `${cueTimelinePxPerSecond} px = 1 секунда`;
 }
 
 function openDb() {
@@ -706,13 +774,95 @@ async function reloadStylePositionLookups() {
 }
 
 function sortCuesByStart(cues) {
-  return cues.sort((a, b) => {
-    return (
-      parseTimeToSeconds(a.start) - parseTimeToSeconds(b.start) ||
-      String(a.createdAt || '').localeCompare(String(b.createdAt || '')) ||
-      String(a.id || '').localeCompare(String(b.id || ''))
-    );
+  return cues
+    .map((cue, sourceIndex) => ({ cue, sourceIndex }))
+    .sort((a, b) => {
+      const aStart = parseTimeToSeconds(a.cue.start);
+      const bStart = parseTimeToSeconds(b.cue.start);
+      return (
+        (Number.isFinite(aStart) ? aStart : 0) -
+          (Number.isFinite(bStart) ? bStart : 0) ||
+        String(a.cue.createdAt || '').localeCompare(
+          String(b.cue.createdAt || ''),
+        ) ||
+        a.sourceIndex - b.sourceIndex
+      );
+    })
+    .map(({ cue }) => cue);
+}
+
+function buildCueTimelineLayout(cues) {
+  const intervals = sortCuesByStart(cues).map((cue, order) => {
+    const parsedStart = parseTimeToSeconds(cue.start);
+    const parsedEnd = parseTimeToSeconds(cue.end);
+    const start = Number.isFinite(parsedStart) ? Math.max(0, parsedStart) : 0;
+    const end = Number.isFinite(parsedEnd) ? Math.max(start, parsedEnd) : start;
+    return { cue, order, start, end };
   });
+  const groups = [];
+
+  for (const interval of intervals) {
+    const occupancyEnd =
+      interval.end > interval.start ? interval.end : interval.start + 0.001;
+    const currentGroup = groups.at(-1);
+    if (!currentGroup || interval.start >= currentGroup.end) {
+      groups.push({ end: occupancyEnd, intervals: [interval] });
+    } else {
+      currentGroup.end = Math.max(currentGroup.end, occupancyEnd);
+      currentGroup.intervals.push(interval);
+    }
+  }
+
+  const entries = groups.flatMap((group) => {
+    const laneEnds = [];
+    const groupEntries = group.intervals.map((interval) => {
+      const occupancyEnd =
+        interval.end > interval.start ? interval.end : interval.start + 0.001;
+      let lane = laneEnds.findIndex((laneEnd) => laneEnd <= interval.start);
+      if (lane < 0) lane = laneEnds.length;
+      laneEnds[lane] = occupancyEnd;
+      return { ...interval, lane };
+    });
+    const laneCount = Math.max(1, laneEnds.length);
+
+    return groupEntries.map((entry) => ({
+      ...entry,
+      laneCount,
+      top: entry.start * cueTimelinePxPerSecond,
+      height: Math.max(2, (entry.end - entry.start) * cueTimelinePxPerSecond),
+      left: (entry.lane / laneCount) * 100,
+      width: 100 / laneCount,
+    }));
+  });
+  const maxEnd = intervals.reduce(
+    (max, interval) => Math.max(max, interval.end),
+    0,
+  );
+
+  return {
+    height: Math.max(CUE_TIMELINE_MIN_HEIGHT, maxEnd * cueTimelinePxPerSecond),
+    entries,
+  };
+}
+
+function applyCueTimelineGeometry(item, entry) {
+  item.style.setProperty('--cue-top', `${entry.top}px`);
+  item.style.setProperty('--cue-height', `${entry.height}px`);
+  item.style.setProperty('--cue-left', `${entry.left}%`);
+  item.style.setProperty('--cue-width', `${entry.width}%`);
+  item.classList.toggle(
+    'cue-item--editor-align-right',
+    entry.lane > (entry.laneCount - 1) / 2,
+  );
+}
+
+function createCueTimelineConnector(entry) {
+  const connector = document.createElement('span');
+  connector.className = 'cue-timeline__connector';
+  connector.style.setProperty('--cue-top', `${entry.top}px`);
+  connector.style.setProperty('--cue-left', `${entry.left}%`);
+  connector.setAttribute('aria-hidden', 'true');
+  return connector;
 }
 
 async function readCuesForVideo(videoHash) {
@@ -1367,7 +1517,9 @@ function parseColorChannel(value) {
   const isPercent = text.endsWith('%');
   const number = Number.parseFloat(isPercent ? text.slice(0, -1) : text);
   if (!Number.isFinite(number)) return null;
-  return Math.round(clampColorNumber(isPercent ? (number / 100) * 255 : number, 0, 255));
+  return Math.round(
+    clampColorNumber(isPercent ? (number / 100) * 255 : number, 0, 255),
+  );
 }
 
 function parseAlphaChannel(value) {
@@ -1387,7 +1539,9 @@ function formatCssAlpha(alpha) {
 
 function parseHexSubtitleColor(value) {
   if (typeof value !== 'string') return null;
-  const match = value.trim().match(/^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i);
+  const match = value
+    .trim()
+    .match(/^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i);
   if (!match) return null;
 
   let hex = match[1].toLowerCase();
@@ -1409,7 +1563,9 @@ function parseRgbSubtitleColor(value) {
   const match = value.trim().match(/^rgba?\((.+)\)$/i);
   if (!match) return null;
 
-  const [colorPart, alphaPart = ''] = match[1].split('/').map((part) => part.trim());
+  const [colorPart, alphaPart = ''] = match[1]
+    .split('/')
+    .map((part) => part.trim());
   const components = colorPart.includes(',')
     ? colorPart.split(',').map((part) => part.trim())
     : colorPart.split(/\s+/).filter(Boolean);
@@ -1420,7 +1576,8 @@ function parseRgbSubtitleColor(value) {
   const green = parseColorChannel(components[1]);
   const blue = parseColorChannel(components[2]);
   const alpha = parseAlphaChannel(alphaPart || inlineAlpha);
-  if ([red, green, blue, alpha].some((channel) => channel === null)) return null;
+  if ([red, green, blue, alpha].some((channel) => channel === null))
+    return null;
 
   return { red, green, blue, alpha };
 }
@@ -1749,8 +1906,14 @@ function normalizeStyle(style) {
       style.secondaryColor ?? 'rgba(0, 0, 0, 1)',
       'rgba(0, 0, 0, 1)',
     ),
-    outlineColor: normalizeOptionalSubtitleColor(style.outlineColor ?? 'none', 'none'),
-    backColor: normalizeOptionalSubtitleColor(style.backColor ?? 'none', 'none'),
+    outlineColor: normalizeOptionalSubtitleColor(
+      style.outlineColor ?? 'none',
+      'none',
+    ),
+    backColor: normalizeOptionalSubtitleColor(
+      style.backColor ?? 'none',
+      'none',
+    ),
     positionId: resolvedPosition.id,
     position: resolvedPosition,
   };
@@ -2245,35 +2408,35 @@ function renderStyles() {
 function renderCues() {
   cueList.replaceChildren();
   cuesEmptyState.hidden = cachedCues.length > 0;
-  let previousEnd = 0;
+  const timelineLayout = buildCueTimelineLayout(cachedCues);
+  cueList.dataset.timelineBaseHeight = String(timelineLayout.height);
+  cueList.style.setProperty(
+    '--cue-timeline-height',
+    `${timelineLayout.height}px`,
+  );
 
-  for (const cue of cachedCues) {
+  for (const entry of timelineLayout.entries) {
+    const cue = entry.cue;
     const style = normalizeStyle(getStyleById(cue.styleId) || {});
     const cuePreviewStyle = cueStyleWithOverrides(style, cue);
-    const start = parseTimeToSeconds(cue.start);
-    const end = parseTimeToSeconds(cue.end);
-    const safeStart = Number.isFinite(start) ? start : previousEnd;
-    const safeEnd = Number.isFinite(end) ? Math.max(end, safeStart) : safeStart;
     const item = document.createElement('article');
     item.className = 'cue-item';
     item.dataset.editorItemId = cue.id;
     item.classList.toggle('is-editing', editingCueId === cue.id);
+    applyCueTimelineGeometry(item, entry);
     item.tabIndex = 0;
     item.setAttribute('role', 'button');
-    item.setAttribute('aria-label', `Редактировать реплику с ${formatTimeInput(cue.start)}`);
-    item.style.setProperty(
-      '--cue-gap',
-      `${Math.max(12, (safeStart - previousEnd) * 28)}px`,
+    item.setAttribute(
+      'aria-label',
+      `Редактировать реплику с ${formatTimeInput(cue.start)}`,
     );
-    item.style.setProperty(
-      '--cue-duration',
-      `${Math.max(72, (safeEnd - safeStart) * 28)}px`,
-    );
-    previousEnd = Math.max(previousEnd, safeEnd);
 
     const time = document.createElement('p');
     time.className = 'cue-item__time';
     time.textContent = `${formatTimeInput(cue.start)} → ${formatTimeInput(cue.end)}`;
+
+    const head = document.createElement('div');
+    head.className = 'cue-item__head';
 
     const text = document.createElement('p');
     text.className = 'cue-item__text';
@@ -2286,24 +2449,10 @@ function renderCues() {
       ? `${style.name} · ${positionLabel(style.position)}${formatCueMotionLabel(cue)}${formatCueOverrideLabel(cue)}`
       : TEXT.styleDeleted;
 
-    const actions = document.createElement('div');
-    actions.className = 'item-actions';
-
-    const removeButton = document.createElement('button');
-    removeButton.className = 'icon-button';
-    removeButton.type = 'button';
-    removeButton.title = TEXT.deleteCue;
-    removeButton.textContent = '×';
-    removeButton.addEventListener('click', async (event) => {
-      event.stopPropagation();
-      if (editingCueId === cue.id) resetCueForm();
-      await deleteCue(cue.id);
-      await touchCurrentVideoUpdated();
-      await refreshEditor();
-    });
-
     const editorSlot = document.createElement('div');
     editorSlot.className = 'cue-item__editor-slot';
+
+    head.append(time, meta);
 
     item.addEventListener('click', (event) => {
       if (
@@ -2320,9 +2469,8 @@ function renderCues() {
       openCueEditor(cue);
     });
 
-    actions.append(removeButton);
-    item.append(time, text, meta, actions, editorSlot);
-    cueList.append(item);
+    item.append(head, text, editorSlot);
+    cueList.append(createCueTimelineConnector(entry), item);
   }
   placeCueEditor();
   scheduleEditorLayouts();
@@ -2344,6 +2492,23 @@ function placeCueEditor() {
 
   cueForm.hidden = !cueEditorOpen;
   cueEditorDock.hidden = !cueEditorOpen || Boolean(editorSlot);
+  syncCueTimelineEditorSpace(activeItem);
+}
+
+function syncCueTimelineEditorSpace(activeItem) {
+  const baseHeight =
+    Number(cueList.dataset.timelineBaseHeight) || CUE_TIMELINE_MIN_HEIGHT;
+  const editorBottom =
+    activeItem && cueEditorOpen
+      ? activeItem.offsetTop +
+        activeItem.offsetHeight +
+        16 +
+        cueForm.offsetHeight
+      : 0;
+  cueList.style.setProperty(
+    '--cue-timeline-height',
+    `${Math.max(baseHeight, editorBottom)}px`,
+  );
 }
 
 function openCueEditor(cue) {
@@ -2403,6 +2568,7 @@ function resetCueForm() {
   cueSubmitButton.textContent = TEXT.addCue;
   if (newCueButton) newCueButton.hidden = true;
   cancelCueEditButton.hidden = true;
+  deleteCueButton.hidden = true;
   cueForm.classList.remove('is-editing');
   cueForm.hidden = true;
   clearEditorFormOffset(cueForm);
@@ -2488,6 +2654,7 @@ function startCueEdit(cue, options = {}) {
   cueSubmitButton.textContent = TEXT.saveCue;
   if (newCueButton) newCueButton.hidden = false;
   cancelCueEditButton.hidden = false;
+  deleteCueButton.hidden = false;
   cueForm.classList.add('is-editing');
   cueForm.hidden = false;
   placeCueEditor();
@@ -2586,17 +2753,7 @@ function sampleVideoColorFromEvent(event) {
     const context = videoColorSampleCanvas.getContext('2d', {
       willReadFrequently: true,
     });
-    context.drawImage(
-      currentVideo,
-      point.x,
-      point.y,
-      1,
-      1,
-      0,
-      0,
-      1,
-      1,
-    );
+    context.drawImage(currentVideo, point.x, point.y, 1, 1, 0, 0, 1, 1);
     const color = formatPickedVideoColor(context.getImageData(0, 0, 1, 1).data);
     videoColorSwatch.style.background = color;
     videoColorInput.value = color;
@@ -3543,6 +3700,16 @@ cueForm.addEventListener('submit', async (event) => {
 
 cancelStyleEditButton.addEventListener('click', resetStyleForm);
 cancelCueEditButton.addEventListener('click', resetCueForm);
+closeCueEditorButton.addEventListener('click', resetCueForm);
+deleteCueButton.addEventListener('click', async () => {
+  if (!editingCueId || !window.confirm('Удалить эту реплику?')) return;
+
+  const cueId = editingCueId;
+  resetCueForm();
+  await deleteCue(cueId);
+  await touchCurrentVideoUpdated();
+  await refreshEditor();
+});
 cancelPositionEditButton.addEventListener('click', resetPositionForm);
 newStyleButton?.addEventListener('click', () => {
   resetStyleForm();
@@ -3554,6 +3721,12 @@ newCueButton?.addEventListener('click', () => {
 newPositionButton?.addEventListener('click', () => {
   resetPositionForm();
   focusEditorControl(positionNameInput);
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape' || !cueEditorOpen) return;
+
+  event.preventDefault();
+  resetCueForm();
 });
 alignControlButtons.forEach((button) => {
   button.addEventListener('click', () => {
@@ -3608,7 +3781,9 @@ downloadAssButton.addEventListener('click', () => {
     mimeType: 'text/plain;charset=utf-8',
     size: blob.size,
     createdAt: new Date().toISOString(),
-    pageUrl: currentVideoHash ? getSubsPagePath(currentVideoHash) : '/subs-exp/',
+    pageUrl: currentVideoHash
+      ? getSubsPagePath(currentVideoHash)
+      : '/subs-exp/',
     description: currentVideoHash
       ? `ASS-файл субтитров для видео ${currentVideoHash}.`
       : 'ASS-файл субтитров, созданный на странице Subs.',
