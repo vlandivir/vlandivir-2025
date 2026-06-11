@@ -2032,12 +2032,12 @@ function syncEditorFormLayout(form, list, editingId) {
 
   clearEditorFormOffset(form);
 
-  const grid = form.closest('.editor-grid');
-  if (!grid) return;
+  const listCard = list.closest('.editor-card');
+  if (!listCard) return;
 
   const itemRect = activeItem.getBoundingClientRect();
-  const formRect = form.getBoundingClientRect();
-  const offset = Math.max(0, itemRect.top - formRect.top);
+  const listCardRect = listCard.getBoundingClientRect();
+  const offset = Math.max(0, itemRect.top - listCardRect.top);
 
   form.style.setProperty('--editor-edit-offset', `${Math.round(offset)}px`);
   form.dataset.editorLayoutId = editingId;
