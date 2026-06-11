@@ -242,14 +242,14 @@ const CUE_TIMELINE_MIN_HEIGHT = 96;
 const CUE_TIMELINE_SEGMENT_WIDTH = 12;
 const CUE_TIMELINE_SEGMENT_GAP = 6;
 const CUE_TIMELINE_CARD_LEFT = 96;
-const CUE_TIMELINE_CARD_GAP = 14;
+const CUE_TIMELINE_CARD_GAP = 10;
 const CUE_TIMELINE_ACCENTS = [
-  '#e06d4f',
-  '#d7a52c',
-  '#4d9b75',
-  '#4f82c4',
-  '#8a6bb8',
-  '#c46791',
+  '#e86f2d',
+  '#f08b35',
+  '#f3a64c',
+  '#d95b25',
+  '#efb763',
+  '#c94d20',
 ];
 
 function subsFontUrl(fileName) {
@@ -539,6 +539,9 @@ let cueEditorDock;
 let addCueButton;
 let cueTimelineScaleOutput;
 let cueTimelinePxPerSecond = readCueTimelineScale();
+let cueTimelinePreviewScale = 0;
+let cueTimelinePreviewScaleFrame = 0;
+let cueTimelinePreviewResizeObserver;
 let currentVideoHash = null;
 let currentAudioWaveform = [];
 let audioAnimationFrame = null;
@@ -613,6 +616,13 @@ function initExperimentalCueWorkbench() {
   workbench.classList.add('cue-workbench');
   workbench.replaceChildren(cueTimelineCard, previewPanel);
   if (cheatsheet) workbench.append(cheatsheet);
+
+  if (videoStage && typeof ResizeObserver !== 'undefined') {
+    cueTimelinePreviewResizeObserver = new ResizeObserver(
+      syncCueTimelinePreviewScale,
+    );
+    cueTimelinePreviewResizeObserver.observe(videoStage);
+  }
 }
 
 function normalizeCueTimelineScale(value) {
@@ -858,7 +868,26 @@ function buildCueTimelineLayout(cues) {
 }
 
 function cueTimelineAccent(entry) {
-  return CUE_TIMELINE_ACCENTS[entry.order % CUE_TIMELINE_ACCENTS.length];
+  return CUE_TIMELINE_ACCENTS[entry.lane % CUE_TIMELINE_ACCENTS.length];
+}
+
+function currentCueTimelinePreviewScale() {
+  const previewWidth = videoStage?.getBoundingClientRect().width;
+  return Number.isFinite(previewWidth) && previewWidth > 0
+    ? previewWidth / 1080
+    : 0.34;
+}
+
+function syncCueTimelinePreviewScale() {
+  if (cueTimelinePreviewScaleFrame) {
+    window.cancelAnimationFrame(cueTimelinePreviewScaleFrame);
+  }
+  cueTimelinePreviewScaleFrame = window.requestAnimationFrame(() => {
+    cueTimelinePreviewScaleFrame = 0;
+    const nextScale = currentCueTimelinePreviewScale();
+    if (Math.abs(nextScale - cueTimelinePreviewScale) < 0.005) return;
+    renderCues();
+  });
 }
 
 function cueTimelineSegmentGeometry(entry) {
@@ -2455,6 +2484,7 @@ function renderStyles() {
 function renderCues() {
   cueList.replaceChildren();
   cuesEmptyState.hidden = cachedCues.length > 0;
+  cueTimelinePreviewScale = currentCueTimelinePreviewScale();
   const timelineLayout = buildCueTimelineLayout(cachedCues);
   cueList.style.setProperty(
     '--cue-timeline-height',
@@ -2491,7 +2521,7 @@ function renderCues() {
     const text = document.createElement('p');
     text.className = 'cue-item__text';
     text.textContent = stripAssMarkup(cue.text) || cue.text;
-    applySubtitlePreviewStyle(text, cuePreviewStyle, 0.5);
+    applySubtitlePreviewStyle(text, cuePreviewStyle, cueTimelinePreviewScale);
 
     const meta = document.createElement('p');
     meta.className = 'cue-item__meta';
@@ -3686,6 +3716,7 @@ audioPlayer.addEventListener('ended', () => {
 });
 window.addEventListener('resize', redrawCurrentAudioWaveform);
 window.addEventListener('resize', resyncEditorLayouts);
+window.addEventListener('resize', syncCueTimelinePreviewScale);
 
 [
   styleNameInput,
