@@ -47,9 +47,11 @@ async function bootstrap() {
     const filesPage = path.join(process.cwd(), 'web', 'files');
     app.useStaticAssets(filesPage, { prefix: '/files' });
     const subsPage = path.join(process.cwd(), 'web', 'subs');
+    const subsExpPage = path.join(process.cwd(), 'web', 'subs-exp');
     const fontPage = path.join(subsPage, 'font');
     const archivePage = path.join(subsPage, 'archive');
     app.useStaticAssets(subsPage, { prefix: '/subs' });
+    app.useStaticAssets(subsExpPage, { prefix: '/subs-exp' });
     app.useStaticAssets(fontPage, { prefix: '/font' });
     app.useStaticAssets(archivePage, { prefix: '/subs/archive' });
     // Fallback to index.html for SPA routes (use RegExp to avoid path-to-regexp issues)
@@ -93,6 +95,12 @@ async function bootstrap() {
         res.sendFile(path.join(subsPage, 'en.html'));
       },
     );
+    instance.get(
+      /^\/subs-exp(?:\/[a-f0-9]{24})?\/?$/,
+      (_req: unknown, res: Response) => {
+        res.sendFile(path.join(subsExpPage, 'index.html'));
+      },
+    );
     instance.get(/^\/font\/?$/, (_req: unknown, res: Response) => {
       res.sendFile(path.join(fontPage, 'index.html'));
     });
@@ -115,9 +123,11 @@ async function bootstrap() {
     const filesPage = path.join(process.cwd(), 'web', 'files');
     app.useStaticAssets(filesPage, { prefix: '/files' });
     const subsPage = path.join(process.cwd(), 'web', 'subs');
+    const subsExpPage = path.join(process.cwd(), 'web', 'subs-exp');
     const fontPage = path.join(subsPage, 'font');
     const archivePage = path.join(subsPage, 'archive');
     app.useStaticAssets(subsPage, { prefix: '/subs' });
+    app.useStaticAssets(subsExpPage, { prefix: '/subs-exp' });
     app.useStaticAssets(fontPage, { prefix: '/font' });
     app.useStaticAssets(archivePage, { prefix: '/subs/archive' });
     const instance = app.getHttpAdapter().getInstance();
@@ -158,6 +168,12 @@ async function bootstrap() {
       /^\/subs\/en(?:\/[a-f0-9]{24})?\/?$/,
       (_req: unknown, res: Response) => {
         res.sendFile(path.join(subsPage, 'en.html'));
+      },
+    );
+    instance.get(
+      /^\/subs-exp(?:\/[a-f0-9]{24})?\/?$/,
+      (_req: unknown, res: Response) => {
+        res.sendFile(path.join(subsExpPage, 'index.html'));
       },
     );
     instance.get(/^\/font\/?$/, (_req: unknown, res: Response) => {
