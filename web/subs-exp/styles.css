@@ -1994,7 +1994,6 @@ pre {
   position: relative;
   display: block;
   height: var(--cue-timeline-height, 96px);
-  margin-left: 34px;
   padding: 0;
 }
 
@@ -2003,23 +2002,28 @@ pre {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: -23px;
-  width: 2px;
-  border-radius: 999px;
-  background: linear-gradient(var(--green), var(--yellow), var(--coral));
+  left: 0;
+  width: 64px;
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--paper) 68%, transparent);
 }
 
 .subs-exp-page .cue-item {
   position: absolute;
-  top: var(--cue-top, 0);
-  left: calc(var(--cue-left, 0%) + 4px);
-  display: block;
-  width: calc(var(--cue-width, 100%) - 8px);
-  height: var(--cue-height, 2px);
-  min-height: 0;
-  overflow: hidden;
+  top: var(--cue-card-top, 0);
+  left: var(--cue-card-left, 96px);
+  z-index: 2;
+  display: grid;
+  width: calc(100% - var(--cue-card-left, 96px));
+  min-height: 112px;
+  gap: 10px;
+  overflow: visible;
   margin: 0;
-  padding: 5px 8px;
+  padding: 14px 16px;
+  border-color: color-mix(in srgb, var(--cue-accent) 62%, var(--line));
+  background: #808080;
+  background: color-mix(in srgb, var(--cue-accent) 20%, #808080);
   cursor: pointer;
   outline: none;
   transition:
@@ -2028,31 +2032,50 @@ pre {
     transform 0.15s ease;
 }
 
-.subs-exp-page .cue-timeline__connector {
+.subs-exp-page .cue-timeline__segment {
   position: absolute;
   top: var(--cue-top, 0);
-  left: -23px;
-  width: calc(var(--cue-left, 0%) + 27px);
-  height: 1px;
-  background: color-mix(in srgb, var(--green) 65%, var(--line));
+  left: var(--cue-segment-left, 0);
+  z-index: 2;
+  width: var(--cue-segment-width, 8px);
+  height: var(--cue-height, 2px);
+  min-height: 3px;
+  border: 1px solid color-mix(in srgb, var(--cue-accent) 72%, #fff);
+  border-radius: 999px;
+  background: var(--cue-accent);
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--cue-accent) 34%, transparent);
+  pointer-events: none;
+}
+
+.subs-exp-page .cue-timeline__connector {
+  position: absolute;
+  top: var(--cue-connector-top, 0);
+  left: var(--cue-connector-left, 0);
+  z-index: 1;
+  width: var(--cue-connector-width, 96px);
+  height: var(--cue-connector-height, 1px);
+  border-bottom: 2px solid var(--cue-accent);
+  border-left: 2px solid var(--cue-accent);
+  border-bottom-left-radius: 8px;
+  opacity: 0.72;
   pointer-events: none;
 }
 
 .subs-exp-page .cue-timeline__connector::before {
   content: '';
   position: absolute;
-  top: -3px;
-  left: -3px;
+  right: -4px;
+  bottom: -5px;
   width: 7px;
   height: 7px;
-  border: 1px solid var(--paper);
+  border: 1px solid color-mix(in srgb, var(--cue-accent) 60%, #fff);
   border-radius: 999px;
-  background: var(--green);
+  background: var(--cue-accent);
 }
 
 .subs-exp-page .cue-item:hover,
 .subs-exp-page .cue-item:focus-visible {
-  border-color: var(--green);
+  border-color: var(--cue-accent);
   box-shadow: 0 10px 30px rgba(23, 72, 54, 0.18);
   transform: translateX(2px);
 }
@@ -2089,10 +2112,10 @@ pre {
 }
 
 .subs-exp-page .cue-item__text {
-  margin: 2px 0 !important;
-  font-size: 13px !important;
-  line-height: 1.05 !important;
-  white-space: nowrap;
+  max-width: 100%;
+  margin: 0 !important;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
 }
 
 .subs-exp-page .cue-item__editor-slot {
@@ -2102,11 +2125,6 @@ pre {
   z-index: 30;
   width: max(100%, 560px);
   margin: 0;
-}
-
-.subs-exp-page .cue-item--editor-align-right .cue-item__editor-slot {
-  right: 0;
-  left: auto;
 }
 
 .subs-exp-page .cue-item__editor-slot:empty {

@@ -239,6 +239,18 @@ const CUE_TIMELINE_DEFAULT_PX_PER_SECOND = 200;
 const CUE_TIMELINE_MIN_PX_PER_SECOND = 50;
 const CUE_TIMELINE_MAX_PX_PER_SECOND = 400;
 const CUE_TIMELINE_MIN_HEIGHT = 96;
+const CUE_TIMELINE_SEGMENT_WIDTH = 12;
+const CUE_TIMELINE_SEGMENT_GAP = 6;
+const CUE_TIMELINE_CARD_LEFT = 96;
+const CUE_TIMELINE_CARD_GAP = 14;
+const CUE_TIMELINE_ACCENTS = [
+  '#e06d4f',
+  '#d7a52c',
+  '#4d9b75',
+  '#4f82c4',
+  '#8a6bb8',
+  '#c46791',
+];
 
 function subsFontUrl(fileName) {
   return new URL(fileName, SUBS_FONTS_BASE_URL).href;
@@ -845,22 +857,55 @@ function buildCueTimelineLayout(cues) {
   };
 }
 
-function applyCueTimelineGeometry(item, entry) {
-  item.style.setProperty('--cue-top', `${entry.top}px`);
-  item.style.setProperty('--cue-height', `${entry.height}px`);
-  item.style.setProperty('--cue-left', `${entry.left}%`);
-  item.style.setProperty('--cue-width', `${entry.width}%`);
-  item.classList.toggle(
-    'cue-item--editor-align-right',
-    entry.lane > (entry.laneCount - 1) / 2,
-  );
+function cueTimelineAccent(entry) {
+  return CUE_TIMELINE_ACCENTS[entry.order % CUE_TIMELINE_ACCENTS.length];
 }
 
-function createCueTimelineConnector(entry) {
+function cueTimelineSegmentGeometry(entry) {
+  return {
+    left:
+      4 + entry.lane * (CUE_TIMELINE_SEGMENT_WIDTH + CUE_TIMELINE_SEGMENT_GAP),
+    width: CUE_TIMELINE_SEGMENT_WIDTH,
+  };
+}
+
+function applyCueTimelineCardGeometry(item, cardTop, accent) {
+  item.style.setProperty('--cue-card-top', `${cardTop}px`);
+  item.style.setProperty('--cue-card-left', `${CUE_TIMELINE_CARD_LEFT}px`);
+  item.style.setProperty('--cue-accent', accent);
+}
+
+function createCueTimelineSegment(entry, accent) {
+  const segment = document.createElement('span');
+  const geometry = cueTimelineSegmentGeometry(entry);
+  segment.className = 'cue-timeline__segment';
+  segment.style.setProperty('--cue-top', `${entry.top}px`);
+  segment.style.setProperty('--cue-height', `${entry.height}px`);
+  segment.style.setProperty('--cue-segment-left', `${geometry.left}px`);
+  segment.style.setProperty('--cue-segment-width', `${geometry.width}px`);
+  segment.style.setProperty('--cue-accent', accent);
+  segment.setAttribute('aria-hidden', 'true');
+  return segment;
+}
+
+function createCueTimelineConnector(entry, cardTop, cardHeight, accent) {
   const connector = document.createElement('span');
+  const segment = cueTimelineSegmentGeometry(entry);
+  const left = segment.left + segment.width / 2;
+  const segmentAnchor = entry.top + Math.min(24, entry.height / 2);
+  const cardAnchor = cardTop + cardHeight / 2;
   connector.className = 'cue-timeline__connector';
-  connector.style.setProperty('--cue-top', `${entry.top}px`);
-  connector.style.setProperty('--cue-left', `${entry.left}%`);
+  connector.style.setProperty('--cue-connector-left', `${left}px`);
+  connector.style.setProperty('--cue-connector-top', `${segmentAnchor}px`);
+  connector.style.setProperty(
+    '--cue-connector-width',
+    `${CUE_TIMELINE_CARD_LEFT - left}px`,
+  );
+  connector.style.setProperty(
+    '--cue-connector-height',
+    `${Math.max(1, cardAnchor - segmentAnchor)}px`,
+  );
+  connector.style.setProperty('--cue-accent', accent);
   connector.setAttribute('aria-hidden', 'true');
   return connector;
 }
@@ -2409,21 +2454,24 @@ function renderCues() {
   cueList.replaceChildren();
   cuesEmptyState.hidden = cachedCues.length > 0;
   const timelineLayout = buildCueTimelineLayout(cachedCues);
-  cueList.dataset.timelineBaseHeight = String(timelineLayout.height);
   cueList.style.setProperty(
     '--cue-timeline-height',
     `${timelineLayout.height}px`,
   );
+  let nextCardTop = 0;
+  let cardsBottom = 0;
 
   for (const entry of timelineLayout.entries) {
     const cue = entry.cue;
     const style = normalizeStyle(getStyleById(cue.styleId) || {});
     const cuePreviewStyle = cueStyleWithOverrides(style, cue);
+    const accent = cueTimelineAccent(entry);
+    const cardTop = Math.max(entry.top, nextCardTop);
     const item = document.createElement('article');
     item.className = 'cue-item';
     item.dataset.editorItemId = cue.id;
     item.classList.toggle('is-editing', editingCueId === cue.id);
-    applyCueTimelineGeometry(item, entry);
+    applyCueTimelineCardGeometry(item, cardTop, accent);
     item.tabIndex = 0;
     item.setAttribute('role', 'button');
     item.setAttribute(
@@ -2441,7 +2489,7 @@ function renderCues() {
     const text = document.createElement('p');
     text.className = 'cue-item__text';
     text.textContent = stripAssMarkup(cue.text) || cue.text;
-    applySubtitlePreviewStyle(text, cuePreviewStyle, 0.34);
+    applySubtitlePreviewStyle(text, cuePreviewStyle, 0.5);
 
     const meta = document.createElement('p');
     meta.className = 'cue-item__meta';
@@ -2470,8 +2518,18 @@ function renderCues() {
     });
 
     item.append(head, text, editorSlot);
-    cueList.append(createCueTimelineConnector(entry), item);
+    cueList.append(createCueTimelineSegment(entry, accent), item);
+    const cardHeight = item.offsetHeight;
+    cueList.insertBefore(
+      createCueTimelineConnector(entry, cardTop, cardHeight, accent),
+      item,
+    );
+    nextCardTop = cardTop + cardHeight + CUE_TIMELINE_CARD_GAP;
+    cardsBottom = Math.max(cardsBottom, cardTop + cardHeight);
   }
+  const baseHeight = Math.max(timelineLayout.height, cardsBottom);
+  cueList.dataset.timelineBaseHeight = String(baseHeight);
+  cueList.style.setProperty('--cue-timeline-height', `${baseHeight}px`);
   placeCueEditor();
   scheduleEditorLayouts();
 }
