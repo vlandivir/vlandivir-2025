@@ -2123,7 +2123,7 @@ pre {
   top: calc(100% + 8px);
   left: 0;
   z-index: 30;
-  width: max(100%, 560px);
+  width: 100%;
   margin: 0;
 }
 

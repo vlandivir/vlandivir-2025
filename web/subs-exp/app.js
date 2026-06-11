@@ -869,7 +869,9 @@ function cueTimelineSegmentGeometry(entry) {
   };
 }
 
-function applyCueTimelineCardGeometry(item, cardTop, accent) {
+function applyCueTimelineCardGeometry(item, entry, cardTop, accent) {
+  item.dataset.cueOrder = String(entry.order);
+  item.dataset.cueBaseTop = String(cardTop);
   item.style.setProperty('--cue-card-top', `${cardTop}px`);
   item.style.setProperty('--cue-card-left', `${CUE_TIMELINE_CARD_LEFT}px`);
   item.style.setProperty('--cue-accent', accent);
@@ -894,17 +896,17 @@ function createCueTimelineConnector(entry, cardTop, cardHeight, accent) {
   const left = segment.left + segment.width / 2;
   const segmentAnchor = entry.top + Math.min(24, entry.height / 2);
   const cardAnchor = cardTop + cardHeight / 2;
+  const connectorHeight = Math.max(1, cardAnchor - segmentAnchor);
   connector.className = 'cue-timeline__connector';
+  connector.dataset.cueOrder = String(entry.order);
+  connector.dataset.cueBaseHeight = String(connectorHeight);
   connector.style.setProperty('--cue-connector-left', `${left}px`);
   connector.style.setProperty('--cue-connector-top', `${segmentAnchor}px`);
   connector.style.setProperty(
     '--cue-connector-width',
     `${CUE_TIMELINE_CARD_LEFT - left}px`,
   );
-  connector.style.setProperty(
-    '--cue-connector-height',
-    `${Math.max(1, cardAnchor - segmentAnchor)}px`,
-  );
+  connector.style.setProperty('--cue-connector-height', `${connectorHeight}px`);
   connector.style.setProperty('--cue-accent', accent);
   connector.setAttribute('aria-hidden', 'true');
   return connector;
@@ -2471,7 +2473,7 @@ function renderCues() {
     item.className = 'cue-item';
     item.dataset.editorItemId = cue.id;
     item.classList.toggle('is-editing', editingCueId === cue.id);
-    applyCueTimelineCardGeometry(item, cardTop, accent);
+    applyCueTimelineCardGeometry(item, entry, cardTop, accent);
     item.tabIndex = 0;
     item.setAttribute('role', 'button');
     item.setAttribute(
@@ -2556,6 +2558,30 @@ function placeCueEditor() {
 function syncCueTimelineEditorSpace(activeItem) {
   const baseHeight =
     Number(cueList.dataset.timelineBaseHeight) || CUE_TIMELINE_MIN_HEIGHT;
+  const activeOrder = Number(activeItem?.dataset.cueOrder);
+  const editorShift =
+    activeItem && cueEditorOpen ? cueForm.offsetHeight + 16 : 0;
+  let cardsBottom = 0;
+
+  cueList.querySelectorAll('.cue-item').forEach((item) => {
+    const baseTop = Number(item.dataset.cueBaseTop) || 0;
+    const shouldShift =
+      editorShift > 0 && Number(item.dataset.cueOrder) > activeOrder;
+    const top = baseTop + (shouldShift ? editorShift : 0);
+    item.style.setProperty('--cue-card-top', `${top}px`);
+    cardsBottom = Math.max(cardsBottom, top + item.offsetHeight);
+  });
+
+  cueList.querySelectorAll('.cue-timeline__connector').forEach((connector) => {
+    const baseConnectorHeight = Number(connector.dataset.cueBaseHeight) || 1;
+    const shouldShift =
+      editorShift > 0 && Number(connector.dataset.cueOrder) > activeOrder;
+    connector.style.setProperty(
+      '--cue-connector-height',
+      `${baseConnectorHeight + (shouldShift ? editorShift : 0)}px`,
+    );
+  });
+
   const editorBottom =
     activeItem && cueEditorOpen
       ? activeItem.offsetTop +
@@ -2565,7 +2591,7 @@ function syncCueTimelineEditorSpace(activeItem) {
       : 0;
   cueList.style.setProperty(
     '--cue-timeline-height',
-    `${Math.max(baseHeight, editorBottom)}px`,
+    `${Math.max(baseHeight, cardsBottom, editorBottom)}px`,
   );
 }
 
