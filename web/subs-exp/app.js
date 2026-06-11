@@ -86,7 +86,7 @@ const TEXT = IS_EN
       cueOverrides: 'overrides',
       cueFontOverride: 'font',
       cueColorOverride: 'color',
-      cueSizeOverride: 'size',
+      cueSizeOverride: 'ASS size',
       cueLineSpacingOverride: 'line spacing',
       pause: 'Pause',
       play: 'Play',
@@ -168,7 +168,7 @@ const TEXT = IS_EN
       cueOverrides: 'переопределения',
       cueFontOverride: 'шрифт',
       cueColorOverride: 'цвет',
-      cueSizeOverride: 'размер',
+      cueSizeOverride: 'ASS размер',
       cueLineSpacingOverride: 'интервал',
       pause: 'Пауза',
       play: 'Воспроизвести',
@@ -243,6 +243,7 @@ const CUE_TIMELINE_SEGMENT_WIDTH = 12;
 const CUE_TIMELINE_SEGMENT_GAP = 6;
 const CUE_TIMELINE_CARD_LEFT = 96;
 const CUE_TIMELINE_CARD_GAP = 10;
+const CUE_TIMELINE_ASS_VISUAL_SCALE = 0.68;
 const CUE_TIMELINE_ACCENTS = [
   '#e86f2d',
   '#f08b35',
@@ -872,10 +873,20 @@ function cueTimelineAccent(entry) {
 }
 
 function currentCueTimelinePreviewScale() {
-  const previewWidth = videoStage?.getBoundingClientRect().width;
-  return Number.isFinite(previewWidth) && previewWidth > 0
-    ? previewWidth / 1080
-    : 0.34;
+  const stageRect = videoStage?.getBoundingClientRect();
+  if (!stageRect?.width || !stageRect.height) {
+    return 0.34 * CUE_TIMELINE_ASS_VISUAL_SCALE;
+  }
+
+  const videoWidth = currentVideo?.videoWidth || 1080;
+  const videoHeight = currentVideo?.videoHeight || 1920;
+  const videoRatio = videoWidth / videoHeight;
+  const renderedVideoWidth = Math.min(
+    stageRect.width,
+    stageRect.height * videoRatio,
+  );
+
+  return (renderedVideoWidth / 1080) * CUE_TIMELINE_ASS_VISUAL_SCALE;
 }
 
 function syncCueTimelinePreviewScale() {
@@ -1870,7 +1881,7 @@ function formatCueOverrideLabel(cue) {
     );
   }
   if (overrides.fontSizeOverride) {
-    parts.push(`${TEXT.cueSizeOverride} ${overrides.fontSizeOverride}px`);
+    parts.push(`${TEXT.cueSizeOverride} ${overrides.fontSizeOverride}`);
   }
   if (overrides.lineSpacingOverride) {
     const sign = overrides.lineSpacingOverride > 0 ? '+' : '';
@@ -2079,7 +2090,7 @@ function renderStyleLivePreview() {
   const style = readStyleFormDraft();
   styleLivePreviewText.textContent = STYLE_PREVIEW_TEXT;
   applySubtitlePreviewStyle(styleLivePreviewText, style, 0.42);
-  styleLivePreviewMeta.textContent = `${style.font} · ${fontVariantLabel(style.fontVariant)} · ${style.fontSize}px`;
+  styleLivePreviewMeta.textContent = `${style.font} · ${fontVariantLabel(style.fontVariant)} · ${style.fontSize} ASS`;
   styleLivePreviewColors.replaceChildren(
     createStylePreviewColor('Primary', style.primaryColor),
     createStylePreviewColor('Secondary', style.secondaryColor),
@@ -2440,7 +2451,7 @@ function renderStyles() {
     const title = document.createElement('h4');
     title.textContent = style.name;
     const meta = document.createElement('p');
-    meta.textContent = `${style.font} · ${fontVariantLabel(style.fontVariant)} · ${style.fontSize}px · ${positionLabel(style.position)}`;
+    meta.textContent = `${style.font} · ${fontVariantLabel(style.fontVariant)} · ${style.fontSize} ASS · ${positionLabel(style.position)}`;
 
     const preview = document.createElement('p');
     preview.className = 'style-item__preview';
