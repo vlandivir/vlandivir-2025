@@ -882,6 +882,7 @@ pre {
 }
 
 .style-live-preview__text {
+  width: fit-content;
   max-width: 100%;
   margin: 0;
   color: #fff;
@@ -1062,6 +1063,25 @@ pre {
 .color-field-list {
   display: grid;
   gap: 12px;
+}
+
+.style-badge-controls {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: #f9fbf8;
+}
+
+.style-badge-controls__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.editor-field-grid--badge {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .align-control {
@@ -1380,6 +1400,8 @@ pre {
 }
 
 .cue-item__text {
+  width: fit-content;
+  max-width: 100%;
   grid-column: 1;
   color: var(--ink);
   font-size: 20px;

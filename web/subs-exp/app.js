@@ -438,6 +438,14 @@ const styleOutlineColorInput = document.querySelector(
   '#styleOutlineColorInput',
 );
 const styleBackColorInput = document.querySelector('#styleBackColorInput');
+const styleBadgeColorInput = document.querySelector('#styleBadgeColorInput');
+const styleBadgePaddingXInput = document.querySelector(
+  '#styleBadgePaddingXInput',
+);
+const styleBadgePaddingYInput = document.querySelector(
+  '#styleBadgePaddingYInput',
+);
+const styleBadgeRadiusInput = document.querySelector('#styleBadgeRadiusInput');
 const stylePositionInput = document.querySelector('#stylePositionInput');
 const styleSubmitButton = document.querySelector('#styleSubmitButton');
 const newStyleButton = document.querySelector('#newStyleButton');
@@ -556,6 +564,8 @@ let isVideoColorPicking = false;
 const videoColorSampleCanvas = document.createElement('canvas');
 videoColorSampleCanvas.width = 1;
 videoColorSampleCanvas.height = 1;
+const subtitleMeasureCanvas = document.createElement('canvas');
+const subtitleMeasureContext = subtitleMeasureCanvas.getContext('2d');
 
 function initExperimentalCueWorkbench() {
   const workbench = cueTimelineCard?.closest('.video-bound-grid');
@@ -1763,6 +1773,16 @@ function colorToAssPrimaryOverrideTags(color) {
   return tags;
 }
 
+function colorToAssDrawingOverrideTags(color) {
+  const parsed = parseSubtitleColor(color) || parseSubtitleColor('#ffffff');
+  const red = colorToHexByte(parsed.red);
+  const green = colorToHexByte(parsed.green);
+  const blue = colorToHexByte(parsed.blue);
+  const alpha = assAlphaFromCss(parsed.alpha).toUpperCase();
+  const bgr = `${blue}${green}${red}`.toUpperCase();
+  return `\\1c&H${bgr}&\\1a&H${alpha}&`;
+}
+
 function setColorInputValue(input, value) {
   if (window.VlandivirColorPicker) {
     window.VlandivirColorPicker.setColorInputValue(input, value);
@@ -1933,24 +1953,32 @@ function buildCueOverridePrefix(cue) {
   return tags.length ? `{${tags.join('')}}` : '';
 }
 
-function buildCuePositionPrefix(style, cue, yOffset = 0) {
-  const x = Math.round(style.position.x);
-  const y = Math.round(style.position.y + yOffset);
+function buildCuePointPositionPrefix(x, y, cue) {
+  const startX = Math.round(x);
+  const startY = Math.round(y);
   const motion = normalizeCueMotion(cue);
 
   if (!motion) {
-    return `{\\pos(${x},${y})}`;
+    return `{\\pos(${startX},${startY})}`;
   }
 
-  const endX = x + motion.motionDx;
-  const endY = y + motion.motionDy;
+  const endX = startX + motion.motionDx;
+  const endY = startY + motion.motionDy;
   if (motion.motionMs <= 0) {
     return `{\\pos(${endX},${endY})}`;
   }
 
   const moveStartMs = motion.motionStartMs;
   const moveEndMs = motion.motionStartMs + motion.motionMs;
-  return `{\\move(${x},${y},${endX},${endY},${moveStartMs},${moveEndMs})}`;
+  return `{\\move(${startX},${startY},${endX},${endY},${moveStartMs},${moveEndMs})}`;
+}
+
+function buildCuePositionPrefix(style, cue, yOffset = 0) {
+  return buildCuePointPositionPrefix(
+    style.position.x,
+    style.position.y + yOffset,
+    cue,
+  );
 }
 
 function cueLineYOffset(style, lineIndex, lineCount, lineSpacing) {
@@ -1960,6 +1988,80 @@ function cueLineYOffset(style, lineIndex, lineCount, lineSpacing) {
   if (alignment >= 7) return lineIndex * step;
   if (alignment >= 4) return (lineIndex - (lineCount - 1) / 2) * step;
   return (lineIndex - (lineCount - 1)) * step;
+}
+
+function measureCueTextForBadge(style, cue) {
+  const text = stripAssMarkup(cue.text) || ' ';
+  const lines = text.split('\n');
+  const fontSize = Math.max(1, Number(style.fontSize) || 72);
+  const lineStep = Math.max(
+    1,
+    fontSize + Number(style.lineSpacingOverride || 0),
+  );
+  let width =
+    Math.max(...lines.map((line) => Math.max(1, line.length))) *
+    fontSize *
+    0.58;
+
+  if (subtitleMeasureContext) {
+    const fontStyle = style.fontVariant === 'italic' ? 'italic' : 'normal';
+    const fontWeight = style.fontVariant === 'bold' ? '700' : '400';
+    const fontFamily = String(style.font || 'Montserrat').replace(/["\\]/g, '');
+    subtitleMeasureContext.font = `${fontStyle} ${fontWeight} ${fontSize}px "${fontFamily}"`;
+    width = Math.max(
+      ...lines.map(
+        (line) => subtitleMeasureContext.measureText(line || ' ').width,
+      ),
+    );
+  }
+
+  return {
+    width: Math.max(1, width),
+    height: fontSize + Math.max(0, lines.length - 1) * lineStep,
+  };
+}
+
+function cueBadgeGeometry(style, cue) {
+  if (isNoneColor(style.badgeColor)) return null;
+
+  const textSize = measureCueTextForBadge(style, cue);
+  const paddingX = style.badgePaddingX;
+  const paddingY = style.badgePaddingY;
+  const width = Math.max(1, Math.ceil(textSize.width + paddingX * 2));
+  const height = Math.max(1, Math.ceil(textSize.height + paddingY * 2));
+  const alignment = Number(style.position?.alignment) || 2;
+  const horizontalFactor = [0, 0.5, 1][(alignment - 1) % 3];
+  const verticalFactor = [1, 0.5, 0][Math.floor((alignment - 1) / 3)];
+  const x = style.position.x - textSize.width * horizontalFactor - paddingX;
+  const y = style.position.y - textSize.height * verticalFactor - paddingY;
+
+  return {
+    x: Math.round(x),
+    y: Math.round(y),
+    width,
+    height,
+    radius: Math.min(style.badgeRadius, width / 2, height / 2),
+  };
+}
+
+function roundedRectAssPath(width, height, radius) {
+  const w = Math.round(width);
+  const h = Math.round(height);
+  const r = Math.max(0, Math.round(radius));
+  if (r === 0) return `m 0 0 l ${w} 0 ${w} ${h} 0 ${h}`;
+
+  const k = Math.round(r * 0.55228475);
+  return [
+    `m ${r} 0`,
+    `l ${w - r} 0`,
+    `b ${w - r + k} 0 ${w} ${r - k} ${w} ${r}`,
+    `l ${w} ${h - r}`,
+    `b ${w} ${h - r + k} ${w - r + k} ${h} ${w - r} ${h}`,
+    `l ${r} ${h}`,
+    `b ${r - k} ${h} 0 ${h - r + k} 0 ${h - r}`,
+    `l 0 ${r}`,
+    `b 0 ${r - k} ${r - k} 0 ${r} 0`,
+  ].join(' ');
 }
 
 function setCurrentVideoMetaLink(url, fallbackText = '') {
@@ -1992,6 +2094,14 @@ function normalizeFontVariant(value) {
   }
 
   return 'regular';
+}
+
+function normalizeStyleBadgeNumber(value, fallback) {
+  if (value === null || value === undefined || value === '') return fallback;
+  const number = Math.round(Number(value));
+  return Number.isFinite(number)
+    ? Math.min(240, Math.max(0, number))
+    : fallback;
 }
 
 function fontVariantLabel(value) {
@@ -2031,6 +2141,13 @@ function normalizeStyle(style) {
       style.backColor ?? 'none',
       'none',
     ),
+    badgeColor: normalizeOptionalSubtitleColor(
+      style.badgeColor ?? 'none',
+      'none',
+    ),
+    badgePaddingX: normalizeStyleBadgeNumber(style.badgePaddingX, 24),
+    badgePaddingY: normalizeStyleBadgeNumber(style.badgePaddingY, 12),
+    badgeRadius: normalizeStyleBadgeNumber(style.badgeRadius, 20),
     positionId: resolvedPosition.id,
     position: resolvedPosition,
   };
@@ -2039,6 +2156,10 @@ function normalizeStyle(style) {
 function applySubtitlePreviewStyle(element, style, scale = 1) {
   const normalizedStyle = normalizeStyle(style || {});
   const fontSize = Math.max(14, Math.round(normalizedStyle.fontSize * scale));
+  const hasBadge = !isNoneColor(normalizedStyle.badgeColor);
+  const backgroundColor = hasBadge
+    ? normalizedStyle.badgeColor
+    : normalizedStyle.backColor;
   const shadows = [];
 
   element.style.color = normalizedStyle.primaryColor;
@@ -2051,15 +2172,19 @@ function applySubtitlePreviewStyle(element, style, scale = 1) {
     normalizedStyle.fontVariant === 'italic' ? 'italic' : 'normal';
   element.style.fontWeight =
     normalizedStyle.fontVariant === 'bold' ? '900' : '400';
-  element.style.background = isNoneColor(normalizedStyle.backColor)
+  element.style.background = isNoneColor(backgroundColor)
     ? 'transparent'
-    : normalizedStyle.backColor;
-  element.style.padding = isNoneColor(normalizedStyle.backColor)
-    ? '0'
-    : '0.08em 0.18em';
-  element.style.borderRadius = isNoneColor(normalizedStyle.backColor)
-    ? '0'
-    : '4px';
+    : backgroundColor;
+  element.style.padding = hasBadge
+    ? `${Math.round(normalizedStyle.badgePaddingY * scale)}px ${Math.round(normalizedStyle.badgePaddingX * scale)}px`
+    : isNoneColor(normalizedStyle.backColor)
+      ? '0'
+      : '0.08em 0.18em';
+  element.style.borderRadius = hasBadge
+    ? `${Math.round(normalizedStyle.badgeRadius * scale)}px`
+    : isNoneColor(normalizedStyle.backColor)
+      ? '0'
+      : '4px';
 
   if (!isNoneColor(normalizedStyle.outlineColor)) {
     const outlineSize = Math.max(1, Math.round(fontSize / 18));
@@ -2091,6 +2216,10 @@ function readStyleFormDraft() {
     secondaryColor: styleSecondaryColorInput.value,
     outlineColor: styleOutlineColorInput.value,
     backColor: styleBackColorInput.value,
+    badgeColor: styleBadgeColorInput.value,
+    badgePaddingX: styleBadgePaddingXInput.value,
+    badgePaddingY: styleBadgePaddingYInput.value,
+    badgeRadius: styleBadgeRadiusInput.value,
     positionId: stylePositionInput.value || defaultPosition().id,
   });
 }
@@ -2126,6 +2255,7 @@ function renderStyleLivePreview() {
     createStylePreviewColor('Secondary', style.secondaryColor),
     createStylePreviewColor('Outline', style.outlineColor),
     createStylePreviewColor('Back', style.backColor),
+    createStylePreviewColor('Плашка', style.badgeColor),
   );
 }
 
@@ -2173,6 +2303,10 @@ function generateAss() {
           secondaryColor: 'rgba(0, 0, 0, 1)',
           outlineColor: 'none',
           backColor: 'none',
+          badgeColor: 'none',
+          badgePaddingX: 24,
+          badgePaddingY: 12,
+          badgeRadius: 20,
           positionId: defaultPosition().id,
         },
       ];
@@ -2207,11 +2341,11 @@ function generateAss() {
     ].join(',');
   });
 
-  function buildDialogueLine(cue, style, text, yOffset = 0) {
+  function buildDialogueLine(cue, style, text, yOffset = 0, layer = 0) {
     const positionPrefix = buildCuePositionPrefix(style, cue, yOffset);
     const overridePrefix = buildCueOverridePrefix(cue);
     return [
-      'Dialogue: 0',
+      `Dialogue: ${layer}`,
       formatAssTime(cue.start),
       formatAssTime(cue.end),
       sanitizeAssName(style.name),
@@ -2224,30 +2358,71 @@ function generateAss() {
     ].join(',');
   }
 
+  function buildBadgeDialogueLine(cue, style) {
+    const geometry = cueBadgeGeometry(style, cue);
+    if (!geometry) return null;
+
+    const positionPrefix = buildCuePointPositionPrefix(
+      geometry.x,
+      geometry.y,
+      cue,
+    );
+    const drawingPrefix = [
+      '{\\an7\\p1\\bord0\\shad0',
+      colorToAssDrawingOverrideTags(style.badgeColor),
+      '}',
+    ].join('');
+    return [
+      'Dialogue: 0',
+      formatAssTime(cue.start),
+      formatAssTime(cue.end),
+      sanitizeAssName(style.name),
+      '',
+      0,
+      0,
+      0,
+      '',
+      `${positionPrefix}${drawingPrefix}${roundedRectAssPath(
+        geometry.width,
+        geometry.height,
+        geometry.radius,
+      )}`,
+    ].join(',');
+  }
+
   const cueLines = cachedCues.flatMap((cue) => {
     const style = normalizeStyle(getStyleById(cue.styleId) || {});
     const cueStyle = cueStyleWithOverrides(style, cue);
     const overrides = normalizeCueOverrides(cue);
     const text = escapeAssText(cue.text);
     const textLines = text.split(/\\N/g);
+    const badgeLine = buildBadgeDialogueLine(cue, cueStyle);
+    const textLayer = badgeLine ? 1 : 0;
 
     if (!overrides.lineSpacingOverride || textLines.length <= 1) {
-      return [buildDialogueLine(cue, style, text)];
+      return [
+        ...(badgeLine ? [badgeLine] : []),
+        buildDialogueLine(cue, style, text, 0, textLayer),
+      ];
     }
 
-    return textLines.map((line, index) =>
-      buildDialogueLine(
-        cue,
-        style,
-        line,
-        cueLineYOffset(
-          cueStyle,
-          index,
-          textLines.length,
-          overrides.lineSpacingOverride,
+    return [
+      ...(badgeLine ? [badgeLine] : []),
+      ...textLines.map((line, index) =>
+        buildDialogueLine(
+          cue,
+          style,
+          line,
+          cueLineYOffset(
+            cueStyle,
+            index,
+            textLines.length,
+            overrides.lineSpacingOverride,
+          ),
+          textLayer,
         ),
       ),
-    );
+    ];
   });
 
   return [
@@ -2699,6 +2874,10 @@ function resetStyleForm() {
   setColorInputValue(styleSecondaryColorInput, 'rgba(0, 0, 0, 1)');
   setColorInputValue(styleOutlineColorInput, 'none');
   setColorInputValue(styleBackColorInput, 'none');
+  setColorInputValue(styleBadgeColorInput, 'none');
+  styleBadgePaddingXInput.value = '24';
+  styleBadgePaddingYInput.value = '12';
+  styleBadgeRadiusInput.value = '20';
   stylePositionInput.value = defaultPosition().id;
   styleSubmitButton.textContent = TEXT.addStyle;
   if (newStyleButton) newStyleButton.hidden = true;
@@ -2758,6 +2937,10 @@ function startStyleEdit(style, options = {}) {
   setColorInputValue(styleSecondaryColorInput, normalizedStyle.secondaryColor);
   setColorInputValue(styleOutlineColorInput, normalizedStyle.outlineColor);
   setColorInputValue(styleBackColorInput, normalizedStyle.backColor);
+  setColorInputValue(styleBadgeColorInput, normalizedStyle.badgeColor);
+  styleBadgePaddingXInput.value = String(normalizedStyle.badgePaddingX);
+  styleBadgePaddingYInput.value = String(normalizedStyle.badgePaddingY);
+  styleBadgeRadiusInput.value = String(normalizedStyle.badgeRadius);
   stylePositionInput.value = normalizedStyle.positionId;
   styleSubmitButton.textContent = TEXT.saveStyle;
   if (newStyleButton) newStyleButton.hidden = false;
@@ -3191,6 +3374,10 @@ async function ensureDefaultStyle() {
     secondaryColor: 'rgba(0, 0, 0, 1)',
     outlineColor: 'none',
     backColor: 'none',
+    badgeColor: 'none',
+    badgePaddingX: 24,
+    badgePaddingY: 12,
+    badgeRadius: 20,
     positionId: defaultPosition().id,
     createdAt: new Date().toISOString(),
   });
@@ -3769,6 +3956,10 @@ window.addEventListener('resize', syncCueTimelinePreviewScale);
   styleSecondaryColorInput,
   styleOutlineColorInput,
   styleBackColorInput,
+  styleBadgeColorInput,
+  styleBadgePaddingXInput,
+  styleBadgePaddingYInput,
+  styleBadgeRadiusInput,
   stylePositionInput,
 ].forEach((inputElement) => {
   inputElement.addEventListener('input', renderStyleLivePreview);
@@ -3793,6 +3984,10 @@ styleForm.addEventListener('submit', async (event) => {
     secondaryColor: styleSecondaryColorInput.value,
     outlineColor: styleOutlineColorInput.value,
     backColor: styleBackColorInput.value,
+    badgeColor: styleBadgeColorInput.value,
+    badgePaddingX: styleBadgePaddingXInput.value,
+    badgePaddingY: styleBadgePaddingYInput.value,
+    badgeRadius: styleBadgeRadiusInput.value,
     positionId: stylePositionInput.value,
     createdAt: existingStyle?.createdAt || new Date().toISOString(),
   });
