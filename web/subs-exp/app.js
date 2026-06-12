@@ -248,6 +248,8 @@ const CUE_TIMELINE_SEGMENT_GAP = 6;
 const CUE_TIMELINE_CARD_LEFT = 96;
 const CUE_TIMELINE_CARD_GAP = 10;
 const CUE_TIMELINE_ASS_VISUAL_SCALE = 0.68;
+// Canvas glyph bounds run slightly wider than the same bundled fonts in libass.
+const ASS_BADGE_TEXT_METRIC_SCALE = 0.91;
 const CUE_TIMELINE_ACCENTS = [
   '#e86f2d',
   '#f08b35',
@@ -1994,11 +1996,14 @@ function measureCueTextForBadge(style, cue) {
   const text = stripAssMarkup(cue.text) || ' ';
   const lines = text.split('\n');
   const fontSize = Math.max(1, Number(style.fontSize) || 72);
+  const alignment = Number(style.position?.alignment) || 2;
+  const horizontalFactor = [0, 0.5, 1][(alignment - 1) % 3];
   const lineStep = Math.max(
     1,
     fontSize + Number(style.lineSpacingOverride || 0),
   );
-  let width =
+  let left = 0;
+  let right =
     Math.max(...lines.map((line) => Math.max(1, line.length))) *
     fontSize *
     0.58;
@@ -2008,15 +2013,24 @@ function measureCueTextForBadge(style, cue) {
     const fontWeight = style.fontVariant === 'bold' ? '700' : '400';
     const fontFamily = String(style.font || 'Montserrat').replace(/["\\]/g, '');
     subtitleMeasureContext.font = `${fontStyle} ${fontWeight} ${fontSize}px "${fontFamily}"`;
-    width = Math.max(
-      ...lines.map(
-        (line) => subtitleMeasureContext.measureText(line || ' ').width,
-      ),
-    );
+    const lineBounds = lines.map((line) => {
+      const metrics = subtitleMeasureContext.measureText(line || ' ');
+      const origin = -metrics.width * horizontalFactor;
+      return {
+        left: origin + (metrics.actualBoundingBoxLeft || 0),
+        right: origin + (metrics.actualBoundingBoxRight || metrics.width),
+      };
+    });
+    left = Math.min(...lineBounds.map((bounds) => bounds.left));
+    right = Math.max(...lineBounds.map((bounds) => bounds.right));
+  } else {
+    left = -right * horizontalFactor;
+    right += left;
   }
 
   return {
-    width: Math.max(1, width),
+    left: left * ASS_BADGE_TEXT_METRIC_SCALE,
+    right: right * ASS_BADGE_TEXT_METRIC_SCALE,
     height: fontSize + Math.max(0, lines.length - 1) * lineStep,
   };
 }
@@ -2027,12 +2041,14 @@ function cueBadgeGeometry(style, cue) {
   const textSize = measureCueTextForBadge(style, cue);
   const paddingX = style.badgePaddingX;
   const paddingY = style.badgePaddingY;
-  const width = Math.max(1, Math.ceil(textSize.width + paddingX * 2));
+  const width = Math.max(
+    1,
+    Math.ceil(textSize.right - textSize.left + paddingX * 2),
+  );
   const height = Math.max(1, Math.ceil(textSize.height + paddingY * 2));
   const alignment = Number(style.position?.alignment) || 2;
-  const horizontalFactor = [0, 0.5, 1][(alignment - 1) % 3];
   const verticalFactor = [1, 0.5, 0][Math.floor((alignment - 1) / 3)];
-  const x = style.position.x - textSize.width * horizontalFactor - paddingX;
+  const x = style.position.x + textSize.left - paddingX;
   const y = style.position.y - textSize.height * verticalFactor - paddingY;
 
   return {
