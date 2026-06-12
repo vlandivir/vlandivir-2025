@@ -83,6 +83,8 @@ const TEXT = IS_EN
       editStyle: 'Edit style',
       editCue: 'Edit cue',
       deleteCue: 'Delete cue',
+      deleteAllCuesConfirm:
+        'Delete all cues for this video? This cannot be undone.',
       cueOverrides: 'overrides',
       cueFontOverride: 'font',
       cueColorOverride: 'color',
@@ -165,6 +167,8 @@ const TEXT = IS_EN
       editStyle: 'Редактировать стиль',
       editCue: 'Редактировать реплику',
       deleteCue: 'Удалить реплику',
+      deleteAllCuesConfirm:
+        'Удалить все реплики этого видео? Действие нельзя отменить.',
       cueOverrides: 'переопределения',
       cueFontOverride: 'шрифт',
       cueColorOverride: 'цвет',
@@ -452,6 +456,7 @@ const cueMotionMsInput = document.querySelector('#cueMotionMsInput');
 const cueSubmitButton = document.querySelector('#cueSubmitButton');
 const newCueButton = document.querySelector('#newCueButton');
 const cancelCueEditButton = document.querySelector('#cancelCueEditButton');
+const deleteAllCuesButton = document.querySelector('#deleteAllCuesButton');
 const cueList = document.querySelector('#cueList');
 const cuesEmptyState = document.querySelector('#cuesEmptyState');
 const previewMeta = document.querySelector('#previewMeta');
@@ -698,6 +703,33 @@ function saveCue(cue) {
 
 function deleteCue(id) {
   return deleteRecord(CUE_STORE, id);
+}
+
+async function deleteCuesForVideo(videoHash) {
+  if (!videoHash) return;
+
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(CUE_STORE, 'readwrite');
+    const store = transaction.objectStore(CUE_STORE);
+    const hasVideoHashIndex = store.indexNames.contains('videoHash');
+    const request = hasVideoHashIndex
+      ? store.index('videoHash').openCursor(IDBKeyRange.only(videoHash))
+      : store.openCursor();
+
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) return;
+
+      if (hasVideoHashIndex || cursor.value.videoHash === videoHash) {
+        cursor.delete();
+      }
+      cursor.continue();
+    };
+    request.onerror = () => reject(request.error);
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+  });
 }
 
 function createId(prefix) {
@@ -2198,6 +2230,9 @@ function renderStyles() {
 function renderCues() {
   cueList.replaceChildren();
   cuesEmptyState.hidden = cachedCues.length > 0;
+  if (deleteAllCuesButton) {
+    deleteAllCuesButton.disabled = cachedCues.length === 0;
+  }
 
   for (const cue of cachedCues) {
     const style = normalizeStyle(getStyleById(cue.styleId) || {});
@@ -3430,6 +3465,25 @@ newStyleButton?.addEventListener('click', () => {
 newCueButton?.addEventListener('click', () => {
   resetCueForm();
   focusEditorControl(cueTextInput);
+});
+deleteAllCuesButton?.addEventListener('click', async () => {
+  if (
+    !currentVideoHash ||
+    cachedCues.length === 0 ||
+    !window.confirm(TEXT.deleteAllCuesConfirm)
+  ) {
+    return;
+  }
+
+  deleteAllCuesButton.disabled = true;
+  try {
+    await deleteCuesForVideo(currentVideoHash);
+    resetCueForm();
+    await touchCurrentVideoUpdated();
+    await refreshEditor();
+  } finally {
+    deleteAllCuesButton.disabled = cachedCues.length === 0;
+  }
 });
 newPositionButton?.addEventListener('click', () => {
   resetPositionForm();

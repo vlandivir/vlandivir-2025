@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="fonts/fonts.css?v=20260517-9" />
     <link rel="stylesheet" href="/shared/site-header.css?v=20260527-1" />
     <link rel="stylesheet" href="/shared/color-picker.css?v=20260605-1" />
-    <link rel="stylesheet" href="styles.css?v=20260610-1" />
+    <link rel="stylesheet" href="styles.css?v=20260612-1" />
     <link rel="stylesheet" href="/shared/video-upload-block.css?v=20260603-1" />
     <link rel="stylesheet" href="/shared/site-theme.css?v=20260604-1" />
     <script src="/files/registry.js?v=20260527-1"></script>
@@ -19,7 +19,7 @@
     <script src="/shared/site-header.js?v=20260527-1" defer></script>
     <script src="/shared/color-picker.js?v=20260605-2" defer></script>
     <script src="/shared/video-upload-block.js?v=20260603-1" defer></script>
-    <script src="app.js?v=20260611-2" defer></script>
+    <script src="app.js?v=20260612-1" defer></script>
   </head>
   <body>
     <header
@@ -457,101 +457,102 @@
                 <h2 class="editor-section__title">Cues</h2>
               </summary>
               <div class="editor-section__body editor-grid video-bound-grid">
-                <details class="editor-card ass-cheatsheet">
-                  <summary class="ass-cheatsheet__summary">
-                    Cheat sheet: tags in cue text
-                  </summary>
-                  <p class="ass-cheatsheet__lead">
-                    Commands are written in braces and affect the following text
-                    fragment. Line break: <code>\N</code>.
-                  </p>
-                  <div class="ass-cheatsheet__grid">
-                    <article>
-                      <h4>Size and weight</h4>
-                      <ul>
-                        <li><code>{\fs80}</code> — 80 px size</li>
-                        <li>
-                          <code>{\b1}</code> / <code>{\i1}</code> — bold /
-                          italic
-                        </li>
-                        <li><code>{\b0}</code> — return to regular weight</li>
-                      </ul>
-                    </article>
-                    <article>
-                      <h4>Cue color</h4>
-                      <ul>
-                        <li>
-                          <code>{\c&amp;H00FFFFFF&amp;}</code> — primary color
-                          (BGR format)
-                        </li>
-                        <li>
-                          <code>{\1c&amp;H0000FF&amp;}</code> — fill only,
-                          <code>{\3c…}</code> outline
-                        </li>
-                        <li>
-                          White <code>#FFFFFF</code> →
-                          <code>&amp;H00FFFFFF&amp;</code>, red
-                          <code>#FF0000</code> →
-                          <code>&amp;H000000FF&amp;</code>
-                        </li>
-                        <li>
-                          <code>{\1a&amp;H80&amp;}</code> — fill transparency around
-                          50%; <code>&amp;H00</code> is opaque,
-                          <code>&amp;HFF</code> is invisible
-                        </li>
-                      </ul>
-                    </article>
-                    <article>
-                      <h4>Karaoke</h4>
-                      <ul>
-                        <li>
-                          <code>{\k50}</code> — syllable highlight for ~0.5s (50
-                          centiseconds)
-                        </li>
-                        <li><code>{\kf50}</code> — smooth syllable fill</li>
-                        <li>
-                          Example: <code>{\k40}Hel{\k40}lo, {\k60}world!</code>
-                        </li>
-                        <li>
-                          For karaoke set <strong>SecondaryColour</strong> in
-                          the style: it is the color of the unrevealed part.
-                        </li>
-                      </ul>
-                    </article>
-                    <article>
-                      <h4>Position move</h4>
-                      <ul>
-                        <li>
-                          In the cue form: <strong>ΔX</strong>,
-                          <strong>ΔY</strong>, <strong>start</strong> and
-                          <strong>duration</strong> (ms).
-                        </li>
-                        <li>
-                          Start is the style position; finish is the ΔX/ΔY
-                          offset.
-                        </li>
-                        <li>
-                          In ASS:
-                          <code>{\move(x1,y1,x2,y2,200,700)}</code> moves from
-                          200 to 700 ms.
-                        </li>
-                        <li>
-                          Without move timing, ΔX/ΔY are applied immediately to
-                          this cue as <code>{\pos}</code>.
-                        </li>
-                      </ul>
-                    </article>
-                    <article>
-                      <h4>Full example</h4>
-                      <pre
-                        class="ass-cheatsheet__sample"
-                      ><code>{\fs90\c&amp;H00FFFF&amp;}{\k45}Hel{\k45}lo {\k60}text</code></pre>
-                    </article>
-                  </div>
-                </details>
-
                 <form class="editor-card editor-form cue-form" id="cueForm">
                   <h3>Cue</h3>
+                  <details class="ass-cheatsheet cue-form__cheatsheet">
+                    <summary class="ass-cheatsheet__summary">
+                      Cheat sheet: tags in cue text
+                    </summary>
+                    <p class="ass-cheatsheet__lead">
+                      Commands are written in braces and affect the following
+                      text fragment. Line break: <code>\N</code>.
+                    </p>
+                    <div class="ass-cheatsheet__grid">
+                      <article>
+                        <h4>Size and weight</h4>
+                        <ul>
+                          <li><code>{\fs80}</code> — 80 px size</li>
+                          <li>
+                            <code>{\b1}</code> / <code>{\i1}</code> — bold /
+                            italic
+                          </li>
+                          <li><code>{\b0}</code> — return to regular weight</li>
+                        </ul>
+                      </article>
+                      <article>
+                        <h4>Cue color</h4>
+                        <ul>
+                          <li>
+                            <code>{\c&amp;H00FFFFFF&amp;}</code> — primary color
+                            (BGR format)
+                          </li>
+                          <li>
+                            <code>{\1c&amp;H0000FF&amp;}</code> — fill only,
+                            <code>{\3c…}</code> outline
+                          </li>
+                          <li>
+                            White <code>#FFFFFF</code> →
+                            <code>&amp;H00FFFFFF&amp;</code>, red
+                            <code>#FF0000</code> →
+                            <code>&amp;H000000FF&amp;</code>
+                          </li>
+                          <li>
+                            <code>{\1a&amp;H80&amp;}</code> — fill transparency
+                            around 50%; <code>&amp;H00</code> is opaque,
+                            <code>&amp;HFF</code> is invisible
+                          </li>
+                        </ul>
+                      </article>
+                      <article>
+                        <h4>Karaoke</h4>
+                        <ul>
+                          <li>
+                            <code>{\k50}</code> — syllable highlight for ~0.5s
+                            (50 centiseconds)
+                          </li>
+                          <li><code>{\kf50}</code> — smooth syllable fill</li>
+                          <li>
+                            Example:
+                            <code>{\k40}Hel{\k40}lo, {\k60}world!</code>
+                          </li>
+                          <li>
+                            For karaoke set <strong>SecondaryColour</strong> in
+                            the style: it is the color of the unrevealed part.
+                          </li>
+                        </ul>
+                      </article>
+                      <article>
+                        <h4>Position move</h4>
+                        <ul>
+                          <li>
+                            In the cue form: <strong>ΔX</strong>,
+                            <strong>ΔY</strong>, <strong>start</strong> and
+                            <strong>duration</strong> (ms).
+                          </li>
+                          <li>
+                            Start is the style position; finish is the ΔX/ΔY
+                            offset.
+                          </li>
+                          <li>
+                            In ASS:
+                            <code>{\move(x1,y1,x2,y2,200,700)}</code> moves from
+                            200 to 700 ms.
+                          </li>
+                          <li>
+                            Without move timing, ΔX/ΔY are applied immediately
+                            to this cue as <code>{\pos}</code>.
+                          </li>
+                        </ul>
+                      </article>
+                      <article>
+                        <h4>Full example</h4>
+                        <pre
+                          class="ass-cheatsheet__sample"
+                        ><code>{\fs90\c&amp;H00FFFF&amp;}{\k45}Hel{\k45}lo {\k60}text</code></pre>
+                      </article>
+                    </div>
+                  </details>
+
                   <label class="editor-field cue-text-field">
                     <span>Text</span>
                     <textarea
@@ -682,6 +683,14 @@
                       Cancel
                     </button>
                   </div>
+                  <button
+                    class="secondary-link cue-delete-all"
+                    id="deleteAllCuesButton"
+                    type="button"
+                    disabled
+                  >
+                    Delete all cues
+                  </button>
                 </form>
 
                 <div class="editor-card cue-list-card">
