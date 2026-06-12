@@ -83,6 +83,8 @@ const TEXT = IS_EN
       editStyle: 'Edit style',
       editCue: 'Edit cue',
       deleteCue: 'Delete cue',
+      deleteAllCuesConfirm:
+        'Delete all cues for this video? This cannot be undone.',
       cueOverrides: 'overrides',
       cueFontOverride: 'font',
       cueColorOverride: 'color',
@@ -165,6 +167,8 @@ const TEXT = IS_EN
       editStyle: 'Редактировать стиль',
       editCue: 'Редактировать реплику',
       deleteCue: 'Удалить реплику',
+      deleteAllCuesConfirm:
+        'Удалить все реплики этого видео? Действие нельзя отменить.',
       cueOverrides: 'переопределения',
       cueFontOverride: 'шрифт',
       cueColorOverride: 'цвет',
@@ -473,6 +477,7 @@ const newCueButton = document.querySelector('#newCueButton');
 const cancelCueEditButton = document.querySelector('#cancelCueEditButton');
 const closeCueEditorButton = document.querySelector('#closeCueEditorButton');
 const deleteCueButton = document.querySelector('#deleteCueButton');
+const deleteAllCuesButton = document.querySelector('#deleteAllCuesButton');
 const cueList = document.querySelector('#cueList');
 const cuesEmptyState = document.querySelector('#cuesEmptyState');
 const cueTimelineCard = document.querySelector('#cueTimelineCard');
@@ -556,7 +561,6 @@ function initExperimentalCueWorkbench() {
   const workbench = cueTimelineCard?.closest('.video-bound-grid');
   if (!workbench || !cueTimelineCard || !currentVideoSection) return;
 
-  const cheatsheet = workbench.querySelector('.ass-cheatsheet');
   const timelineHead = document.createElement('div');
   timelineHead.className = 'cue-timeline__head';
 
@@ -616,7 +620,6 @@ function initExperimentalCueWorkbench() {
 
   workbench.classList.add('cue-workbench');
   workbench.replaceChildren(cueTimelineCard, previewPanel);
-  if (cheatsheet) workbench.append(cheatsheet);
 
   if (videoStage && typeof ResizeObserver !== 'undefined') {
     cueTimelinePreviewResizeObserver = new ResizeObserver(
@@ -983,6 +986,33 @@ function saveCue(cue) {
 
 function deleteCue(id) {
   return deleteRecord(CUE_STORE, id);
+}
+
+async function deleteCuesForVideo(videoHash) {
+  if (!videoHash) return;
+
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(CUE_STORE, 'readwrite');
+    const store = transaction.objectStore(CUE_STORE);
+    const hasVideoHashIndex = store.indexNames.contains('videoHash');
+    const request = hasVideoHashIndex
+      ? store.index('videoHash').openCursor(IDBKeyRange.only(videoHash))
+      : store.openCursor();
+
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) return;
+
+      if (hasVideoHashIndex || cursor.value.videoHash === videoHash) {
+        cursor.delete();
+      }
+      cursor.continue();
+    };
+    request.onerror = () => reject(request.error);
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+  });
 }
 
 function createId(prefix) {
@@ -2495,6 +2525,7 @@ function renderStyles() {
 function renderCues() {
   cueList.replaceChildren();
   cuesEmptyState.hidden = cachedCues.length > 0;
+  deleteAllCuesButton.disabled = cachedCues.length === 0;
   cueTimelinePreviewScale = currentCueTimelinePreviewScale();
   const timelineLayout = buildCueTimelineLayout(cachedCues);
   cueList.style.setProperty(
@@ -3835,6 +3866,25 @@ deleteCueButton.addEventListener('click', async () => {
   await deleteCue(cueId);
   await touchCurrentVideoUpdated();
   await refreshEditor();
+});
+deleteAllCuesButton.addEventListener('click', async () => {
+  if (
+    !currentVideoHash ||
+    cachedCues.length === 0 ||
+    !window.confirm(TEXT.deleteAllCuesConfirm)
+  ) {
+    return;
+  }
+
+  deleteAllCuesButton.disabled = true;
+  try {
+    await deleteCuesForVideo(currentVideoHash);
+    resetCueForm();
+    await touchCurrentVideoUpdated();
+    await refreshEditor();
+  } finally {
+    deleteAllCuesButton.disabled = cachedCues.length === 0;
+  }
 });
 cancelPositionEditButton.addEventListener('click', resetPositionForm);
 newStyleButton?.addEventListener('click', () => {

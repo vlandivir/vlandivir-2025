@@ -2169,6 +2169,27 @@ pre {
   cursor: pointer;
 }
 
+.subs-exp-page .editor-delete-all:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.subs-exp-page .cue-form__cheatsheet {
+  grid-column: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  background: #f9fbf8;
+}
+
+.subs-exp-page .cue-form__cheatsheet .ass-cheatsheet__summary {
+  font-size: 16px;
+}
+
+.subs-exp-page .cue-form__cheatsheet .ass-cheatsheet__grid {
+  grid-template-columns: 1fr;
+}
+
 .subs-exp-page .cue-workbench__preview {
   position: sticky;
   top: 16px;
@@ -2178,10 +2199,6 @@ pre {
 
 .subs-exp-page .current-video--timeline {
   width: 100%;
-}
-
-.subs-exp-page .cue-workbench > .ass-cheatsheet {
-  grid-column: 1 / -1;
 }
 
 .subs-exp-page .ass-workbench {

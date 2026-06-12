@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="/subs/fonts/fonts.css?v=20260517-9" />
     <link rel="stylesheet" href="/shared/site-header.css?v=20260527-1" />
     <link rel="stylesheet" href="/shared/color-picker.css?v=20260605-1" />
-    <link rel="stylesheet" href="/subs-exp/styles.css?v=20260611-1" />
+    <link rel="stylesheet" href="/subs-exp/styles.css?v=20260612-1" />
     <link rel="stylesheet" href="/shared/video-upload-block.css?v=20260603-1" />
     <link rel="stylesheet" href="/shared/site-theme.css?v=20260604-1" />
     <script src="/files/registry.js?v=20260527-1"></script>
@@ -19,7 +19,7 @@
     <script src="/shared/site-header.js?v=20260527-1" defer></script>
     <script src="/shared/color-picker.js?v=20260605-2" defer></script>
     <script src="/shared/video-upload-block.js?v=20260603-1" defer></script>
-    <script src="/subs-exp/app.js?v=20260611-1" defer></script>
+    <script src="/subs-exp/app.js?v=20260612-1" defer></script>
   </head>
   <body class="subs-exp-page">
     <header
@@ -460,97 +460,6 @@
                 <h2 class="editor-section__title">Реплики</h2>
               </summary>
               <div class="editor-section__body editor-grid video-bound-grid">
-                <details class="editor-card ass-cheatsheet">
-                  <summary class="ass-cheatsheet__summary">
-                    Шпаргалка: теги в тексте реплики
-                  </summary>
-                  <p class="ass-cheatsheet__lead">
-                    Команды пишутся в фигурных скобках и действуют на фрагмент
-                    текста после них. Перенос строки — <code>\N</code>.
-                  </p>
-                  <div class="ass-cheatsheet__grid">
-                    <article>
-                      <h4>Размер и начертание</h4>
-                      <ul>
-                        <li><code>{\fs80}</code> — размер ASS 80</li>
-                        <li>
-                          <code>{\b1}</code> / <code>{\i1}</code> — жирный /
-                          курсив
-                        </li>
-                        <li><code>{\b0}</code> — вернуть обычное начертание</li>
-                      </ul>
-                    </article>
-                    <article>
-                      <h4>Цвет в реплике</h4>
-                      <ul>
-                        <li>
-                          <code>{\c&amp;H00FFFFFF&amp;}</code> — основной цвет
-                          (формат BGR)
-                        </li>
-                        <li>
-                          <code>{\1c&amp;H0000FF&amp;}</code> — только заливка,
-                          <code>{\3c…}</code> — обводка
-                        </li>
-                        <li>
-                          Белый <code>#FFFFFF</code> →
-                          <code>&amp;H00FFFFFF&amp;</code>, красный
-                          <code>#FF0000</code> →
-                          <code>&amp;H000000FF&amp;</code>
-                        </li>
-                        <li>
-                          <code>{\1a&amp;H80&amp;}</code> — прозрачность заливки
-                          ~50%; <code>&amp;H00</code> непрозрачно,
-                          <code>&amp;HFF</code> невидимо
-                        </li>
-                      </ul>
-                    </article>
-                    <article>
-                      <h4>Караоке</h4>
-                      <ul>
-                        <li>
-                          <code>{\k50}</code> — подсветка слога ~0.5 с (50 сотых
-                          секунды)
-                        </li>
-                        <li><code>{\kf50}</code> — плавное заполнение слога</li>
-                        <li>
-                          Пример: <code>{\k40}При{\k40}вет, {\k60}мир!</code>
-                        </li>
-                        <li>
-                          Для караоке задайте <strong>SecondaryColour</strong> в
-                          стиле — это цвет «незаполненной» части.
-                        </li>
-                      </ul>
-                    </article>
-                    <article>
-                      <h4>Сдвиг позиции</h4>
-                      <ul>
-                        <li>
-                          В форме реплики: <strong>ΔX</strong>,
-                          <strong>ΔY</strong>, <strong>старт</strong> и
-                          <strong>длительность</strong> (мс).
-                        </li>
-                        <li>
-                          Старт — позиция стиля, финиш — смещение на ΔX/ΔY.
-                        </li>
-                        <li>
-                          В ASS: <code>{\move(x1,y1,x2,y2,200,700)}</code> —
-                          сдвиг с 200 до 700 мс.
-                        </li>
-                        <li>
-                          Без времени смещения ΔX/ΔY применяются сразу к этой
-                          реплике как <code>{\pos}</code>.
-                        </li>
-                      </ul>
-                    </article>
-                    <article>
-                      <h4>Пример целиком</h4>
-                      <pre
-                        class="ass-cheatsheet__sample"
-                      ><code>{\fs90\c&amp;H00FFFF&amp;}{\k45}Бе{\k45}лый {\k60}текст</code></pre>
-                    </article>
-                  </div>
-                </details>
-
                 <form
                   class="editor-card editor-form cue-form"
                   id="cueForm"
@@ -568,6 +477,102 @@
                       ×
                     </button>
                   </div>
+                  <details class="ass-cheatsheet cue-form__cheatsheet">
+                    <summary class="ass-cheatsheet__summary">
+                      Шпаргалка: теги в тексте реплики
+                    </summary>
+                    <p class="ass-cheatsheet__lead">
+                      Команды пишутся в фигурных скобках и действуют на фрагмент
+                      текста после них. Перенос строки — <code>\N</code>.
+                    </p>
+                    <div class="ass-cheatsheet__grid">
+                      <article>
+                        <h4>Размер и начертание</h4>
+                        <ul>
+                          <li><code>{\fs80}</code> — размер ASS 80</li>
+                          <li>
+                            <code>{\b1}</code> / <code>{\i1}</code> — жирный /
+                            курсив
+                          </li>
+                          <li>
+                            <code>{\b0}</code> — вернуть обычное начертание
+                          </li>
+                        </ul>
+                      </article>
+                      <article>
+                        <h4>Цвет в реплике</h4>
+                        <ul>
+                          <li>
+                            <code>{\c&amp;H00FFFFFF&amp;}</code> — основной цвет
+                            (формат BGR)
+                          </li>
+                          <li>
+                            <code>{\1c&amp;H0000FF&amp;}</code> — только
+                            заливка, <code>{\3c…}</code> — обводка
+                          </li>
+                          <li>
+                            Белый <code>#FFFFFF</code> →
+                            <code>&amp;H00FFFFFF&amp;</code>, красный
+                            <code>#FF0000</code> →
+                            <code>&amp;H000000FF&amp;</code>
+                          </li>
+                          <li>
+                            <code>{\1a&amp;H80&amp;}</code> — прозрачность
+                            заливки ~50%; <code>&amp;H00</code> непрозрачно,
+                            <code>&amp;HFF</code> невидимо
+                          </li>
+                        </ul>
+                      </article>
+                      <article>
+                        <h4>Караоке</h4>
+                        <ul>
+                          <li>
+                            <code>{\k50}</code> — подсветка слога ~0.5 с (50
+                            сотых секунды)
+                          </li>
+                          <li>
+                            <code>{\kf50}</code> — плавное заполнение слога
+                          </li>
+                          <li>
+                            Пример: <code>{\k40}При{\k40}вет, {\k60}мир!</code>
+                          </li>
+                          <li>
+                            Для караоке задайте
+                            <strong>SecondaryColour</strong> в стиле — это цвет
+                            «незаполненной» части.
+                          </li>
+                        </ul>
+                      </article>
+                      <article>
+                        <h4>Сдвиг позиции</h4>
+                        <ul>
+                          <li>
+                            В форме реплики: <strong>ΔX</strong>,
+                            <strong>ΔY</strong>, <strong>старт</strong> и
+                            <strong>длительность</strong> (мс).
+                          </li>
+                          <li>
+                            Старт — позиция стиля, финиш — смещение на ΔX/ΔY.
+                          </li>
+                          <li>
+                            В ASS: <code>{\move(x1,y1,x2,y2,200,700)}</code> —
+                            сдвиг с 200 до 700 мс.
+                          </li>
+                          <li>
+                            Без времени смещения ΔX/ΔY применяются сразу к этой
+                            реплике как <code>{\pos}</code>.
+                          </li>
+                        </ul>
+                      </article>
+                      <article>
+                        <h4>Пример целиком</h4>
+                        <pre
+                          class="ass-cheatsheet__sample"
+                        ><code>{\fs90\c&amp;H00FFFF&amp;}{\k45}Бе{\k45}лый {\k60}текст</code></pre>
+                      </article>
+                    </div>
+                  </details>
+
                   <label class="editor-field cue-text-field">
                     <span>Текст</span>
                     <textarea
@@ -704,6 +709,14 @@
                       hidden
                     >
                       Удалить реплику
+                    </button>
+                    <button
+                      class="secondary-link editor-delete editor-delete-all"
+                      id="deleteAllCuesButton"
+                      type="button"
+                      disabled
+                    >
+                      Удалить все реплики
                     </button>
                   </div>
                 </form>
