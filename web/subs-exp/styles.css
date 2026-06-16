@@ -889,6 +889,7 @@ pre {
   font-weight: 900;
   line-height: 1.12;
   overflow-wrap: anywhere;
+  white-space: pre-line;
 }
 
 .style-live-preview__meta {
@@ -1419,6 +1420,7 @@ pre {
   font-weight: 900;
   line-height: 1.18;
   overflow-wrap: anywhere;
+  white-space: pre-line;
 }
 
 .cue-item .item-actions {

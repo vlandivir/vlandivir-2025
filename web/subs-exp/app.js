@@ -249,7 +249,7 @@ const JASSUB_DEFAULT_FONT_URL = new URL(
   'vendor/jassub/default.woff2',
   SUBS_ASSET_BASE_URL,
 ).href;
-const STYLE_PREVIEW_TEXT = 'Preview Превью Događaj';
+const STYLE_PREVIEW_TEXT = 'Preview\nПревью Događaj';
 const CUE_TIMELINE_SCALE_STORAGE_KEY = 'subs-exp-timeline-px-per-second';
 const CUE_TIMELINE_DEFAULT_PX_PER_SECOND = 200;
 const CUE_TIMELINE_MIN_PX_PER_SECOND = 50;
@@ -442,6 +442,7 @@ const styleLivePreviewColors = document.querySelector(
 const styleFontInput = document.querySelector('#styleFontInput');
 const styleFontSizeInput = document.querySelector('#styleFontSizeInput');
 const styleFontVariantInput = document.querySelector('#styleFontVariantInput');
+const styleLineSpacingInput = document.querySelector('#styleLineSpacingInput');
 const stylePrimaryColorInput = document.querySelector(
   '#stylePrimaryColorInput',
 );
@@ -1943,7 +1944,7 @@ function normalizeCueOverrides(cue) {
   const color = String(cue?.colorOverride || cue?.primaryColor || '').trim();
   const font = String(cue?.fontOverride || '').trim();
   const fontSize = Math.round(Number(cue?.fontSizeOverride));
-  const lineSpacing = Math.round(Number(cue?.lineSpacingOverride));
+  const lineSpacing = normalizeLineSpacingValue(cue?.lineSpacingOverride);
   return {
     fontOverride: BUNDLED_FONT_FAMILIES.has(font) ? font : '',
     colorOverride: normalizeSubtitleColor(color, ''),
@@ -1967,12 +1968,14 @@ function readCueOverridesFromForm() {
 function cueStyleWithOverrides(style, cue) {
   const normalizedStyle = normalizeStyle(style || {});
   const overrides = normalizeCueOverrides(cue);
+  const lineSpacingOverride =
+    overrides.lineSpacingOverride || normalizedStyle.lineSpacingOverride;
   return {
     ...normalizedStyle,
     font: overrides.fontOverride || normalizedStyle.font,
     primaryColor: overrides.colorOverride || normalizedStyle.primaryColor,
     fontSize: overrides.fontSizeOverride || normalizedStyle.fontSize,
-    lineSpacingOverride: overrides.lineSpacingOverride,
+    lineSpacingOverride,
   };
 }
 
@@ -2175,12 +2178,24 @@ function normalizeStyleBadgeNumber(value, fallback) {
     : fallback;
 }
 
+function normalizeLineSpacingValue(value, fallback = 0) {
+  if (value === null || value === undefined || value === '') return fallback;
+  const number = Math.round(Number(value));
+  return Number.isFinite(number) ? number : fallback;
+}
+
 function fontVariantLabel(value) {
   return {
     regular: 'Regular',
     bold: 'Bold',
     italic: 'Italic',
   }[normalizeFontVariant(value)];
+}
+
+function formatLineSpacingLabel(value) {
+  const lineSpacing = normalizeLineSpacingValue(value);
+  const sign = lineSpacing > 0 ? '+' : '';
+  return `${TEXT.cueLineSpacingOverride} ${sign}${lineSpacing}px`;
 }
 
 function normalizeStyle(style) {
@@ -2219,6 +2234,7 @@ function normalizeStyle(style) {
     badgePaddingX: normalizeStyleBadgeNumber(style.badgePaddingX, 24),
     badgePaddingY: normalizeStyleBadgeNumber(style.badgePaddingY, 12),
     badgeRadius: normalizeStyleBadgeNumber(style.badgeRadius, 20),
+    lineSpacingOverride: normalizeLineSpacingValue(style.lineSpacingOverride),
     positionId: resolvedPosition.id,
     position: resolvedPosition,
   };
@@ -2283,6 +2299,7 @@ function readStyleFormDraft() {
     font: styleFontInput.value || 'Montserrat',
     fontSize: Number(styleFontSizeInput.value) || 72,
     fontVariant: styleFontVariantInput.value,
+    lineSpacingOverride: styleLineSpacingInput.value,
     primaryColor: stylePrimaryColorInput.value,
     secondaryColor: styleSecondaryColorInput.value,
     outlineColor: styleOutlineColorInput.value,
@@ -2320,7 +2337,7 @@ function renderStyleLivePreview() {
   const style = readStyleFormDraft();
   styleLivePreviewText.textContent = STYLE_PREVIEW_TEXT;
   applySubtitlePreviewStyle(styleLivePreviewText, style, 0.42);
-  styleLivePreviewMeta.textContent = `${style.font} · ${fontVariantLabel(style.fontVariant)} · ${style.fontSize} ASS`;
+  styleLivePreviewMeta.textContent = `${style.font} · ${fontVariantLabel(style.fontVariant)} · ${style.fontSize} ASS · ${formatLineSpacingLabel(style.lineSpacingOverride)}`;
   styleLivePreviewColors.replaceChildren(
     createStylePreviewColor('Primary', style.primaryColor),
     createStylePreviewColor('Secondary', style.secondaryColor),
@@ -2378,6 +2395,7 @@ function generateAss() {
           badgePaddingX: 24,
           badgePaddingY: 12,
           badgeRadius: 20,
+          lineSpacingOverride: 0,
           positionId: defaultPosition().id,
         },
       ];
@@ -2464,13 +2482,13 @@ function generateAss() {
   const cueLines = cachedCues.flatMap((cue) => {
     const style = normalizeStyle(getStyleById(cue.styleId) || {});
     const cueStyle = cueStyleWithOverrides(style, cue);
-    const overrides = normalizeCueOverrides(cue);
     const text = escapeAssText(cue.text);
     const textLines = text.split(/\\N/g);
     const badgeLine = buildBadgeDialogueLine(cue, cueStyle);
     const textLayer = badgeLine ? 1 : 0;
+    const lineSpacing = cueStyle.lineSpacingOverride;
 
-    if (!overrides.lineSpacingOverride || textLines.length <= 1) {
+    if (!lineSpacing || textLines.length <= 1) {
       return [
         ...(badgeLine ? [badgeLine] : []),
         buildDialogueLine(cue, style, text, 0, textLayer),
@@ -2484,12 +2502,7 @@ function generateAss() {
           cue,
           style,
           line,
-          cueLineYOffset(
-            cueStyle,
-            index,
-            textLines.length,
-            overrides.lineSpacingOverride,
-          ),
+          cueLineYOffset(cueStyle, index, textLines.length, lineSpacing),
           textLayer,
         ),
       ),
@@ -2727,7 +2740,7 @@ function renderStyles() {
     const title = document.createElement('h4');
     title.textContent = style.name;
     const meta = document.createElement('p');
-    meta.textContent = `${style.font} · ${fontVariantLabel(style.fontVariant)} · ${style.fontSize} ASS · ${positionLabel(style.position)}`;
+    meta.textContent = `${style.font} · ${fontVariantLabel(style.fontVariant)} · ${style.fontSize} ASS · ${formatLineSpacingLabel(style.lineSpacingOverride)} · ${positionLabel(style.position)}`;
 
     const preview = document.createElement('p');
     preview.className = 'style-item__preview';
@@ -2941,6 +2954,7 @@ function resetStyleForm() {
   styleFontInput.value = 'Montserrat';
   styleFontSizeInput.value = '72';
   styleFontVariantInput.value = 'regular';
+  styleLineSpacingInput.value = '0';
   setColorInputValue(stylePrimaryColorInput, 'rgba(255, 255, 255, 1)');
   setColorInputValue(styleSecondaryColorInput, 'rgba(0, 0, 0, 1)');
   setColorInputValue(styleOutlineColorInput, 'none');
@@ -3004,6 +3018,7 @@ function startStyleEdit(style, options = {}) {
   styleFontInput.value = normalizedStyle.font;
   styleFontSizeInput.value = String(normalizedStyle.fontSize);
   styleFontVariantInput.value = normalizedStyle.fontVariant;
+  styleLineSpacingInput.value = String(normalizedStyle.lineSpacingOverride);
   setColorInputValue(stylePrimaryColorInput, normalizedStyle.primaryColor);
   setColorInputValue(styleSecondaryColorInput, normalizedStyle.secondaryColor);
   setColorInputValue(styleOutlineColorInput, normalizedStyle.outlineColor);
@@ -3449,6 +3464,7 @@ async function ensureDefaultStyle() {
     badgePaddingX: 24,
     badgePaddingY: 12,
     badgeRadius: 20,
+    lineSpacingOverride: 0,
     positionId: defaultPosition().id,
     createdAt: new Date().toISOString(),
   });
@@ -4107,6 +4123,7 @@ window.addEventListener('resize', syncCueTimelinePreviewScale);
   styleFontInput,
   styleFontSizeInput,
   styleFontVariantInput,
+  styleLineSpacingInput,
   stylePrimaryColorInput,
   styleSecondaryColorInput,
   styleOutlineColorInput,
@@ -4135,6 +4152,7 @@ styleForm.addEventListener('submit', async (event) => {
     font: styleFontInput.value,
     fontSize: Number(styleFontSizeInput.value) || 72,
     fontVariant: styleFontVariantInput.value,
+    lineSpacingOverride: styleLineSpacingInput.value,
     primaryColor: stylePrimaryColorInput.value,
     secondaryColor: styleSecondaryColorInput.value,
     outlineColor: styleOutlineColorInput.value,
