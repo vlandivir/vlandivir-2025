@@ -1453,10 +1453,14 @@ function renderTranscription(video = null) {
     transcriptionOutput.hidden = true;
     saveTranscriptionButton.hidden = true;
     transcriptionTranslationPanel.hidden = true;
+    translateTranscriptionButton.disabled = true;
     transcriptionToCuesPanel.hidden = true;
     transcriptionStatus.textContent = TEXT.audioFirst;
     return;
   }
+
+  transcriptionTranslationPanel.hidden = false;
+  translateTranscriptionButton.disabled = true;
 
   const language = getSelectedTranscriptionLanguage();
   const transcript = video?.transcripts?.[language];
@@ -1474,7 +1478,7 @@ function renderTranscription(video = null) {
       transcript[activeTranscriptOutputKey] || formatTranscript(transcript);
     transcriptionOutput.hidden = false;
     saveTranscriptionButton.hidden = false;
-    transcriptionTranslationPanel.hidden = false;
+    translateTranscriptionButton.disabled = false;
     transcriptionToCuesPanel.hidden = false;
     const editedSuffix =
       !hasTranslationOutput && transcript[sourceOutputKey]
@@ -1490,7 +1494,6 @@ function renderTranscription(video = null) {
     transcriptionOutput.value = '';
     transcriptionOutput.hidden = true;
     saveTranscriptionButton.hidden = true;
-    transcriptionTranslationPanel.hidden = true;
     transcriptionToCuesPanel.hidden = true;
     transcriptionStatus.textContent = TEXT.transcriptNotRun;
   }

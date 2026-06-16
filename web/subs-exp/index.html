@@ -19,7 +19,7 @@
     <script src="/shared/site-header.js?v=20260527-1" defer></script>
     <script src="/shared/color-picker.js?v=20260605-2" defer></script>
     <script src="/shared/video-upload-block.js?v=20260603-1" defer></script>
-    <script src="/subs-exp/app.js?v=20260616-1" defer></script>
+    <script src="/subs-exp/app.js?v=20260616-2" defer></script>
   </head>
   <body class="subs-exp-page">
     <header
@@ -146,23 +146,6 @@
                     Распознать речь
                   </button>
                 </div>
-                <p class="transcription-status" id="transcriptionStatus">
-                  Распознавание ещё не запускалось.
-                </p>
-                <textarea
-                  class="transcription-output"
-                  id="transcriptionOutput"
-                  spellcheck="false"
-                  hidden
-                ></textarea>
-                <button
-                  class="secondary-link transcription-save-button"
-                  id="saveTranscriptionButton"
-                  type="button"
-                  hidden
-                >
-                  Сохранить текст
-                </button>
                 <div
                   class="transcription-translation"
                   id="transcriptionTranslationPanel"
@@ -189,6 +172,23 @@
                     Перевести текст
                   </button>
                 </div>
+                <p class="transcription-status" id="transcriptionStatus">
+                  Распознавание ещё не запускалось.
+                </p>
+                <textarea
+                  class="transcription-output"
+                  id="transcriptionOutput"
+                  spellcheck="false"
+                  hidden
+                ></textarea>
+                <button
+                  class="secondary-link transcription-save-button"
+                  id="saveTranscriptionButton"
+                  type="button"
+                  hidden
+                >
+                  Сохранить текст
+                </button>
                 <div
                   class="transcription-to-cues"
                   id="transcriptionToCuesPanel"
