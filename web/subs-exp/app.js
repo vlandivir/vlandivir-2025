@@ -65,6 +65,12 @@ const TEXT = IS_EN
       extractAudioFailed: 'Failed to extract audio',
       transcribing: 'Transcribing speech on backend...',
       transcribeFailed: 'Failed to transcribe speech',
+      translationLanguage: 'Translation language',
+      translateText: 'Translate text',
+      translating: 'Translating text on backend...',
+      translateFailed: 'Failed to translate text',
+      translated: 'Translated',
+      targetLanguageRequired: 'Choose a translation language.',
       saved: 'Saved',
       chooseCueStyle: 'Choose a cue style.',
       noWordLines: 'No lines in “00.00 word” format.',
@@ -149,6 +155,12 @@ const TEXT = IS_EN
       extractAudioFailed: 'Не удалось выделить audio',
       transcribing: 'Распознаю речь на backend...',
       transcribeFailed: 'Не удалось распознать речь',
+      translationLanguage: 'Язык перевода',
+      translateText: 'Перевести текст',
+      translating: 'Перевожу текст на backend...',
+      translateFailed: 'Не удалось перевести текст',
+      translated: 'Переведено',
+      targetLanguageRequired: 'Выберите язык перевода.',
       saved: 'Сохранено',
       chooseCueStyle: 'Выберите стиль для реплик.',
       noWordLines: 'Не нашёл строки в формате “00.00 слово”.',
@@ -511,6 +523,15 @@ const transcriptionOutput = document.querySelector('#transcriptionOutput');
 const saveTranscriptionButton = document.querySelector(
   '#saveTranscriptionButton',
 );
+const transcriptionTranslationPanel = document.querySelector(
+  '#transcriptionTranslationPanel',
+);
+const translationLanguageInput = document.querySelector(
+  '#translationLanguageInput',
+);
+const translateTranscriptionButton = document.querySelector(
+  '#translateTranscriptionButton',
+);
 const transcriptionToCuesPanel = document.querySelector(
   '#transcriptionToCuesPanel',
 );
@@ -563,6 +584,8 @@ let currentAudioWaveform = [];
 let audioAnimationFrame = null;
 let uploadValidationToken = 0;
 let isVideoColorPicking = false;
+let activeTranscriptOutputKey = null;
+let activeTranscriptOutputLanguage = null;
 const videoColorSampleCanvas = document.createElement('canvas');
 videoColorSampleCanvas.width = 1;
 videoColorSampleCanvas.height = 1;
@@ -1372,8 +1395,18 @@ function getSelectedTranscriptionLanguage() {
   return transcriptionLanguageInput?.value || 'auto';
 }
 
+function getSelectedTranslationLanguage() {
+  return translationLanguageInput?.value || 'en';
+}
+
 function getTranscriptOutputKey(language = getSelectedTranscriptionLanguage()) {
   return `${language}Output`;
+}
+
+function getTranscriptTranslationOutputKey(
+  targetLanguage = getSelectedTranslationLanguage(),
+) {
+  return `translationOutput_${targetLanguage}`;
 }
 
 function formatTranscriptTime(value, width = 5) {
@@ -1414,9 +1447,12 @@ function renderTranscription(video = null) {
   const hasAudio = Boolean(video?.audioUrl);
   transcriptionPanel.hidden = !hasAudio;
   if (!hasAudio) {
+    activeTranscriptOutputKey = null;
+    activeTranscriptOutputLanguage = null;
     transcriptionOutput.value = '';
     transcriptionOutput.hidden = true;
     saveTranscriptionButton.hidden = true;
+    transcriptionTranslationPanel.hidden = true;
     transcriptionToCuesPanel.hidden = true;
     transcriptionStatus.textContent = TEXT.audioFirst;
     return;
@@ -1425,20 +1461,36 @@ function renderTranscription(video = null) {
   const language = getSelectedTranscriptionLanguage();
   const transcript = video?.transcripts?.[language];
   if (transcript) {
+    const sourceOutputKey = getTranscriptOutputKey(language);
+    const translationOutputKey = getTranscriptTranslationOutputKey();
+    const hasTranslationOutput = Boolean(transcript[translationOutputKey]);
+    activeTranscriptOutputKey = hasTranslationOutput
+      ? translationOutputKey
+      : sourceOutputKey;
+    activeTranscriptOutputLanguage = hasTranslationOutput
+      ? getSelectedTranslationLanguage()
+      : language;
     transcriptionOutput.value =
-      transcript[getTranscriptOutputKey(language)] ||
-      formatTranscript(transcript);
+      transcript[activeTranscriptOutputKey] || formatTranscript(transcript);
     transcriptionOutput.hidden = false;
     saveTranscriptionButton.hidden = false;
+    transcriptionTranslationPanel.hidden = false;
     transcriptionToCuesPanel.hidden = false;
-    const editedSuffix = transcript[getTranscriptOutputKey(language)]
-      ? ` · ${TEXT.edited}`
-      : '';
-    transcriptionStatus.textContent = `${TEXT.recognized} · ${transcript.language} · ${transcript.words?.length || 0} ${TEXT.words}${editedSuffix}`;
+    const editedSuffix =
+      !hasTranslationOutput && transcript[sourceOutputKey]
+        ? ` · ${TEXT.edited}`
+        : '';
+    const baseStatus = hasTranslationOutput
+      ? `${TEXT.translated} · ${activeTranscriptOutputLanguage}`
+      : `${TEXT.recognized} · ${transcript.language} · ${transcript.words?.length || 0} ${TEXT.words}`;
+    transcriptionStatus.textContent = `${baseStatus}${editedSuffix}`;
   } else {
+    activeTranscriptOutputKey = null;
+    activeTranscriptOutputLanguage = null;
     transcriptionOutput.value = '';
     transcriptionOutput.hidden = true;
     saveTranscriptionButton.hidden = true;
+    transcriptionTranslationPanel.hidden = true;
     transcriptionToCuesPanel.hidden = true;
     transcriptionStatus.textContent = TEXT.transcriptNotRun;
   }
@@ -3583,7 +3635,8 @@ async function saveEditedTranscription() {
   const transcript = existing?.transcripts?.[language];
   if (!transcript) return;
 
-  const outputKey = getTranscriptOutputKey(language);
+  const outputKey =
+    activeTranscriptOutputKey || getTranscriptOutputKey(language);
   const transcripts = {
     ...(existing.transcripts || {}),
     [language]: {
@@ -3597,7 +3650,79 @@ async function saveEditedTranscription() {
     updatedAt: new Date().toISOString(),
   });
   renderTranscription(updated || { ...existing, transcripts });
-  transcriptionStatus.textContent = `${TEXT.saved} · ${language} · ${TEXT.edited}`;
+  transcriptionStatus.textContent = `${TEXT.saved} · ${
+    activeTranscriptOutputLanguage || language
+  } · ${TEXT.edited}`;
+}
+
+async function translateTranscription() {
+  if (!currentVideoHash || transcriptionOutput.hidden) return;
+
+  const language = getSelectedTranscriptionLanguage();
+  const targetLanguage = getSelectedTranslationLanguage();
+  if (!targetLanguage) {
+    transcriptionStatus.textContent = TEXT.targetLanguageRequired;
+    return;
+  }
+
+  translateTranscriptionButton.disabled = true;
+  transcriptionStatus.textContent = TEXT.translating;
+
+  try {
+    const response = await fetch(
+      `/subs-api/videos/${currentVideoHash}/audio/transcript/translate`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: transcriptionOutput.value,
+          sourceLanguage: language,
+          targetLanguage,
+        }),
+      },
+    );
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(payload.message || TEXT.translateFailed);
+    }
+
+    const existing = await SF.getVideoByHash(currentVideoHash);
+    const transcript = existing?.transcripts?.[language];
+    if (!transcript) return;
+
+    const outputKey = getTranscriptTranslationOutputKey(targetLanguage);
+    activeTranscriptOutputKey = outputKey;
+    activeTranscriptOutputLanguage = targetLanguage;
+    const transcripts = {
+      ...(existing.transcripts || {}),
+      [language]: {
+        ...transcript,
+        [outputKey]: payload.text,
+        translatedTo: targetLanguage,
+        translatedAt: payload.createdAt || new Date().toISOString(),
+        translationModel: payload.model,
+      },
+    };
+    await SF.patchVideoByHash(currentVideoHash, {
+      transcripts,
+      updatedAt: new Date().toISOString(),
+    });
+    transcriptionOutput.value = payload.text;
+    transcriptionOutput.hidden = false;
+    saveTranscriptionButton.hidden = false;
+    transcriptionTranslationPanel.hidden = false;
+    transcriptionToCuesPanel.hidden = false;
+    transcriptionStatus.textContent = `${TEXT.translated} · ${targetLanguage}`;
+    await refreshList();
+  } catch (error) {
+    transcriptionStatus.textContent =
+      error instanceof Error ? error.message : TEXT.translateFailed;
+  } finally {
+    translateTranscriptionButton.disabled = false;
+  }
 }
 
 function parseTranscriptionWords(text) {
@@ -3933,10 +4058,21 @@ transcribeAudioButton.addEventListener('click', () => {
 saveTranscriptionButton.addEventListener('click', () => {
   void saveEditedTranscription();
 });
+translateTranscriptionButton.addEventListener('click', () => {
+  void translateTranscription();
+});
 createCuesFromTranscriptionButton.addEventListener('click', () => {
   void createCuesFromTranscription();
 });
 transcriptionLanguageInput.addEventListener('change', async () => {
+  if (!currentVideoHash) {
+    renderTranscription(null);
+    return;
+  }
+
+  renderTranscription(await SF.getVideoByHash(currentVideoHash));
+});
+translationLanguageInput.addEventListener('change', async () => {
   if (!currentVideoHash) {
     renderTranscription(null);
     return;

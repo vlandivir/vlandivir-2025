@@ -55,6 +55,25 @@ type TranscriptionRequest = {
   language?: string;
 };
 
+type TranscriptTranslationRequest = {
+  text?: string;
+  sourceLanguage?: string;
+  targetLanguage?: string;
+};
+
+type TranscriptTranslationResponse = {
+  hash: string;
+  sourceLanguage: string;
+  targetLanguage: string;
+  model: string;
+  text: string;
+  lines: Array<{
+    time: string;
+    text: string;
+  }>;
+  createdAt: string;
+};
+
 type RenderSubtitledVideoRequest = {
   ass?: string;
 };
@@ -85,6 +104,11 @@ type OpenAiTranscriptionResponse = {
   words?: OpenAiTranscriptionWord[];
 };
 
+type TimestampedTranscriptLine = {
+  time: string;
+  text: string;
+};
+
 type MulterDiskFile = {
   path: string;
   originalname: string;
@@ -101,6 +125,20 @@ const MAX_SUBS_VIDEO_SIZE_BYTES = 200 * 1024 * 1024;
 const REQUIRED_SUBS_VIDEO_WIDTH = 1080;
 const REQUIRED_SUBS_VIDEO_HEIGHT = 1920;
 const PRIMARY_CHAT_ID = 150847737;
+const SUBS_TRANSLATION_MODEL = 'gpt-5';
+const MAX_TRANSLATION_TEXT_LENGTH = 30000;
+const MAX_TRANSLATION_LINE_COUNT = 2000;
+const TRANSLATION_LANGUAGE_NAMES: Record<string, string> = {
+  auto: 'auto-detected source language',
+  ru: 'Russian',
+  en: 'English',
+  sr: 'Serbian',
+  es: 'Spanish',
+  de: 'German',
+  fr: 'French',
+  it: 'Italian',
+  pt: 'Portuguese',
+};
 
 @Controller('subs-api')
 export class SubsController {
@@ -298,6 +336,66 @@ export class SubsController {
       transcript,
     );
     return transcript;
+  }
+
+  @Post('videos/:hash/audio/transcript/translate')
+  async translateTranscript(
+    @Param('hash') hash: string,
+    @Body() body: TranscriptTranslationRequest,
+  ): Promise<TranscriptTranslationResponse> {
+    this.assertHash(hash);
+
+    const text = (body?.text || '').trim();
+    if (!text) {
+      throw new BadRequestException('Transcript text is required');
+    }
+    if (text.length > MAX_TRANSLATION_TEXT_LENGTH) {
+      throw new BadRequestException('Transcript text is too long');
+    }
+
+    const sourceLanguage = this.normalizeTranscriptionLanguage(
+      body?.sourceLanguage,
+    );
+    const targetLanguage = this.normalizeTranslationTargetLanguage(
+      body?.targetLanguage,
+    );
+    const lines = this.parseTimestampedTranscriptLines(text);
+    if (lines.length === 0) {
+      throw new BadRequestException(
+        'Transcript must contain lines in "00.00 text" format',
+      );
+    }
+    if (lines.length > MAX_TRANSLATION_LINE_COUNT) {
+      throw new BadRequestException('Transcript contains too many lines');
+    }
+
+    const apiKey = this.configService.get<string>('OPENAI_API_KEY');
+    if (!apiKey) {
+      throw new InternalServerErrorException('OPENAI_API_KEY is not defined');
+    }
+
+    const translatedLineTexts = await this.requestOpenAiTranscriptTranslation(
+      apiKey,
+      lines,
+      sourceLanguage,
+      targetLanguage,
+    );
+    const translatedLines = lines.map((line, index) => ({
+      time: line.time,
+      text: translatedLineTexts[index],
+    }));
+
+    return {
+      hash,
+      sourceLanguage,
+      targetLanguage,
+      model: SUBS_TRANSLATION_MODEL,
+      text: translatedLines
+        .map((line) => `${line.time} ${line.text}`)
+        .join('\n'),
+      lines: translatedLines,
+      createdAt: new Date().toISOString(),
+    };
   }
 
   @Post('videos/:hash/render')
@@ -607,6 +705,51 @@ export class SubsController {
     return normalized;
   }
 
+  private normalizeTranslationTargetLanguage(language?: string): string {
+    const normalized = (language || '').trim().toLowerCase();
+    if (!normalized || normalized === 'auto') {
+      throw new BadRequestException('Target language is required');
+    }
+    if (!/^[a-z]{2,3}(?:-[a-z0-9]+)?$/.test(normalized)) {
+      throw new BadRequestException('Invalid target language');
+    }
+
+    return normalized;
+  }
+
+  private parseTimestampedTranscriptLines(
+    text: string,
+  ): TimestampedTranscriptLine[] {
+    return text
+      .split(/\r?\n/)
+      .map((line, index) => {
+        const trimmed = line.trim();
+        if (!trimmed) return null;
+
+        const match = trimmed.match(/^(\d+(?:\.\d{1,3})?)\s+(.+)$/);
+        if (!match) {
+          throw new BadRequestException(
+            `Transcript line ${index + 1} must start with a timestamp`,
+          );
+        }
+
+        const lineText = match[2]
+          .replace(/^(?:→|->|-)\s*\d+(?:\.\d{1,3})?\s+/, '')
+          .trim();
+        if (!lineText) {
+          throw new BadRequestException(
+            `Transcript line ${index + 1} must contain text`,
+          );
+        }
+
+        return {
+          time: match[1],
+          text: lineText,
+        };
+      })
+      .filter((line): line is TimestampedTranscriptLine => Boolean(line));
+  }
+
   private escapeFfmpegFilterPath(path: string): string {
     return path
       .replace(/\\/g, '\\\\')
@@ -680,6 +823,205 @@ export class SubsController {
         `Failed to transcribe audio: ${message}`,
       );
     }
+  }
+
+  private async requestOpenAiTranscriptTranslation(
+    apiKey: string,
+    lines: TimestampedTranscriptLine[],
+    sourceLanguage: string,
+    targetLanguage: string,
+  ): Promise<string[]> {
+    let timeoutId: NodeJS.Timeout | undefined;
+    const timeoutSignal =
+      typeof AbortSignal.timeout === 'function'
+        ? AbortSignal.timeout(2 * 60 * 1000)
+        : (() => {
+            const controller = new AbortController();
+            timeoutId = setTimeout(() => controller.abort(), 2 * 60 * 1000);
+            return controller.signal;
+          })();
+
+    const sourceLanguageName =
+      TRANSLATION_LANGUAGE_NAMES[sourceLanguage] || sourceLanguage;
+    const targetLanguageName =
+      TRANSLATION_LANGUAGE_NAMES[targetLanguage] || targetLanguage;
+    const sourceTextLength = lines.reduce(
+      (sum, line) => sum + line.text.length,
+      0,
+    );
+
+    try {
+      const response = await fetch(
+        'https://api.openai.com/v1/chat/completions',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model: SUBS_TRANSLATION_MODEL,
+            messages: [
+              {
+                role: 'system',
+                content: [
+                  'You translate subtitle transcripts for short videos.',
+                  'Translate the transcript as one coherent text first, then distribute the translated meaning back across the original timestamped lines.',
+                  'Do not translate each line mechanically. Natural phrasing is more important than word-for-word matching.',
+                  'Keep the exact number of output lines and their indexes. Do not include timestamps in translated text values.',
+                  'Return only a JSON object with a "lines" array. Each item must be {"index": number, "text": string}.',
+                ].join(' '),
+              },
+              {
+                role: 'user',
+                content: JSON.stringify({
+                  source_language: sourceLanguageName,
+                  target_language: targetLanguageName,
+                  lines: lines.map((line, index) => ({
+                    index,
+                    time: line.time,
+                    text: line.text,
+                  })),
+                }),
+              },
+            ],
+            response_format: { type: 'json_object' },
+            max_completion_tokens: Math.min(
+              12000,
+              Math.max(1200, Math.ceil(sourceTextLength * 1.8)),
+            ),
+            reasoning_effort: 'minimal',
+          }),
+          signal: timeoutSignal,
+        },
+      );
+
+      if (!response.ok) {
+        const errorBody = await response.text().catch(() => '');
+        throw new Error(
+          `OpenAI translation error: ${response.status} ${response.statusText}${errorBody ? `: ${errorBody}` : ''}`,
+        );
+      }
+
+      const data = (await response.json()) as unknown;
+      const text = this.extractOpenAiAssistantText(data);
+      return this.parseOpenAiTranslationLines(text, lines.length);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new InternalServerErrorException(
+        `Failed to translate transcript: ${message}`,
+      );
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
+  }
+
+  private extractOpenAiAssistantText(data: unknown): string {
+    if (!data || typeof data !== 'object') {
+      throw new Error('Invalid translation response');
+    }
+
+    const response = data as {
+      choices?: Array<{
+        message?: {
+          content?: unknown;
+        };
+      }>;
+      error?: unknown;
+    };
+    if (response.error) {
+      throw new Error('OpenAI translation response contains an error');
+    }
+
+    const content = response.choices?.[0]?.message?.content;
+    if (typeof content === 'string') {
+      const trimmed = content.trim();
+      if (trimmed) return trimmed;
+    }
+
+    if (Array.isArray(content)) {
+      const text = content
+        .map((part) => {
+          if (!part || typeof part !== 'object') return '';
+          const item = part as { type?: string; text?: unknown };
+          return item.type === 'text' && typeof item.text === 'string'
+            ? item.text
+            : '';
+        })
+        .join('')
+        .trim();
+      if (text) return text;
+    }
+
+    throw new Error('OpenAI translation response did not contain text');
+  }
+
+  private parseOpenAiTranslationLines(
+    responseText: string,
+    expectedCount: number,
+  ): string[] {
+    const jsonText = this.stripJsonCodeFence(responseText);
+    let parsed: unknown;
+
+    try {
+      parsed = JSON.parse(jsonText);
+    } catch {
+      throw new Error('OpenAI translation response is not valid JSON');
+    }
+
+    if (!parsed || typeof parsed !== 'object') {
+      throw new Error('OpenAI translation response is not an object');
+    }
+
+    const lines = (parsed as { lines?: unknown }).lines;
+    if (!Array.isArray(lines)) {
+      throw new Error('OpenAI translation response did not include lines');
+    }
+
+    const byIndex = new Map<number, string>();
+    lines.forEach((line, fallbackIndex) => {
+      if (typeof line === 'string') {
+        byIndex.set(fallbackIndex, this.cleanTranslatedLineText(line));
+        return;
+      }
+
+      if (!line || typeof line !== 'object') return;
+      const item = line as { index?: unknown; text?: unknown };
+      const index =
+        typeof item.index === 'number' && Number.isInteger(item.index)
+          ? item.index
+          : fallbackIndex;
+      if (typeof item.text === 'string') {
+        byIndex.set(index, this.cleanTranslatedLineText(item.text));
+      }
+    });
+
+    const translatedLines: string[] = [];
+    for (let index = 0; index < expectedCount; index += 1) {
+      const text = byIndex.get(index);
+      if (!text) {
+        throw new Error(
+          `OpenAI translation response is missing line ${index + 1}`,
+        );
+      }
+      translatedLines.push(text);
+    }
+
+    return translatedLines;
+  }
+
+  private stripJsonCodeFence(text: string): string {
+    const trimmed = text.trim();
+    const fenceMatch = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+    return (fenceMatch?.[1] || trimmed).trim();
+  }
+
+  private cleanTranslatedLineText(text: string): string {
+    return text
+      .replace(/^\s*\d+(?:\.\d{1,3})?\s+/, '')
+      .replace(/^(?:→|->|-)\s*\d+(?:\.\d{1,3})?\s+/, '')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 
   private normalizeTranscriptionSegments(

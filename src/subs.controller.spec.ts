@@ -15,6 +15,9 @@ describe('SubsController', () => {
     getSubsVideoUrl: jest.Mock;
     uploadSubsVideoStream: jest.Mock;
   };
+  let configService: {
+    get: jest.Mock;
+  };
   let telegramBotService: {
     sendDirectMessage: jest.Mock;
   };
@@ -40,13 +43,16 @@ describe('SubsController', () => {
           return 'https://fra1.digitaloceanspaces.com/vlandivir-2025/subs/videos/hash/source';
         }),
     };
+    configService = {
+      get: jest.fn().mockReturnValue(undefined),
+    };
     telegramBotService = {
       sendDirectMessage: jest.fn().mockResolvedValue({ messageId: 123 }),
     };
 
     controller = new SubsController(
       storageService as unknown as StorageService,
-      { get: jest.fn() } as unknown as ConfigService,
+      configService as unknown as ConfigService,
       telegramBotService as unknown as TelegramBotService,
     );
     jest
@@ -192,5 +198,72 @@ describe('SubsController', () => {
       'Content-Length': '5',
     });
     expect(send).toHaveBeenCalledWith(Buffer.from('frame'));
+  });
+
+  it('translates transcript lines while preserving the original timestamps', async () => {
+    configService.get.mockReturnValue('test-openai-key');
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                lines: [
+                  { index: 0, text: 'I rode' },
+                  { index: 1, text: 'along the shore' },
+                ],
+              }),
+            },
+          },
+        ],
+      }),
+    } as unknown as globalThis.Response);
+
+    const result = await controller.translateTranscript(
+      'aea4b8455e75d098f37454f9',
+      {
+        sourceLanguage: 'ru',
+        targetLanguage: 'en',
+        text: '0.00 Прокатился\n0.80 по берегу',
+      },
+    );
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        sourceLanguage: 'ru',
+        targetLanguage: 'en',
+        model: 'gpt-5',
+        text: '0.00 I rode\n0.80 along the shore',
+      }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.openai.com/v1/chat/completions',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer test-openai-key',
+        }),
+      }),
+    );
+
+    const body = JSON.parse(
+      (fetchMock.mock.calls[0]?.[1] as RequestInit).body as string,
+    );
+    expect(body.messages[1].content).toContain('Прокатился');
+  });
+
+  it('rejects transcript translation text without timestamped lines', async () => {
+    configService.get.mockReturnValue('test-openai-key');
+    const fetchMock = jest.spyOn(global, 'fetch');
+
+    await expect(
+      controller.translateTranscript('aea4b8455e75d098f37454f9', {
+        sourceLanguage: 'ru',
+        targetLanguage: 'en',
+        text: 'Прокатился по берегу',
+      }),
+    ).rejects.toThrow('must start with a timestamp');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

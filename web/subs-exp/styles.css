@@ -1734,6 +1734,32 @@ pre {
   display: none;
 }
 
+.transcription-translation {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.transcription-translation[hidden] {
+  display: none;
+}
+
+.transcription-translation-language {
+  margin: 0;
+}
+
+.transcription-translate-button {
+  min-height: 48px;
+  border-color: var(--line);
+  cursor: pointer;
+}
+
+.transcription-translate-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.54;
+}
+
 .transcription-to-cues {
   display: grid;
   grid-template-columns: minmax(220px, 320px) auto;
@@ -1866,6 +1892,7 @@ pre {
   .link-item,
   .editor-field-grid,
   .transcription-controls,
+  .transcription-translation,
   .transcription-to-cues,
   .cue-item {
     grid-template-columns: 1fr;
