@@ -250,9 +250,6 @@ const JASSUB_DEFAULT_FONT_URL = new URL(
   SUBS_ASSET_BASE_URL,
 ).href;
 const STYLE_PREVIEW_TEXT = 'Preview\nПревью Događaj';
-const ASS_PLAY_RES_X = 1080;
-const ASS_PLAY_RES_Y = 1920;
-const ASS_TEXT_MARGIN_X = 24;
 const CUE_TIMELINE_PX_PER_SECOND = 30;
 const CUE_TIMELINE_MAX_PX_PER_SECOND = 260;
 const CUE_TIMELINE_MIN_TICK_GAP = 84;
@@ -2089,100 +2086,8 @@ function cueLineYOffset(style, lineIndex, lineCount, lineSpacing) {
   return (lineIndex - (lineCount - 1)) * step;
 }
 
-function measureAssTextWidth(style, text) {
-  const plainText = stripAssMarkup(text).replace(/\s+/g, ' ') || ' ';
-  const fontSize = Math.max(1, Number(style.fontSize) || 72);
-
-  if (!subtitleMeasureContext) {
-    return plainText.length * fontSize * 0.58;
-  }
-
-  const fontStyle = style.fontVariant === 'italic' ? 'italic' : 'normal';
-  const fontWeight = style.fontVariant === 'bold' ? '700' : '400';
-  const fontFamily = String(style.font || 'Montserrat').replace(/["\\]/g, '');
-  subtitleMeasureContext.font = `${fontStyle} ${fontWeight} ${fontSize}px "${fontFamily}"`;
-  return subtitleMeasureContext.measureText(plainText).width;
-}
-
-function cueWrapWidth(style) {
-  const alignment = Number(style.position?.alignment) || 2;
-  const horizontalAlign = (alignment - 1) % 3;
-  const x = Number(style.position?.x) || ASS_PLAY_RES_X / 2;
-  const leftWidth = Math.max(1, x - ASS_TEXT_MARGIN_X);
-  const rightWidth = Math.max(1, ASS_PLAY_RES_X - x - ASS_TEXT_MARGIN_X);
-
-  if (horizontalAlign === 0) return rightWidth;
-  if (horizontalAlign === 2) return leftWidth;
-  return Math.max(1, Math.min(leftWidth, rightWidth) * 2);
-}
-
-function splitLongAssToken(style, token, maxWidth) {
-  if (/[{}]/.test(token) || measureAssTextWidth(style, token) <= maxWidth) {
-    return [token];
-  }
-
-  const chunks = [];
-  let current = '';
-  for (const char of Array.from(token)) {
-    const candidate = `${current}${char}`;
-    if (current && measureAssTextWidth(style, candidate) > maxWidth) {
-      chunks.push(current);
-      current = char;
-    } else {
-      current = candidate;
-    }
-  }
-  if (current) chunks.push(current);
-  return chunks;
-}
-
-function wrapAssTextLine(style, line, maxWidth) {
-  const trimmedLine = String(line || '').trim();
-  if (!trimmedLine) return [''];
-
-  const lines = [];
-  let current = '';
-  for (const word of trimmedLine.split(/\s+/)) {
-    if (!current) {
-      const chunks = splitLongAssToken(style, word, maxWidth);
-      current = chunks.pop() || '';
-      lines.push(...chunks);
-      continue;
-    }
-
-    const candidate = current ? `${current} ${word}` : word;
-    if (measureAssTextWidth(style, candidate) <= maxWidth) {
-      current = candidate;
-      continue;
-    }
-
-    lines.push(current);
-    const chunks = splitLongAssToken(style, word, maxWidth);
-    current = chunks.pop() || '';
-    lines.push(...chunks);
-  }
-  if (current) lines.push(current);
-  return lines;
-}
-
-function cueTextWithAssLineSpacingWrap(style, cue) {
-  if (!style.lineSpacingOverride) return cue.text;
-
-  const maxWidth = cueWrapWidth(style);
-  const normalizedText = String(cue.text || '')
-    .replace(/\r\n/g, '\n')
-    .replace(/\r/g, '\n')
-    .replace(/\\n/g, '\n')
-    .replace(/\\N/g, '\n');
-  return normalizedText
-    .split('\n')
-    .flatMap((line) => wrapAssTextLine(style, line, maxWidth))
-    .join('\n');
-}
-
 function measureCueTextForBadge(style, cue) {
-  const text =
-    stripAssMarkup(cueTextWithAssLineSpacingWrap(style, cue)) || ' ';
+  const text = stripAssMarkup(cue.text) || ' ';
   const lines = text.split('\n');
   const fontSize = Math.max(1, Number(style.fontSize) || 72);
   const alignment = Number(style.position?.alignment) || 2;
@@ -2553,8 +2458,8 @@ function generateAss() {
       1,
       isNoneColor(style.outlineColor) ? 0 : 4,
       isNoneColor(style.backColor) ? 0 : 2,
-      ASS_TEXT_MARGIN_X,
-      ASS_TEXT_MARGIN_X,
+      24,
+      24,
       120,
       style.position.alignment,
       1,
@@ -2613,7 +2518,7 @@ function generateAss() {
   const cueLines = cachedCues.flatMap((cue) => {
     const style = normalizeStyle(getStyleById(cue.styleId) || {});
     const cueStyle = cueStyleWithOverrides(style, cue);
-    const text = escapeAssText(cueTextWithAssLineSpacingWrap(cueStyle, cue));
+    const text = escapeAssText(cue.text);
     const textLines = text.split(/\\N/g);
     const badgeLine = buildBadgeDialogueLine(cue, cueStyle);
     const textLayer = badgeLine ? 1 : 0;
@@ -2645,8 +2550,8 @@ function generateAss() {
     'ScriptType: v4.00+',
     'WrapStyle: 0',
     'ScaledBorderAndShadow: yes',
-    `PlayResX: ${ASS_PLAY_RES_X}`,
-    `PlayResY: ${ASS_PLAY_RES_Y}`,
+    'PlayResX: 1080',
+    'PlayResY: 1920',
     '',
     '[V4+ Styles]',
     'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, MarginL, MarginR, MarginV, Alignment, Encoding',
