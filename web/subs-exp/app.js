@@ -3267,13 +3267,14 @@ async function repaintJassubFrame() {
   }
 
   await jassubRenderer.ready;
-  await jassubRenderer.resize(true);
-  await jassubRenderer.manualRender({
+  const frame = {
     expectedDisplayTime: performance.now(),
     width: currentVideo.videoWidth,
     height: currentVideo.videoHeight,
     mediaTime: currentVideo.currentTime || 0,
-  });
+  };
+  await jassubRenderer.manualRender(frame);
+  await jassubRenderer.resize(true, frame.width, frame.height);
 }
 
 async function renderJassubPreview() {
@@ -3307,6 +3308,9 @@ async function renderJassubPreview() {
         workerUrl: JASSUB_WORKER_URL,
         wasmUrl: JASSUB_WASM_URL,
         modernWasmUrl: JASSUB_MODERN_WASM_URL,
+        prescaleFactor: 4,
+        prescaleHeightLimit: REQUIRED_UPLOAD_VIDEO_HEIGHT,
+        maxRenderHeight: REQUIRED_UPLOAD_VIDEO_HEIGHT,
         defaultFont: 'liberation sans',
         fonts: fontConfig.fonts,
         availableFonts: fontConfig.availableFonts,
