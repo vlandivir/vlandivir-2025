@@ -250,16 +250,11 @@ const JASSUB_DEFAULT_FONT_URL = new URL(
   SUBS_ASSET_BASE_URL,
 ).href;
 const STYLE_PREVIEW_TEXT = 'Preview\nПревью Događaj';
-const CUE_TIMELINE_SCALE_STORAGE_KEY = 'subs-exp-timeline-px-per-second';
-const CUE_TIMELINE_DEFAULT_PX_PER_SECOND = 200;
-const CUE_TIMELINE_MIN_PX_PER_SECOND = 50;
-const CUE_TIMELINE_MAX_PX_PER_SECOND = 400;
-const CUE_TIMELINE_MIN_HEIGHT = 96;
-const CUE_TIMELINE_SEGMENT_WIDTH = 12;
-const CUE_TIMELINE_SEGMENT_GAP = 6;
-const CUE_TIMELINE_CARD_LEFT = 96;
-const CUE_TIMELINE_CARD_GAP = 10;
-const CUE_TIMELINE_ASS_VISUAL_SCALE = 0.68;
+const CUE_TIMELINE_PX_PER_SECOND = 30;
+const CUE_TIMELINE_MIN_WIDTH = 720;
+const CUE_TIMELINE_CLIP_HEIGHT = 48;
+const CUE_TIMELINE_LANE_GAP = 8;
+const CUE_TIMELINE_PADDING = 9;
 // Canvas glyph bounds run slightly wider than the same bundled fonts in libass.
 const ASS_BADGE_TEXT_METRIC_SCALE = 0.91;
 const CUE_TIMELINE_ACCENTS = [
@@ -574,12 +569,9 @@ let editingCueId;
 let editingPositionId;
 let cueEditorOpen = false;
 let cueEditorDock;
+let cueTimelineFitButton;
 let addCueButton;
-let cueTimelineScaleOutput;
-let cueTimelinePxPerSecond = readCueTimelineScale();
-let cueTimelinePreviewScale = 0;
-let cueTimelinePreviewScaleFrame = 0;
-let cueTimelinePreviewResizeObserver;
+let cueTimelineFitToScreen = false;
 let currentVideoHash = null;
 let currentAudioWaveform = [];
 let audioAnimationFrame = null;
@@ -603,50 +595,43 @@ function initExperimentalCueWorkbench() {
   const timelineCopy = document.createElement('div');
   timelineCopy.className = 'cue-timeline__copy';
   const title = document.createElement('h3');
-  title.textContent = 'Вертикальный таймлайн';
+  title.textContent = 'Горизонтальный таймлайн';
+  timelineCopy.append(title);
 
-  const scaleControl = document.createElement('label');
-  scaleControl.className = 'cue-timeline__scale-control';
-  const scaleLabel = document.createElement('span');
-  scaleLabel.textContent = 'Масштаб';
-  const scaleInput = document.createElement('input');
-  scaleInput.type = 'range';
-  scaleInput.min = String(CUE_TIMELINE_MIN_PX_PER_SECOND);
-  scaleInput.max = String(CUE_TIMELINE_MAX_PX_PER_SECOND);
-  scaleInput.step = '10';
-  scaleInput.value = String(cueTimelinePxPerSecond);
-  scaleInput.setAttribute('aria-label', 'Масштаб таймлайна');
-  cueTimelineScaleOutput = document.createElement('output');
-  cueTimelineScaleOutput.className = 'cue-timeline__scale-output';
-  scaleInput.addEventListener('input', () => {
-    cueTimelinePxPerSecond = normalizeCueTimelineScale(scaleInput.value);
-    writeCueTimelineScale(cueTimelinePxPerSecond);
-    renderCueTimelineScaleOutput();
+  cueTimelineFitButton = document.createElement('button');
+  cueTimelineFitButton.className = 'secondary-link cue-timeline__fit';
+  cueTimelineFitButton.type = 'button';
+  cueTimelineFitButton.textContent = 'Fit to screen';
+  cueTimelineFitButton.addEventListener('click', () => {
+    cueTimelineFitToScreen = true;
+    const scrollContainer = cueList.closest('.cue-timeline-scroll');
+    if (scrollContainer) scrollContainer.scrollLeft = 0;
     renderCues();
   });
-  scaleControl.append(scaleLabel, scaleInput, cueTimelineScaleOutput);
-  timelineCopy.append(title, scaleControl);
-  renderCueTimelineScaleOutput();
 
   addCueButton = document.createElement('button');
   addCueButton.className = 'primary-link cue-timeline__add';
   addCueButton.type = 'button';
   addCueButton.textContent = TEXT.addCue;
   addCueButton.addEventListener('click', openNewCueEditor);
-  timelineHead.append(timelineCopy, addCueButton);
+  timelineHead.append(timelineCopy, cueTimelineFitButton, addCueButton);
 
   cueEditorDock = document.createElement('div');
   cueEditorDock.className = 'cue-editor-dock';
   cueEditorDock.hidden = true;
   cueEditorDock.append(cueForm);
 
+  const timelineScroll = document.createElement('div');
+  timelineScroll.className = 'cue-timeline-scroll';
+  timelineScroll.setAttribute('aria-label', 'Таймлайн реплик');
+  timelineScroll.append(cueList);
   cueList.classList.add('cue-timeline');
   cueTimelineCard.classList.add('cue-workbench__timeline');
   cueTimelineCard.replaceChildren(
     timelineHead,
-    cueEditorDock,
-    cueList,
+    timelineScroll,
     cuesEmptyState,
+    cueEditorDock,
   );
 
   const previewPanel = document.createElement('aside');
@@ -656,48 +641,6 @@ function initExperimentalCueWorkbench() {
 
   workbench.classList.add('cue-workbench');
   workbench.replaceChildren(cueTimelineCard, previewPanel);
-
-  if (videoStage && typeof ResizeObserver !== 'undefined') {
-    cueTimelinePreviewResizeObserver = new ResizeObserver(
-      syncCueTimelinePreviewScale,
-    );
-    cueTimelinePreviewResizeObserver.observe(videoStage);
-  }
-}
-
-function normalizeCueTimelineScale(value) {
-  if (value === null || value === undefined || value === '') {
-    return CUE_TIMELINE_DEFAULT_PX_PER_SECOND;
-  }
-  const number = Number(value);
-  if (!Number.isFinite(number)) return CUE_TIMELINE_DEFAULT_PX_PER_SECOND;
-  return Math.min(
-    CUE_TIMELINE_MAX_PX_PER_SECOND,
-    Math.max(CUE_TIMELINE_MIN_PX_PER_SECOND, Math.round(number / 10) * 10),
-  );
-}
-
-function readCueTimelineScale() {
-  try {
-    return normalizeCueTimelineScale(
-      window.localStorage.getItem(CUE_TIMELINE_SCALE_STORAGE_KEY),
-    );
-  } catch (error) {
-    return CUE_TIMELINE_DEFAULT_PX_PER_SECOND;
-  }
-}
-
-function writeCueTimelineScale(value) {
-  try {
-    window.localStorage.setItem(CUE_TIMELINE_SCALE_STORAGE_KEY, String(value));
-  } catch (error) {
-    // The scale still works for this page when storage is unavailable.
-  }
-}
-
-function renderCueTimelineScaleOutput() {
-  if (!cueTimelineScaleOutput) return;
-  cueTimelineScaleOutput.textContent = `${cueTimelinePxPerSecond} px = 1 секунда`;
 }
 
 function openDb() {
@@ -858,7 +801,10 @@ function buildCueTimelineLayout(cues) {
     const parsedStart = parseTimeToSeconds(cue.start);
     const parsedEnd = parseTimeToSeconds(cue.end);
     const start = Number.isFinite(parsedStart) ? Math.max(0, parsedStart) : 0;
-    const end = Number.isFinite(parsedEnd) ? Math.max(start, parsedEnd) : start;
+    const end =
+      Number.isFinite(parsedEnd) && parsedEnd > start
+        ? parsedEnd
+        : start + 1;
     return { cue, order, start, end };
   });
   const groups = [];
@@ -890,19 +836,33 @@ function buildCueTimelineLayout(cues) {
     return groupEntries.map((entry) => ({
       ...entry,
       laneCount,
-      top: entry.start * cueTimelinePxPerSecond,
-      height: Math.max(2, (entry.end - entry.start) * cueTimelinePxPerSecond),
-      left: (entry.lane / laneCount) * 100,
-      width: 100 / laneCount,
     }));
   });
-  const maxEnd = intervals.reduce(
-    (max, interval) => Math.max(max, interval.end),
-    0,
+  const maxEnd = intervals.reduce((max, interval) => Math.max(max, interval.end), 0);
+  const videoDuration =
+    currentVideo && Number.isFinite(currentVideo.duration)
+      ? currentVideo.duration
+      : 0;
+  const duration = Math.max(videoDuration, maxEnd, 1);
+  const laneCount = entries.reduce(
+    (max, entry) => Math.max(max, entry.lane + 1),
+    1,
   );
+  const height =
+    CUE_TIMELINE_PADDING * 2 +
+    laneCount * CUE_TIMELINE_CLIP_HEIGHT +
+    Math.max(0, laneCount - 1) * CUE_TIMELINE_LANE_GAP;
+  const width = cueTimelineFitToScreen
+    ? '100%'
+    : `${Math.max(
+        CUE_TIMELINE_MIN_WIDTH,
+        Math.ceil(duration * CUE_TIMELINE_PX_PER_SECOND),
+      )}px`;
 
   return {
-    height: Math.max(CUE_TIMELINE_MIN_HEIGHT, maxEnd * cueTimelinePxPerSecond),
+    duration,
+    height,
+    width,
     entries,
   };
 }
@@ -911,84 +871,43 @@ function cueTimelineAccent(entry) {
   return CUE_TIMELINE_ACCENTS[entry.lane % CUE_TIMELINE_ACCENTS.length];
 }
 
-function currentCueTimelinePreviewScale() {
-  const stageRect = videoStage?.getBoundingClientRect();
-  if (!stageRect?.width || !stageRect.height) {
-    return 0.34 * CUE_TIMELINE_ASS_VISUAL_SCALE;
+function cueTimelinePlacement(entry, layout) {
+  const duration = Math.max(layout.duration, 1);
+  if (cueTimelineFitToScreen) {
+    return {
+      left: `${(entry.start / duration) * 100}%`,
+      width: `${Math.max(0.001, ((entry.end - entry.start) / duration) * 100)}%`,
+    };
   }
 
-  const videoWidth = currentVideo?.videoWidth || 1080;
-  const videoHeight = currentVideo?.videoHeight || 1920;
-  const videoRatio = videoWidth / videoHeight;
-  const renderedVideoWidth = Math.min(
-    stageRect.width,
-    stageRect.height * videoRatio,
-  );
-
-  return (renderedVideoWidth / 1080) * CUE_TIMELINE_ASS_VISUAL_SCALE;
-}
-
-function syncCueTimelinePreviewScale() {
-  if (cueTimelinePreviewScaleFrame) {
-    window.cancelAnimationFrame(cueTimelinePreviewScaleFrame);
-  }
-  cueTimelinePreviewScaleFrame = window.requestAnimationFrame(() => {
-    cueTimelinePreviewScaleFrame = 0;
-    const nextScale = currentCueTimelinePreviewScale();
-    if (Math.abs(nextScale - cueTimelinePreviewScale) < 0.005) return;
-    renderCues();
-  });
-}
-
-function cueTimelineSegmentGeometry(entry) {
   return {
-    left:
-      4 + entry.lane * (CUE_TIMELINE_SEGMENT_WIDTH + CUE_TIMELINE_SEGMENT_GAP),
-    width: CUE_TIMELINE_SEGMENT_WIDTH,
+    left: `${Math.round(entry.start * CUE_TIMELINE_PX_PER_SECOND)}px`,
+    width: `${Math.round((entry.end - entry.start) * CUE_TIMELINE_PX_PER_SECOND)}px`,
   };
 }
 
-function applyCueTimelineCardGeometry(item, entry, cardTop, accent) {
+function applyCueTimelineCardGeometry(item, entry, layout, accent) {
+  const placement = cueTimelinePlacement(entry, layout);
+  const top =
+    CUE_TIMELINE_PADDING +
+    entry.lane * (CUE_TIMELINE_CLIP_HEIGHT + CUE_TIMELINE_LANE_GAP);
   item.dataset.cueOrder = String(entry.order);
-  item.dataset.cueBaseTop = String(cardTop);
-  item.style.setProperty('--cue-card-top', `${cardTop}px`);
-  item.style.setProperty('--cue-card-left', `${CUE_TIMELINE_CARD_LEFT}px`);
+  item.style.setProperty('--cue-card-top', `${top}px`);
+  item.style.setProperty('--cue-card-left', placement.left);
+  item.style.setProperty('--cue-card-width', placement.width);
+  item.style.setProperty('--cue-card-height', `${CUE_TIMELINE_CLIP_HEIGHT}px`);
   item.style.setProperty('--cue-accent', accent);
 }
 
-function createCueTimelineSegment(entry, accent) {
-  const segment = document.createElement('span');
-  const geometry = cueTimelineSegmentGeometry(entry);
-  segment.className = 'cue-timeline__segment';
-  segment.style.setProperty('--cue-top', `${entry.top}px`);
-  segment.style.setProperty('--cue-height', `${entry.height}px`);
-  segment.style.setProperty('--cue-segment-left', `${geometry.left}px`);
-  segment.style.setProperty('--cue-segment-width', `${geometry.width}px`);
-  segment.style.setProperty('--cue-accent', accent);
-  segment.setAttribute('aria-hidden', 'true');
-  return segment;
-}
+function updateCueTimelinePlayhead(currentTime = currentVideo?.currentTime || 0) {
+  const playhead = cueList?.querySelector('.cue-timeline__playhead');
+  if (!playhead) return;
 
-function createCueTimelineConnector(entry, cardTop, cardHeight, accent) {
-  const connector = document.createElement('span');
-  const segment = cueTimelineSegmentGeometry(entry);
-  const left = segment.left + segment.width / 2;
-  const segmentAnchor = entry.top + Math.min(24, entry.height / 2);
-  const cardAnchor = cardTop + cardHeight / 2;
-  const connectorHeight = Math.max(1, cardAnchor - segmentAnchor);
-  connector.className = 'cue-timeline__connector';
-  connector.dataset.cueOrder = String(entry.order);
-  connector.dataset.cueBaseHeight = String(connectorHeight);
-  connector.style.setProperty('--cue-connector-left', `${left}px`);
-  connector.style.setProperty('--cue-connector-top', `${segmentAnchor}px`);
-  connector.style.setProperty(
-    '--cue-connector-width',
-    `${CUE_TIMELINE_CARD_LEFT - left}px`,
-  );
-  connector.style.setProperty('--cue-connector-height', `${connectorHeight}px`);
-  connector.style.setProperty('--cue-accent', accent);
-  connector.setAttribute('aria-hidden', 'true');
-  return connector;
+  const layoutDuration = Number(cueList.dataset.timelineDuration) || 1;
+  const safeTime = Math.min(Math.max(currentTime, 0), layoutDuration);
+  playhead.style.left = cueTimelineFitToScreen
+    ? `${(safeTime / layoutDuration) * 100}%`
+    : `${Math.round(safeTime * CUE_TIMELINE_PX_PER_SECOND)}px`;
 }
 
 async function readCuesForVideo(videoHash) {
@@ -2785,55 +2704,46 @@ function renderCues() {
   cueList.replaceChildren();
   cuesEmptyState.hidden = cachedCues.length > 0;
   deleteAllCuesButton.disabled = cachedCues.length === 0;
-  cueTimelinePreviewScale = currentCueTimelinePreviewScale();
+  if (cueTimelineFitButton) {
+    cueTimelineFitButton.disabled = cachedCues.length === 0;
+    cueTimelineFitButton.setAttribute(
+      'aria-pressed',
+      cueTimelineFitToScreen ? 'true' : 'false',
+    );
+  }
   const timelineLayout = buildCueTimelineLayout(cachedCues);
+  cueList.dataset.timelineDuration = String(timelineLayout.duration);
+  cueList.style.setProperty('--cue-timeline-width', timelineLayout.width);
   cueList.style.setProperty(
     '--cue-timeline-height',
     `${timelineLayout.height}px`,
   );
-  let nextCardTop = 0;
-  let cardsBottom = 0;
 
   for (const entry of timelineLayout.entries) {
     const cue = entry.cue;
     const style = normalizeStyle(getStyleById(cue.styleId) || {});
-    const cuePreviewStyle = cueStyleWithOverrides(style, cue);
     const accent = cueTimelineAccent(entry);
-    const cardTop = Math.max(entry.top, nextCardTop);
+    const plainText = stripAssMarkup(cue.text) || cue.text;
     const item = document.createElement('article');
     item.className = 'cue-item';
     item.dataset.editorItemId = cue.id;
     item.classList.toggle('is-editing', editingCueId === cue.id);
-    applyCueTimelineCardGeometry(item, entry, cardTop, accent);
+    applyCueTimelineCardGeometry(item, entry, timelineLayout, accent);
     item.tabIndex = 0;
     item.setAttribute('role', 'button');
-    item.setAttribute(
-      'aria-label',
-      `Редактировать реплику с ${formatTimeInput(cue.start)}`,
-    );
+    item.title = `${formatTimeInput(cue.start)} → ${formatTimeInput(cue.end)} · ${plainText}`;
+    item.setAttribute('aria-label', item.title);
 
-    const time = document.createElement('p');
+    const text = document.createElement('span');
+    text.className = 'cue-item__text';
+    text.textContent = plainText;
+
+    const time = document.createElement('span');
     time.className = 'cue-item__time';
     time.textContent = `${formatTimeInput(cue.start)} → ${formatTimeInput(cue.end)}`;
-
-    const head = document.createElement('div');
-    head.className = 'cue-item__head';
-
-    const text = document.createElement('p');
-    text.className = 'cue-item__text';
-    text.textContent = stripAssMarkup(cue.text) || cue.text;
-    applySubtitlePreviewStyle(text, cuePreviewStyle, cueTimelinePreviewScale);
-
-    const meta = document.createElement('p');
-    meta.className = 'cue-item__meta';
-    meta.textContent = style.name
+    item.dataset.cueMeta = style.name
       ? `${style.name} · ${positionLabel(style.position)}${formatCueMotionLabel(cue)}${formatCueOverrideLabel(cue)}`
       : TEXT.styleDeleted;
-
-    const editorSlot = document.createElement('div');
-    editorSlot.className = 'cue-item__editor-slot';
-
-    head.append(time, meta);
 
     item.addEventListener('click', (event) => {
       if (
@@ -2850,19 +2760,14 @@ function renderCues() {
       openCueEditor(cue);
     });
 
-    item.append(head, text, editorSlot);
-    cueList.append(createCueTimelineSegment(entry, accent), item);
-    const cardHeight = item.offsetHeight;
-    cueList.insertBefore(
-      createCueTimelineConnector(entry, cardTop, cardHeight, accent),
-      item,
-    );
-    nextCardTop = cardTop + cardHeight + CUE_TIMELINE_CARD_GAP;
-    cardsBottom = Math.max(cardsBottom, cardTop + cardHeight);
+    item.append(text, time);
+    cueList.append(item);
   }
-  const baseHeight = Math.max(timelineLayout.height, cardsBottom);
-  cueList.dataset.timelineBaseHeight = String(baseHeight);
-  cueList.style.setProperty('--cue-timeline-height', `${baseHeight}px`);
+  const playhead = document.createElement('span');
+  playhead.className = 'cue-timeline__playhead';
+  playhead.setAttribute('aria-hidden', 'true');
+  cueList.append(playhead);
+  updateCueTimelinePlayhead();
   placeCueEditor();
   scheduleEditorLayouts();
 }
@@ -2874,56 +2779,10 @@ function placeCueEditor() {
   [...cueList.children].forEach((item) => {
     item.classList.toggle('is-editing', item === activeItem);
   });
-  const editorSlot = activeItem?.querySelector('.cue-item__editor-slot');
-  if (editorSlot) {
-    editorSlot.append(cueForm);
-  } else {
-    cueEditorDock.append(cueForm);
-  }
+  cueEditorDock.append(cueForm);
 
   cueForm.hidden = !cueEditorOpen;
-  cueEditorDock.hidden = !cueEditorOpen || Boolean(editorSlot);
-  syncCueTimelineEditorSpace(activeItem);
-}
-
-function syncCueTimelineEditorSpace(activeItem) {
-  const baseHeight =
-    Number(cueList.dataset.timelineBaseHeight) || CUE_TIMELINE_MIN_HEIGHT;
-  const activeOrder = Number(activeItem?.dataset.cueOrder);
-  const editorShift =
-    activeItem && cueEditorOpen ? cueForm.offsetHeight + 16 : 0;
-  let cardsBottom = 0;
-
-  cueList.querySelectorAll('.cue-item').forEach((item) => {
-    const baseTop = Number(item.dataset.cueBaseTop) || 0;
-    const shouldShift =
-      editorShift > 0 && Number(item.dataset.cueOrder) > activeOrder;
-    const top = baseTop + (shouldShift ? editorShift : 0);
-    item.style.setProperty('--cue-card-top', `${top}px`);
-    cardsBottom = Math.max(cardsBottom, top + item.offsetHeight);
-  });
-
-  cueList.querySelectorAll('.cue-timeline__connector').forEach((connector) => {
-    const baseConnectorHeight = Number(connector.dataset.cueBaseHeight) || 1;
-    const shouldShift =
-      editorShift > 0 && Number(connector.dataset.cueOrder) > activeOrder;
-    connector.style.setProperty(
-      '--cue-connector-height',
-      `${baseConnectorHeight + (shouldShift ? editorShift : 0)}px`,
-    );
-  });
-
-  const editorBottom =
-    activeItem && cueEditorOpen
-      ? activeItem.offsetTop +
-        activeItem.offsetHeight +
-        16 +
-        cueForm.offsetHeight
-      : 0;
-  cueList.style.setProperty(
-    '--cue-timeline-height',
-    `${Math.max(baseHeight, cardsBottom, editorBottom)}px`,
-  );
+  cueEditorDock.hidden = !cueEditorOpen;
 }
 
 function openCueEditor(cue) {
@@ -3438,6 +3297,7 @@ function updateVideoControls() {
     videoSeekInput.value = String(currentTime);
   }
   videoTimeLabel.textContent = `${formatVideoTime(currentTime)} / ${formatVideoTime(duration)}`;
+  updateCueTimelinePlayhead(currentTime);
 }
 
 function renderExport() {
@@ -4019,10 +3879,12 @@ currentVideo.addEventListener('seeked', () => {
 });
 currentVideo.addEventListener('loadedmetadata', () => {
   clearPickedVideoColor();
+  renderCues();
   updateVideoControls();
   updatePreviewMeta();
   void renderJassubPreview();
 });
+currentVideo.addEventListener('durationchange', renderCues);
 currentVideo.addEventListener('loadeddata', () => {
   updateVideoControls();
   void repaintJassubFrame();
@@ -4116,7 +3978,6 @@ audioPlayer.addEventListener('ended', () => {
 });
 window.addEventListener('resize', redrawCurrentAudioWaveform);
 window.addEventListener('resize', resyncEditorLayouts);
-window.addEventListener('resize', syncCueTimelinePreviewScale);
 
 [
   styleNameInput,
