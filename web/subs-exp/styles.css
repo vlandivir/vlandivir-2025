@@ -2149,6 +2149,7 @@ pre {
   height: var(--cue-card-height, 48px);
   min-height: var(--cue-card-height, 48px);
   max-height: var(--cue-card-height, 48px);
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr) auto;
   gap: 2px;
   overflow: hidden;
