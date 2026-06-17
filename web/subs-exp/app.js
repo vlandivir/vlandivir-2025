@@ -251,10 +251,16 @@ const JASSUB_DEFAULT_FONT_URL = new URL(
 ).href;
 const STYLE_PREVIEW_TEXT = 'Preview\nПревью Događaj';
 const CUE_TIMELINE_PX_PER_SECOND = 30;
+const CUE_TIMELINE_MAX_PX_PER_SECOND = 260;
+const CUE_TIMELINE_MIN_TICK_GAP = 84;
 const CUE_TIMELINE_MIN_WIDTH = 720;
+const CUE_TIMELINE_SCALE_HEIGHT = 30;
 const CUE_TIMELINE_CLIP_HEIGHT = 48;
 const CUE_TIMELINE_LANE_GAP = 8;
 const CUE_TIMELINE_PADDING = 9;
+const CUE_TIMELINE_TICK_STEPS = [
+  0.25, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600,
+];
 // Canvas glyph bounds run slightly wider than the same bundled fonts in libass.
 const ASS_BADGE_TEXT_METRIC_SCALE = 0.91;
 const CUE_TIMELINE_ACCENTS = [
@@ -502,6 +508,7 @@ const cueTimelineCard = document.querySelector('#cueTimelineCard');
 const previewMeta = document.querySelector('#previewMeta');
 const assOutput = document.querySelector('#assOutput');
 const downloadAssButton = document.querySelector('#downloadAssButton');
+const resetAssButton = document.querySelector('#resetAssButton');
 const refreshPreviewButton = document.querySelector('#refreshPreviewButton');
 const audioPanel = document.querySelector('#audioPanel');
 const extractAudioButton = document.querySelector('#extractAudioButton');
@@ -567,12 +574,15 @@ let useDomSubtitleFallback = false;
 let editingStyleId;
 let editingCueId;
 let editingPositionId;
-let cueEditorOpen = false;
+let cueEditorOpen = true;
 let cueEditorDock;
-let cueTimelineFitButton;
+let cueTimelineScaleInput;
+let cueTimelineScaleOutput;
 let addCueButton;
-let cueTimelineFitToScreen = false;
+let cueTimelineZoom = 0;
 let currentVideoHash = null;
+let assOutputManuallyEdited = false;
+let assOutputVideoHash = null;
 let currentAudioWaveform = [];
 let audioAnimationFrame = null;
 let uploadValidationToken = 0;
@@ -596,30 +606,44 @@ function initExperimentalCueWorkbench() {
   timelineCopy.className = 'cue-timeline__copy';
   const title = document.createElement('h3');
   title.textContent = 'Горизонтальный таймлайн';
-  timelineCopy.append(title);
-
-  cueTimelineFitButton = document.createElement('button');
-  cueTimelineFitButton.className = 'secondary-link cue-timeline__fit';
-  cueTimelineFitButton.type = 'button';
-  cueTimelineFitButton.textContent = 'Fit to screen';
-  cueTimelineFitButton.addEventListener('click', () => {
-    cueTimelineFitToScreen = true;
+  const scaleControl = document.createElement('label');
+  scaleControl.className = 'cue-timeline__scale-control';
+  const scaleLabel = document.createElement('span');
+  scaleLabel.textContent = 'Масштаб';
+  cueTimelineScaleInput = document.createElement('input');
+  cueTimelineScaleInput.type = 'range';
+  cueTimelineScaleInput.min = '0';
+  cueTimelineScaleInput.max = '100';
+  cueTimelineScaleInput.step = '1';
+  cueTimelineScaleInput.value = String(cueTimelineZoom);
+  cueTimelineScaleInput.setAttribute('aria-label', 'Масштаб таймлайна');
+  cueTimelineScaleOutput = document.createElement('output');
+  cueTimelineScaleOutput.className = 'cue-timeline__scale-output';
+  cueTimelineScaleInput.addEventListener('input', () => {
+    cueTimelineZoom = Number(cueTimelineScaleInput.value) || 0;
     const scrollContainer = cueList.closest('.cue-timeline-scroll');
-    if (scrollContainer) scrollContainer.scrollLeft = 0;
+    if (scrollContainer && isCueTimelineFitMode()) {
+      scrollContainer.scrollLeft = 0;
+    }
+    syncCueTimelineScaleControl();
     renderCues();
   });
+  scaleControl.append(scaleLabel, cueTimelineScaleInput, cueTimelineScaleOutput);
+  timelineCopy.append(title, scaleControl);
 
   addCueButton = document.createElement('button');
   addCueButton.className = 'primary-link cue-timeline__add';
   addCueButton.type = 'button';
   addCueButton.textContent = TEXT.addCue;
   addCueButton.addEventListener('click', openNewCueEditor);
-  timelineHead.append(timelineCopy, cueTimelineFitButton, addCueButton);
+  timelineHead.append(timelineCopy, addCueButton);
 
   cueEditorDock = document.createElement('div');
-  cueEditorDock.className = 'cue-editor-dock';
-  cueEditorDock.hidden = true;
+  cueEditorDock.className = 'cue-editor-dock cue-workbench__editor';
+  cueEditorDock.hidden = false;
   cueEditorDock.append(cueForm);
+  cueForm.hidden = false;
+  if (closeCueEditorButton) closeCueEditorButton.hidden = true;
 
   const timelineScroll = document.createElement('div');
   timelineScroll.className = 'cue-timeline-scroll';
@@ -627,12 +651,7 @@ function initExperimentalCueWorkbench() {
   timelineScroll.append(cueList);
   cueList.classList.add('cue-timeline');
   cueTimelineCard.classList.add('cue-workbench__timeline');
-  cueTimelineCard.replaceChildren(
-    timelineHead,
-    timelineScroll,
-    cuesEmptyState,
-    cueEditorDock,
-  );
+  cueTimelineCard.replaceChildren(timelineHead, timelineScroll, cuesEmptyState);
 
   const previewPanel = document.createElement('aside');
   previewPanel.className = 'cue-workbench__preview';
@@ -640,7 +659,8 @@ function initExperimentalCueWorkbench() {
   previewPanel.append(currentVideoSection);
 
   workbench.classList.add('cue-workbench');
-  workbench.replaceChildren(cueTimelineCard, previewPanel);
+  workbench.replaceChildren(cueTimelineCard, cueEditorDock, previewPanel);
+  syncCueTimelineScaleControl();
 }
 
 function openDb() {
@@ -796,6 +816,100 @@ function sortCuesByStart(cues) {
     .map(({ cue }) => cue);
 }
 
+function isCueTimelineFitMode() {
+  return cueTimelineZoom <= 0;
+}
+
+function currentCueTimelinePxPerSecond() {
+  if (isCueTimelineFitMode()) return CUE_TIMELINE_PX_PER_SECOND;
+
+  const progress = Math.min(1, Math.max(0, cueTimelineZoom / 100));
+  return Math.round(
+    CUE_TIMELINE_PX_PER_SECOND +
+      (CUE_TIMELINE_MAX_PX_PER_SECOND - CUE_TIMELINE_PX_PER_SECOND) *
+        progress,
+  );
+}
+
+function syncCueTimelineScaleControl() {
+  if (!cueTimelineScaleOutput) return;
+
+  cueTimelineScaleOutput.textContent = isCueTimelineFitMode()
+    ? 'По ширине'
+    : `${currentCueTimelinePxPerSecond()} px/с`;
+}
+
+function cueTimelinePointPosition(seconds, layout) {
+  const safeSeconds = Math.max(0, Math.min(seconds, layout.duration));
+  if (isCueTimelineFitMode()) {
+    return `${(safeSeconds / Math.max(layout.duration, 1)) * 100}%`;
+  }
+
+  return `${Math.round(safeSeconds * currentCueTimelinePxPerSecond())}px`;
+}
+
+function cueTimelineTickInterval(layout) {
+  const scrollWidth =
+    cueList?.closest('.cue-timeline-scroll')?.clientWidth ||
+    CUE_TIMELINE_MIN_WIDTH;
+  const timelineWidth = isCueTimelineFitMode()
+    ? scrollWidth
+    : Math.max(
+        CUE_TIMELINE_MIN_WIDTH,
+        Math.ceil(layout.duration * currentCueTimelinePxPerSecond()),
+      );
+  const desiredTickSeconds =
+    layout.duration /
+    Math.max(2, Math.floor(timelineWidth / CUE_TIMELINE_MIN_TICK_GAP));
+  return (
+    CUE_TIMELINE_TICK_STEPS.find((step) => step >= desiredTickSeconds) ||
+    CUE_TIMELINE_TICK_STEPS.at(-1)
+  );
+}
+
+function formatCueTimelineTickLabel(seconds, step) {
+  if (step < 1 && seconds < 60) {
+    return `${Number(seconds.toFixed(2)).toString()}с`;
+  }
+
+  return formatVideoTime(seconds);
+}
+
+function createCueTimelineScale(layout) {
+  const scale = document.createElement('div');
+  scale.className = 'cue-timeline__scale';
+  scale.setAttribute('aria-hidden', 'true');
+
+  const step = cueTimelineTickInterval(layout);
+  const tickCount = Math.floor(layout.duration / step);
+  for (let index = 0; index <= tickCount; index += 1) {
+    const seconds = index * step;
+    const tick = document.createElement('span');
+    tick.className = 'cue-timeline__tick';
+    tick.style.left = cueTimelinePointPosition(seconds, layout);
+
+    const label = document.createElement('span');
+    label.className = 'cue-timeline__tick-label';
+    label.textContent = formatCueTimelineTickLabel(seconds, step);
+    tick.append(label);
+    scale.append(tick);
+  }
+
+  if (tickCount * step < layout.duration) {
+    const tick = document.createElement('span');
+    tick.className = 'cue-timeline__tick cue-timeline__tick--end';
+    tick.style.left = cueTimelinePointPosition(layout.duration, layout);
+
+    const label = document.createElement('span');
+    label.className = 'cue-timeline__tick-label';
+    label.textContent = formatCueTimelineTickLabel(layout.duration, step);
+    tick.append(label);
+    scale.append(tick);
+  }
+
+  return scale;
+}
+
 function buildCueTimelineLayout(cues) {
   const intervals = sortCuesByStart(cues).map((cue, order) => {
     const parsedStart = parseTimeToSeconds(cue.start);
@@ -849,14 +963,15 @@ function buildCueTimelineLayout(cues) {
     1,
   );
   const height =
+    CUE_TIMELINE_SCALE_HEIGHT +
     CUE_TIMELINE_PADDING * 2 +
     laneCount * CUE_TIMELINE_CLIP_HEIGHT +
     Math.max(0, laneCount - 1) * CUE_TIMELINE_LANE_GAP;
-  const width = cueTimelineFitToScreen
+  const width = isCueTimelineFitMode()
     ? '100%'
     : `${Math.max(
         CUE_TIMELINE_MIN_WIDTH,
-        Math.ceil(duration * CUE_TIMELINE_PX_PER_SECOND),
+        Math.ceil(duration * currentCueTimelinePxPerSecond()),
       )}px`;
 
   return {
@@ -873,22 +988,24 @@ function cueTimelineAccent(entry) {
 
 function cueTimelinePlacement(entry, layout) {
   const duration = Math.max(layout.duration, 1);
-  if (cueTimelineFitToScreen) {
+  if (isCueTimelineFitMode()) {
     return {
       left: `${(entry.start / duration) * 100}%`,
       width: `${Math.max(0.001, ((entry.end - entry.start) / duration) * 100)}%`,
     };
   }
 
+  const pxPerSecond = currentCueTimelinePxPerSecond();
   return {
-    left: `${Math.round(entry.start * CUE_TIMELINE_PX_PER_SECOND)}px`,
-    width: `${Math.round((entry.end - entry.start) * CUE_TIMELINE_PX_PER_SECOND)}px`,
+    left: `${Math.round(entry.start * pxPerSecond)}px`,
+    width: `${Math.max(1, Math.round((entry.end - entry.start) * pxPerSecond))}px`,
   };
 }
 
 function applyCueTimelineCardGeometry(item, entry, layout, accent) {
   const placement = cueTimelinePlacement(entry, layout);
   const top =
+    CUE_TIMELINE_SCALE_HEIGHT +
     CUE_TIMELINE_PADDING +
     entry.lane * (CUE_TIMELINE_CLIP_HEIGHT + CUE_TIMELINE_LANE_GAP);
   item.dataset.cueOrder = String(entry.order);
@@ -905,9 +1022,9 @@ function updateCueTimelinePlayhead(currentTime = currentVideo?.currentTime || 0)
 
   const layoutDuration = Number(cueList.dataset.timelineDuration) || 1;
   const safeTime = Math.min(Math.max(currentTime, 0), layoutDuration);
-  playhead.style.left = cueTimelineFitToScreen
-    ? `${(safeTime / layoutDuration) * 100}%`
-    : `${Math.round(safeTime * CUE_TIMELINE_PX_PER_SECOND)}px`;
+  playhead.style.left = cueTimelinePointPosition(safeTime, {
+    duration: layoutDuration,
+  });
 }
 
 async function readCuesForVideo(videoHash) {
@@ -2704,13 +2821,7 @@ function renderCues() {
   cueList.replaceChildren();
   cuesEmptyState.hidden = cachedCues.length > 0;
   deleteAllCuesButton.disabled = cachedCues.length === 0;
-  if (cueTimelineFitButton) {
-    cueTimelineFitButton.disabled = cachedCues.length === 0;
-    cueTimelineFitButton.setAttribute(
-      'aria-pressed',
-      cueTimelineFitToScreen ? 'true' : 'false',
-    );
-  }
+  syncCueTimelineScaleControl();
   const timelineLayout = buildCueTimelineLayout(cachedCues);
   cueList.dataset.timelineDuration = String(timelineLayout.duration);
   cueList.style.setProperty('--cue-timeline-width', timelineLayout.width);
@@ -2718,6 +2829,7 @@ function renderCues() {
     '--cue-timeline-height',
     `${timelineLayout.height}px`,
   );
+  cueList.append(createCueTimelineScale(timelineLayout));
 
   for (const entry of timelineLayout.entries) {
     const cue = entry.cue;
@@ -2738,12 +2850,9 @@ function renderCues() {
     text.className = 'cue-item__text';
     text.textContent = plainText;
 
-    const time = document.createElement('span');
-    time.className = 'cue-item__time';
-    time.textContent = `${formatTimeInput(cue.start)} → ${formatTimeInput(cue.end)}`;
-    item.dataset.cueMeta = style.name
-      ? `${style.name} · ${positionLabel(style.position)}${formatCueMotionLabel(cue)}${formatCueOverrideLabel(cue)}`
-      : TEXT.styleDeleted;
+    const styleName = document.createElement('span');
+    styleName.className = 'cue-item__style';
+    styleName.textContent = style.name || TEXT.styleDeleted;
 
     item.addEventListener('click', (event) => {
       if (
@@ -2760,7 +2869,7 @@ function renderCues() {
       openCueEditor(cue);
     });
 
-    item.append(text, time);
+    item.append(text, styleName);
     cueList.append(item);
   }
   const playhead = document.createElement('span');
@@ -2775,14 +2884,15 @@ function renderCues() {
 function placeCueEditor() {
   if (!cueEditorDock) return;
 
+  cueEditorOpen = true;
   const activeItem = getEditorItemById(cueList, editingCueId);
   [...cueList.children].forEach((item) => {
     item.classList.toggle('is-editing', item === activeItem);
   });
   cueEditorDock.append(cueForm);
 
-  cueForm.hidden = !cueEditorOpen;
-  cueEditorDock.hidden = !cueEditorOpen;
+  cueForm.hidden = false;
+  cueEditorDock.hidden = false;
 }
 
 function openCueEditor(cue) {
@@ -2834,7 +2944,7 @@ function resetStyleForm() {
 
 function resetCueForm() {
   editingCueId = undefined;
-  cueEditorOpen = false;
+  cueEditorOpen = true;
   cueForm.reset();
   if (cueColorInput) setColorInputValue(cueColorInput, 'none');
   if (cueFontInput) cueFontInput.value = '';
@@ -2849,7 +2959,7 @@ function resetCueForm() {
   cancelCueEditButton.hidden = true;
   deleteCueButton.hidden = true;
   cueForm.classList.remove('is-editing');
-  cueForm.hidden = true;
+  cueForm.hidden = false;
   clearEditorFormOffset(cueForm);
   placeCueEditor();
   scheduleEditorLayouts();
@@ -3226,10 +3336,30 @@ async function renderJassubPreview() {
   }
 }
 
-function renderAssOutput() {
-  const ass = generateAss();
-  assOutput.value = ass;
-  downloadAssButton.disabled = cachedCues.length === 0;
+function syncAssOutputControls() {
+  const hasAssText = Boolean(assOutput.value.trim());
+  downloadAssButton.disabled = !hasAssText;
+  if (resetAssButton) {
+    resetAssButton.disabled = !assOutputManuallyEdited;
+  }
+}
+
+function renderAssOutput(options = {}) {
+  const force = Boolean(options.force);
+  const videoChanged = assOutputVideoHash !== currentVideoHash;
+
+  if (videoChanged) {
+    assOutputManuallyEdited = false;
+    assOutputVideoHash = currentVideoHash;
+  }
+
+  if (force || videoChanged || !assOutputManuallyEdited) {
+    assOutput.value = generateAss();
+    assOutputManuallyEdited = false;
+    assOutputVideoHash = currentVideoHash;
+  }
+
+  syncAssOutputControls();
 }
 
 function renderSubtitledVideoControls() {
@@ -4201,6 +4331,17 @@ downloadAssButton.addEventListener('click', () => {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+});
+
+assOutput.addEventListener('input', () => {
+  assOutputManuallyEdited = true;
+  assOutputVideoHash = currentVideoHash;
+  syncAssOutputControls();
+});
+
+resetAssButton?.addEventListener('click', () => {
+  renderAssOutput({ force: true });
+  void renderJassubPreview();
 });
 
 renderSubtitledVideoButton.addEventListener('click', () => {
