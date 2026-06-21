@@ -886,6 +886,9 @@ function createCueTimelineScale(layout) {
     const seconds = index * step;
     const tick = document.createElement('span');
     tick.className = 'cue-timeline__tick';
+    if (seconds >= layout.duration) {
+      tick.classList.add('cue-timeline__tick--end');
+    }
     tick.style.left = cueTimelinePointPosition(seconds, layout);
 
     const label = document.createElement('span');

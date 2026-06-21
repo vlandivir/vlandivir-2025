@@ -2061,6 +2061,7 @@ pre {
   min-width: 0;
   accent-color: var(--green);
   cursor: pointer;
+  touch-action: none;
 }
 
 .subs-exp-page .cue-timeline__scale-output {
@@ -2325,9 +2326,48 @@ pre {
 }
 
 @media (max-width: 620px) {
+  .subs-exp-page {
+    --v-section-gap: 28px;
+    --v-section-padding: 14px;
+    --v-panel-padding: 12px;
+    --v-card-padding: 12px;
+    --v-group-gap: 12px;
+  }
+
   .subs-exp-page main,
   .subs-exp-page .v-site-header {
-    width: min(100% - 28px, 620px);
+    width: min(100% - 16px, 620px);
+  }
+
+  .subs-exp-page main {
+    padding-top: 8px;
+    padding-bottom: 32px;
+  }
+
+  .subs-exp-page .hero {
+    padding-bottom: 24px;
+  }
+
+  .subs-exp-page .workflow-step {
+    padding: 14px;
+  }
+
+  .subs-exp-page .editor-section__summary {
+    padding: 12px;
+  }
+
+  .subs-exp-page .editor-card,
+  .subs-exp-page .cue-workbench__timeline {
+    padding: 12px;
+  }
+
+  .subs-exp-page .editor-field select {
+    position: relative;
+    z-index: 1;
+    min-height: 48px;
+    font-size: 16px;
+    pointer-events: auto;
+    touch-action: manipulation;
   }
 
   .subs-exp-page .cue-timeline__head {
@@ -2342,5 +2382,9 @@ pre {
   .subs-exp-page .cue-timeline__scale-control {
     grid-template-columns: 1fr;
     gap: 8px;
+  }
+
+  .subs-exp-page .cue-timeline__scale-control input {
+    min-height: 32px;
   }
 }
