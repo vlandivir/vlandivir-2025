@@ -7,6 +7,9 @@ const POSITION_STORE = SF.POSITION_STORE;
 const MAX_UPLOAD_VIDEO_SIZE_BYTES = 200 * 1024 * 1024;
 const REQUIRED_UPLOAD_VIDEO_WIDTH = 1080;
 const REQUIRED_UPLOAD_VIDEO_HEIGHT = 1920;
+const ASS_PLAY_RES_X = 1080;
+const ASS_PLAY_RES_Y = 1920;
+const DEFAULT_STRETCH_MARGIN = 80;
 const IS_EN = document.documentElement.lang?.startsWith('en');
 const NAME_COLLATOR = new Intl.Collator(IS_EN ? 'en' : 'ru', {
   numeric: true,
@@ -462,6 +465,12 @@ const styleBadgePaddingYInput = document.querySelector(
   '#styleBadgePaddingYInput',
 );
 const styleBadgeRadiusInput = document.querySelector('#styleBadgeRadiusInput');
+const styleStretchToWidthInput = document.querySelector(
+  '#styleStretchToWidthInput',
+);
+const styleStretchMarginInput = document.querySelector(
+  '#styleStretchMarginInput',
+);
 const stylePositionInput = document.querySelector('#stylePositionInput');
 const styleSubmitButton = document.querySelector('#styleSubmitButton');
 const newStyleButton = document.querySelector('#newStyleButton');
@@ -492,6 +501,10 @@ const cueFontInput = document.querySelector('#cueFontInput');
 const cueColorInput = document.querySelector('#cueColorInput');
 const cueFontSizeInput = document.querySelector('#cueFontSizeInput');
 const cueLineSpacingInput = document.querySelector('#cueLineSpacingInput');
+const cueStretchToWidthInput = document.querySelector(
+  '#cueStretchToWidthInput',
+);
+const cueStretchMarginInput = document.querySelector('#cueStretchMarginInput');
 const cueMotionDxInput = document.querySelector('#cueMotionDxInput');
 const cueMotionDyInput = document.querySelector('#cueMotionDyInput');
 const cueMotionStartMsInput = document.querySelector('#cueMotionStartMsInput');
@@ -1984,6 +1997,9 @@ function normalizeCueOverrides(cue) {
   const font = String(cue?.fontOverride || '').trim();
   const fontSize = Math.round(Number(cue?.fontSizeOverride));
   const lineSpacing = normalizeLineSpacingValue(cue?.lineSpacingOverride);
+  const stretchMargin = normalizeOptionalStretchMarginValue(
+    cue?.stretchMarginOverride,
+  );
   return {
     fontOverride: BUNDLED_FONT_FAMILIES.has(font) ? font : '',
     colorOverride: normalizeSubtitleColor(color, ''),
@@ -1992,6 +2008,10 @@ function normalizeCueOverrides(cue) {
         ? fontSize
         : 0,
     lineSpacingOverride: Number.isFinite(lineSpacing) ? lineSpacing : 0,
+    stretchToWidthOverride: normalizeCueStretchOverride(
+      cue?.stretchToWidthOverride,
+    ),
+    stretchMarginOverride: stretchMargin,
   };
 }
 
@@ -2001,6 +2021,8 @@ function readCueOverridesFromForm() {
     colorOverride: cueColorInput?.value,
     fontSizeOverride: cueFontSizeInput?.value,
     lineSpacingOverride: cueLineSpacingInput?.value,
+    stretchToWidthOverride: cueStretchToWidthInput?.value,
+    stretchMarginOverride: cueStretchMarginInput?.value,
   });
 }
 
@@ -2009,12 +2031,21 @@ function cueStyleWithOverrides(style, cue) {
   const overrides = normalizeCueOverrides(cue);
   const lineSpacingOverride =
     overrides.lineSpacingOverride || normalizedStyle.lineSpacingOverride;
+  const stretchToWidth =
+    overrides.stretchToWidthOverride === 'on'
+      ? true
+      : overrides.stretchToWidthOverride === 'off'
+        ? false
+        : normalizedStyle.stretchToWidth;
   return {
     ...normalizedStyle,
     font: overrides.fontOverride || normalizedStyle.font,
     primaryColor: overrides.colorOverride || normalizedStyle.primaryColor,
     fontSize: overrides.fontSizeOverride || normalizedStyle.fontSize,
     lineSpacingOverride,
+    stretchToWidth,
+    stretchMargin:
+      overrides.stretchMarginOverride ?? normalizedStyle.stretchMargin,
   };
 }
 
@@ -2038,17 +2069,26 @@ function formatCueOverrideLabel(cue) {
       `${TEXT.cueLineSpacingOverride} ${sign}${overrides.lineSpacingOverride}px`,
     );
   }
+  if (overrides.stretchToWidthOverride) {
+    parts.push(
+      `растянуть ${overrides.stretchToWidthOverride === 'on' ? 'да' : 'нет'}`,
+    );
+  }
+  if (overrides.stretchMarginOverride !== null) {
+    parts.push(`поля ${overrides.stretchMarginOverride}`);
+  }
   return parts.length ? ` · ${TEXT.cueOverrides}: ${parts.join(', ')}` : '';
 }
 
-function buildCueOverridePrefix(cue) {
-  const overrides = normalizeCueOverrides(cue);
+function buildCueOverridePrefix(cue, baseStyle, resolvedStyle) {
   const tags = [];
-  if (overrides.fontOverride) tags.push(`\\fn${overrides.fontOverride}`);
-  if (overrides.fontSizeOverride)
-    tags.push(`\\fs${overrides.fontSizeOverride}`);
-  if (overrides.colorOverride)
-    tags.push(...colorToAssPrimaryOverrideTags(overrides.colorOverride));
+  if (resolvedStyle.font !== baseStyle.font) tags.push(`\\fn${resolvedStyle.font}`);
+  if (resolvedStyle.fontSize !== baseStyle.fontSize) {
+    tags.push(`\\fs${resolvedStyle.fontSize}`);
+  }
+  if (resolvedStyle.primaryColor !== baseStyle.primaryColor) {
+    tags.push(...colorToAssPrimaryOverrideTags(resolvedStyle.primaryColor));
+  }
   return tags.length ? `{${tags.join('')}}` : '';
 }
 
@@ -2089,6 +2129,63 @@ function cueLineYOffset(style, lineIndex, lineCount, lineSpacing) {
   return (lineIndex - (lineCount - 1)) * step;
 }
 
+function setSubtitleMeasureFont(style, fontSize) {
+  if (!subtitleMeasureContext) return;
+
+  const fontStyle = style.fontVariant === 'italic' ? 'italic' : 'normal';
+  const fontWeight = style.fontVariant === 'bold' ? '700' : '400';
+  const fontFamily = String(style.font || 'Montserrat').replace(/["\\]/g, '');
+  subtitleMeasureContext.font = `${fontStyle} ${fontWeight} ${fontSize}px "${fontFamily}"`;
+}
+
+function measureSubtitleLineWidth(style, line, fontSize) {
+  const text = line || ' ';
+  if (!subtitleMeasureContext) {
+    return Math.max(1, text.length) * fontSize * 0.58;
+  }
+
+  setSubtitleMeasureFont(style, fontSize);
+  const metrics = subtitleMeasureContext.measureText(text);
+  return Math.max(
+    1,
+    metrics.actualBoundingBoxLeft + metrics.actualBoundingBoxRight ||
+      metrics.width,
+  );
+}
+
+function calculateStretchedFontSize(style, text) {
+  if (!style.stretchToWidth) return Math.round(Number(style.fontSize) || 72);
+
+  const baseFontSize = Math.max(1, Number(style.fontSize) || 72);
+  const margin = normalizeStretchMarginValue(style.stretchMargin);
+  const targetWidth = Math.max(1, ASS_PLAY_RES_X - margin * 2);
+  const lines = (stripAssMarkup(text) || ' ')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const measuredWidth =
+    Math.max(
+      ...((lines.length ? lines : [' ']).map((line) =>
+        measureSubtitleLineWidth(style, line, baseFontSize),
+      )),
+    ) * ASS_BADGE_TEXT_METRIC_SCALE;
+
+  return Math.max(1, Math.round(baseFontSize * (targetWidth / measuredWidth)));
+}
+
+function resolveCueStretchFontSize(style, cue) {
+  return calculateStretchedFontSize(style, stripAssMarkup(cue.text) || cue.text);
+}
+
+function styleWithResolvedCueFontSize(style, cue) {
+  if (!style.stretchToWidth) return style;
+
+  return {
+    ...style,
+    fontSize: resolveCueStretchFontSize(style, cue),
+  };
+}
+
 function measureCueTextForBadge(style, cue) {
   const text = stripAssMarkup(cue.text) || ' ';
   const lines = text.split('\n');
@@ -2106,10 +2203,7 @@ function measureCueTextForBadge(style, cue) {
     0.58;
 
   if (subtitleMeasureContext) {
-    const fontStyle = style.fontVariant === 'italic' ? 'italic' : 'normal';
-    const fontWeight = style.fontVariant === 'bold' ? '700' : '400';
-    const fontFamily = String(style.font || 'Montserrat').replace(/["\\]/g, '');
-    subtitleMeasureContext.font = `${fontStyle} ${fontWeight} ${fontSize}px "${fontFamily}"`;
+    setSubtitleMeasureFont(style, fontSize);
     const lineBounds = lines.map((line) => {
       const metrics = subtitleMeasureContext.measureText(line || ' ');
       const origin = -metrics.width * horizontalFactor;
@@ -2223,6 +2317,23 @@ function normalizeLineSpacingValue(value, fallback = 0) {
   return Number.isFinite(number) ? number : fallback;
 }
 
+function normalizeStretchMarginValue(value, fallback = DEFAULT_STRETCH_MARGIN) {
+  if (value === null || value === undefined || value === '') return fallback;
+  const number = Math.round(Number(value));
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(Math.floor((ASS_PLAY_RES_X - 1) / 2), Math.max(0, number));
+}
+
+function normalizeOptionalStretchMarginValue(value) {
+  if (value === null || value === undefined || value === '') return null;
+  return normalizeStretchMarginValue(value);
+}
+
+function normalizeCueStretchOverride(value) {
+  if (value === 'on' || value === 'off') return value;
+  return '';
+}
+
 function fontVariantLabel(value) {
   return {
     regular: 'Regular',
@@ -2274,6 +2385,8 @@ function normalizeStyle(style) {
     badgePaddingY: normalizeStyleBadgeNumber(style.badgePaddingY, 12),
     badgeRadius: normalizeStyleBadgeNumber(style.badgeRadius, 20),
     lineSpacingOverride: normalizeLineSpacingValue(style.lineSpacingOverride),
+    stretchToWidth: Boolean(style.stretchToWidth),
+    stretchMargin: normalizeStretchMarginValue(style.stretchMargin),
     positionId: resolvedPosition.id,
     position: resolvedPosition,
   };
@@ -2347,6 +2460,8 @@ function readStyleFormDraft() {
     badgePaddingX: styleBadgePaddingXInput.value,
     badgePaddingY: styleBadgePaddingYInput.value,
     badgeRadius: styleBadgeRadiusInput.value,
+    stretchToWidth: styleStretchToWidthInput.checked,
+    stretchMargin: styleStretchMarginInput.value,
     positionId: stylePositionInput.value || defaultPosition().id,
   });
 }
@@ -2375,8 +2490,17 @@ function renderStyleLivePreview() {
 
   const style = readStyleFormDraft();
   styleLivePreviewText.textContent = STYLE_PREVIEW_TEXT;
-  applySubtitlePreviewStyle(styleLivePreviewText, style, 0.42);
-  styleLivePreviewMeta.textContent = `${style.font} · ${fontVariantLabel(style.fontVariant)} · ${style.fontSize} ASS · ${formatLineSpacingLabel(style.lineSpacingOverride)}`;
+  const previewStyle = style.stretchToWidth
+    ? {
+        ...style,
+        fontSize: calculateStretchedFontSize(style, STYLE_PREVIEW_TEXT),
+      }
+    : style;
+  applySubtitlePreviewStyle(styleLivePreviewText, previewStyle, 0.42);
+  const stretchLabel = style.stretchToWidth
+    ? ` · растянуть, поля ${style.stretchMargin}`
+    : '';
+  styleLivePreviewMeta.textContent = `${style.font} · ${fontVariantLabel(style.fontVariant)} · ${style.fontSize} ASS · ${formatLineSpacingLabel(style.lineSpacingOverride)}${stretchLabel}`;
   styleLivePreviewColors.replaceChildren(
     createStylePreviewColor('Primary', style.primaryColor),
     createStylePreviewColor('Secondary', style.secondaryColor),
@@ -2435,6 +2559,8 @@ function generateAss() {
           badgePaddingY: 12,
           badgeRadius: 20,
           lineSpacingOverride: 0,
+          stretchToWidth: false,
+          stretchMargin: DEFAULT_STRETCH_MARGIN,
           positionId: defaultPosition().id,
         },
       ];
@@ -2469,14 +2595,25 @@ function generateAss() {
     ].join(',');
   });
 
-  function buildDialogueLine(cue, style, text, yOffset = 0, layer = 0) {
-    const positionPrefix = buildCuePositionPrefix(style, cue, yOffset);
-    const overridePrefix = buildCueOverridePrefix(cue);
+  function buildDialogueLine(
+    cue,
+    baseStyle,
+    resolvedStyle,
+    text,
+    yOffset = 0,
+    layer = 0,
+  ) {
+    const positionPrefix = buildCuePositionPrefix(baseStyle, cue, yOffset);
+    const overridePrefix = buildCueOverridePrefix(
+      cue,
+      baseStyle,
+      resolvedStyle,
+    );
     return [
       `Dialogue: ${layer}`,
       formatAssTime(cue.start),
       formatAssTime(cue.end),
-      sanitizeAssName(style.name),
+      sanitizeAssName(baseStyle.name),
       '',
       0,
       0,
@@ -2520,7 +2657,10 @@ function generateAss() {
 
   const cueLines = cachedCues.flatMap((cue) => {
     const style = normalizeStyle(getStyleById(cue.styleId) || {});
-    const cueStyle = cueStyleWithOverrides(style, cue);
+    const cueStyle = styleWithResolvedCueFontSize(
+      cueStyleWithOverrides(style, cue),
+      cue,
+    );
     const text = escapeAssText(cue.text);
     const textLines = text.split(/\\N/g);
     const badgeLine = buildBadgeDialogueLine(cue, cueStyle);
@@ -2530,7 +2670,7 @@ function generateAss() {
     if (!lineSpacing || textLines.length <= 1) {
       return [
         ...(badgeLine ? [badgeLine] : []),
-        buildDialogueLine(cue, style, text, 0, textLayer),
+        buildDialogueLine(cue, style, cueStyle, text, 0, textLayer),
       ];
     }
 
@@ -2540,6 +2680,7 @@ function generateAss() {
         buildDialogueLine(
           cue,
           style,
+          cueStyle,
           line,
           cueLineYOffset(cueStyle, index, textLines.length, lineSpacing),
           textLayer,
@@ -2779,12 +2920,24 @@ function renderStyles() {
     const title = document.createElement('h4');
     title.textContent = style.name;
     const meta = document.createElement('p');
-    meta.textContent = `${style.font} · ${fontVariantLabel(style.fontVariant)} · ${style.fontSize} ASS · ${formatLineSpacingLabel(style.lineSpacingOverride)} · ${positionLabel(style.position)}`;
+    const stretchLabel = style.stretchToWidth
+      ? ` · растянуть, поля ${style.stretchMargin}`
+      : '';
+    meta.textContent = `${style.font} · ${fontVariantLabel(style.fontVariant)} · ${style.fontSize} ASS · ${formatLineSpacingLabel(style.lineSpacingOverride)}${stretchLabel} · ${positionLabel(style.position)}`;
 
     const preview = document.createElement('p');
     preview.className = 'style-item__preview';
     preview.textContent = STYLE_PREVIEW_TEXT;
-    applySubtitlePreviewStyle(preview, style, 0.34);
+    applySubtitlePreviewStyle(
+      preview,
+      style.stretchToWidth
+        ? {
+            ...style,
+            fontSize: calculateStretchedFontSize(style, STYLE_PREVIEW_TEXT),
+          }
+        : style,
+      0.34,
+    );
 
     body.append(title, preview, meta);
 
@@ -2935,6 +3088,8 @@ function resetStyleForm() {
   styleBadgePaddingXInput.value = '24';
   styleBadgePaddingYInput.value = '12';
   styleBadgeRadiusInput.value = '20';
+  styleStretchToWidthInput.checked = false;
+  styleStretchMarginInput.value = String(DEFAULT_STRETCH_MARGIN);
   stylePositionInput.value = defaultPosition().id;
   styleSubmitButton.textContent = TEXT.addStyle;
   if (newStyleButton) newStyleButton.hidden = true;
@@ -2953,6 +3108,8 @@ function resetCueForm() {
   if (cueFontInput) cueFontInput.value = '';
   if (cueFontSizeInput) cueFontSizeInput.value = '';
   if (cueLineSpacingInput) cueLineSpacingInput.value = '';
+  if (cueStretchToWidthInput) cueStretchToWidthInput.value = '';
+  if (cueStretchMarginInput) cueStretchMarginInput.value = '';
   if (cueMotionDxInput) cueMotionDxInput.value = '';
   if (cueMotionDyInput) cueMotionDyInput.value = '';
   if (cueMotionStartMsInput) cueMotionStartMsInput.value = '';
@@ -2999,6 +3156,8 @@ function startStyleEdit(style, options = {}) {
   styleBadgePaddingXInput.value = String(normalizedStyle.badgePaddingX);
   styleBadgePaddingYInput.value = String(normalizedStyle.badgePaddingY);
   styleBadgeRadiusInput.value = String(normalizedStyle.badgeRadius);
+  styleStretchToWidthInput.checked = normalizedStyle.stretchToWidth;
+  styleStretchMarginInput.value = String(normalizedStyle.stretchMargin);
   stylePositionInput.value = normalizedStyle.positionId;
   styleSubmitButton.textContent = TEXT.saveStyle;
   if (newStyleButton) newStyleButton.hidden = false;
@@ -3032,6 +3191,15 @@ function startCueEdit(cue, options = {}) {
     cueLineSpacingInput.value = overrides.lineSpacingOverride
       ? String(overrides.lineSpacingOverride)
       : '';
+  }
+  if (cueStretchToWidthInput) {
+    cueStretchToWidthInput.value = overrides.stretchToWidthOverride;
+  }
+  if (cueStretchMarginInput) {
+    cueStretchMarginInput.value =
+      overrides.stretchMarginOverride === null
+        ? ''
+        : String(overrides.stretchMarginOverride);
   }
   const motion = normalizeCueMotion(cue);
   if (cueMotionDxInput)
@@ -3227,7 +3395,10 @@ function renderVideoSubtitleOverlay(cue, style) {
 
   videoSubtitleOverlay.hidden = false;
   const normalizedStyle = normalizeStyle(style || {});
-  const cuePreviewStyle = cueStyleWithOverrides(normalizedStyle, cue);
+  const cuePreviewStyle = styleWithResolvedCueFontSize(
+    cueStyleWithOverrides(normalizedStyle, cue),
+    cue,
+  );
   videoSubtitleOverlay.className = `video-subtitle-overlay video-subtitle-overlay--${
     normalizedStyle.position.legacy || 'bottom-center'
   }`;
@@ -3462,6 +3633,8 @@ async function ensureDefaultStyle() {
     badgePaddingY: 12,
     badgeRadius: 20,
     lineSpacingOverride: 0,
+    stretchToWidth: false,
+    stretchMargin: DEFAULT_STRETCH_MARGIN,
     positionId: defaultPosition().id,
     createdAt: new Date().toISOString(),
   });
@@ -4130,6 +4303,8 @@ window.addEventListener('resize', resyncEditorLayouts);
   styleBadgePaddingXInput,
   styleBadgePaddingYInput,
   styleBadgeRadiusInput,
+  styleStretchToWidthInput,
+  styleStretchMarginInput,
   stylePositionInput,
 ].forEach((inputElement) => {
   inputElement.addEventListener('input', renderStyleLivePreview);
@@ -4159,6 +4334,8 @@ styleForm.addEventListener('submit', async (event) => {
     badgePaddingX: styleBadgePaddingXInput.value,
     badgePaddingY: styleBadgePaddingYInput.value,
     badgeRadius: styleBadgeRadiusInput.value,
+    stretchToWidth: styleStretchToWidthInput.checked,
+    stretchMargin: styleStretchMarginInput.value,
     positionId: stylePositionInput.value,
     createdAt: existingStyle?.createdAt || new Date().toISOString(),
   });
@@ -4200,6 +4377,8 @@ cueForm.addEventListener('submit', async (event) => {
     colorOverride: overrides.colorOverride,
     fontSizeOverride: overrides.fontSizeOverride,
     lineSpacingOverride: overrides.lineSpacingOverride,
+    stretchToWidthOverride: overrides.stretchToWidthOverride,
+    stretchMarginOverride: overrides.stretchMarginOverride,
     motionDx: motion.motionDx,
     motionDy: motion.motionDy,
     motionStartMs: motion.motionStartMs,

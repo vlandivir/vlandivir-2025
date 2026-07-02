@@ -8,20 +8,20 @@
       content="Subs ASS: проект для создания субтитров к видео в формате Advanced SubStation Alpha."
     />
     <title>Subs ASS</title>
-    <link rel="stylesheet" href="fonts/fonts.css?v=20260702-2" />
+    <link rel="stylesheet" href="/subs/fonts/fonts.css?v=20260702-2" />
     <link rel="stylesheet" href="/shared/site-header.css?v=20260527-1" />
     <link rel="stylesheet" href="/shared/color-picker.css?v=20260605-1" />
-    <link rel="stylesheet" href="styles.css?v=20260612-1" />
+    <link rel="stylesheet" href="/subs/styles.css?v=20260702-1" />
     <link rel="stylesheet" href="/shared/video-upload-block.css?v=20260603-1" />
     <link rel="stylesheet" href="/shared/site-theme.css?v=20260604-1" />
     <script src="/files/registry.js?v=20260527-1"></script>
-    <script src="fonts-shared.js?v=20260702-2"></script>
+    <script src="/subs/fonts-shared.js?v=20260702-2"></script>
     <script src="/shared/site-header.js?v=20260527-1" defer></script>
     <script src="/shared/color-picker.js?v=20260605-2" defer></script>
     <script src="/shared/video-upload-block.js?v=20260603-1" defer></script>
-    <script src="app.js?v=20260612-1" defer></script>
+    <script src="/subs/app.js?v=20260702-1" defer></script>
   </head>
-  <body>
+  <body class="subs-exp-page">
     <header
       data-site-header
       data-active="subs"
@@ -146,6 +146,32 @@
                     Распознать речь
                   </button>
                 </div>
+                <div
+                  class="transcription-translation"
+                  id="transcriptionTranslationPanel"
+                  hidden
+                >
+                  <label
+                    class="editor-field transcription-translation-language"
+                  >
+                    <span>Язык перевода</span>
+                    <select id="translationLanguageInput">
+                      <option value="en">English</option>
+                      <option value="ru">Русский</option>
+                      <option value="sr">Сербский</option>
+                      <option value="es">Español</option>
+                      <option value="de">Deutsch</option>
+                      <option value="fr">Français</option>
+                    </select>
+                  </label>
+                  <button
+                    class="secondary-link transcription-translate-button"
+                    id="translateTranscriptionButton"
+                    type="button"
+                  >
+                    Перевести текст
+                  </button>
+                </div>
                 <p class="transcription-status" id="transcriptionStatus">
                   Распознавание ещё не запускалось.
                 </p>
@@ -198,7 +224,8 @@
                 Настройте субтитры
               </h2>
               <p class="workflow-step-text">
-                Настройте позиции, стили и переопределения для отдельных реплик.
+                Соберите реплики на вертикальном таймлайне и проверяйте их на
+                видео справа.
               </p>
             </div>
           </summary>
@@ -339,7 +366,7 @@
                     <select id="styleFontInput"></select>
                   </label>
                   <label class="editor-field">
-                    <span>Размер</span>
+                    <span>Размер ASS</span>
                     <input
                       id="styleFontSizeInput"
                       type="number"
@@ -358,6 +385,16 @@
                     </select>
                   </label>
                 </div>
+                <label class="editor-field">
+                  <span>Межстрочный интервал, ±px</span>
+                  <input
+                    id="styleLineSpacingInput"
+                    type="number"
+                    step="1"
+                    value="0"
+                    placeholder="0"
+                  />
+                </label>
                 <div class="color-field-list">
                   <label class="editor-field">
                     <span>PrimaryColour</span>
@@ -412,6 +449,57 @@
                     ></div>
                   </label>
                 </div>
+                <div class="style-badge-controls">
+                  <p class="style-badge-controls__title">Плашка под текстом</p>
+                  <label class="editor-field">
+                    <span>Цвет плашки, поддерживает rgba</span>
+                    <input
+                      id="styleBadgeColorInput"
+                      type="hidden"
+                      value="none"
+                    />
+                    <div
+                      class="color-picker"
+                      data-color-picker="styleBadgeColorInput"
+                      data-allow-none="true"
+                    ></div>
+                  </label>
+                  <div class="editor-field-grid editor-field-grid--badge">
+                    <label class="editor-field">
+                      <span>Отступ X, ASS</span>
+                      <input
+                        id="styleBadgePaddingXInput"
+                        type="number"
+                        min="0"
+                        max="240"
+                        step="1"
+                        value="24"
+                      />
+                    </label>
+                    <label class="editor-field">
+                      <span>Отступ Y, ASS</span>
+                      <input
+                        id="styleBadgePaddingYInput"
+                        type="number"
+                        min="0"
+                        max="240"
+                        step="1"
+                        value="12"
+                      />
+                    </label>
+                    <label class="editor-field">
+                      <span>Скругление, ASS</span>
+                      <input
+                        id="styleBadgeRadiusInput"
+                        type="number"
+                        min="0"
+                        max="240"
+                        step="1"
+                        value="20"
+                      />
+                    </label>
+                  </div>
+                </div>
                 <label class="editor-field">
                   <span>Базовое положение</span>
                   <select id="stylePositionInput"></select>
@@ -459,8 +547,23 @@
                 <h2 class="editor-section__title">Реплики</h2>
               </summary>
               <div class="editor-section__body editor-grid video-bound-grid">
-                <form class="editor-card editor-form cue-form" id="cueForm">
-                  <h3>Реплика</h3>
+                <form
+                  class="editor-card editor-form cue-form"
+                  id="cueForm"
+                  hidden
+                >
+                  <div class="cue-form__head">
+                    <h3>Реплика</h3>
+                    <button
+                      class="icon-button cue-form__close"
+                      id="closeCueEditorButton"
+                      type="button"
+                      title="Закрыть редактор"
+                      aria-label="Закрыть редактор реплики"
+                    >
+                      ×
+                    </button>
+                  </div>
                   <details class="ass-cheatsheet cue-form__cheatsheet">
                     <summary class="ass-cheatsheet__summary">
                       Шпаргалка: теги в тексте реплики
@@ -473,7 +576,7 @@
                       <article>
                         <h4>Размер и начертание</h4>
                         <ul>
-                          <li><code>{\fs80}</code> — размер 80 px</li>
+                          <li><code>{\fs80}</code> — размер ASS 80</li>
                           <li>
                             <code>{\b1}</code> / <code>{\i1}</code> — жирный /
                             курсив
@@ -609,7 +712,7 @@
                       ></div>
                     </label>
                     <label class="editor-field">
-                      <span>Размер только этой реплики, px</span>
+                      <span>Размер ASS только этой реплики</span>
                       <input
                         id="cueFontSizeInput"
                         type="number"
@@ -686,19 +789,27 @@
                     >
                       Отменить
                     </button>
+                    <button
+                      class="secondary-link editor-delete"
+                      id="deleteCueButton"
+                      type="button"
+                      hidden
+                    >
+                      Удалить реплику
+                    </button>
+                    <button
+                      class="secondary-link editor-delete editor-delete-all"
+                      id="deleteAllCuesButton"
+                      type="button"
+                      disabled
+                    >
+                      Удалить все реплики
+                    </button>
                   </div>
-                  <button
-                    class="secondary-link cue-delete-all"
-                    id="deleteAllCuesButton"
-                    type="button"
-                    disabled
-                  >
-                    Удалить все реплики
-                  </button>
                 </form>
 
-                <div class="editor-card cue-list-card">
-                  <h3>Реплики</h3>
+                <div class="editor-card cue-list-card" id="cueTimelineCard">
+                  <h3>Горизонтальный таймлайн</h3>
                   <div class="cue-list" id="cueList"></div>
                   <p class="empty-state" id="cuesEmptyState">
                     Пока нет реплик.
@@ -722,225 +833,233 @@
                 Проверьте и экспортируйте
               </h2>
               <p class="workflow-step-text">
-                Проверьте превью и скачайте ASS-файл или готовое видео с
-                субтитрами.
+                Скачайте ASS-файл или готовое видео с субтитрами.
               </p>
             </div>
           </summary>
-          <details class="editor-section" data-section="preview">
-            <summary class="editor-section__summary">
-              <h2 class="editor-section__title">Превью</h2>
-            </summary>
-            <div class="editor-section__body">
-              <div class="ass-workbench">
-                <div class="editor-card ass-output-card">
-                  <div class="ass-card-head">
-                    <h3>ASS файл</h3>
-                    <span id="previewMeta"
-                      >Превью поверх загруженного видео</span
-                    >
+          <div class="export-workbench">
+            <details class="editor-section" data-section="preview">
+              <summary class="editor-section__summary">
+                <h2 class="editor-section__title">ASS-файл</h2>
+              </summary>
+              <div class="editor-section__body">
+                <div class="ass-workbench">
+                  <div class="editor-card ass-output-card">
+                    <div class="ass-card-head">
+                      <h3>ASS файл</h3>
+                      <span id="previewMeta"
+                        >Превью поверх загруженного видео</span
+                      >
+                      <button
+                        class="secondary-link refresh-preview-button"
+                        id="refreshPreviewButton"
+                        type="button"
+                      >
+                        Обновить превью
+                      </button>
+                      <button
+                        class="secondary-link reset-ass-button"
+                        id="resetAssButton"
+                        type="button"
+                        disabled
+                      >
+                        Сбросить ASS
+                      </button>
+                      <button
+                        class="secondary-link download-ass-button"
+                        id="downloadAssButton"
+                        type="button"
+                        disabled
+                      >
+                        Скачать .ass
+                      </button>
+                    </div>
+                    <div class="ass-output-body">
+                      <textarea
+                        class="ass-output"
+                        id="assOutput"
+                        spellcheck="false"
+                      ></textarea>
+                    </div>
+                  </div>
+                  <section
+                    class="current-video editor-card"
+                    id="currentVideoSection"
+                    hidden
+                    aria-labelledby="current-video-title"
+                  >
+                    <div class="current-video__head">
+                      <div>
+                        <p class="eyebrow">Видео</p>
+                        <h3 id="current-video-title">Preview</h3>
+                      </div>
+                      <div class="current-video__tools">
+                        <a
+                          class="current-video__meta"
+                          id="currentVideoMeta"
+                          href="#"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        ></a>
+                        <label class="safe-zone-toggle">
+                          <input id="safeZoneOverlayToggle" type="checkbox" />
+                          <span>Safe zone</span>
+                        </label>
+                      </div>
+                    </div>
+                    <div class="video-preview-frame">
+                      <div class="video-stage" id="videoStage">
+                        <video
+                          id="currentVideo"
+                          crossorigin="anonymous"
+                          playsinline
+                          preload="metadata"
+                        ></video>
+                        <p
+                          class="video-subtitle-overlay"
+                          id="videoSubtitleOverlay"
+                          hidden
+                        ></p>
+                        <img
+                          class="reels-safe-zone-overlay"
+                          id="reelsSafeZoneOverlay"
+                          src="/subs/reels-safe-zone-overlay.png"
+                          alt=""
+                          width="1080"
+                          height="1920"
+                          hidden
+                        />
+                      </div>
+                      <div class="video-controls" aria-label="Управление видео">
+                        <button
+                          class="video-control-button"
+                          id="videoPlayButton"
+                          type="button"
+                          aria-label="Воспроизвести"
+                        ></button>
+                        <input
+                          class="video-control-range"
+                          id="videoSeekInput"
+                          type="range"
+                          min="0"
+                          max="0"
+                          step="0.01"
+                          value="0"
+                          aria-label="Позиция видео"
+                        />
+                        <span class="video-control-time" id="videoTimeLabel"
+                          >0:00 / 0:00</span
+                        >
+                        <button
+                          class="video-control-button"
+                          id="videoMuteButton"
+                          type="button"
+                          aria-label="Выключить звук"
+                        ></button>
+                      </div>
+                      <div class="video-eyedropper" aria-label="Пипетка цвета">
+                        <button
+                          class="secondary-link video-eyedropper__button"
+                          id="videoColorPickerButton"
+                          type="button"
+                          aria-pressed="false"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="m2 22 1-1h3l9-9" />
+                            <path d="M3 21v-3l9-9" />
+                            <path d="m15 6 3-3a2.1 2.1 0 0 1 3 3l-3 3" />
+                            <path d="m6 15 3 3" />
+                            <path d="m14 7 3 3" />
+                          </svg>
+                          <span>Пипетка</span>
+                        </button>
+                        <div
+                          class="video-eyedropper__result"
+                          id="videoColorPickerResult"
+                          hidden
+                        >
+                          <span
+                            class="video-eyedropper__swatch"
+                            id="videoColorSwatch"
+                            aria-hidden="true"
+                          ></span>
+                          <input
+                            class="video-eyedropper__input"
+                            id="videoColorInput"
+                            type="text"
+                            value=""
+                            placeholder="rgba(255, 255, 255, 1)"
+                            aria-label="Код цвета"
+                            readonly
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+                </div>
+              </div>
+            </details>
+
+            <details class="editor-section" data-section="render">
+              <summary class="editor-section__summary">
+                <h2 class="editor-section__title">Готовое видео</h2>
+              </summary>
+              <div class="editor-section__body">
+                <section class="editor-card render-video-card">
+                  <h3>Наложить субтитры</h3>
+                  <p class="render-video-card__text">
+                    Локально это можно сделать такой командой:
+                  </p>
+                  <pre
+                    class="ffmpeg-command"
+                  ><code id="ffmpegCommandExample">ffmpeg -i input.mp4 -vf "subtitles=subtitles.ass:fontsdir=./web/subs/fonts" -c:v libx264 -crf 18 -preset veryfast -c:a copy output.mp4</code></pre>
+                  <div class="render-video-actions">
                     <button
-                      class="secondary-link refresh-preview-button"
-                      id="refreshPreviewButton"
-                      type="button"
-                    >
-                      Обновить превью
-                    </button>
-                    <button
-                      class="secondary-link download-ass-button"
-                      id="downloadAssButton"
+                      class="primary-link"
+                      id="renderSubtitledVideoButton"
                       type="button"
                       disabled
                     >
-                      Скачать .ass
+                      Наложить субтитры
                     </button>
+                    <span
+                      class="render-video-spinner"
+                      id="renderSubtitledVideoSpinner"
+                      hidden
+                      aria-label="Наложение субтитров"
+                    ></span>
                   </div>
-                  <div class="ass-output-body">
-                    <textarea
-                      class="ass-output"
-                      id="assOutput"
-                      spellcheck="false"
-                      readonly
-                    ></textarea>
-                  </div>
-                </div>
-                <section
-                  class="current-video editor-card"
-                  id="currentVideoSection"
-                  hidden
-                  aria-labelledby="current-video-title"
-                >
-                  <div class="current-video__head">
-                    <div>
-                      <p class="eyebrow">Видео</p>
-                      <h3 id="current-video-title">Preview</h3>
-                    </div>
-                    <div class="current-video__tools">
-                      <a
-                        class="current-video__meta"
-                        id="currentVideoMeta"
-                        href="#"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      ></a>
-                      <label class="safe-zone-toggle">
-                        <input id="safeZoneOverlayToggle" type="checkbox" />
-                        <span>Safe zone</span>
-                      </label>
-                    </div>
-                  </div>
-                  <div class="video-preview-frame">
-                    <div class="video-stage" id="videoStage">
-                      <video
-                        id="currentVideo"
-                        crossorigin="anonymous"
-                        playsinline
-                        preload="metadata"
-                      ></video>
-                      <p
-                        class="video-subtitle-overlay"
-                        id="videoSubtitleOverlay"
-                        hidden
-                      ></p>
-                      <img
-                        class="reels-safe-zone-overlay"
-                        id="reelsSafeZoneOverlay"
-                        src="/subs/reels-safe-zone-overlay.png"
-                        alt=""
-                        width="1080"
-                        height="1920"
-                        hidden
-                      />
-                    </div>
-                    <div class="video-controls" aria-label="Управление видео">
-                      <button
-                        class="video-control-button"
-                        id="videoPlayButton"
-                        type="button"
-                        aria-label="Воспроизвести"
-                      ></button>
-                      <input
-                        class="video-control-range"
-                        id="videoSeekInput"
-                        type="range"
-                        min="0"
-                        max="0"
-                        step="0.01"
-                        value="0"
-                        aria-label="Позиция видео"
-                      />
-                      <span class="video-control-time" id="videoTimeLabel"
-                        >0:00 / 0:00</span
-                      >
-                      <button
-                        class="video-control-button"
-                        id="videoMuteButton"
-                        type="button"
-                        aria-label="Выключить звук"
-                      ></button>
-                    </div>
-                    <div class="video-eyedropper" aria-label="Пипетка цвета">
-                      <button
-                        class="secondary-link video-eyedropper__button"
-                        id="videoColorPickerButton"
-                        type="button"
-                        aria-pressed="false"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="m2 22 1-1h3l9-9" />
-                          <path d="M3 21v-3l9-9" />
-                          <path d="m15 6 3-3a2.1 2.1 0 0 1 3 3l-3 3" />
-                          <path d="m6 15 3 3" />
-                          <path d="m14 7 3 3" />
-                        </svg>
-                        <span>Пипетка</span>
-                      </button>
-                      <div
-                        class="video-eyedropper__result"
-                        id="videoColorPickerResult"
-                        hidden
-                      >
-                        <span
-                          class="video-eyedropper__swatch"
-                          id="videoColorSwatch"
-                          aria-hidden="true"
-                        ></span>
-                        <input
-                          class="video-eyedropper__input"
-                          id="videoColorInput"
-                          type="text"
-                          value=""
-                          placeholder="rgba(255, 255, 255, 1)"
-                          aria-label="Код цвета"
-                          readonly
-                        />
-                      </div>
-                    </div>
+                  <div
+                    class="render-video-result"
+                    id="renderedVideoResult"
+                    hidden
+                  >
+                    <a
+                      class="render-video-link"
+                      id="renderedVideoLink"
+                      href="#"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      >Видео</a
+                    >
+                    <a
+                      class="render-video-download-link"
+                      id="renderedVideoDownloadLink"
+                      href="#"
+                      download="subtitled-video.mp4"
+                      >Download</a
+                    >
+                    <p
+                      class="render-video-status"
+                      id="renderSubtitledVideoStatus"
+                    >
+                      Добавьте видео и реплики.
+                    </p>
                   </div>
                 </section>
               </div>
-            </div>
-          </details>
-
-          <details class="editor-section" data-section="render">
-            <summary class="editor-section__summary">
-              <h2 class="editor-section__title">Готовое видео</h2>
-            </summary>
-            <div class="editor-section__body">
-              <section class="editor-card render-video-card">
-                <h3>Наложить субтитры</h3>
-                <p class="render-video-card__text">
-                  Локально это можно сделать такой командой:
-                </p>
-                <pre
-                  class="ffmpeg-command"
-                ><code id="ffmpegCommandExample">ffmpeg -i input.mp4 -vf "subtitles=subtitles.ass:fontsdir=./web/subs/fonts" -c:v libx264 -crf 18 -preset veryfast -c:a copy output.mp4</code></pre>
-                <div class="render-video-actions">
-                  <button
-                    class="primary-link"
-                    id="renderSubtitledVideoButton"
-                    type="button"
-                    disabled
-                  >
-                    Наложить субтитры
-                  </button>
-                  <span
-                    class="render-video-spinner"
-                    id="renderSubtitledVideoSpinner"
-                    hidden
-                    aria-label="Наложение субтитров"
-                  ></span>
-                </div>
-                <div
-                  class="render-video-result"
-                  id="renderedVideoResult"
-                  hidden
-                >
-                  <a
-                    class="render-video-link"
-                    id="renderedVideoLink"
-                    href="#"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    >Видео</a
-                  >
-                  <a
-                    class="render-video-download-link"
-                    id="renderedVideoDownloadLink"
-                    href="#"
-                    download="subtitled-video.mp4"
-                    >Download</a
-                  >
-                  <p
-                    class="render-video-status"
-                    id="renderSubtitledVideoStatus"
-                  >
-                    Добавьте видео и реплики.
-                  </p>
-                </div>
-              </section>
-            </div>
-          </details>
+            </details>
+          </div>
         </details>
       </section>
     </main>

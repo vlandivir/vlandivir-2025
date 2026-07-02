@@ -65,6 +65,12 @@ const TEXT = IS_EN
       extractAudioFailed: 'Failed to extract audio',
       transcribing: 'Transcribing speech on backend...',
       transcribeFailed: 'Failed to transcribe speech',
+      translationLanguage: 'Translation language',
+      translateText: 'Translate text',
+      translating: 'Translating text on backend...',
+      translateFailed: 'Failed to translate text',
+      translated: 'Translated',
+      targetLanguageRequired: 'Choose a translation language.',
       saved: 'Saved',
       chooseCueStyle: 'Choose a cue style.',
       noWordLines: 'No lines in “00.00 word” format.',
@@ -88,7 +94,7 @@ const TEXT = IS_EN
       cueOverrides: 'overrides',
       cueFontOverride: 'font',
       cueColorOverride: 'color',
-      cueSizeOverride: 'size',
+      cueSizeOverride: 'ASS size',
       cueLineSpacingOverride: 'line spacing',
       pause: 'Pause',
       play: 'Play',
@@ -149,6 +155,12 @@ const TEXT = IS_EN
       extractAudioFailed: 'Не удалось выделить audio',
       transcribing: 'Распознаю речь на backend...',
       transcribeFailed: 'Не удалось распознать речь',
+      translationLanguage: 'Язык перевода',
+      translateText: 'Перевести текст',
+      translating: 'Перевожу текст на backend...',
+      translateFailed: 'Не удалось перевести текст',
+      translated: 'Переведено',
+      targetLanguageRequired: 'Выберите язык перевода.',
       saved: 'Сохранено',
       chooseCueStyle: 'Выберите стиль для реплик.',
       noWordLines: 'Не нашёл строки в формате “00.00 слово”.',
@@ -172,7 +184,7 @@ const TEXT = IS_EN
       cueOverrides: 'переопределения',
       cueFontOverride: 'шрифт',
       cueColorOverride: 'цвет',
-      cueSizeOverride: 'размер',
+      cueSizeOverride: 'ASS размер',
       cueLineSpacingOverride: 'интервал',
       pause: 'Пауза',
       play: 'Воспроизвести',
@@ -215,10 +227,7 @@ const DEFAULT_POSITIONS = [
     legacy: 'middle-center',
   },
 ];
-const SUBS_ASSET_BASE_URL = new URL(
-  '.',
-  document.currentScript?.src || window.location.href,
-);
+const SUBS_ASSET_BASE_URL = new URL('/subs/', window.location.origin);
 const JASSUB_MODULE_URL = new URL(
   'vendor/jassub/jassub.js',
   SUBS_ASSET_BASE_URL,
@@ -240,7 +249,28 @@ const JASSUB_DEFAULT_FONT_URL = new URL(
   'vendor/jassub/default.woff2',
   SUBS_ASSET_BASE_URL,
 ).href;
-const STYLE_PREVIEW_TEXT = 'Preview Превью Događaj';
+const STYLE_PREVIEW_TEXT = 'Preview\nПревью Događaj';
+const CUE_TIMELINE_PX_PER_SECOND = 30;
+const CUE_TIMELINE_MAX_PX_PER_SECOND = 260;
+const CUE_TIMELINE_MIN_TICK_GAP = 84;
+const CUE_TIMELINE_MIN_WIDTH = 720;
+const CUE_TIMELINE_SCALE_HEIGHT = 30;
+const CUE_TIMELINE_CLIP_HEIGHT = 48;
+const CUE_TIMELINE_LANE_GAP = 8;
+const CUE_TIMELINE_PADDING = 9;
+const CUE_TIMELINE_TICK_STEPS = [
+  0.25, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600,
+];
+// Canvas glyph bounds run slightly wider than the same bundled fonts in libass.
+const ASS_BADGE_TEXT_METRIC_SCALE = 0.91;
+const CUE_TIMELINE_ACCENTS = [
+  '#e86f2d',
+  '#f08b35',
+  '#f3a64c',
+  '#d95b25',
+  '#efb763',
+  '#c94d20',
+];
 
 function subsFontUrl(fileName) {
   return new URL(fileName, SUBS_FONTS_BASE_URL).href;
@@ -395,8 +425,12 @@ const videoPlayButton = document.querySelector('#videoPlayButton');
 const videoSeekInput = document.querySelector('#videoSeekInput');
 const videoTimeLabel = document.querySelector('#videoTimeLabel');
 const videoMuteButton = document.querySelector('#videoMuteButton');
-const videoColorPickerButton = document.querySelector('#videoColorPickerButton');
-const videoColorPickerResult = document.querySelector('#videoColorPickerResult');
+const videoColorPickerButton = document.querySelector(
+  '#videoColorPickerButton',
+);
+const videoColorPickerResult = document.querySelector(
+  '#videoColorPickerResult',
+);
 const videoColorSwatch = document.querySelector('#videoColorSwatch');
 const videoColorInput = document.querySelector('#videoColorInput');
 const styleForm = document.querySelector('#styleForm');
@@ -409,6 +443,7 @@ const styleLivePreviewColors = document.querySelector(
 const styleFontInput = document.querySelector('#styleFontInput');
 const styleFontSizeInput = document.querySelector('#styleFontSizeInput');
 const styleFontVariantInput = document.querySelector('#styleFontVariantInput');
+const styleLineSpacingInput = document.querySelector('#styleLineSpacingInput');
 const stylePrimaryColorInput = document.querySelector(
   '#stylePrimaryColorInput',
 );
@@ -419,6 +454,14 @@ const styleOutlineColorInput = document.querySelector(
   '#styleOutlineColorInput',
 );
 const styleBackColorInput = document.querySelector('#styleBackColorInput');
+const styleBadgeColorInput = document.querySelector('#styleBadgeColorInput');
+const styleBadgePaddingXInput = document.querySelector(
+  '#styleBadgePaddingXInput',
+);
+const styleBadgePaddingYInput = document.querySelector(
+  '#styleBadgePaddingYInput',
+);
+const styleBadgeRadiusInput = document.querySelector('#styleBadgeRadiusInput');
 const stylePositionInput = document.querySelector('#stylePositionInput');
 const styleSubmitButton = document.querySelector('#styleSubmitButton');
 const newStyleButton = document.querySelector('#newStyleButton');
@@ -456,12 +499,16 @@ const cueMotionMsInput = document.querySelector('#cueMotionMsInput');
 const cueSubmitButton = document.querySelector('#cueSubmitButton');
 const newCueButton = document.querySelector('#newCueButton');
 const cancelCueEditButton = document.querySelector('#cancelCueEditButton');
+const closeCueEditorButton = document.querySelector('#closeCueEditorButton');
+const deleteCueButton = document.querySelector('#deleteCueButton');
 const deleteAllCuesButton = document.querySelector('#deleteAllCuesButton');
 const cueList = document.querySelector('#cueList');
 const cuesEmptyState = document.querySelector('#cuesEmptyState');
+const cueTimelineCard = document.querySelector('#cueTimelineCard');
 const previewMeta = document.querySelector('#previewMeta');
 const assOutput = document.querySelector('#assOutput');
 const downloadAssButton = document.querySelector('#downloadAssButton');
+const resetAssButton = document.querySelector('#resetAssButton');
 const refreshPreviewButton = document.querySelector('#refreshPreviewButton');
 const audioPanel = document.querySelector('#audioPanel');
 const extractAudioButton = document.querySelector('#extractAudioButton');
@@ -478,6 +525,15 @@ const transcriptionStatus = document.querySelector('#transcriptionStatus');
 const transcriptionOutput = document.querySelector('#transcriptionOutput');
 const saveTranscriptionButton = document.querySelector(
   '#saveTranscriptionButton',
+);
+const transcriptionTranslationPanel = document.querySelector(
+  '#transcriptionTranslationPanel',
+);
+const translationLanguageInput = document.querySelector(
+  '#translationLanguageInput',
+);
+const translateTranscriptionButton = document.querySelector(
+  '#translateTranscriptionButton',
 );
 const transcriptionToCuesPanel = document.querySelector(
   '#transcriptionToCuesPanel',
@@ -518,14 +574,94 @@ let useDomSubtitleFallback = false;
 let editingStyleId;
 let editingCueId;
 let editingPositionId;
+let cueEditorOpen = true;
+let cueEditorDock;
+let cueTimelineScaleInput;
+let cueTimelineScaleOutput;
+let addCueButton;
+let cueTimelineZoom = 0;
 let currentVideoHash = null;
+let assOutputManuallyEdited = false;
+let assOutputVideoHash = null;
 let currentAudioWaveform = [];
 let audioAnimationFrame = null;
 let uploadValidationToken = 0;
 let isVideoColorPicking = false;
+let activeTranscriptOutputKey = null;
+let activeTranscriptOutputLanguage = null;
 const videoColorSampleCanvas = document.createElement('canvas');
 videoColorSampleCanvas.width = 1;
 videoColorSampleCanvas.height = 1;
+const subtitleMeasureCanvas = document.createElement('canvas');
+const subtitleMeasureContext = subtitleMeasureCanvas.getContext('2d');
+
+function initExperimentalCueWorkbench() {
+  const workbench = cueTimelineCard?.closest('.video-bound-grid');
+  if (!workbench || !cueTimelineCard || !currentVideoSection) return;
+
+  const timelineHead = document.createElement('div');
+  timelineHead.className = 'cue-timeline__head';
+
+  const timelineCopy = document.createElement('div');
+  timelineCopy.className = 'cue-timeline__copy';
+  const title = document.createElement('h3');
+  title.textContent = 'Горизонтальный таймлайн';
+  const scaleControl = document.createElement('label');
+  scaleControl.className = 'cue-timeline__scale-control';
+  const scaleLabel = document.createElement('span');
+  scaleLabel.textContent = 'Масштаб';
+  cueTimelineScaleInput = document.createElement('input');
+  cueTimelineScaleInput.type = 'range';
+  cueTimelineScaleInput.min = '0';
+  cueTimelineScaleInput.max = '100';
+  cueTimelineScaleInput.step = '1';
+  cueTimelineScaleInput.value = String(cueTimelineZoom);
+  cueTimelineScaleInput.setAttribute('aria-label', 'Масштаб таймлайна');
+  cueTimelineScaleOutput = document.createElement('output');
+  cueTimelineScaleOutput.className = 'cue-timeline__scale-output';
+  cueTimelineScaleInput.addEventListener('input', () => {
+    cueTimelineZoom = Number(cueTimelineScaleInput.value) || 0;
+    const scrollContainer = cueList.closest('.cue-timeline-scroll');
+    if (scrollContainer && isCueTimelineFitMode()) {
+      scrollContainer.scrollLeft = 0;
+    }
+    syncCueTimelineScaleControl();
+    renderCues();
+  });
+  scaleControl.append(scaleLabel, cueTimelineScaleInput, cueTimelineScaleOutput);
+  timelineCopy.append(title, scaleControl);
+
+  addCueButton = document.createElement('button');
+  addCueButton.className = 'primary-link cue-timeline__add';
+  addCueButton.type = 'button';
+  addCueButton.textContent = TEXT.addCue;
+  addCueButton.addEventListener('click', openNewCueEditor);
+  timelineHead.append(timelineCopy, addCueButton);
+
+  cueEditorDock = document.createElement('div');
+  cueEditorDock.className = 'cue-editor-dock cue-workbench__editor';
+  cueEditorDock.hidden = false;
+  cueEditorDock.append(cueForm);
+  cueForm.hidden = false;
+  if (closeCueEditorButton) closeCueEditorButton.hidden = true;
+
+  const timelineScroll = document.createElement('div');
+  timelineScroll.className = 'cue-timeline-scroll';
+  timelineScroll.setAttribute('aria-label', 'Таймлайн реплик');
+  timelineScroll.append(cueList);
+  cueList.classList.add('cue-timeline');
+  cueTimelineCard.classList.add('cue-workbench__timeline');
+  cueTimelineCard.replaceChildren(timelineHead, timelineScroll, cuesEmptyState);
+
+  const previewPanel = document.createElement('aside');
+  previewPanel.className = 'cue-workbench__preview';
+  currentVideoSection.classList.add('current-video--timeline');
+  previewPanel.append(currentVideoSection);
+
+  workbench.classList.add('cue-workbench');
+  workbench.replaceChildren(cueTimelineCard, cueEditorDock, previewPanel);
+  syncCueTimelineScaleControl();
+}
 
 function openDb() {
   return SF.openDb();
@@ -663,12 +799,234 @@ async function reloadStylePositionLookups() {
 }
 
 function sortCuesByStart(cues) {
-  return cues.sort((a, b) => {
-    return (
-      parseTimeToSeconds(a.start) - parseTimeToSeconds(b.start) ||
-      String(a.createdAt || '').localeCompare(String(b.createdAt || '')) ||
-      String(a.id || '').localeCompare(String(b.id || ''))
-    );
+  return cues
+    .map((cue, sourceIndex) => ({ cue, sourceIndex }))
+    .sort((a, b) => {
+      const aStart = parseTimeToSeconds(a.cue.start);
+      const bStart = parseTimeToSeconds(b.cue.start);
+      return (
+        (Number.isFinite(aStart) ? aStart : 0) -
+          (Number.isFinite(bStart) ? bStart : 0) ||
+        String(a.cue.createdAt || '').localeCompare(
+          String(b.cue.createdAt || ''),
+        ) ||
+        a.sourceIndex - b.sourceIndex
+      );
+    })
+    .map(({ cue }) => cue);
+}
+
+function isCueTimelineFitMode() {
+  return cueTimelineZoom <= 0;
+}
+
+function currentCueTimelinePxPerSecond() {
+  if (isCueTimelineFitMode()) return CUE_TIMELINE_PX_PER_SECOND;
+
+  const progress = Math.min(1, Math.max(0, cueTimelineZoom / 100));
+  return Math.round(
+    CUE_TIMELINE_PX_PER_SECOND +
+      (CUE_TIMELINE_MAX_PX_PER_SECOND - CUE_TIMELINE_PX_PER_SECOND) *
+        progress,
+  );
+}
+
+function syncCueTimelineScaleControl() {
+  if (!cueTimelineScaleOutput) return;
+
+  cueTimelineScaleOutput.textContent = isCueTimelineFitMode()
+    ? 'По ширине'
+    : `${currentCueTimelinePxPerSecond()} px/с`;
+}
+
+function cueTimelinePointPosition(seconds, layout) {
+  const safeSeconds = Math.max(0, Math.min(seconds, layout.duration));
+  if (isCueTimelineFitMode()) {
+    return `${(safeSeconds / Math.max(layout.duration, 1)) * 100}%`;
+  }
+
+  return `${Math.round(safeSeconds * currentCueTimelinePxPerSecond())}px`;
+}
+
+function cueTimelineTickInterval(layout) {
+  const scrollWidth =
+    cueList?.closest('.cue-timeline-scroll')?.clientWidth ||
+    CUE_TIMELINE_MIN_WIDTH;
+  const timelineWidth = isCueTimelineFitMode()
+    ? scrollWidth
+    : Math.max(
+        CUE_TIMELINE_MIN_WIDTH,
+        Math.ceil(layout.duration * currentCueTimelinePxPerSecond()),
+      );
+  const desiredTickSeconds =
+    layout.duration /
+    Math.max(2, Math.floor(timelineWidth / CUE_TIMELINE_MIN_TICK_GAP));
+  return (
+    CUE_TIMELINE_TICK_STEPS.find((step) => step >= desiredTickSeconds) ||
+    CUE_TIMELINE_TICK_STEPS.at(-1)
+  );
+}
+
+function formatCueTimelineTickLabel(seconds, step) {
+  if (step < 1 && seconds < 60) {
+    return `${Number(seconds.toFixed(2)).toString()}с`;
+  }
+
+  return formatVideoTime(seconds);
+}
+
+function createCueTimelineScale(layout) {
+  const scale = document.createElement('div');
+  scale.className = 'cue-timeline__scale';
+  scale.setAttribute('aria-hidden', 'true');
+
+  const step = cueTimelineTickInterval(layout);
+  const tickCount = Math.floor(layout.duration / step);
+  for (let index = 0; index <= tickCount; index += 1) {
+    const seconds = index * step;
+    const tick = document.createElement('span');
+    tick.className = 'cue-timeline__tick';
+    if (seconds >= layout.duration) {
+      tick.classList.add('cue-timeline__tick--end');
+    }
+    tick.style.left = cueTimelinePointPosition(seconds, layout);
+
+    const label = document.createElement('span');
+    label.className = 'cue-timeline__tick-label';
+    label.textContent = formatCueTimelineTickLabel(seconds, step);
+    tick.append(label);
+    scale.append(tick);
+  }
+
+  if (tickCount * step < layout.duration) {
+    const tick = document.createElement('span');
+    tick.className = 'cue-timeline__tick cue-timeline__tick--end';
+    tick.style.left = cueTimelinePointPosition(layout.duration, layout);
+
+    const label = document.createElement('span');
+    label.className = 'cue-timeline__tick-label';
+    label.textContent = formatCueTimelineTickLabel(layout.duration, step);
+    tick.append(label);
+    scale.append(tick);
+  }
+
+  return scale;
+}
+
+function buildCueTimelineLayout(cues) {
+  const intervals = sortCuesByStart(cues).map((cue, order) => {
+    const parsedStart = parseTimeToSeconds(cue.start);
+    const parsedEnd = parseTimeToSeconds(cue.end);
+    const start = Number.isFinite(parsedStart) ? Math.max(0, parsedStart) : 0;
+    const end =
+      Number.isFinite(parsedEnd) && parsedEnd > start
+        ? parsedEnd
+        : start + 1;
+    return { cue, order, start, end };
+  });
+  const groups = [];
+
+  for (const interval of intervals) {
+    const occupancyEnd =
+      interval.end > interval.start ? interval.end : interval.start + 0.001;
+    const currentGroup = groups.at(-1);
+    if (!currentGroup || interval.start >= currentGroup.end) {
+      groups.push({ end: occupancyEnd, intervals: [interval] });
+    } else {
+      currentGroup.end = Math.max(currentGroup.end, occupancyEnd);
+      currentGroup.intervals.push(interval);
+    }
+  }
+
+  const entries = groups.flatMap((group) => {
+    const laneEnds = [];
+    const groupEntries = group.intervals.map((interval) => {
+      const occupancyEnd =
+        interval.end > interval.start ? interval.end : interval.start + 0.001;
+      let lane = laneEnds.findIndex((laneEnd) => laneEnd <= interval.start);
+      if (lane < 0) lane = laneEnds.length;
+      laneEnds[lane] = occupancyEnd;
+      return { ...interval, lane };
+    });
+    const laneCount = Math.max(1, laneEnds.length);
+
+    return groupEntries.map((entry) => ({
+      ...entry,
+      laneCount,
+    }));
+  });
+  const maxEnd = intervals.reduce((max, interval) => Math.max(max, interval.end), 0);
+  const videoDuration =
+    currentVideo && Number.isFinite(currentVideo.duration)
+      ? currentVideo.duration
+      : 0;
+  const duration = Math.max(videoDuration, maxEnd, 1);
+  const laneCount = entries.reduce(
+    (max, entry) => Math.max(max, entry.lane + 1),
+    1,
+  );
+  const height =
+    CUE_TIMELINE_SCALE_HEIGHT +
+    CUE_TIMELINE_PADDING * 2 +
+    laneCount * CUE_TIMELINE_CLIP_HEIGHT +
+    Math.max(0, laneCount - 1) * CUE_TIMELINE_LANE_GAP;
+  const width = isCueTimelineFitMode()
+    ? '100%'
+    : `${Math.max(
+        CUE_TIMELINE_MIN_WIDTH,
+        Math.ceil(duration * currentCueTimelinePxPerSecond()),
+      )}px`;
+
+  return {
+    duration,
+    height,
+    width,
+    entries,
+  };
+}
+
+function cueTimelineAccent(entry) {
+  return CUE_TIMELINE_ACCENTS[entry.lane % CUE_TIMELINE_ACCENTS.length];
+}
+
+function cueTimelinePlacement(entry, layout) {
+  const duration = Math.max(layout.duration, 1);
+  if (isCueTimelineFitMode()) {
+    return {
+      left: `${(entry.start / duration) * 100}%`,
+      width: `${Math.max(0.001, ((entry.end - entry.start) / duration) * 100)}%`,
+    };
+  }
+
+  const pxPerSecond = currentCueTimelinePxPerSecond();
+  return {
+    left: `${Math.round(entry.start * pxPerSecond)}px`,
+    width: `${Math.max(1, Math.round((entry.end - entry.start) * pxPerSecond))}px`,
+  };
+}
+
+function applyCueTimelineCardGeometry(item, entry, layout, accent) {
+  const placement = cueTimelinePlacement(entry, layout);
+  const top =
+    CUE_TIMELINE_SCALE_HEIGHT +
+    CUE_TIMELINE_PADDING +
+    entry.lane * (CUE_TIMELINE_CLIP_HEIGHT + CUE_TIMELINE_LANE_GAP);
+  item.dataset.cueOrder = String(entry.order);
+  item.style.setProperty('--cue-card-top', `${top}px`);
+  item.style.setProperty('--cue-card-left', placement.left);
+  item.style.setProperty('--cue-card-width', placement.width);
+  item.style.setProperty('--cue-card-height', `${CUE_TIMELINE_CLIP_HEIGHT}px`);
+  item.style.setProperty('--cue-accent', accent);
+}
+
+function updateCueTimelinePlayhead(currentTime = currentVideo?.currentTime || 0) {
+  const playhead = cueList?.querySelector('.cue-timeline__playhead');
+  if (!playhead) return;
+
+  const layoutDuration = Number(cueList.dataset.timelineDuration) || 1;
+  const safeTime = Math.min(Math.max(currentTime, 0), layoutDuration);
+  playhead.style.left = cueTimelinePointPosition(safeTime, {
+    duration: layoutDuration,
   });
 }
 
@@ -1077,8 +1435,18 @@ function getSelectedTranscriptionLanguage() {
   return transcriptionLanguageInput?.value || 'auto';
 }
 
+function getSelectedTranslationLanguage() {
+  return translationLanguageInput?.value || 'en';
+}
+
 function getTranscriptOutputKey(language = getSelectedTranscriptionLanguage()) {
   return `${language}Output`;
+}
+
+function getTranscriptTranslationOutputKey(
+  targetLanguage = getSelectedTranslationLanguage(),
+) {
+  return `translationOutput_${targetLanguage}`;
 }
 
 function formatTranscriptTime(value, width = 5) {
@@ -1119,28 +1487,50 @@ function renderTranscription(video = null) {
   const hasAudio = Boolean(video?.audioUrl);
   transcriptionPanel.hidden = !hasAudio;
   if (!hasAudio) {
+    activeTranscriptOutputKey = null;
+    activeTranscriptOutputLanguage = null;
     transcriptionOutput.value = '';
     transcriptionOutput.hidden = true;
     saveTranscriptionButton.hidden = true;
+    transcriptionTranslationPanel.hidden = true;
+    translateTranscriptionButton.disabled = true;
     transcriptionToCuesPanel.hidden = true;
     transcriptionStatus.textContent = TEXT.audioFirst;
     return;
   }
 
+  transcriptionTranslationPanel.hidden = false;
+  translateTranscriptionButton.disabled = true;
+
   const language = getSelectedTranscriptionLanguage();
   const transcript = video?.transcripts?.[language];
   if (transcript) {
+    const sourceOutputKey = getTranscriptOutputKey(language);
+    const translationOutputKey = getTranscriptTranslationOutputKey();
+    const hasTranslationOutput = Boolean(transcript[translationOutputKey]);
+    activeTranscriptOutputKey = hasTranslationOutput
+      ? translationOutputKey
+      : sourceOutputKey;
+    activeTranscriptOutputLanguage = hasTranslationOutput
+      ? getSelectedTranslationLanguage()
+      : language;
     transcriptionOutput.value =
-      transcript[getTranscriptOutputKey(language)] ||
-      formatTranscript(transcript);
+      transcript[activeTranscriptOutputKey] || formatTranscript(transcript);
     transcriptionOutput.hidden = false;
     saveTranscriptionButton.hidden = false;
+    translateTranscriptionButton.disabled = false;
     transcriptionToCuesPanel.hidden = false;
-    const editedSuffix = transcript[getTranscriptOutputKey(language)]
-      ? ` · ${TEXT.edited}`
-      : '';
-    transcriptionStatus.textContent = `${TEXT.recognized} · ${transcript.language} · ${transcript.words?.length || 0} ${TEXT.words}${editedSuffix}`;
+    const editedSuffix =
+      !hasTranslationOutput && transcript[sourceOutputKey]
+        ? ` · ${TEXT.edited}`
+        : '';
+    const baseStatus = hasTranslationOutput
+      ? `${TEXT.translated} · ${activeTranscriptOutputLanguage}`
+      : `${TEXT.recognized} · ${transcript.language} · ${transcript.words?.length || 0} ${TEXT.words}`;
+    transcriptionStatus.textContent = `${baseStatus}${editedSuffix}`;
   } else {
+    activeTranscriptOutputKey = null;
+    activeTranscriptOutputLanguage = null;
     transcriptionOutput.value = '';
     transcriptionOutput.hidden = true;
     saveTranscriptionButton.hidden = true;
@@ -1351,7 +1741,9 @@ function parseColorChannel(value) {
   const isPercent = text.endsWith('%');
   const number = Number.parseFloat(isPercent ? text.slice(0, -1) : text);
   if (!Number.isFinite(number)) return null;
-  return Math.round(clampColorNumber(isPercent ? (number / 100) * 255 : number, 0, 255));
+  return Math.round(
+    clampColorNumber(isPercent ? (number / 100) * 255 : number, 0, 255),
+  );
 }
 
 function parseAlphaChannel(value) {
@@ -1371,7 +1763,9 @@ function formatCssAlpha(alpha) {
 
 function parseHexSubtitleColor(value) {
   if (typeof value !== 'string') return null;
-  const match = value.trim().match(/^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i);
+  const match = value
+    .trim()
+    .match(/^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i);
   if (!match) return null;
 
   let hex = match[1].toLowerCase();
@@ -1393,7 +1787,9 @@ function parseRgbSubtitleColor(value) {
   const match = value.trim().match(/^rgba?\((.+)\)$/i);
   if (!match) return null;
 
-  const [colorPart, alphaPart = ''] = match[1].split('/').map((part) => part.trim());
+  const [colorPart, alphaPart = ''] = match[1]
+    .split('/')
+    .map((part) => part.trim());
   const components = colorPart.includes(',')
     ? colorPart.split(',').map((part) => part.trim())
     : colorPart.split(/\s+/).filter(Boolean);
@@ -1404,7 +1800,8 @@ function parseRgbSubtitleColor(value) {
   const green = parseColorChannel(components[1]);
   const blue = parseColorChannel(components[2]);
   const alpha = parseAlphaChannel(alphaPart || inlineAlpha);
-  if ([red, green, blue, alpha].some((channel) => channel === null)) return null;
+  if ([red, green, blue, alpha].some((channel) => channel === null))
+    return null;
 
   return { red, green, blue, alpha };
 }
@@ -1471,6 +1868,16 @@ function colorToAssPrimaryOverrideTags(color) {
   const tags = [`\\c&H${bgr}&`];
   if (alpha !== '00') tags.push(`\\1a&H${alpha}&`);
   return tags;
+}
+
+function colorToAssDrawingOverrideTags(color) {
+  const parsed = parseSubtitleColor(color) || parseSubtitleColor('#ffffff');
+  const red = colorToHexByte(parsed.red);
+  const green = colorToHexByte(parsed.green);
+  const blue = colorToHexByte(parsed.blue);
+  const alpha = assAlphaFromCss(parsed.alpha).toUpperCase();
+  const bgr = `${blue}${green}${red}`.toUpperCase();
+  return `\\1c&H${bgr}&\\1a&H${alpha}&`;
 }
 
 function setColorInputValue(input, value) {
@@ -1576,7 +1983,7 @@ function normalizeCueOverrides(cue) {
   const color = String(cue?.colorOverride || cue?.primaryColor || '').trim();
   const font = String(cue?.fontOverride || '').trim();
   const fontSize = Math.round(Number(cue?.fontSizeOverride));
-  const lineSpacing = Math.round(Number(cue?.lineSpacingOverride));
+  const lineSpacing = normalizeLineSpacingValue(cue?.lineSpacingOverride);
   return {
     fontOverride: BUNDLED_FONT_FAMILIES.has(font) ? font : '',
     colorOverride: normalizeSubtitleColor(color, ''),
@@ -1600,12 +2007,14 @@ function readCueOverridesFromForm() {
 function cueStyleWithOverrides(style, cue) {
   const normalizedStyle = normalizeStyle(style || {});
   const overrides = normalizeCueOverrides(cue);
+  const lineSpacingOverride =
+    overrides.lineSpacingOverride || normalizedStyle.lineSpacingOverride;
   return {
     ...normalizedStyle,
     font: overrides.fontOverride || normalizedStyle.font,
     primaryColor: overrides.colorOverride || normalizedStyle.primaryColor,
     fontSize: overrides.fontSizeOverride || normalizedStyle.fontSize,
-    lineSpacingOverride: overrides.lineSpacingOverride,
+    lineSpacingOverride,
   };
 }
 
@@ -1621,7 +2030,7 @@ function formatCueOverrideLabel(cue) {
     );
   }
   if (overrides.fontSizeOverride) {
-    parts.push(`${TEXT.cueSizeOverride} ${overrides.fontSizeOverride}px`);
+    parts.push(`${TEXT.cueSizeOverride} ${overrides.fontSizeOverride}`);
   }
   if (overrides.lineSpacingOverride) {
     const sign = overrides.lineSpacingOverride > 0 ? '+' : '';
@@ -1643,24 +2052,32 @@ function buildCueOverridePrefix(cue) {
   return tags.length ? `{${tags.join('')}}` : '';
 }
 
-function buildCuePositionPrefix(style, cue, yOffset = 0) {
-  const x = Math.round(style.position.x);
-  const y = Math.round(style.position.y + yOffset);
+function buildCuePointPositionPrefix(x, y, cue) {
+  const startX = Math.round(x);
+  const startY = Math.round(y);
   const motion = normalizeCueMotion(cue);
 
   if (!motion) {
-    return `{\\pos(${x},${y})}`;
+    return `{\\pos(${startX},${startY})}`;
   }
 
-  const endX = x + motion.motionDx;
-  const endY = y + motion.motionDy;
+  const endX = startX + motion.motionDx;
+  const endY = startY + motion.motionDy;
   if (motion.motionMs <= 0) {
     return `{\\pos(${endX},${endY})}`;
   }
 
   const moveStartMs = motion.motionStartMs;
   const moveEndMs = motion.motionStartMs + motion.motionMs;
-  return `{\\move(${x},${y},${endX},${endY},${moveStartMs},${moveEndMs})}`;
+  return `{\\move(${startX},${startY},${endX},${endY},${moveStartMs},${moveEndMs})}`;
+}
+
+function buildCuePositionPrefix(style, cue, yOffset = 0) {
+  return buildCuePointPositionPrefix(
+    style.position.x,
+    style.position.y + yOffset,
+    cue,
+  );
 }
 
 function cueLineYOffset(style, lineIndex, lineCount, lineSpacing) {
@@ -1670,6 +2087,94 @@ function cueLineYOffset(style, lineIndex, lineCount, lineSpacing) {
   if (alignment >= 7) return lineIndex * step;
   if (alignment >= 4) return (lineIndex - (lineCount - 1) / 2) * step;
   return (lineIndex - (lineCount - 1)) * step;
+}
+
+function measureCueTextForBadge(style, cue) {
+  const text = stripAssMarkup(cue.text) || ' ';
+  const lines = text.split('\n');
+  const fontSize = Math.max(1, Number(style.fontSize) || 72);
+  const alignment = Number(style.position?.alignment) || 2;
+  const horizontalFactor = [0, 0.5, 1][(alignment - 1) % 3];
+  const lineStep = Math.max(
+    1,
+    fontSize + Number(style.lineSpacingOverride || 0),
+  );
+  let left = 0;
+  let right =
+    Math.max(...lines.map((line) => Math.max(1, line.length))) *
+    fontSize *
+    0.58;
+
+  if (subtitleMeasureContext) {
+    const fontStyle = style.fontVariant === 'italic' ? 'italic' : 'normal';
+    const fontWeight = style.fontVariant === 'bold' ? '700' : '400';
+    const fontFamily = String(style.font || 'Montserrat').replace(/["\\]/g, '');
+    subtitleMeasureContext.font = `${fontStyle} ${fontWeight} ${fontSize}px "${fontFamily}"`;
+    const lineBounds = lines.map((line) => {
+      const metrics = subtitleMeasureContext.measureText(line || ' ');
+      const origin = -metrics.width * horizontalFactor;
+      return {
+        left: origin + (metrics.actualBoundingBoxLeft || 0),
+        right: origin + (metrics.actualBoundingBoxRight || metrics.width),
+      };
+    });
+    left = Math.min(...lineBounds.map((bounds) => bounds.left));
+    right = Math.max(...lineBounds.map((bounds) => bounds.right));
+  } else {
+    left = -right * horizontalFactor;
+    right += left;
+  }
+
+  return {
+    left: left * ASS_BADGE_TEXT_METRIC_SCALE,
+    right: right * ASS_BADGE_TEXT_METRIC_SCALE,
+    height: fontSize + Math.max(0, lines.length - 1) * lineStep,
+  };
+}
+
+function cueBadgeGeometry(style, cue) {
+  if (isNoneColor(style.badgeColor)) return null;
+
+  const textSize = measureCueTextForBadge(style, cue);
+  const paddingX = style.badgePaddingX;
+  const paddingY = style.badgePaddingY;
+  const width = Math.max(
+    1,
+    Math.ceil(textSize.right - textSize.left + paddingX * 2),
+  );
+  const height = Math.max(1, Math.ceil(textSize.height + paddingY * 2));
+  const alignment = Number(style.position?.alignment) || 2;
+  const verticalFactor = [1, 0.5, 0][Math.floor((alignment - 1) / 3)];
+  const x = style.position.x + textSize.left - paddingX;
+  const y = style.position.y - textSize.height * verticalFactor - paddingY;
+
+  return {
+    x: Math.round(x),
+    y: Math.round(y),
+    width,
+    height,
+    radius: Math.min(style.badgeRadius, width / 2, height / 2),
+  };
+}
+
+function roundedRectAssPath(width, height, radius) {
+  const w = Math.round(width);
+  const h = Math.round(height);
+  const r = Math.max(0, Math.round(radius));
+  if (r === 0) return `m 0 0 l ${w} 0 ${w} ${h} 0 ${h}`;
+
+  const k = Math.round(r * 0.55228475);
+  return [
+    `m ${r} 0`,
+    `l ${w - r} 0`,
+    `b ${w - r + k} 0 ${w} ${r - k} ${w} ${r}`,
+    `l ${w} ${h - r}`,
+    `b ${w} ${h - r + k} ${w - r + k} ${h} ${w - r} ${h}`,
+    `l ${r} ${h}`,
+    `b ${r - k} ${h} 0 ${h - r + k} 0 ${h - r}`,
+    `l 0 ${r}`,
+    `b 0 ${r - k} ${r - k} 0 ${r} 0`,
+  ].join(' ');
 }
 
 function setCurrentVideoMetaLink(url, fallbackText = '') {
@@ -1704,12 +2209,32 @@ function normalizeFontVariant(value) {
   return 'regular';
 }
 
+function normalizeStyleBadgeNumber(value, fallback) {
+  if (value === null || value === undefined || value === '') return fallback;
+  const number = Math.round(Number(value));
+  return Number.isFinite(number)
+    ? Math.min(240, Math.max(0, number))
+    : fallback;
+}
+
+function normalizeLineSpacingValue(value, fallback = 0) {
+  if (value === null || value === undefined || value === '') return fallback;
+  const number = Math.round(Number(value));
+  return Number.isFinite(number) ? number : fallback;
+}
+
 function fontVariantLabel(value) {
   return {
     regular: 'Regular',
     bold: 'Bold',
     italic: 'Italic',
   }[normalizeFontVariant(value)];
+}
+
+function formatLineSpacingLabel(value) {
+  const lineSpacing = normalizeLineSpacingValue(value);
+  const sign = lineSpacing > 0 ? '+' : '';
+  return `${TEXT.cueLineSpacingOverride} ${sign}${lineSpacing}px`;
 }
 
 function normalizeStyle(style) {
@@ -1733,8 +2258,22 @@ function normalizeStyle(style) {
       style.secondaryColor ?? 'rgba(0, 0, 0, 1)',
       'rgba(0, 0, 0, 1)',
     ),
-    outlineColor: normalizeOptionalSubtitleColor(style.outlineColor ?? 'none', 'none'),
-    backColor: normalizeOptionalSubtitleColor(style.backColor ?? 'none', 'none'),
+    outlineColor: normalizeOptionalSubtitleColor(
+      style.outlineColor ?? 'none',
+      'none',
+    ),
+    backColor: normalizeOptionalSubtitleColor(
+      style.backColor ?? 'none',
+      'none',
+    ),
+    badgeColor: normalizeOptionalSubtitleColor(
+      style.badgeColor ?? 'none',
+      'none',
+    ),
+    badgePaddingX: normalizeStyleBadgeNumber(style.badgePaddingX, 24),
+    badgePaddingY: normalizeStyleBadgeNumber(style.badgePaddingY, 12),
+    badgeRadius: normalizeStyleBadgeNumber(style.badgeRadius, 20),
+    lineSpacingOverride: normalizeLineSpacingValue(style.lineSpacingOverride),
     positionId: resolvedPosition.id,
     position: resolvedPosition,
   };
@@ -1743,6 +2282,10 @@ function normalizeStyle(style) {
 function applySubtitlePreviewStyle(element, style, scale = 1) {
   const normalizedStyle = normalizeStyle(style || {});
   const fontSize = Math.max(14, Math.round(normalizedStyle.fontSize * scale));
+  const hasBadge = !isNoneColor(normalizedStyle.badgeColor);
+  const backgroundColor = hasBadge
+    ? normalizedStyle.badgeColor
+    : normalizedStyle.backColor;
   const shadows = [];
 
   element.style.color = normalizedStyle.primaryColor;
@@ -1755,15 +2298,19 @@ function applySubtitlePreviewStyle(element, style, scale = 1) {
     normalizedStyle.fontVariant === 'italic' ? 'italic' : 'normal';
   element.style.fontWeight =
     normalizedStyle.fontVariant === 'bold' ? '900' : '400';
-  element.style.background = isNoneColor(normalizedStyle.backColor)
+  element.style.background = isNoneColor(backgroundColor)
     ? 'transparent'
-    : normalizedStyle.backColor;
-  element.style.padding = isNoneColor(normalizedStyle.backColor)
-    ? '0'
-    : '0.08em 0.18em';
-  element.style.borderRadius = isNoneColor(normalizedStyle.backColor)
-    ? '0'
-    : '4px';
+    : backgroundColor;
+  element.style.padding = hasBadge
+    ? `${Math.round(normalizedStyle.badgePaddingY * scale)}px ${Math.round(normalizedStyle.badgePaddingX * scale)}px`
+    : isNoneColor(normalizedStyle.backColor)
+      ? '0'
+      : '0.08em 0.18em';
+  element.style.borderRadius = hasBadge
+    ? `${Math.round(normalizedStyle.badgeRadius * scale)}px`
+    : isNoneColor(normalizedStyle.backColor)
+      ? '0'
+      : '4px';
 
   if (!isNoneColor(normalizedStyle.outlineColor)) {
     const outlineSize = Math.max(1, Math.round(fontSize / 18));
@@ -1791,10 +2338,15 @@ function readStyleFormDraft() {
     font: styleFontInput.value || 'Montserrat',
     fontSize: Number(styleFontSizeInput.value) || 72,
     fontVariant: styleFontVariantInput.value,
+    lineSpacingOverride: styleLineSpacingInput.value,
     primaryColor: stylePrimaryColorInput.value,
     secondaryColor: styleSecondaryColorInput.value,
     outlineColor: styleOutlineColorInput.value,
     backColor: styleBackColorInput.value,
+    badgeColor: styleBadgeColorInput.value,
+    badgePaddingX: styleBadgePaddingXInput.value,
+    badgePaddingY: styleBadgePaddingYInput.value,
+    badgeRadius: styleBadgeRadiusInput.value,
     positionId: stylePositionInput.value || defaultPosition().id,
   });
 }
@@ -1824,12 +2376,13 @@ function renderStyleLivePreview() {
   const style = readStyleFormDraft();
   styleLivePreviewText.textContent = STYLE_PREVIEW_TEXT;
   applySubtitlePreviewStyle(styleLivePreviewText, style, 0.42);
-  styleLivePreviewMeta.textContent = `${style.font} · ${fontVariantLabel(style.fontVariant)} · ${style.fontSize}px`;
+  styleLivePreviewMeta.textContent = `${style.font} · ${fontVariantLabel(style.fontVariant)} · ${style.fontSize} ASS · ${formatLineSpacingLabel(style.lineSpacingOverride)}`;
   styleLivePreviewColors.replaceChildren(
     createStylePreviewColor('Primary', style.primaryColor),
     createStylePreviewColor('Secondary', style.secondaryColor),
     createStylePreviewColor('Outline', style.outlineColor),
     createStylePreviewColor('Back', style.backColor),
+    createStylePreviewColor('Плашка', style.badgeColor),
   );
 }
 
@@ -1877,6 +2430,11 @@ function generateAss() {
           secondaryColor: 'rgba(0, 0, 0, 1)',
           outlineColor: 'none',
           backColor: 'none',
+          badgeColor: 'none',
+          badgePaddingX: 24,
+          badgePaddingY: 12,
+          badgeRadius: 20,
+          lineSpacingOverride: 0,
           positionId: defaultPosition().id,
         },
       ];
@@ -1911,11 +2469,11 @@ function generateAss() {
     ].join(',');
   });
 
-  function buildDialogueLine(cue, style, text, yOffset = 0) {
+  function buildDialogueLine(cue, style, text, yOffset = 0, layer = 0) {
     const positionPrefix = buildCuePositionPrefix(style, cue, yOffset);
     const overridePrefix = buildCueOverridePrefix(cue);
     return [
-      'Dialogue: 0',
+      `Dialogue: ${layer}`,
       formatAssTime(cue.start),
       formatAssTime(cue.end),
       sanitizeAssName(style.name),
@@ -1928,30 +2486,66 @@ function generateAss() {
     ].join(',');
   }
 
+  function buildBadgeDialogueLine(cue, style) {
+    const geometry = cueBadgeGeometry(style, cue);
+    if (!geometry) return null;
+
+    const positionPrefix = buildCuePointPositionPrefix(
+      geometry.x,
+      geometry.y,
+      cue,
+    );
+    const drawingPrefix = [
+      '{\\an7\\p1\\bord0\\shad0',
+      colorToAssDrawingOverrideTags(style.badgeColor),
+      '}',
+    ].join('');
+    return [
+      'Dialogue: 0',
+      formatAssTime(cue.start),
+      formatAssTime(cue.end),
+      sanitizeAssName(style.name),
+      '',
+      0,
+      0,
+      0,
+      '',
+      `${positionPrefix}${drawingPrefix}${roundedRectAssPath(
+        geometry.width,
+        geometry.height,
+        geometry.radius,
+      )}`,
+    ].join(',');
+  }
+
   const cueLines = cachedCues.flatMap((cue) => {
     const style = normalizeStyle(getStyleById(cue.styleId) || {});
     const cueStyle = cueStyleWithOverrides(style, cue);
-    const overrides = normalizeCueOverrides(cue);
     const text = escapeAssText(cue.text);
     const textLines = text.split(/\\N/g);
+    const badgeLine = buildBadgeDialogueLine(cue, cueStyle);
+    const textLayer = badgeLine ? 1 : 0;
+    const lineSpacing = cueStyle.lineSpacingOverride;
 
-    if (!overrides.lineSpacingOverride || textLines.length <= 1) {
-      return [buildDialogueLine(cue, style, text)];
+    if (!lineSpacing || textLines.length <= 1) {
+      return [
+        ...(badgeLine ? [badgeLine] : []),
+        buildDialogueLine(cue, style, text, 0, textLayer),
+      ];
     }
 
-    return textLines.map((line, index) =>
-      buildDialogueLine(
-        cue,
-        style,
-        line,
-        cueLineYOffset(
-          cueStyle,
-          index,
-          textLines.length,
-          overrides.lineSpacingOverride,
+    return [
+      ...(badgeLine ? [badgeLine] : []),
+      ...textLines.map((line, index) =>
+        buildDialogueLine(
+          cue,
+          style,
+          line,
+          cueLineYOffset(cueStyle, index, textLines.length, lineSpacing),
+          textLayer,
         ),
       ),
-    );
+    ];
   });
 
   return [
@@ -2079,7 +2673,6 @@ function syncEditorLayouts() {
   editorLayoutFrame = 0;
   syncEditorFormLayout(positionForm, positionList, editingPositionId);
   syncEditorFormLayout(styleForm, styleList, editingStyleId);
-  syncEditorFormLayout(cueForm, cueList, editingCueId);
 }
 
 function scheduleEditorLayouts() {
@@ -2186,7 +2779,7 @@ function renderStyles() {
     const title = document.createElement('h4');
     title.textContent = style.name;
     const meta = document.createElement('p');
-    meta.textContent = `${style.font} · ${fontVariantLabel(style.fontVariant)} · ${style.fontSize}px · ${positionLabel(style.position)}`;
+    meta.textContent = `${style.font} · ${fontVariantLabel(style.fontVariant)} · ${style.fontSize} ASS · ${formatLineSpacingLabel(style.lineSpacingOverride)} · ${positionLabel(style.position)}`;
 
     const preview = document.createElement('p');
     preview.className = 'style-item__preview';
@@ -2230,62 +2823,101 @@ function renderStyles() {
 function renderCues() {
   cueList.replaceChildren();
   cuesEmptyState.hidden = cachedCues.length > 0;
-  if (deleteAllCuesButton) {
-    deleteAllCuesButton.disabled = cachedCues.length === 0;
-  }
+  deleteAllCuesButton.disabled = cachedCues.length === 0;
+  syncCueTimelineScaleControl();
+  const timelineLayout = buildCueTimelineLayout(cachedCues);
+  cueList.dataset.timelineDuration = String(timelineLayout.duration);
+  cueList.style.setProperty('--cue-timeline-width', timelineLayout.width);
+  cueList.style.setProperty(
+    '--cue-timeline-height',
+    `${timelineLayout.height}px`,
+  );
+  cueList.append(createCueTimelineScale(timelineLayout));
 
-  for (const cue of cachedCues) {
+  for (const entry of timelineLayout.entries) {
+    const cue = entry.cue;
     const style = normalizeStyle(getStyleById(cue.styleId) || {});
-    const cuePreviewStyle = cueStyleWithOverrides(style, cue);
+    const accent = cueTimelineAccent(entry);
+    const plainText = stripAssMarkup(cue.text) || cue.text;
     const item = document.createElement('article');
     item.className = 'cue-item';
     item.dataset.editorItemId = cue.id;
     item.classList.toggle('is-editing', editingCueId === cue.id);
+    applyCueTimelineCardGeometry(item, entry, timelineLayout, accent);
+    item.tabIndex = 0;
+    item.setAttribute('role', 'button');
+    item.title = `${formatTimeInput(cue.start)} → ${formatTimeInput(cue.end)} · ${plainText}`;
+    item.setAttribute('aria-label', item.title);
 
-    const time = document.createElement('p');
-    time.className = 'cue-item__time';
-    time.textContent = `${formatTimeInput(cue.start)} → ${formatTimeInput(cue.end)}`;
-
-    const text = document.createElement('p');
+    const text = document.createElement('span');
     text.className = 'cue-item__text';
-    text.textContent = stripAssMarkup(cue.text) || cue.text;
-    applySubtitlePreviewStyle(text, cuePreviewStyle, 0.34);
+    text.textContent = plainText;
 
-    const meta = document.createElement('p');
-    meta.className = 'cue-item__meta';
-    meta.textContent = style.name
-      ? `${style.name} · ${positionLabel(style.position)}${formatCueMotionLabel(cue)}${formatCueOverrideLabel(cue)}`
-      : TEXT.styleDeleted;
+    const styleName = document.createElement('span');
+    styleName.className = 'cue-item__style';
+    styleName.textContent = style.name || TEXT.styleDeleted;
 
-    const actions = document.createElement('div');
-    actions.className = 'item-actions';
-
-    const editButton = document.createElement('button');
-    editButton.className = 'icon-button edit-button';
-    editButton.type = 'button';
-    editButton.title = TEXT.editCue;
-    editButton.innerHTML = EDIT_ICON;
-    editButton.addEventListener('click', () => {
-      startCueEdit(cue);
+    item.addEventListener('click', (event) => {
+      if (
+        event.target instanceof Element &&
+        event.target.closest('#cueForm, button, a')
+      ) {
+        return;
+      }
+      openCueEditor(cue);
+    });
+    item.addEventListener('keydown', (event) => {
+      if (event.target !== item || !['Enter', ' '].includes(event.key)) return;
+      event.preventDefault();
+      openCueEditor(cue);
     });
 
-    const removeButton = document.createElement('button');
-    removeButton.className = 'icon-button';
-    removeButton.type = 'button';
-    removeButton.title = TEXT.deleteCue;
-    removeButton.textContent = '×';
-    removeButton.addEventListener('click', async () => {
-      if (editingCueId === cue.id) resetCueForm();
-      await deleteCue(cue.id);
-      await touchCurrentVideoUpdated();
-      await refreshEditor();
-    });
-
-    actions.append(editButton, removeButton);
-    item.append(time, text, meta, actions);
+    item.append(text, styleName);
     cueList.append(item);
   }
+  const playhead = document.createElement('span');
+  playhead.className = 'cue-timeline__playhead';
+  playhead.setAttribute('aria-hidden', 'true');
+  cueList.append(playhead);
+  updateCueTimelinePlayhead();
+  placeCueEditor();
   scheduleEditorLayouts();
+}
+
+function placeCueEditor() {
+  if (!cueEditorDock) return;
+
+  cueEditorOpen = true;
+  const activeItem = getEditorItemById(cueList, editingCueId);
+  [...cueList.children].forEach((item) => {
+    item.classList.toggle('is-editing', item === activeItem);
+  });
+  cueEditorDock.append(cueForm);
+
+  cueForm.hidden = false;
+  cueEditorDock.hidden = false;
+}
+
+function openCueEditor(cue) {
+  const start = parseTimeToSeconds(cue.start);
+  if (currentVideo?.src && Number.isFinite(start)) {
+    currentVideo.currentTime = start;
+    updateVideoControls();
+  }
+  startCueEdit(cue);
+}
+
+function openNewCueEditor() {
+  resetCueForm();
+  cueEditorOpen = true;
+  const start = Number.isFinite(currentVideo?.currentTime)
+    ? currentVideo.currentTime
+    : 0;
+  cueStartInput.value = formatTimeInput(String(start));
+  cueEndInput.value = formatTimeInput(String(start + 2));
+  cueForm.hidden = false;
+  placeCueEditor();
+  focusEditorControl(cueTextInput);
 }
 
 function resetStyleForm() {
@@ -2294,10 +2926,15 @@ function resetStyleForm() {
   styleFontInput.value = 'Montserrat';
   styleFontSizeInput.value = '72';
   styleFontVariantInput.value = 'regular';
+  styleLineSpacingInput.value = '0';
   setColorInputValue(stylePrimaryColorInput, 'rgba(255, 255, 255, 1)');
   setColorInputValue(styleSecondaryColorInput, 'rgba(0, 0, 0, 1)');
   setColorInputValue(styleOutlineColorInput, 'none');
   setColorInputValue(styleBackColorInput, 'none');
+  setColorInputValue(styleBadgeColorInput, 'none');
+  styleBadgePaddingXInput.value = '24';
+  styleBadgePaddingYInput.value = '12';
+  styleBadgeRadiusInput.value = '20';
   stylePositionInput.value = defaultPosition().id;
   styleSubmitButton.textContent = TEXT.addStyle;
   if (newStyleButton) newStyleButton.hidden = true;
@@ -2310,6 +2947,7 @@ function resetStyleForm() {
 
 function resetCueForm() {
   editingCueId = undefined;
+  cueEditorOpen = true;
   cueForm.reset();
   if (cueColorInput) setColorInputValue(cueColorInput, 'none');
   if (cueFontInput) cueFontInput.value = '';
@@ -2322,8 +2960,11 @@ function resetCueForm() {
   cueSubmitButton.textContent = TEXT.addCue;
   if (newCueButton) newCueButton.hidden = true;
   cancelCueEditButton.hidden = true;
+  deleteCueButton.hidden = true;
   cueForm.classList.remove('is-editing');
+  cueForm.hidden = false;
   clearEditorFormOffset(cueForm);
+  placeCueEditor();
   scheduleEditorLayouts();
 }
 
@@ -2349,10 +2990,15 @@ function startStyleEdit(style, options = {}) {
   styleFontInput.value = normalizedStyle.font;
   styleFontSizeInput.value = String(normalizedStyle.fontSize);
   styleFontVariantInput.value = normalizedStyle.fontVariant;
+  styleLineSpacingInput.value = String(normalizedStyle.lineSpacingOverride);
   setColorInputValue(stylePrimaryColorInput, normalizedStyle.primaryColor);
   setColorInputValue(styleSecondaryColorInput, normalizedStyle.secondaryColor);
   setColorInputValue(styleOutlineColorInput, normalizedStyle.outlineColor);
   setColorInputValue(styleBackColorInput, normalizedStyle.backColor);
+  setColorInputValue(styleBadgeColorInput, normalizedStyle.badgeColor);
+  styleBadgePaddingXInput.value = String(normalizedStyle.badgePaddingX);
+  styleBadgePaddingYInput.value = String(normalizedStyle.badgePaddingY);
+  styleBadgeRadiusInput.value = String(normalizedStyle.badgeRadius);
   stylePositionInput.value = normalizedStyle.positionId;
   styleSubmitButton.textContent = TEXT.saveStyle;
   if (newStyleButton) newStyleButton.hidden = false;
@@ -2365,6 +3011,7 @@ function startStyleEdit(style, options = {}) {
 
 function startCueEdit(cue, options = {}) {
   editingCueId = cue.id;
+  cueEditorOpen = true;
   cueTextInput.value = cue.text;
   cueStartInput.value = formatTimeInput(cue.start);
   cueEndInput.value = formatTimeInput(cue.end);
@@ -2404,7 +3051,10 @@ function startCueEdit(cue, options = {}) {
   cueSubmitButton.textContent = TEXT.saveCue;
   if (newCueButton) newCueButton.hidden = false;
   cancelCueEditButton.hidden = false;
+  deleteCueButton.hidden = false;
   cueForm.classList.add('is-editing');
+  cueForm.hidden = false;
+  placeCueEditor();
   scheduleEditorLayouts();
   if (options.focus !== false) focusEditorControl(cueTextInput);
 }
@@ -2500,17 +3150,7 @@ function sampleVideoColorFromEvent(event) {
     const context = videoColorSampleCanvas.getContext('2d', {
       willReadFrequently: true,
     });
-    context.drawImage(
-      currentVideo,
-      point.x,
-      point.y,
-      1,
-      1,
-      0,
-      0,
-      1,
-      1,
-    );
+    context.drawImage(currentVideo, point.x, point.y, 1, 1, 0, 0, 1, 1);
     const color = formatPickedVideoColor(context.getImageData(0, 0, 1, 1).data);
     videoColorSwatch.style.background = color;
     videoColorInput.value = color;
@@ -2630,13 +3270,14 @@ async function repaintJassubFrame() {
   }
 
   await jassubRenderer.ready;
-  await jassubRenderer.resize(true);
-  await jassubRenderer.manualRender({
+  const frame = {
     expectedDisplayTime: performance.now(),
     width: currentVideo.videoWidth,
     height: currentVideo.videoHeight,
     mediaTime: currentVideo.currentTime || 0,
-  });
+  };
+  await jassubRenderer.manualRender(frame);
+  await jassubRenderer.resize(true, frame.width, frame.height);
 }
 
 async function renderJassubPreview() {
@@ -2670,6 +3311,9 @@ async function renderJassubPreview() {
         workerUrl: JASSUB_WORKER_URL,
         wasmUrl: JASSUB_WASM_URL,
         modernWasmUrl: JASSUB_MODERN_WASM_URL,
+        prescaleFactor: 4,
+        prescaleHeightLimit: REQUIRED_UPLOAD_VIDEO_HEIGHT,
+        maxRenderHeight: REQUIRED_UPLOAD_VIDEO_HEIGHT,
         defaultFont: 'liberation sans',
         fonts: fontConfig.fonts,
         availableFonts: fontConfig.availableFonts,
@@ -2699,10 +3343,30 @@ async function renderJassubPreview() {
   }
 }
 
-function renderAssOutput() {
-  const ass = generateAss();
-  assOutput.value = ass;
-  downloadAssButton.disabled = cachedCues.length === 0;
+function syncAssOutputControls() {
+  const hasAssText = Boolean(assOutput.value.trim());
+  downloadAssButton.disabled = !hasAssText;
+  if (resetAssButton) {
+    resetAssButton.disabled = !assOutputManuallyEdited;
+  }
+}
+
+function renderAssOutput(options = {}) {
+  const force = Boolean(options.force);
+  const videoChanged = assOutputVideoHash !== currentVideoHash;
+
+  if (videoChanged) {
+    assOutputManuallyEdited = false;
+    assOutputVideoHash = currentVideoHash;
+  }
+
+  if (force || videoChanged || !assOutputManuallyEdited) {
+    assOutput.value = generateAss();
+    assOutputManuallyEdited = false;
+    assOutputVideoHash = currentVideoHash;
+  }
+
+  syncAssOutputControls();
 }
 
 function renderSubtitledVideoControls() {
@@ -2770,6 +3434,7 @@ function updateVideoControls() {
     videoSeekInput.value = String(currentTime);
   }
   videoTimeLabel.textContent = `${formatVideoTime(currentTime)} / ${formatVideoTime(duration)}`;
+  updateCueTimelinePlayhead(currentTime);
 }
 
 function renderExport() {
@@ -2792,6 +3457,11 @@ async function ensureDefaultStyle() {
     secondaryColor: 'rgba(0, 0, 0, 1)',
     outlineColor: 'none',
     backColor: 'none',
+    badgeColor: 'none',
+    badgePaddingX: 24,
+    badgePaddingY: 12,
+    badgeRadius: 20,
+    lineSpacingOverride: 0,
     positionId: defaultPosition().id,
     createdAt: new Date().toISOString(),
   });
@@ -2981,7 +3651,8 @@ async function saveEditedTranscription() {
   const transcript = existing?.transcripts?.[language];
   if (!transcript) return;
 
-  const outputKey = getTranscriptOutputKey(language);
+  const outputKey =
+    activeTranscriptOutputKey || getTranscriptOutputKey(language);
   const transcripts = {
     ...(existing.transcripts || {}),
     [language]: {
@@ -2995,7 +3666,79 @@ async function saveEditedTranscription() {
     updatedAt: new Date().toISOString(),
   });
   renderTranscription(updated || { ...existing, transcripts });
-  transcriptionStatus.textContent = `${TEXT.saved} · ${language} · ${TEXT.edited}`;
+  transcriptionStatus.textContent = `${TEXT.saved} · ${
+    activeTranscriptOutputLanguage || language
+  } · ${TEXT.edited}`;
+}
+
+async function translateTranscription() {
+  if (!currentVideoHash || transcriptionOutput.hidden) return;
+
+  const language = getSelectedTranscriptionLanguage();
+  const targetLanguage = getSelectedTranslationLanguage();
+  if (!targetLanguage) {
+    transcriptionStatus.textContent = TEXT.targetLanguageRequired;
+    return;
+  }
+
+  translateTranscriptionButton.disabled = true;
+  transcriptionStatus.textContent = TEXT.translating;
+
+  try {
+    const response = await fetch(
+      `/subs-api/videos/${currentVideoHash}/audio/transcript/translate`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: transcriptionOutput.value,
+          sourceLanguage: language,
+          targetLanguage,
+        }),
+      },
+    );
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(payload.message || TEXT.translateFailed);
+    }
+
+    const existing = await SF.getVideoByHash(currentVideoHash);
+    const transcript = existing?.transcripts?.[language];
+    if (!transcript) return;
+
+    const outputKey = getTranscriptTranslationOutputKey(targetLanguage);
+    activeTranscriptOutputKey = outputKey;
+    activeTranscriptOutputLanguage = targetLanguage;
+    const transcripts = {
+      ...(existing.transcripts || {}),
+      [language]: {
+        ...transcript,
+        [outputKey]: payload.text,
+        translatedTo: targetLanguage,
+        translatedAt: payload.createdAt || new Date().toISOString(),
+        translationModel: payload.model,
+      },
+    };
+    await SF.patchVideoByHash(currentVideoHash, {
+      transcripts,
+      updatedAt: new Date().toISOString(),
+    });
+    transcriptionOutput.value = payload.text;
+    transcriptionOutput.hidden = false;
+    saveTranscriptionButton.hidden = false;
+    transcriptionTranslationPanel.hidden = false;
+    transcriptionToCuesPanel.hidden = false;
+    transcriptionStatus.textContent = `${TEXT.translated} · ${targetLanguage}`;
+    await refreshList();
+  } catch (error) {
+    transcriptionStatus.textContent =
+      error instanceof Error ? error.message : TEXT.translateFailed;
+  } finally {
+    translateTranscriptionButton.disabled = false;
+  }
 }
 
 function parseTranscriptionWords(text) {
@@ -3273,10 +4016,12 @@ currentVideo.addEventListener('seeked', () => {
 });
 currentVideo.addEventListener('loadedmetadata', () => {
   clearPickedVideoColor();
+  renderCues();
   updateVideoControls();
   updatePreviewMeta();
   void renderJassubPreview();
 });
+currentVideo.addEventListener('durationchange', renderCues);
 currentVideo.addEventListener('loadeddata', () => {
   updateVideoControls();
   void repaintJassubFrame();
@@ -3331,10 +4076,21 @@ transcribeAudioButton.addEventListener('click', () => {
 saveTranscriptionButton.addEventListener('click', () => {
   void saveEditedTranscription();
 });
+translateTranscriptionButton.addEventListener('click', () => {
+  void translateTranscription();
+});
 createCuesFromTranscriptionButton.addEventListener('click', () => {
   void createCuesFromTranscription();
 });
 transcriptionLanguageInput.addEventListener('change', async () => {
+  if (!currentVideoHash) {
+    renderTranscription(null);
+    return;
+  }
+
+  renderTranscription(await SF.getVideoByHash(currentVideoHash));
+});
+translationLanguageInput.addEventListener('change', async () => {
   if (!currentVideoHash) {
     renderTranscription(null);
     return;
@@ -3365,10 +4121,15 @@ window.addEventListener('resize', resyncEditorLayouts);
   styleFontInput,
   styleFontSizeInput,
   styleFontVariantInput,
+  styleLineSpacingInput,
   stylePrimaryColorInput,
   styleSecondaryColorInput,
   styleOutlineColorInput,
   styleBackColorInput,
+  styleBadgeColorInput,
+  styleBadgePaddingXInput,
+  styleBadgePaddingYInput,
+  styleBadgeRadiusInput,
   stylePositionInput,
 ].forEach((inputElement) => {
   inputElement.addEventListener('input', renderStyleLivePreview);
@@ -3389,10 +4150,15 @@ styleForm.addEventListener('submit', async (event) => {
     font: styleFontInput.value,
     fontSize: Number(styleFontSizeInput.value) || 72,
     fontVariant: styleFontVariantInput.value,
+    lineSpacingOverride: styleLineSpacingInput.value,
     primaryColor: stylePrimaryColorInput.value,
     secondaryColor: styleSecondaryColorInput.value,
     outlineColor: styleOutlineColorInput.value,
     backColor: styleBackColorInput.value,
+    badgeColor: styleBadgeColorInput.value,
+    badgePaddingX: styleBadgePaddingXInput.value,
+    badgePaddingY: styleBadgePaddingYInput.value,
+    badgeRadius: styleBadgeRadiusInput.value,
     positionId: stylePositionInput.value,
     createdAt: existingStyle?.createdAt || new Date().toISOString(),
   });
@@ -3457,16 +4223,17 @@ cueForm.addEventListener('submit', async (event) => {
 
 cancelStyleEditButton.addEventListener('click', resetStyleForm);
 cancelCueEditButton.addEventListener('click', resetCueForm);
-cancelPositionEditButton.addEventListener('click', resetPositionForm);
-newStyleButton?.addEventListener('click', () => {
-  resetStyleForm();
-  focusEditorControl(styleNameInput);
-});
-newCueButton?.addEventListener('click', () => {
+closeCueEditorButton.addEventListener('click', resetCueForm);
+deleteCueButton.addEventListener('click', async () => {
+  if (!editingCueId || !window.confirm('Удалить эту реплику?')) return;
+
+  const cueId = editingCueId;
   resetCueForm();
-  focusEditorControl(cueTextInput);
+  await deleteCue(cueId);
+  await touchCurrentVideoUpdated();
+  await refreshEditor();
 });
-deleteAllCuesButton?.addEventListener('click', async () => {
+deleteAllCuesButton.addEventListener('click', async () => {
   if (
     !currentVideoHash ||
     cachedCues.length === 0 ||
@@ -3485,9 +4252,23 @@ deleteAllCuesButton?.addEventListener('click', async () => {
     deleteAllCuesButton.disabled = cachedCues.length === 0;
   }
 });
+cancelPositionEditButton.addEventListener('click', resetPositionForm);
+newStyleButton?.addEventListener('click', () => {
+  resetStyleForm();
+  focusEditorControl(styleNameInput);
+});
+newCueButton?.addEventListener('click', () => {
+  openNewCueEditor();
+});
 newPositionButton?.addEventListener('click', () => {
   resetPositionForm();
   focusEditorControl(positionNameInput);
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape' || !cueEditorOpen) return;
+
+  event.preventDefault();
+  resetCueForm();
 });
 alignControlButtons.forEach((button) => {
   button.addEventListener('click', () => {
@@ -3542,7 +4323,11 @@ downloadAssButton.addEventListener('click', () => {
     mimeType: 'text/plain;charset=utf-8',
     size: blob.size,
     createdAt: new Date().toISOString(),
-    pageUrl: currentVideoHash ? getSubsPagePath(currentVideoHash) : '/subs/',
+    pageUrl: currentVideoHash
+      ? getSubsPagePath(currentVideoHash)
+      : IS_EN
+        ? '/subs/en'
+        : '/subs/',
     description: currentVideoHash
       ? `ASS-файл субтитров для видео ${currentVideoHash}.`
       : 'ASS-файл субтитров, созданный на странице Subs.',
@@ -3555,6 +4340,17 @@ downloadAssButton.addEventListener('click', () => {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+});
+
+assOutput.addEventListener('input', () => {
+  assOutputManuallyEdited = true;
+  assOutputVideoHash = currentVideoHash;
+  syncAssOutputControls();
+});
+
+resetAssButton?.addEventListener('click', () => {
+  renderAssOutput({ force: true });
+  void renderJassubPreview();
 });
 
 renderSubtitledVideoButton.addEventListener('click', () => {
@@ -3638,12 +4434,17 @@ async function importSourceFileFromQuery() {
 }
 
 async function init() {
+  initExperimentalCueWorkbench();
   await loadEnabledFontFamilies();
   populateStyleFontOptions();
   populateCueFontOptions();
   initializeColorPickers();
   renderAlignControl();
   applyEditorSectionPrefs(await SF.readEditorSectionPrefs());
+  const cuesSection = document.querySelector(
+    '.editor-section[data-section="cues"]',
+  );
+  if (cuesSection) cuesSection.open = true;
   initEditorSections();
   updateVideoControls();
   await loadCurrentVideo();

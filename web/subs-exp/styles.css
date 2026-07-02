@@ -1075,6 +1075,33 @@ pre {
   background: #f9fbf8;
 }
 
+.style-stretch-controls {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.65fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: end;
+  padding: 14px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: #f9fbf8;
+}
+
+.editor-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.editor-checkbox input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--green);
+}
+
 .style-badge-controls__title {
   margin: 0;
   font-size: 14px;
@@ -1924,6 +1951,7 @@ pre {
   .upload-form,
   .link-item,
   .editor-field-grid,
+  .style-stretch-controls,
   .transcription-controls,
   .transcription-translation,
   .transcription-to-cues,
