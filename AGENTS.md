@@ -2,6 +2,24 @@
 
 - Do not run Puppeteer in this repository. For frontend checks, use simpler static/HTTP verification unless the user explicitly asks otherwise.
 
+## Design system (web pages)
+
+All public pages under `web/` share one visual language. When building or changing a page:
+
+- Link the shared stylesheets with a cache-busting query (`?v=YYYYMMDD-N`, bump on change):
+  `/shared/site-theme.css` (design tokens + components), and for pages with the site header also `/shared/site-header.css` + `/shared/site-header.js` with `<header data-site-header data-active="..." data-lang-ru="..." data-lang-en="...">`.
+- Font is Inter (Google Fonts, weights 400–700). Never hardcode font stacks — use `var(--font-sans)`.
+- Colors, spacing, radii and shadows come from CSS variables in site-theme.css: `--v-text`, `--v-muted`, `--v-line`, `--v-bg`, `--v-surface`, spacing scale `--v-space-1..8`, `--radius`, `hsl(var(--shadcn-border))`, `hsl(var(--primary))`, etc. Page CSS should contain layout only, not new colors.
+- Reuse component classes from site-theme.css instead of inventing new ones: cards `.editor-card` / `.tool-block` (border + radius + surface + shadow), buttons `.primary-btn` (filled dark) and `.ghost-btn` / `.mini-btn` (outlined, min-height 40px, font-weight 750), kickers `.section-kicker`.
+- Inputs: 1px `hsl(var(--shadcn-input))` border, `var(--radius)` radius, min-height 40px, `hsl(var(--background))` background.
+- Pages are bilingual where it matters: `index.html` (Russian) + `en.html` (English), linked via the header language switcher.
+
+### Serbia map page (`web/serbia-map/`)
+
+- Desktop (≥900px): split screen — Leaflet map on the left, a scrollable side panel (~50%, max 760px) on the right. All feature info (title, description, large Instagram embed, actions), search and the recent list live in the panel; the map itself has no Leaflet popups for saved features (only for draft markers).
+- Mobile (<900px): the panel becomes a right-side drawer (`.side-panel.open` slides it in over a dimmed overlay); a floating 📋 button on the map opens it, ✕ or the overlay closes it. Selecting a feature on the map opens the drawer.
+- Selection state drives everything: `selectFeature()` renders the details panel, syncs the shareable URL hash (`#p=<id>` for points, `#t=<id>` for tracks) and highlights selected tracks.
+
 ## Deployment
 
 Production (https://vlandivir.com) deploys via GitHub Actions, **not** via `run-production-deploy.sh` (that script is legacy).

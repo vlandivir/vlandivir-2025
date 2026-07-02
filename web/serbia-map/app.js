@@ -20,6 +20,7 @@
   }).addTo(map);
 
   const TRACK_STYLE = { color: '#e0417f', weight: 4, opacity: 0.85 };
+  const TRACK_SELECTED_STYLE = { color: '#b01c5a', weight: 6, opacity: 1 };
   const TRACK_PREVIEW_STYLE = {
     color: '#2a6df4',
     weight: 4,
@@ -32,6 +33,7 @@
     tracks: [],
     markers: new Map(), // point id -> Leaflet marker
     trackLayers: new Map(), // track id -> Leaflet polyline
+    selected: null, // { kind: 'point' | 'track', feature }
     editMode: false,
     draftMarker: null, // temporary marker from a pasted Google Maps link
     draftTrackLayer: null, // preview polyline for a GPX being added
@@ -48,11 +50,29 @@
   const editHint = el('edit-hint');
   const backdrop = el('modal-backdrop');
   const pointForm = el('point-form');
-  const recentToggle = el('recent-toggle');
-  const recentPanel = el('recent-panel');
   const recentList = el('recent-list');
   const gpxButton = el('gpx-upload');
   const gpxInput = el('gpx-file-input');
+  const sidePanel = el('side-panel');
+  const drawerOverlay = el('drawer-overlay');
+
+  const isMobile = () => window.matchMedia('(max-width: 899px)').matches;
+
+  // --- Mobile drawer ---
+
+  function openDrawer() {
+    sidePanel.classList.add('open');
+    drawerOverlay.classList.remove('hidden');
+  }
+
+  function closeDrawer() {
+    sidePanel.classList.remove('open');
+    drawerOverlay.classList.add('hidden');
+  }
+
+  el('drawer-open').addEventListener('click', openDrawer);
+  el('drawer-close').addEventListener('click', closeDrawer);
+  drawerOverlay.addEventListener('click', closeDrawer);
 
   // --- Loading ---
 
@@ -73,7 +93,39 @@
     openFeatureFromUrl();
   }
 
-  // --- Direct links (#p=<id> for points, #t=<id> for tracks) ---
+  // --- Selection (details are rendered in the side panel) ---
+
+  function selectFeature(kind, feature, { fly = false } = {}) {
+    if (state.selected?.kind === 'track') {
+      state.trackLayers.get(state.selected.feature.id)?.setStyle(TRACK_STYLE);
+    }
+    state.selected = { kind, feature };
+    if (kind === 'track') {
+      state.trackLayers.get(feature.id)?.setStyle(TRACK_SELECTED_STYLE);
+    }
+    renderDetails();
+    const prefix = kind === 'track' ? 't' : 'p';
+    history.replaceState(null, '', `#${prefix}=${feature.id}`);
+    if (fly) flyToFeature(kind, feature);
+    if (isMobile()) openDrawer();
+  }
+
+  function clearSelection() {
+    if (state.selected?.kind === 'track') {
+      state.trackLayers.get(state.selected.feature.id)?.setStyle(TRACK_STYLE);
+    }
+    state.selected = null;
+    renderDetails();
+    history.replaceState(null, '', location.pathname);
+  }
+
+  function flyToFeature(kind, feature) {
+    if (kind === 'track') {
+      map.flyToBounds(L.latLngBounds(feature.points).pad(0.2));
+    } else {
+      map.flyTo([feature.latitude, feature.longitude], 14);
+    }
+  }
 
   function featureUrl(kind, feature) {
     const prefix = kind === 'track' ? 't' : 'p';
@@ -86,136 +138,83 @@
     const id = Number(match[2]);
     if (match[1] === 'p') {
       const point = state.points.find((p) => p.id === id);
-      if (point) focusPoint(point);
+      if (point) selectFeature('point', point, { fly: true });
     } else {
       const track = state.tracks.find((t) => t.id === id);
-      if (track) focusTrack(track);
+      if (track) selectFeature('track', track, { fly: true });
     }
   }
 
   window.addEventListener('hashchange', openFeatureFromUrl);
 
-  function syncHashOnPopup(layer, kind, feature) {
-    const prefix = kind === 'track' ? 't' : 'p';
-    layer.on('popupopen', () => {
-      history.replaceState(null, '', `#${prefix}=${feature.id}`);
-    });
-    layer.on('popupclose', () => {
-      if (location.hash === `#${prefix}=${feature.id}`) {
-        history.replaceState(null, '', location.pathname);
-      }
-    });
-  }
+  // --- Details panel ---
 
-  // --- Markers and track layers ---
+  function renderDetails() {
+    const details = el('feature-details');
+    const empty = el('empty-state');
+    details.innerHTML = '';
 
-  const POPUP_OPTIONS = {
-    maxWidth: 300,
-    minWidth: 240,
-    maxHeight: Math.min(560, window.innerHeight - 140),
-  };
-
-  function addMarker(point) {
-    const marker = L.marker([point.latitude, point.longitude]).addTo(map);
-    marker.bindPopup(() => buildPopup(point, 'point'), POPUP_OPTIONS);
-    syncHashOnPopup(marker, 'point', point);
-    state.markers.set(point.id, marker);
-  }
-
-  function removeMarker(pointId) {
-    const marker = state.markers.get(pointId);
-    if (marker) {
-      map.removeLayer(marker);
-      state.markers.delete(pointId);
+    if (!state.selected) {
+      details.classList.add('hidden');
+      empty.classList.remove('hidden');
+      return;
     }
-    state.points = state.points.filter((p) => p.id !== pointId);
-  }
+    details.classList.remove('hidden');
+    empty.classList.add('hidden');
 
-  function addTrackLayer(track) {
-    const polyline = L.polyline(track.points, TRACK_STYLE).addTo(map);
-    polyline.bindPopup(() => buildPopup(track, 'track'), POPUP_OPTIONS);
-    syncHashOnPopup(polyline, 'track', track);
-    state.trackLayers.set(track.id, polyline);
-  }
+    const { kind, feature } = state.selected;
 
-  function removeTrackLayer(trackId) {
-    const layer = state.trackLayers.get(trackId);
-    if (layer) {
-      map.removeLayer(layer);
-      state.trackLayers.delete(trackId);
-    }
-    state.tracks = state.tracks.filter((t) => t.id !== trackId);
-  }
+    const kicker = document.createElement('p');
+    kicker.className = 'details-kicker';
+    kicker.textContent =
+      kind === 'track'
+        ? `Трек · ${trackDistanceKm(feature.points)} км`
+        : 'Точка на карте';
+    details.appendChild(kicker);
 
-  function focusPoint(point) {
-    map.flyTo([point.latitude, point.longitude], 14);
-    const marker = state.markers.get(point.id);
-    if (marker) setTimeout(() => marker.openPopup(), 600);
-  }
-
-  function focusTrack(track) {
-    const bounds = L.latLngBounds(track.points).pad(0.2);
-    map.flyToBounds(bounds);
-    const layer = state.trackLayers.get(track.id);
-    if (layer) setTimeout(() => layer.openPopup(bounds.getCenter()), 600);
-  }
-
-  function focusFeature(kind, feature) {
-    if (kind === 'track') {
-      focusTrack(feature);
-    } else {
-      focusPoint(feature);
-    }
-  }
-
-  // --- Popups (shared between points and tracks) ---
-
-  function buildPopup(feature, kind) {
-    const container = document.createElement('div');
-
-    const title = document.createElement('div');
-    title.className = 'popup-title';
+    const title = document.createElement('h2');
     title.textContent = feature.name;
-    container.appendChild(title);
-
-    if (kind === 'track') {
-      const meta = document.createElement('div');
-      meta.className = 'popup-track-meta';
-      meta.textContent = `Трек · ${trackDistanceKm(feature.points)} км`;
-      container.appendChild(meta);
-    }
+    details.appendChild(title);
 
     if (feature.description) {
-      const description = document.createElement('div');
-      description.className = 'popup-description';
+      const description = document.createElement('p');
+      description.className = 'details-description';
       description.textContent = feature.description;
-      container.appendChild(description);
+      details.appendChild(description);
     }
 
     if (feature.instagramUrl) {
       const embedUrl = instagramEmbedUrl(feature.instagramUrl);
       if (embedUrl) {
         const player = document.createElement('iframe');
-        player.className = 'popup-player';
+        player.className = 'details-player';
         player.src = embedUrl;
         player.allow = 'autoplay; encrypted-media; picture-in-picture';
         player.allowFullscreen = true;
-        container.appendChild(player);
+        details.appendChild(player);
       }
     }
 
     const actions = document.createElement('div');
-    actions.className = 'popup-actions';
+    actions.className = 'details-actions';
+
+    const showButton = document.createElement('button');
+    showButton.className = 'mini-btn';
+    showButton.textContent = '🗺 Показать на карте';
+    showButton.addEventListener('click', () => {
+      flyToFeature(kind, feature);
+      if (isMobile()) closeDrawer();
+    });
+    actions.appendChild(showButton);
 
     if (feature.instagramUrl) {
       const link = document.createElement('a');
-      link.className = 'popup-instagram-link';
+      link.className = 'mini-btn instagram-btn';
       link.href = feature.instagramUrl;
       link.target = '_blank';
       link.rel = 'noopener';
-      link.title = 'Открыть в Instagram';
       link.innerHTML =
-        '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">' +
+        '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">' +
         '<rect x="2" y="2" width="20" height="20" rx="5.5" fill="none" stroke="currentColor" stroke-width="2"/>' +
         '<circle cx="12" cy="12" r="4.5" fill="none" stroke="currentColor" stroke-width="2"/>' +
         '<circle cx="17.3" cy="6.7" r="1.4" fill="currentColor"/>' +
@@ -224,7 +223,7 @@
     }
 
     const shareButton = document.createElement('button');
-    shareButton.className = 'popup-edit-button';
+    shareButton.className = 'mini-btn';
     shareButton.textContent = '🔗 Поделиться';
     shareButton.addEventListener('click', () =>
       shareFeature(kind, feature, shareButton),
@@ -233,15 +232,15 @@
 
     if (state.editMode) {
       const editButton = document.createElement('button');
-      editButton.className = 'popup-edit-button';
+      editButton.className = 'mini-btn';
       editButton.textContent = 'Изменить';
-      editButton.addEventListener('click', () => {
-        openForm({ kind, editing: feature });
-      });
+      editButton.addEventListener('click', () =>
+        openForm({ kind, editing: feature }),
+      );
       actions.appendChild(editButton);
 
       const deleteButton = document.createElement('button');
-      deleteButton.className = 'popup-delete-button';
+      deleteButton.className = 'mini-btn danger-btn';
       deleteButton.textContent = 'Удалить';
       deleteButton.addEventListener('click', () =>
         deleteFeature(kind, feature),
@@ -249,8 +248,7 @@
       actions.appendChild(deleteButton);
     }
 
-    container.appendChild(actions);
-    return container;
+    details.appendChild(actions);
   }
 
   async function shareFeature(kind, feature, button) {
@@ -282,6 +280,43 @@
     if (!match) return null;
     return `https://www.instagram.com/${match[1]}/${match[2]}/embed/`;
   }
+
+  // --- Markers and track layers ---
+
+  function addMarker(point) {
+    const marker = L.marker([point.latitude, point.longitude]).addTo(map);
+    marker.on('click', () => selectFeature('point', point));
+    state.markers.set(point.id, marker);
+  }
+
+  function removeMarker(pointId) {
+    const marker = state.markers.get(pointId);
+    if (marker) {
+      map.removeLayer(marker);
+      state.markers.delete(pointId);
+    }
+    state.points = state.points.filter((p) => p.id !== pointId);
+  }
+
+  function addTrackLayer(track) {
+    const polyline = L.polyline(track.points, TRACK_STYLE).addTo(map);
+    polyline.on('click', () => selectFeature('track', track));
+    state.trackLayers.set(track.id, polyline);
+  }
+
+  function removeTrackLayer(trackId) {
+    const layer = state.trackLayers.get(trackId);
+    if (layer) {
+      map.removeLayer(layer);
+      state.trackLayers.delete(trackId);
+    }
+    state.tracks = state.tracks.filter((t) => t.id !== trackId);
+  }
+
+  map.on('click', () => {
+    if (state.editMode) return; // don't fight with double-click adding
+    if (state.selected) clearSelection();
+  });
 
   // --- Recent panel ---
 
@@ -324,25 +359,12 @@
       );
       item.appendChild(meta);
 
-      item.addEventListener('click', () => {
-        if (window.innerWidth < 700) setRecentPanel(false);
-        focusFeature(kind, feature);
-      });
+      item.addEventListener('click', () =>
+        selectFeature(kind, feature, { fly: true }),
+      );
       recentList.appendChild(item);
     });
   }
-
-  function setRecentPanel(open) {
-    recentPanel.classList.toggle('hidden', !open);
-    recentToggle.classList.toggle('active', open);
-  }
-
-  recentToggle.addEventListener('click', () => {
-    setRecentPanel(recentPanel.classList.contains('hidden'));
-  });
-
-  // Open by default on wide screens
-  setRecentPanel(window.innerWidth >= 900);
 
   // --- Edit mode ---
 
@@ -390,8 +412,7 @@
     } else {
       map.doubleClickZoom.enable();
     }
-    // Rebuild open popups so edit buttons appear/disappear
-    map.closePopup();
+    renderDetails(); // edit/delete buttons appear or disappear
   }
 
   map.on('dblclick', (event) => {
@@ -511,6 +532,7 @@
     const layer = L.polyline(points, TRACK_PREVIEW_STYLE).addTo(map);
     state.draftTrackLayer = layer;
     map.flyToBounds(layer.getBounds().pad(0.2));
+    if (isMobile()) closeDrawer();
     openForm({
       kind: 'track',
       editing: null,
@@ -592,17 +614,16 @@
       container.appendChild(title);
 
       const hint = document.createElement('div');
-      hint.className = 'popup-description';
+      hint.className = 'popup-hint';
       hint.textContent = 'Маркер можно перетащить для уточнения места';
       container.appendChild(hint);
 
-      const actions = document.createElement('div');
-      actions.className = 'popup-actions';
       const addButton = document.createElement('button');
-      addButton.className = 'popup-add-button';
+      addButton.className = 'primary-btn';
       addButton.textContent = '➕ Добавить точку';
       addButton.addEventListener('click', async () => {
         if (!(await ensureKey())) return;
+        if (!state.editMode) setEditMode(true);
         openForm({
           kind: 'point',
           editing: null,
@@ -610,8 +631,7 @@
           prefillName: name,
         });
       });
-      actions.appendChild(addButton);
-      container.appendChild(actions);
+      container.appendChild(addButton);
 
       return container;
     });
@@ -630,7 +650,6 @@
   // --- Form (shared between points and tracks) ---
 
   function openForm({ kind, editing, latlng, trackPoints, prefillName }) {
-    map.closePopup();
     state.form = { kind, editing, latlng, trackPoints };
 
     const titles = {
@@ -719,12 +738,7 @@
     }
     renderRecentPanel();
     closeModals();
-
-    const layer =
-      kind === 'point'
-        ? state.markers.get(saved.id)
-        : state.trackLayers.get(saved.id);
-    if (layer) layer.openPopup();
+    selectFeature(kind, saved);
   });
 
   async function deleteFeature(kind, feature) {
@@ -742,12 +756,12 @@
       return;
     }
 
-    map.closePopup();
     if (kind === 'track') {
       removeTrackLayer(feature.id);
     } else {
       removeMarker(feature.id);
     }
+    clearSelection();
     renderRecentPanel();
   }
 
@@ -832,6 +846,7 @@
         alert('Не удалось извлечь координаты из этой ссылки');
         return;
       }
+      if (isMobile()) closeDrawer();
       showDraftMarker(result.coords, result.name);
     });
     searchResults.appendChild(item);
@@ -849,7 +864,7 @@
       item.appendChild(document.createTextNode(feature.name));
       item.addEventListener('click', () => {
         hideSearchResults();
-        focusFeature(kind, feature);
+        selectFeature(kind, feature, { fly: true });
       });
       searchResults.appendChild(item);
     });
@@ -861,6 +876,7 @@
       item.appendChild(document.createTextNode(place.display_name));
       item.addEventListener('click', () => {
         hideSearchResults();
+        if (isMobile()) closeDrawer();
         map.flyTo([Number(place.lat), Number(place.lon)], 13);
       });
       searchResults.appendChild(item);
