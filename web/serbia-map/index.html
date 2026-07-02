@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Карта интересных мест Сербии</title>
+  <meta name="description" content="Интерактивная карта интересных мест Сербии с видео из Instagram" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <link rel="stylesheet" href="/serbia-map/styles.css" />
+</head>
+<body>
+  <div id="map"></div>
+
+  <div class="top-bar">
+    <div class="search-box">
+      <input id="search-input" type="search" placeholder="Поиск места в Сербии…" autocomplete="off" />
+      <div id="search-results" class="search-results hidden"></div>
+    </div>
+    <button id="edit-toggle" class="icon-button" title="Режим редактирования">✏️</button>
+  </div>
+
+  <div id="edit-hint" class="edit-hint hidden">
+    Режим редактирования: нажмите на карту, чтобы добавить точку
+  </div>
+
+  <div id="modal-backdrop" class="modal-backdrop hidden">
+    <div id="point-form-modal" class="modal hidden">
+      <h2 id="form-title">Новая точка</h2>
+      <form id="point-form">
+        <label>Название
+          <input id="form-name" type="text" required maxlength="200" />
+        </label>
+        <label>Описание
+          <textarea id="form-description" rows="3" maxlength="2000"></textarea>
+        </label>
+        <label>Ссылка на Instagram reel
+          <input id="form-instagram" type="url" placeholder="https://www.instagram.com/reel/…" />
+        </label>
+        <div class="form-coords" id="form-coords"></div>
+        <div class="form-actions">
+          <button type="button" id="form-cancel" class="secondary">Отмена</button>
+          <button type="submit" class="primary">Сохранить</button>
+        </div>
+      </form>
+    </div>
+
+    <div id="reel-modal" class="modal reel-modal hidden">
+      <button id="reel-close" class="icon-button reel-close" title="Закрыть">✕</button>
+      <div id="reel-container"></div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="/serbia-map/app.js"></script>
+</body>
+</html>

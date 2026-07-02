@@ -12,6 +12,7 @@ TELEGRAM_BOT_TOKEN=$(grep VLANDIVIR_2025_BOT_TOKEN .env | cut -d '=' -f2)
 POSTGRES_CONNECTION_STRING=$(grep POSTGRES_CONNECTION_STRING .env | cut -d '=' -f2)
 DO_SPACES_ACCESS_KEY=$(grep DO_SPACES_ACCESS_KEY .env | cut -d '=' -f2)
 DO_SPACES_SECRET_KEY=$(grep DO_SPACES_SECRET_KEY .env | cut -d '=' -f2)
+MAP_API_KEY=$(grep MAP_API_KEY .env | cut -d '=' -f2)
 
 docker build \
   --platform linux/amd64 \
@@ -21,6 +22,7 @@ docker build \
   --build-arg POSTGRES_CONNECTION_STRING="${POSTGRES_CONNECTION_STRING}" \
   --build-arg DO_SPACES_ACCESS_KEY="${DO_SPACES_ACCESS_KEY}" \
   --build-arg DO_SPACES_SECRET_KEY="${DO_SPACES_SECRET_KEY}" \
+  --build-arg MAP_API_KEY="${MAP_API_KEY}" \
   -t vlandivir-2025 .
 
 docker tag vlandivir-2025 registry.digitalocean.com/vlandivir-main/vlandivir-2025:$TAG_NAME

@@ -45,6 +45,7 @@ jobs:
           OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
           VLANDIVIR_2025_WEBHOOK_URL=${{ secrets.VLANDIVIR_2025_WEBHOOK_URL }}
           NOTE_API_KEY=${{ secrets.NOTE_API_KEY }}
+          MAP_API_KEY=${{ secrets.MAP_API_KEY }}
     
     - name: Clean up old Docker images
       uses: appleboy/ssh-action@v1.0.3

@@ -9,6 +9,7 @@ import { MiniAppController } from './mini-app/mini-app.controller';
 import { SubsController } from './subs.controller';
 import { NotesApiController } from './notes-api.controller';
 import { NotificationsApiController } from './notifications-api.controller';
+import { MapApiController } from './map-api.controller';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { NotificationsApiController } from './notifications-api.controller';
     SubsController,
     NotesApiController,
     NotificationsApiController,
+    MapApiController,
   ],
   providers: [AppService],
 })
