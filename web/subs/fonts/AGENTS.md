@@ -5,25 +5,25 @@
 ## Зачем эта папка
 
 - TTF-файлы отдаются JASSUB (`buildJassubFontConfig()` в `web/subs/app.js`) и браузеру (`fonts.css`).
-- Список семейств — единый источник правды: массив `SUBTITLE_FONTS` в `app.js`.
-- Все шрифты из списка ниже — **бесплатные (OFL)** и **проверены на кириллицу** в бандле.
+- Список семейств — единый источник правды: массив `SUBTITLE_FONTS` в `web/subs/fonts-shared.js`.
+- Все шрифты из списка ниже — **бесплатные (OFL)**. Основной каталог проверен на кириллицу; явное исключение: **Bebas Neue** — латинский display-шрифт без кириллицы.
 
 ## Рекомендации для Reels / Shorts (кириллица)
 
 | Роль | Семейства в бандле | Заметка |
 |------|-------------------|---------|
-| Крупные заголовки, хук | Bebas Neue Cyrillic, Oswald, Russo One, Unbounded, Oi, Lack | Узкие/дисплейные, хорошо в 72–120 px |
+| Крупные заголовки, хук | Bebas Neue Cyrillic, Oswald, Alumni Sans, Yanone Kaffeesatz, Russo One, Unbounded, Oi, Lack | Узкие/дисплейные, хорошо в 72–120 px |
 | Нейтральные субтитры | Montserrat, Inter, Roboto, Noto Sans, Golos Text, Onest, Finlandica | Читаемость на 9:16 |
 | Засечки / editorial | Spectral, Bitter, PT Serif, Playfair Display, Merriweather, Literata, Cormorant Garamond, EB Garamond, IBM Plex Serif | Длинный текст, спокойный тон |
-| Конструктив / tech | Tektur, Arsenal | Рилс с «техно»-вайбом |
+| Конструктив / tech | Advent Pro, Tektur, Arsenal | Рилс с «техно»-вайбом |
 | «Трендовый» геометрический | Manrope, Rubik, Jost, Commissioner | Округлые формы |
 | Техно / спорт | Exo 2, Geologica | Наклон и ширина |
 | Мягкий lifestyle | Comfortaa, Nunito Sans | Для лайфстайл-рилс |
 | Каллиграфия / formal script | Great Vibes | Короткие фразы, не для длинных субтитров |
-| Плотный текст в две строки | Roboto Condensed, PT Sans, Fira Sans, Source Sans 3 | Узкая ширина |
+| Плотный текст в две строки | Roboto Condensed, PT Sans Narrow, Fira Sans Extra Condensed, Sofia Sans Extra Condensed, Ubuntu Condensed, PT Sans, Fira Sans, Source Sans 3 | Узкая ширина |
 | Акцент одной фразой | Russo One (только regular) | Не для длинных абзацев |
 
-Не добавлять в список без кириллицы: **Anton**, **Archivo Black**, латинский **Bebas Neue**, **Poppins**, **DM Sans**, **League Spartan** (файлы могут лежать в папке исторически — в `SUBTITLE_FONTS` не включать).
+Не добавлять в список без кириллицы: **Anton**, **Archivo Black**, **Poppins**, **DM Sans**, **League Spartan** (файлы могут лежать в папке исторически — в `SUBTITLE_FONTS` не включать). **Bebas Neue** добавлен как явное латинское исключение по запросу.
 
 ## Правила добавления нового шрифта
 
@@ -128,15 +128,18 @@ for w in (400, 700):
 | Нет стабильного OFL-зеркала | Wremena (13), Soyuz Grotesk (20), Bluu Next (14) |
 | Латиница / ограничения лицензии | Coolvetica (26) |
 
-## Текущий каталог (42 семейства)
+## Текущий каталог (50 семейств)
 
 Полный список — массив `SUBTITLE_FONTS` в `web/subs/fonts-shared.js`. Ниже — справочник с ссылками.
 
 | Семейство | Файлы в папке | Скачать / источник | Для Reels |
 |-----------|---------------|-------------------|-----------|
+| Advent Pro | `advent-pro-400.ttf`, `advent-pro-700.ttf` | [Advent Pro](https://fonts.google.com/specimen/Advent+Pro) · [ofl/adventpro](https://github.com/google/fonts/tree/main/ofl/adventpro) | Узкий техно-гротеск; variable инстанцирован в 400/700 |
 | Alegreya Sans | `alegreya-sans-400.ttf`, `alegreya-sans-700.ttf` | [Alegreya Sans](https://fonts.google.com/specimen/Alegreya+Sans) · [ofl/alegreyasans](https://github.com/google/fonts/tree/main/ofl/alegreyasans) | Кирилл. vol.1 |
+| Alumni Sans | `alumni-sans-400.ttf`, `alumni-sans-700.ttf` | [Alumni Sans](https://fonts.google.com/specimen/Alumni+Sans) · [ofl/alumnisans](https://github.com/google/fonts/tree/main/ofl/alumnisans) | Высокий афишный/спортивный гротеск |
 | Arsenal | `arsenal-400.ttf`, `arsenal-700.ttf` | [Arsenal](https://fonts.google.com/specimen/Arsenal) · [ofl/arsenal](https://github.com/google/fonts/tree/main/ofl/arsenal) | Кирилл. vol.1 |
 | Bebas Neue Cyrillic | `bebas-neue-cyrillic-400.ttf` | [Google Fonts](https://fonts.google.com/specimen/Bebas+Neue) (кириллическая сборка) · [ofl/bebasneue](https://github.com/google/fonts/tree/main/ofl/bebasneue) | Заголовки, ALL CAPS |
+| Bebas Neue | `bebas-neue-400.ttf` | [Google Fonts Bebas Neue](https://fonts.google.com/specimen/Bebas+Neue) · [ofl/bebasneue](https://github.com/google/fonts/tree/main/ofl/bebasneue) | Latin-only, заголовки |
 | Bitter | `bitter-400.ttf`, `bitter-700.ttf` | [Bitter](https://fonts.google.com/specimen/Bitter) · [ofl/bitter](https://github.com/google/fonts/tree/main/ofl/bitter) | Кирилл. vol.1 №04, текст с засечками |
 | Comfortaa | `comfortaa-400.ttf`, `comfortaa-700.ttf` | [Comfortaa](https://fonts.google.com/specimen/Comfortaa) · [ofl/comfortaa](https://github.com/google/fonts/tree/main/ofl/comfortaa) | Мягкий, дружелюбный |
 | Commissioner | `commissioner-400.ttf`, `commissioner-700.ttf` | [Commissioner](https://fonts.google.com/specimen/Commissioner) · [ofl/commissioner](https://github.com/google/fonts/tree/main/ofl/commissioner) | Универсальный |
@@ -145,6 +148,7 @@ for w in (400, 700):
 | Exo 2 | `exo-2-400.ttf`, `exo-2-700.ttf` | [Exo 2](https://fonts.google.com/specimen/Exo+2) · [ofl/exo2](https://github.com/google/fonts/tree/main/ofl/exo2) | Динамика, tech |
 | Finlandica | `finlandica-400.ttf`, `finlandica-700.ttf` | [Finlandica](https://fonts.google.com/specimen/Finlandica) · [ofl/finlandica](https://github.com/google/fonts/tree/main/ofl/finlandica) | Статья VI №15 (Finland) |
 | Fira Sans | `fira-sans-400.ttf`, `fira-sans-700.ttf` | [Fira Sans](https://fonts.google.com/specimen/Fira+Sans) · [ofl/firasans](https://github.com/google/fonts/tree/main/ofl/firasans) | Длинные субтитры |
+| Fira Sans Extra Condensed | `fira-sans-extra-condensed-400.ttf`, `fira-sans-extra-condensed-700.ttf` | [Fira Sans Extra Condensed](https://fonts.google.com/specimen/Fira+Sans+Extra+Condensed) · [ofl/firasansextracondensed](https://github.com/google/fonts/tree/main/ofl/firasansextracondensed) | Мягкий узкий гротеск |
 | Geologica | `geologica-400.ttf`, `geologica-700.ttf` | [Geologica](https://fonts.google.com/specimen/Geologica) · [ofl/geologica](https://github.com/google/fonts/tree/main/ofl/geologica) | Современный гротеск |
 | Golos Text | `golos-text-400.ttf`, `golos-text-700.ttf` | [Golos Text](https://fonts.google.com/specimen/Golos+Text) · [ofl/golostext](https://github.com/google/fonts/tree/main/ofl/golostext) | Русский UI-текст |
 | Great Vibes | `great-vibes-400.ttf` (400=700) | [Great Vibes](https://fonts.google.com/specimen/Great+Vibes) · [ofl/greatvibes](https://github.com/google/fonts/tree/main/ofl/greatvibes) · `great-vibes-OFL.txt` | Каллиграфия / script, кириллица с v1.100 |
@@ -165,17 +169,21 @@ for w in (400, 700):
 | Oswald | `oswald-400.ttf`, `oswald-700.ttf` | [Oswald](https://fonts.google.com/specimen/Oswald) · [ofl/oswald](https://github.com/google/fonts/tree/main/ofl/oswald) | Узкий заголовок |
 | Playfair Display | `playfair-display-400.ttf`, `playfair-display-700.ttf` | [Playfair Display](https://fonts.google.com/specimen/Playfair+Display) · [ofl/playfairdisplay](https://github.com/google/fonts/tree/main/ofl/playfairdisplay) | Кирилл. vol.1 №11 |
 | PT Sans | `pt-sans-400.ttf`, `pt-sans-700.ttf` | [PT Sans](https://fonts.google.com/specimen/PT+Sans) · [ofl/ptsans](https://github.com/google/fonts/tree/main/ofl/ptsans) | Кирилл. vol.1 №09 |
+| PT Sans Narrow | `pt-sans-narrow-400.ttf`, `pt-sans-narrow-700.ttf` | [PT Sans Narrow](https://fonts.google.com/specimen/PT+Sans+Narrow) · [ofl/ptsansnarrow](https://github.com/google/fonts/tree/main/ofl/ptsansnarrow) | Узкая кириллическая рабочая лошадка |
 | PT Serif | `pt-serif-400.ttf`, `pt-serif-700.ttf` | [PT Serif](https://fonts.google.com/specimen/PT+Serif) · [ofl/ptserif](https://github.com/google/fonts/tree/main/ofl/ptserif) | Кирилл. vol.1 №09 |
 | Roboto | `roboto-400.ttf`, `roboto-700.ttf` | [Roboto](https://fonts.google.com/specimen/Roboto) · [ofl/roboto](https://github.com/google/fonts/tree/main/ofl/roboto) | YouTube-стиль |
 | Roboto Condensed | `roboto-condensed-400.ttf`, `roboto-condensed-700.ttf` | [Roboto Condensed](https://fonts.google.com/specimen/Roboto+Condensed) · [ofl/robotocondensed](https://github.com/google/fonts/tree/main/ofl/robotocondensed) | Две строки |
 | Roboto Slab | `roboto-slab-400.ttf`, `roboto-slab-700.ttf` | [Roboto Slab](https://fonts.google.com/specimen/Roboto+Slab) · [apache/robotoslab](https://github.com/google/fonts/tree/main/apache/robotoslab) | Кирилл. vol.1 №10 |
 | Rubik | `rubik-400.ttf`, `rubik-700.ttf` | [Rubik](https://fonts.google.com/specimen/Rubik) · [ofl/rubik](https://github.com/google/fonts/tree/main/ofl/rubik) | Округлый акцент |
 | Russo One | `russo-one-400.ttf` (400=700) | [Russo One](https://fonts.google.com/specimen/Russo+One) · [ofl/russoone](https://github.com/google/fonts/tree/main/ofl/russoone) | Жирный акцент |
+| Sofia Sans Extra Condensed | `sofia-sans-extra-condensed-400.ttf`, `sofia-sans-extra-condensed-700.ttf` | [Sofia Sans Extra Condensed](https://fonts.google.com/specimen/Sofia+Sans+Extra+Condensed) · [ofl/sofiasansextracondensed](https://github.com/google/fonts/tree/main/ofl/sofiasansextracondensed) | Очень узкий системный гротеск |
 | Spectral | `spectral-400.ttf`, `spectral-700.ttf` | [Spectral](https://fonts.google.com/specimen/Spectral) · [ofl/spectral](https://github.com/google/fonts/tree/main/ofl/spectral) | Статья VI №33, serif |
 | Source Sans 3 | `source-sans-3-400.ttf`, `source-sans-3-700.ttf` | [Source Sans 3](https://fonts.google.com/specimen/Source+Sans+3) · [ofl/sourcesans3](https://github.com/google/fonts/tree/main/ofl/sourcesans3) | Редакторский текст |
 | Tektur | `tektur-400.ttf`, `tektur-700.ttf` | [Tektur](https://fonts.google.com/specimen/Tektur) · [ofl/tektur](https://github.com/google/fonts/tree/main/ofl/tektur) | Кирилл. vol.1 №27, конструктив |
 | Ubuntu | `ubuntu-400.ttf`, `ubuntu-700.ttf` | [Ubuntu](https://fonts.google.com/specimen/Ubuntu) · [ufl/ubuntu](https://github.com/google/fonts/tree/main/ufl/ubuntu) | Кирилл. vol.1 |
+| Ubuntu Condensed | `ubuntu-condensed-400.ttf` (400=700) | [Ubuntu Condensed](https://fonts.google.com/specimen/Ubuntu+Condensed) · [ufl/ubuntucondensed](https://github.com/google/fonts/tree/main/ufl/ubuntucondensed) | Округлый узкий гротеск |
 | Unbounded | `unbounded-400.ttf`, `unbounded-700.ttf` | [Unbounded](https://fonts.google.com/specimen/Unbounded) · [ofl/unbounded](https://github.com/google/fonts/tree/main/ofl/unbounded) | Яркий display |
+| Yanone Kaffeesatz | `yanone-kaffeesatz-400.ttf`, `yanone-kaffeesatz-700.ttf` | [Yanone Kaffeesatz](https://fonts.google.com/specimen/Yanone+Kaffeesatz) · [ofl/yanonekaffeesatz](https://github.com/google/fonts/tree/main/ofl/yanonekaffeesatz) | Дисплейный вывесочный гротеск |
 
 ## Файлы в папке, не входящие в `SUBTITLE_FONTS`
 
@@ -183,7 +191,7 @@ for w in (400, 700):
 
 | Файл | Причина исключения |
 |------|-------------------|
-| `anton-400.ttf`, `archivo-black-400.ttf`, `bebas-neue-400.ttf` | Нет кириллицы в TTF |
+| `anton-400.ttf`, `archivo-black-400.ttf` | Нет кириллицы в TTF |
 | `poppins-*.ttf`, `dm-sans-*.ttf`, `dmsans-*.ttf`, `league-spartan-*.ttf`, `leaguespartan-*.ttf` | Latin-only в скачанных файлах |
 | `inter-*.woff2`, `montserrat-*.woff2`, `jetbrains-mono-*.woff2` | Старый формат; редактор использует TTF из таблицы выше |
 

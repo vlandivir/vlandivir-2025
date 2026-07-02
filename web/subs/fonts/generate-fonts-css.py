@@ -18,7 +18,7 @@ def parse_subtitle_fonts(source: str) -> list[dict[str, str]]:
     block = match.group(1)
     fonts = []
     for entry in re.finditer(
-        r"\{\s*family:\s*'([^']+)',\s*regular:\s*'([^']+)',\s*bold:\s*'([^']+)'\s*\}",
+        r"\{\s*family:\s*'([^']+)',\s*regular:\s*'([^']+)',\s*bold:\s*'([^']+)',?\s*\}",
         block,
     ):
         fonts.append(

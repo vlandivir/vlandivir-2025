@@ -36,15 +36,30 @@
 
   const SUBTITLE_FONTS = [
     {
+      family: 'Advent Pro',
+      regular: 'advent-pro-400.ttf',
+      bold: 'advent-pro-700.ttf',
+    },
+    {
       family: 'Alegreya Sans',
       regular: 'alegreya-sans-400.ttf',
       bold: 'alegreya-sans-700.ttf',
+    },
+    {
+      family: 'Alumni Sans',
+      regular: 'alumni-sans-400.ttf',
+      bold: 'alumni-sans-700.ttf',
     },
     { family: 'Arsenal', regular: 'arsenal-400.ttf', bold: 'arsenal-700.ttf' },
     {
       family: 'Bebas Neue Cyrillic',
       regular: 'bebas-neue-cyrillic-400.ttf',
       bold: 'bebas-neue-cyrillic-400.ttf',
+    },
+    {
+      family: 'Bebas Neue',
+      regular: 'bebas-neue-400.ttf',
+      bold: 'bebas-neue-400.ttf',
     },
     { family: 'Bitter', regular: 'bitter-400.ttf', bold: 'bitter-700.ttf' },
     {
@@ -77,6 +92,11 @@
       family: 'Fira Sans',
       regular: 'fira-sans-400.ttf',
       bold: 'fira-sans-700.ttf',
+    },
+    {
+      family: 'Fira Sans Extra Condensed',
+      regular: 'fira-sans-extra-condensed-400.ttf',
+      bold: 'fira-sans-extra-condensed-700.ttf',
     },
     {
       family: 'Geologica',
@@ -147,6 +167,11 @@
     },
     { family: 'PT Sans', regular: 'pt-sans-400.ttf', bold: 'pt-sans-700.ttf' },
     {
+      family: 'PT Sans Narrow',
+      regular: 'pt-sans-narrow-400.ttf',
+      bold: 'pt-sans-narrow-700.ttf',
+    },
+    {
       family: 'PT Serif',
       regular: 'pt-serif-400.ttf',
       bold: 'pt-serif-700.ttf',
@@ -169,6 +194,11 @@
       bold: 'russo-one-400.ttf',
     },
     {
+      family: 'Sofia Sans Extra Condensed',
+      regular: 'sofia-sans-extra-condensed-400.ttf',
+      bold: 'sofia-sans-extra-condensed-700.ttf',
+    },
+    {
       family: 'Spectral',
       regular: 'spectral-400.ttf',
       bold: 'spectral-700.ttf',
@@ -181,9 +211,19 @@
     { family: 'Tektur', regular: 'tektur-400.ttf', bold: 'tektur-700.ttf' },
     { family: 'Ubuntu', regular: 'ubuntu-400.ttf', bold: 'ubuntu-700.ttf' },
     {
+      family: 'Ubuntu Condensed',
+      regular: 'ubuntu-condensed-400.ttf',
+      bold: 'ubuntu-condensed-400.ttf',
+    },
+    {
       family: 'Unbounded',
       regular: 'unbounded-400.ttf',
       bold: 'unbounded-700.ttf',
+    },
+    {
+      family: 'Yanone Kaffeesatz',
+      regular: 'yanone-kaffeesatz-400.ttf',
+      bold: 'yanone-kaffeesatz-700.ttf',
     },
   ];
 
