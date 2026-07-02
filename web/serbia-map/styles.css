@@ -186,30 +186,67 @@ body {
   background: #eee;
 }
 
-.reel-modal {
-  position: relative;
-  padding: 0;
-  max-width: 360px;
-  background: #000;
-  overflow: hidden;
+.recent-panel {
+  position: fixed;
+  top: calc(62px + env(safe-area-inset-top));
+  right: 10px;
+  z-index: 900;
+  width: 280px;
+  max-height: calc(100vh - 90px - env(safe-area-inset-top));
+  overflow-y: auto;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
 }
 
-.reel-close {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 10;
-  width: 34px;
-  height: 34px;
+.recent-header {
+  padding: 12px 14px 8px;
+  font-weight: 600;
   font-size: 14px;
+  position: sticky;
+  top: 0;
+  background: #fff;
 }
 
-#reel-container iframe {
+.recent-item {
   display: block;
   width: 100%;
-  height: min(78vh, 620px);
+  padding: 9px 14px;
   border: none;
-  background: #000;
+  border-top: 1px solid #f0f0f0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.recent-item:hover {
+  background: #f5f5f5;
+}
+
+.recent-name {
+  font-size: 14px;
+  color: #222;
+}
+
+.recent-meta {
+  font-size: 12px;
+  color: #999;
+  margin-top: 2px;
+}
+
+.recent-empty {
+  padding: 10px 14px 14px;
+  font-size: 13px;
+  color: #888;
+}
+
+@media (max-width: 699px) {
+  .recent-panel {
+    left: 10px;
+    right: 10px;
+    width: auto;
+    max-height: 45vh;
+  }
 }
 
 .leaflet-popup-content {
@@ -221,6 +258,12 @@ body {
   font-weight: 600;
   font-size: 15px;
   margin-bottom: 4px;
+}
+
+.popup-track-meta {
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 6px;
 }
 
 .popup-description {
@@ -246,8 +289,26 @@ body {
   display: inline-block;
 }
 
-.popup-reel-button {
+.popup-player {
+  display: block;
+  width: 100%;
+  height: 420px;
+  border: none;
+  border-radius: 8px;
+  background: #000;
+  margin-bottom: 8px;
+}
+
+.popup-instagram-link {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px;
   background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);
+  color: #fff !important;
+}
+
+.popup-add-button {
+  background: #2a6df4;
   color: #fff;
 }
 

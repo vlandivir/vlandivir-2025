@@ -11,10 +11,12 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { timingSafeEqual } from 'crypto';
+import { Prisma } from './generated/prisma-client';
 import { PrismaService } from './prisma/prisma.service';
 
 type MapPointBody = {
@@ -24,6 +26,15 @@ type MapPointBody = {
   longitude?: number;
   instagramUrl?: string;
 };
+
+type MapTrackBody = {
+  name?: string;
+  description?: string;
+  instagramUrl?: string;
+  points?: unknown;
+};
+
+const MAX_TRACK_POINTS = 5000;
 
 const SERBIA_BOUNDS = {
   minLat: 41.5,
@@ -113,10 +124,143 @@ export class MapApiController {
     return { deleted: true };
   }
 
+  @Get('tracks')
+  async listTracks() {
+    return this.prisma.mapTrack.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  @Post('tracks')
+  async createTrack(
+    @Headers('x-map-api-key') apiKey: string | undefined,
+    @Body() body: MapTrackBody,
+  ) {
+    this.assertApiKey(apiKey);
+
+    return this.prisma.mapTrack.create({
+      data: {
+        name: this.parseName(body.name),
+        description: this.parseOptionalText(body.description),
+        instagramUrl: this.parseInstagramUrl(body.instagramUrl),
+        points: this.parseTrackPoints(body.points) as Prisma.InputJsonValue,
+      },
+    });
+  }
+
+  @Patch('tracks/:id')
+  async updateTrack(
+    @Headers('x-map-api-key') apiKey: string | undefined,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: MapTrackBody,
+  ) {
+    this.assertApiKey(apiKey);
+    const track = await this.prisma.mapTrack.findUnique({ where: { id } });
+    if (!track) {
+      throw new NotFoundException('Track not found');
+    }
+
+    const data: Record<string, unknown> = {};
+    if (body.name !== undefined) {
+      data.name = this.parseName(body.name);
+    }
+    if (body.description !== undefined) {
+      data.description = this.parseOptionalText(body.description);
+    }
+    if (body.instagramUrl !== undefined) {
+      data.instagramUrl = this.parseInstagramUrl(body.instagramUrl);
+    }
+    if (body.points !== undefined) {
+      data.points = this.parseTrackPoints(body.points);
+    }
+
+    return this.prisma.mapTrack.update({ where: { id }, data });
+  }
+
+  @Delete('tracks/:id')
+  async deleteTrack(
+    @Headers('x-map-api-key') apiKey: string | undefined,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    this.assertApiKey(apiKey);
+    const track = await this.prisma.mapTrack.findUnique({ where: { id } });
+    if (!track) {
+      throw new NotFoundException('Track not found');
+    }
+
+    await this.prisma.mapTrack.delete({ where: { id } });
+    return { deleted: true };
+  }
+
+  private parseTrackPoints(points: unknown): [number, number][] {
+    if (!Array.isArray(points) || points.length < 2) {
+      throw new BadRequestException(
+        'Track must contain at least 2 points ([lat, lng] pairs)',
+      );
+    }
+    if (points.length > MAX_TRACK_POINTS) {
+      throw new BadRequestException(
+        `Track must contain at most ${MAX_TRACK_POINTS} points`,
+      );
+    }
+
+    return points.map((point) => {
+      if (
+        !Array.isArray(point) ||
+        point.length !== 2 ||
+        typeof point[0] !== 'number' ||
+        typeof point[1] !== 'number'
+      ) {
+        throw new BadRequestException(
+          'Each track point must be a [lat, lng] pair of numbers',
+        );
+      }
+      const { latitude, longitude } = this.parseCoordinates(point[0], point[1]);
+      return [latitude, longitude] as [number, number];
+    });
+  }
+
   @Post('key-check')
   checkKey(@Headers('x-map-api-key') apiKey: string | undefined) {
     this.assertApiKey(apiKey);
     return { ok: true };
+  }
+
+  // Short share links (maps.app.goo.gl) carry no coordinates; follow the
+  // redirect server-side so the frontend can parse the expanded URL.
+  @Get('resolve-google-link')
+  async resolveGoogleLink(@Query('url') url: string | undefined) {
+    if (typeof url !== 'string' || !url.trim()) {
+      throw new BadRequestException('url query parameter is required');
+    }
+
+    let parsed: URL;
+    try {
+      parsed = new URL(url.trim());
+    } catch {
+      throw new BadRequestException('url must be a valid URL');
+    }
+
+    const allowedHost =
+      parsed.hostname === 'maps.app.goo.gl' ||
+      parsed.hostname === 'goo.gl' ||
+      /(^|\.)google\.[a-z.]{2,6}$/.test(parsed.hostname);
+    if (parsed.protocol !== 'https:' || !allowedHost) {
+      throw new BadRequestException('Only Google Maps links are supported');
+    }
+
+    const controller = new AbortController();
+    try {
+      const response = await fetch(parsed.toString(), {
+        redirect: 'follow',
+        signal: controller.signal,
+      });
+      const finalUrl = response.url;
+      controller.abort();
+      return { url: finalUrl };
+    } catch {
+      throw new BadRequestException('Could not resolve the link');
+    }
   }
 
   private async assertPointExists(id: number): Promise<void> {

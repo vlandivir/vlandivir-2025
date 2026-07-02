@@ -17,15 +17,23 @@
       <input id="search-input" type="search" placeholder="Поиск места в Сербии…" autocomplete="off" />
       <div id="search-results" class="search-results hidden"></div>
     </div>
+    <button id="recent-toggle" class="icon-button" title="Последние места">📋</button>
+    <button id="gpx-upload" class="icon-button hidden" title="Загрузить GPX-трек">🥾</button>
     <button id="edit-toggle" class="icon-button" title="Режим редактирования">✏️</button>
+    <input id="gpx-file-input" type="file" accept=".gpx,application/gpx+xml" class="hidden" />
+  </div>
+
+  <div id="recent-panel" class="recent-panel hidden">
+    <div class="recent-header">Последние места</div>
+    <div id="recent-list"></div>
   </div>
 
   <div id="edit-hint" class="edit-hint hidden">
-    Режим редактирования: нажмите на карту, чтобы добавить точку
+    Режим редактирования: двойной клик добавит точку, 🥾 — загрузит GPX-трек
   </div>
 
   <div id="modal-backdrop" class="modal-backdrop hidden">
-    <div id="point-form-modal" class="modal hidden">
+    <div id="point-form-modal" class="modal">
       <h2 id="form-title">Новая точка</h2>
       <form id="point-form">
         <label>Название
@@ -43,11 +51,6 @@
           <button type="submit" class="primary">Сохранить</button>
         </div>
       </form>
-    </div>
-
-    <div id="reel-modal" class="modal reel-modal hidden">
-      <button id="reel-close" class="icon-button reel-close" title="Закрыть">✕</button>
-      <div id="reel-container"></div>
     </div>
   </div>
 

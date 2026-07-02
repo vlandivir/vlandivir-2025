@@ -141,6 +141,16 @@ model MapPoint {
   updatedAt    DateTime @updatedAt
 }
 
+model MapTrack {
+  id           Int      @id @default(autoincrement())
+  name         String
+  description  String?  @db.Text
+  instagramUrl String?
+  points       Json     @db.JsonB // [[lat, lng], ...]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
 model ChatSettings {
   chatId    BigInt   @id
   timeZone  String
