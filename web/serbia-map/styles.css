@@ -339,6 +339,15 @@ body {
   font-size: 14px;
 }
 
+.form-trim {
+  display: flex;
+  gap: var(--v-control-gap);
+}
+
+.form-trim label {
+  flex: 1;
+}
+
 .form-coords {
   margin-bottom: var(--v-space-3);
   font-size: 12px;

@@ -542,6 +542,41 @@
     return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
   }
 
+  // Cut the given number of meters off both ends, interpolating the exact
+  // cut position on the segment where it falls. Returns null if the cuts
+  // would consume (almost) the whole track.
+  function trimTrack(points, startMeters, endMeters) {
+    const cumulative = [0];
+    for (let i = 1; i < points.length; i++) {
+      cumulative.push(
+        cumulative[i - 1] + map.distance(points[i - 1], points[i]),
+      );
+    }
+    const total = cumulative[cumulative.length - 1];
+    if (startMeters + endMeters >= total - 10) return null;
+
+    const from = startMeters;
+    const to = total - endMeters;
+    const pointAt = (target) => {
+      let i = 1;
+      while (cumulative[i] < target) i++;
+      const segment = cumulative[i] - cumulative[i - 1] || 1;
+      const t = (target - cumulative[i - 1]) / segment;
+      return [
+        points[i - 1][0] + (points[i][0] - points[i - 1][0]) * t,
+        points[i - 1][1] + (points[i][1] - points[i - 1][1]) * t,
+      ];
+    };
+
+    const result = [];
+    if (from > 0) result.push(pointAt(from));
+    for (let i = 0; i < points.length; i++) {
+      if (cumulative[i] > from && cumulative[i] < to) result.push(points[i]);
+    }
+    if (endMeters > 0) result.push(pointAt(to));
+    return result.length >= 2 ? result : null;
+  }
+
   function trackDistanceKm(points) {
     let meters = 0;
     for (let i = 1; i < points.length; i++) {
@@ -684,6 +719,7 @@
     el('form-description').value = editing?.description || '';
     el('form-instagram').value = editing?.instagramUrl || '';
 
+    el('form-trim-row').classList.toggle('hidden', kind !== 'track');
     if (kind === 'point') {
       const coords = editing
         ? { lat: editing.latitude, lng: editing.longitude }
@@ -692,6 +728,10 @@
       el('form-coords').textContent =
         `Координаты: ${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`;
     } else {
+      // Trimming an already saved track again would eat it up on every save,
+      // so editing defaults to 0.
+      el('form-trim-start').value = editing ? 0 : 500;
+      el('form-trim-end').value = editing ? 0 : 500;
       const points = editing ? editing.points : trackPoints;
       el('form-coords').textContent =
         `Трек: ${points.length} точек, ${trackDistanceKm(points)} км`;
@@ -724,8 +764,20 @@
     if (kind === 'point') {
       body.latitude = latlng.lat;
       body.longitude = latlng.lng;
-    } else if (!editing) {
-      body.points = trackPoints;
+    } else {
+      const trimStart = Math.max(0, Number(el('form-trim-start').value) || 0);
+      const trimEnd = Math.max(0, Number(el('form-trim-end').value) || 0);
+      let points = editing ? editing.points : trackPoints;
+      if (trimStart > 0 || trimEnd > 0) {
+        points = trimTrack(points, trimStart, trimEnd);
+        if (!points) {
+          alert('Обрезка больше длины трека — уменьшите значения');
+          return;
+        }
+        body.points = points;
+      } else if (!editing) {
+        body.points = points;
+      }
     }
 
     const resource = kind === 'track' ? 'tracks' : 'points';
