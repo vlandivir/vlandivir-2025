@@ -211,12 +211,11 @@ body {
 
 .details-player {
   display: block;
-  width: min(100%, 420px);
-  height: min(66vh, 640px);
   margin: 0 auto var(--v-space-4);
   border: 1px solid hsl(var(--shadcn-border));
   border-radius: var(--radius);
-  background: #000;
+  background: #fff;
+  overflow: hidden;
 }
 
 .details-actions {
@@ -412,9 +411,5 @@ body {
 
   .side-panel.open {
     transform: none;
-  }
-
-  .details-player {
-    height: min(58vh, 560px);
   }
 }

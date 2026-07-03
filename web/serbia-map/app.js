@@ -191,7 +191,9 @@
         player.src = embedUrl;
         player.allow = 'autoplay; encrypted-media; picture-in-picture';
         player.allowFullscreen = true;
+        player.setAttribute('scrolling', 'no');
         details.appendChild(player);
+        sizePlayer(player, details);
       }
     }
 
@@ -250,6 +252,27 @@
 
     details.appendChild(actions);
   }
+
+  // Instagram's /embed/ page has no resize API, so pick a width at which the
+  // whole embed (9:16 media + ~96px header/actions chrome) fits the viewport
+  // height — then the iframe never needs an inner scrollbar.
+  const EMBED_CHROME = 96;
+
+  function sizePlayer(player, container) {
+    const availableWidth = container.clientWidth - 32; // card padding
+    const maxHeight = Math.round(window.innerHeight * 0.78);
+    const width = Math.max(
+      220,
+      Math.min(availableWidth, 420, ((maxHeight - EMBED_CHROME) * 9) / 16),
+    );
+    player.style.width = `${Math.round(width)}px`;
+    player.style.height = `${Math.round((width * 16) / 9 + EMBED_CHROME)}px`;
+  }
+
+  window.addEventListener('resize', () => {
+    const player = document.querySelector('.details-player');
+    if (player) sizePlayer(player, el('feature-details'));
+  });
 
   async function shareFeature(kind, feature, button) {
     const url = featureUrl(kind, feature);
@@ -346,7 +369,7 @@
       item.className = 'recent-item';
 
       const icon =
-        kind === 'track' ? '🥾 ' : feature.instagramUrl ? '🎬 ' : '📍 ';
+        kind === 'track' ? '🚴 ' : feature.instagramUrl ? '🎬 ' : '📍 ';
       const name = document.createElement('div');
       name.className = 'recent-name';
       name.textContent = icon + feature.name;
@@ -859,7 +882,7 @@
     localMatches.slice(0, 5).forEach(({ kind, feature }) => {
       const item = document.createElement('button');
       item.className = 'search-result';
-      const tag = kind === 'track' ? '🥾' : '📍';
+      const tag = kind === 'track' ? '🚴' : '📍';
       item.innerHTML = `<span class="result-tag">${tag}</span>`;
       item.appendChild(document.createTextNode(feature.name));
       item.addEventListener('click', () => {
