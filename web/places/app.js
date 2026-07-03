@@ -1,16 +1,13 @@
 (() => {
   const API_BASE = '/map-api';
   const KEY_STORAGE = 'serbia-map-api-key';
-  const SERBIA_CENTER = [44.2, 20.9];
-  const SERBIA_BOUNDS = L.latLngBounds([41.5, 18.0], [46.5, 23.5]);
+  const DEFAULT_CENTER = [44.2, 20.9]; // Belgrade area until features load
   const LIST_PAGE_SIZE = 10;
   const MAX_TRACK_POINTS = 5000;
 
   const map = L.map('map', {
-    center: SERBIA_CENTER,
+    center: DEFAULT_CENTER,
     zoom: 7,
-    maxBounds: SERBIA_BOUNDS.pad(0.5),
-    minZoom: 6,
   });
 
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -19,8 +16,32 @@
       '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
   }).addTo(map);
 
-  const TRACK_STYLE = { color: '#e0417f', weight: 4, opacity: 0.85 };
-  const TRACK_SELECTED_STYLE = { color: '#b01c5a', weight: 6, opacity: 1 };
+  // Each track gets its own colour from the palette (by id, stable across reloads)
+  const TRACK_COLORS = [
+    '#e0417f',
+    '#2a6df4',
+    '#0f9d58',
+    '#f4900c',
+    '#8e44ad',
+    '#00acc1',
+    '#d84315',
+    '#5d8a26',
+    '#c2185b',
+    '#3949ab',
+  ];
+
+  function trackColor(track) {
+    return TRACK_COLORS[track.id % TRACK_COLORS.length];
+  }
+
+  function trackStyle(track, selected = false) {
+    return {
+      color: trackColor(track),
+      weight: selected ? 6 : 4,
+      opacity: selected ? 1 : 0.85,
+    };
+  }
+
   const TRACK_PREVIEW_STYLE = {
     color: '#2a6df4',
     weight: 4,
@@ -92,32 +113,42 @@
       state.tracks.forEach(addTrackLayer);
     }
     renderRecentPanel();
-    openFeatureFromUrl();
+
+    // Without a shared link, open on everything that's on the map
+    const hasSharedFeature = openFeatureFromUrl();
+    if (!hasSharedFeature) {
+      const bounds = L.latLngBounds([]);
+      state.points.forEach((p) => bounds.extend([p.latitude, p.longitude]));
+      state.tracks.forEach((t) => t.points.forEach((p) => bounds.extend(p)));
+      if (bounds.isValid()) map.fitBounds(bounds.pad(0.2));
+    }
   }
 
   // --- Selection (details are rendered in the side panel) ---
 
   function selectFeature(kind, feature, { fly = false } = {}) {
     if (state.selected?.kind === 'track') {
-      state.trackLayers.get(state.selected.feature.id)?.setStyle(TRACK_STYLE);
+      const previous = state.selected.feature;
+      state.trackLayers.get(previous.id)?.setStyle(trackStyle(previous));
     }
     state.selected = { kind, feature };
     if (kind === 'track') {
-      state.trackLayers.get(feature.id)?.setStyle(TRACK_SELECTED_STYLE);
+      state.trackLayers.get(feature.id)?.setStyle(trackStyle(feature, true));
     }
     renderDetails();
-    history.replaceState(null, '', `/serbia-map/${kind}/${feature.id}`);
+    history.replaceState(null, '', `/places/${kind}/${feature.id}`);
     if (fly) flyToFeature(kind, feature);
     if (isMobile()) openDrawer();
   }
 
   function clearSelection() {
     if (state.selected?.kind === 'track') {
-      state.trackLayers.get(state.selected.feature.id)?.setStyle(TRACK_STYLE);
+      const previous = state.selected.feature;
+      state.trackLayers.get(previous.id)?.setStyle(trackStyle(previous));
     }
     state.selected = null;
     renderDetails();
-    history.replaceState(null, '', '/serbia-map/');
+    history.replaceState(null, '', '/places/');
   }
 
   function flyToFeature(kind, feature) {
@@ -129,12 +160,12 @@
   }
 
   function featureUrl(kind, feature) {
-    return `${location.origin}/serbia-map/${kind}/${feature.id}`;
+    return `${location.origin}/places/${kind}/${feature.id}`;
   }
 
   function openFeatureFromUrl() {
-    // Path form (/serbia-map/point/3) with legacy hash (#p=3) fallback
-    const pathMatch = /^\/serbia-map\/(point|track)\/(\d+)\/?$/.exec(
+    // Path form (/places/point/3) with legacy hash (#p=3) fallback
+    const pathMatch = /^\/places\/(point|track)\/(\d+)\/?$/.exec(
       location.pathname,
     );
     const hashMatch = /^#(p|t)=(\d+)$/.exec(location.hash);
@@ -147,11 +178,12 @@
       kind = hashMatch[1] === 'p' ? 'point' : 'track';
       id = Number(hashMatch[2]);
     } else {
-      return;
+      return false;
     }
     const source = kind === 'point' ? state.points : state.tracks;
     const feature = source.find((f) => f.id === id);
     if (feature) selectFeature(kind, feature, { fly: true });
+    return Boolean(feature);
   }
 
   window.addEventListener('hashchange', openFeatureFromUrl);
@@ -202,18 +234,16 @@
       refreshInstagramMeta(kind, feature);
     }
 
-    if (feature.instagramUrl) {
-      const embedUrl = instagramEmbedUrl(feature.instagramUrl);
-      if (embedUrl) {
-        const player = document.createElement('iframe');
-        player.className = 'details-player';
-        player.src = embedUrl;
-        player.allow = 'autoplay; encrypted-media; picture-in-picture';
-        player.allowFullscreen = true;
-        player.setAttribute('scrolling', 'no');
-        details.appendChild(player);
-        sizePlayer(player, details);
-      }
+    if (feature.instagramUrl && isInstagramPostUrl(feature.instagramUrl)) {
+      const wrap = document.createElement('div');
+      wrap.className = 'details-player';
+      const embed = document.createElement('blockquote');
+      embed.className = 'instagram-media';
+      embed.setAttribute('data-instgrm-permalink', feature.instagramUrl);
+      embed.setAttribute('data-instgrm-version', '14');
+      wrap.appendChild(embed);
+      details.appendChild(wrap);
+      processInstagramEmbeds();
     }
 
     const actions = document.createElement('div');
@@ -272,26 +302,25 @@
     details.appendChild(actions);
   }
 
-  // Instagram's /embed/ page has no resize API, so pick a width at which the
-  // whole embed (9:16 media + ~96px header/actions chrome) fits the viewport
-  // height — then the iframe never needs an inner scrollbar.
-  const EMBED_CHROME = 96;
-
-  function sizePlayer(player, container) {
-    const availableWidth = container.clientWidth - 32; // card padding
-    const maxHeight = Math.round(window.innerHeight * 0.78);
-    const width = Math.max(
-      220,
-      Math.min(availableWidth, 420, ((maxHeight - EMBED_CHROME) * 9) / 16),
-    );
-    player.style.width = `${Math.round(width)}px`;
-    player.style.height = `${Math.round((width * 16) / 9 + EMBED_CHROME)}px`;
+  // Official Instagram embed script: it builds the iframe itself and keeps
+  // its height in sync with the content, so nothing inside gets distorted.
+  function processInstagramEmbeds() {
+    if (window.instgrm?.Embeds) {
+      window.instgrm.Embeds.process();
+      return;
+    }
+    if (!document.getElementById('instagram-embed-js')) {
+      const script = document.createElement('script');
+      script.id = 'instagram-embed-js';
+      script.src = 'https://www.instagram.com/embed.js';
+      script.async = true;
+      document.body.appendChild(script);
+    }
   }
 
-  window.addEventListener('resize', () => {
-    const player = document.querySelector('.details-player');
-    if (player) sizePlayer(player, el('feature-details'));
-  });
+  function isInstagramPostUrl(url) {
+    return /instagram\.com\/(?:[^/]+\/)?(reel|p|tv)\//.test(url);
+  }
 
   async function shareFeature(kind, feature, button) {
     const url = featureUrl(kind, feature);
@@ -377,11 +406,6 @@
     }
   }
 
-  function instagramEmbedUrl(url) {
-    const match = /instagram\.com\/(reel|p|tv)\/([A-Za-z0-9_-]+)/.exec(url);
-    if (!match) return null;
-    return `https://www.instagram.com/${match[1]}/${match[2]}/embed/`;
-  }
 
   // --- Markers and track layers ---
 
@@ -401,7 +425,7 @@
   }
 
   function addTrackLayer(track) {
-    const polyline = L.polyline(track.points, TRACK_STYLE).addTo(map);
+    const polyline = L.polyline(track.points, trackStyle(track)).addTo(map);
     polyline.on('click', () => selectFeature('track', track));
     state.trackLayers.set(track.id, polyline);
   }
@@ -422,13 +446,16 @@
 
   // --- Places list (covers, meta, filters, pagination) ---
 
+  // Newest video first; places without a reel fall back to when they were added
+  function featureDate(feature) {
+    return new Date(feature.instagramMeta?.publishedAt || feature.createdAt);
+  }
+
   function allFeatures() {
     return [
       ...state.points.map((p) => ({ kind: 'point', feature: p })),
       ...state.tracks.map((t) => ({ kind: 'track', feature: t })),
-    ].sort(
-      (a, b) => new Date(b.feature.createdAt) - new Date(a.feature.createdAt),
-    );
+    ].sort((a, b) => featureDate(b.feature) - featureDate(a.feature));
   }
 
   function matchesFilters(kind, feature) {
@@ -1076,7 +1103,6 @@
     try {
       const params = new URLSearchParams({
         format: 'jsonv2',
-        countrycodes: 'rs',
         limit: '6',
         q: query,
       });

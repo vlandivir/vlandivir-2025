@@ -4,7 +4,7 @@
   // ---------- Constants ----------
   const CANVAS_W = 1080;
   const CANVAS_H = 1920;
-  const MIN_DIST_M = 50; // minimum distance between thinned points
+  const MIN_DIST_M = 10; // Douglas-Peucker simplification tolerance, meters
   const SAFE_MARGIN = 140; // safe margin in canvas px around the route
   const LANG = document.documentElement.lang === 'en' ? 'en' : 'ru';
   const COPY = {
@@ -311,19 +311,65 @@
     return { points, source };
   }
 
-  // ---------- Thinning: keep first & last, >=50m between adjacent ----------
-  function thinPoints(points, minMeters) {
-    if (points.length <= 2) return points.slice();
-    const last = points[points.length - 1];
-    const out = [points[0]];
-    for (let i = 1; i < points.length - 1; i++) {
-      const prev = out[out.length - 1];
-      const d = haversine(prev.lat, prev.lon, points[i].lat, points[i].lon);
-      if (d >= minMeters) out.push(points[i]);
+  // ---------- Smoothing: moving average + Douglas-Peucker (same as /places) ----------
+  // Moving average flattens GPS jitter; endpoints stay fixed.
+  function smoothTrack(points, windowSize = 5) {
+    if (points.length <= windowSize) return points.slice();
+    const half = Math.floor(windowSize / 2);
+    return points.map((point, index) => {
+      if (index < half || index >= points.length - half) return point;
+      let lat = 0;
+      let lon = 0;
+      for (let i = index - half; i <= index + half; i++) {
+        lat += points[i].lat;
+        lon += points[i].lon;
+      }
+      return { lat: lat / windowSize, lon: lon / windowSize };
+    });
+  }
+
+  function pointToSegmentDeg(p, a, b) {
+    const dx = b.lon - a.lon;
+    const dy = b.lat - a.lat;
+    if (dx === 0 && dy === 0) {
+      return Math.hypot(p.lon - a.lon, p.lat - a.lat);
     }
-    // Ensure final point present and >= minDist from previous, otherwise replace last out point if it's too close to start? No — spec says keep first AND last.
-    out.push(last);
-    return out;
+    let t = ((p.lon - a.lon) * dx + (p.lat - a.lat) * dy) / (dx * dx + dy * dy);
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(p.lon - (a.lon + t * dx), p.lat - (a.lat + t * dy));
+  }
+
+  // Douglas-Peucker keeps the route shape while dropping redundant points.
+  function simplifyTrack(points, toleranceMeters) {
+    if (points.length <= 2) return points.slice();
+    const tolerance = toleranceMeters / 111320; // meters -> degrees (approx)
+
+    const keep = new Array(points.length).fill(false);
+    keep[0] = keep[points.length - 1] = true;
+    const stack = [[0, points.length - 1]];
+
+    while (stack.length) {
+      const [start, end] = stack.pop();
+      let maxDistance = 0;
+      let maxIndex = start;
+      for (let i = start + 1; i < end; i++) {
+        const distance = pointToSegmentDeg(points[i], points[start], points[end]);
+        if (distance > maxDistance) {
+          maxDistance = distance;
+          maxIndex = i;
+        }
+      }
+      if (maxDistance > tolerance) {
+        keep[maxIndex] = true;
+        stack.push([start, maxIndex], [maxIndex, end]);
+      }
+    }
+
+    return points.filter((_, index) => keep[index]);
+  }
+
+  function thinPoints(points, toleranceMeters) {
+    return simplifyTrack(smoothTrack(points), toleranceMeters);
   }
 
   function totalDistanceMeters(points) {
@@ -379,7 +425,7 @@
     const labelSize = Math.max(28, Math.min(72, Number.parseInt(labelSizeInput.value, 10) || 48));
     const lineWidth = Math.max(3, Math.min(24, Number.parseInt(lineWidthInput.value, 10) || DEFAULT_ROUTE_LINE_WIDTH));
     const pointScale = Math.max(2, Math.min(10, Number.parseFloat(pointScaleInput.value) || 3));
-    const minDistanceMeters = Math.max(50, Math.min(500, Number.parseInt(minDistanceInput.value, 10) || MIN_DIST_M));
+    const minDistanceMeters = Math.max(5, Math.min(100, Number.parseInt(minDistanceInput.value, 10) || MIN_DIST_M));
 
     return {
       labels,
@@ -758,7 +804,7 @@
       labelSize: clampSettingNumber(raw.labelSize, 28, 72, DEFAULT_SETTINGS.labelSize),
       lineWidth: clampSettingNumber(raw.lineWidth, 3, 24, DEFAULT_SETTINGS.lineWidth),
       pointScale: clampSettingNumber(raw.pointScale, 2, 10, DEFAULT_SETTINGS.pointScale),
-      minDistance: clampSettingNumber(raw.minDistance, 50, 500, DEFAULT_SETTINGS.minDistance),
+      minDistance: clampSettingNumber(raw.minDistance, 5, 100, DEFAULT_SETTINGS.minDistance),
       trackColor,
       animDuration: clampSettingNumber(raw.animDuration, 1, 30, DEFAULT_SETTINGS.animDuration),
       animFps: ANIM_EXPORT_FPS_OPTIONS.includes(animFps) ? animFps : DEFAULT_SETTINGS.animFps,
@@ -2670,8 +2716,8 @@
       if (applyDemoContent && currentState) {
         settingsPersistSuspended = true;
         titleInput.value = 'Evening Mountain Bike Ride';
-        minDistanceInput.value = '180';
-        minDistanceOutput.textContent = '180';
+        minDistanceInput.value = '30';
+        minDistanceOutput.textContent = '30';
         waypointList.textContent = '';
         waypointCounter = 0;
         addWaypointRow(copy.defaultStart, '0', '0', '0', false);

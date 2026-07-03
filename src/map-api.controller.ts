@@ -39,13 +39,6 @@ type MapTrackBody = {
 const MAX_TRACK_POINTS = 5000;
 const INSTAGRAM_META_TTL_MS = 24 * 60 * 60 * 1000;
 
-const SERBIA_BOUNDS = {
-  minLat: 41.5,
-  maxLat: 46.5,
-  minLng: 18.0,
-  maxLng: 23.5,
-};
-
 @Controller('map-api')
 export class MapApiController {
   constructor(
@@ -340,7 +333,7 @@ export class MapApiController {
       return await this.storageService.uploadFileWithKey(
         buffer,
         contentType,
-        `serbia-map/covers/${kind}-${id}.jpg`,
+        `places/covers/${kind}-${id}.jpg`,
       );
     } catch {
       return oldMeta?.coverUrl;
@@ -449,14 +442,12 @@ export class MapApiController {
     }
 
     if (
-      latitude < SERBIA_BOUNDS.minLat ||
-      latitude > SERBIA_BOUNDS.maxLat ||
-      longitude < SERBIA_BOUNDS.minLng ||
-      longitude > SERBIA_BOUNDS.maxLng
+      latitude < -90 ||
+      latitude > 90 ||
+      longitude < -180 ||
+      longitude > 180
     ) {
-      throw new BadRequestException(
-        'Coordinates must be within the Serbia region',
-      );
+      throw new BadRequestException('Coordinates are out of range');
     }
 
     return { latitude, longitude };

@@ -233,12 +233,16 @@ body {
 }
 
 .details-player {
-  display: block;
   margin: 0 auto var(--v-space-4);
-  border: 1px solid hsl(var(--shadcn-border));
-  border-radius: var(--radius);
-  background: #fff;
-  overflow: hidden;
+  width: 100%;
+  max-width: 420px;
+}
+
+/* embed.js inlines min-width: 326px which overflows narrow drawers */
+.details-player .instagram-media {
+  margin: 0 auto !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
 }
 
 .details-actions {

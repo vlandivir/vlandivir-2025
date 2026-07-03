@@ -4,10 +4,10 @@ import { readFile } from 'fs/promises';
 import * as path from 'path';
 import { PrismaService } from './prisma/prisma.service';
 
-// Serves the map SPA for share links like /serbia-map/point/3 with
+// Serves the map SPA for share links like /places/point/3 with
 // per-feature Open Graph tags injected, so messengers and social networks
 // show a proper title, description and cover preview.
-@Controller('serbia-map')
+@Controller('places')
 export class MapPagesController {
   constructor(private readonly prisma: PrismaService) {}
 
@@ -36,7 +36,7 @@ export class MapPagesController {
     res: Response,
   ) {
     const html = await readFile(
-      path.join(process.cwd(), 'web', 'serbia-map', 'index.html'),
+      path.join(process.cwd(), 'web', 'places', 'index.html'),
       'utf8',
     );
 
@@ -61,18 +61,18 @@ export class MapPagesController {
     const baseUrl =
       process.env.VLANDIVIR_2025_BASE_URL ||
       `${req.protocol}://${req.get('host')}`;
-    const title = `${record.name} — Карта интересных мест Сербии`;
+    const title = `${record.name} — Карта моих мест`;
     const description =
       record.description ||
       meta?.caption ||
-      'Интерактивная карта интересных мест Сербии с видео из Instagram';
+      'Места, которые я посетил или планирую посетить, — с видео из Instagram';
     const image = meta?.coverUrl || meta?.thumbnailUrl;
 
     const tags = [
       `<meta property="og:type" content="article" />`,
       `<meta property="og:title" content="${this.escape(title)}" />`,
       `<meta property="og:description" content="${this.escape(description)}" />`,
-      `<meta property="og:url" content="${this.escape(`${baseUrl}/serbia-map/${kind}/${record.id}`)}" />`,
+      `<meta property="og:url" content="${this.escape(`${baseUrl}/places/${kind}/${record.id}`)}" />`,
       ...(image
         ? [
             `<meta property="og:image" content="${this.escape(image)}" />`,

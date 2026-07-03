@@ -46,8 +46,8 @@ async function bootstrap() {
     app.useStaticAssets(gpxRoutePng, { prefix: '/gpx-route-png' });
     const filesPage = path.join(process.cwd(), 'web', 'files');
     app.useStaticAssets(filesPage, { prefix: '/files' });
-    const serbiaMapPage = path.join(process.cwd(), 'web', 'serbia-map');
-    app.useStaticAssets(serbiaMapPage, { prefix: '/serbia-map' });
+    const placesPage = path.join(process.cwd(), 'web', 'places');
+    app.useStaticAssets(placesPage, { prefix: '/places' });
     const subsPage = path.join(process.cwd(), 'web', 'subs');
     const subsExpPage = path.join(process.cwd(), 'web', 'subs-exp');
     const fontPage = path.join(subsPage, 'font');
@@ -58,8 +58,8 @@ async function bootstrap() {
     app.useStaticAssets(archivePage, { prefix: '/subs/archive' });
     // Fallback to index.html for SPA routes (use RegExp to avoid path-to-regexp issues)
     const instance = app.getHttpAdapter().getInstance();
-    instance.get(/^\/serbia-map\/?$/, (_req: unknown, res: Response) => {
-      res.sendFile(path.join(serbiaMapPage, 'index.html'));
+    instance.get(/^\/places\/?$/, (_req: unknown, res: Response) => {
+      res.sendFile(path.join(placesPage, 'index.html'));
     });
     instance.get(/^\/mini-app(?:\/.*)?$/, (_req: unknown, res: Response) => {
       res.sendFile(path.join(miniAppDist, 'index.html'));
@@ -127,8 +127,8 @@ async function bootstrap() {
     app.useStaticAssets(gpxRoutePng, { prefix: '/gpx-route-png' });
     const filesPage = path.join(process.cwd(), 'web', 'files');
     app.useStaticAssets(filesPage, { prefix: '/files' });
-    const serbiaMapPage = path.join(process.cwd(), 'web', 'serbia-map');
-    app.useStaticAssets(serbiaMapPage, { prefix: '/serbia-map' });
+    const placesPage = path.join(process.cwd(), 'web', 'places');
+    app.useStaticAssets(placesPage, { prefix: '/places' });
     const subsPage = path.join(process.cwd(), 'web', 'subs');
     const subsExpPage = path.join(process.cwd(), 'web', 'subs-exp');
     const fontPage = path.join(subsPage, 'font');
@@ -138,8 +138,8 @@ async function bootstrap() {
     app.useStaticAssets(fontPage, { prefix: '/font' });
     app.useStaticAssets(archivePage, { prefix: '/subs/archive' });
     const instance = app.getHttpAdapter().getInstance();
-    instance.get(/^\/serbia-map\/?$/, (_req: unknown, res: Response) => {
-      res.sendFile(path.join(serbiaMapPage, 'index.html'));
+    instance.get(/^\/places\/?$/, (_req: unknown, res: Response) => {
+      res.sendFile(path.join(placesPage, 'index.html'));
     });
     instance.get(/^\/mini-app(?:\/.*)?$/, (_req: unknown, res: Response) => {
       res.sendFile(path.join(miniAppDist, 'index.html'));
