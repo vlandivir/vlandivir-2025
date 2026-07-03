@@ -18,7 +18,9 @@ All public pages under `web/` share one visual language. When building or changi
 
 - Desktop (≥900px): split screen — Leaflet map on the left, a scrollable side panel (~50%, max 760px) on the right. All feature info (title, description, large Instagram embed, actions), search and the recent list live in the panel; the map itself has no Leaflet popups for saved features (only for draft markers).
 - Mobile (<900px): the panel becomes a right-side drawer (`.side-panel.open` slides it in over a dimmed overlay); a floating 📋 button on the map opens it, ✕ or the overlay closes it. Selecting a feature on the map opens the drawer.
-- Selection state drives everything: `selectFeature()` renders the details panel, syncs the shareable URL hash (`#p=<id>` for points, `#t=<id>` for tracks) and highlights selected tracks.
+- Selection state drives everything: `selectFeature()` renders the details panel, syncs the shareable URL and highlights selected tracks.
+- Share URLs are path-based: `/serbia-map/point/<id>` and `/serbia-map/track/<id>`. `MapPagesController` (src/map-pages.controller.ts) serves these paths server-side with per-feature Open Graph tags injected into index.html; the SPA then reads the path and selects the feature. Legacy `#p=<id>`/`#t=<id>` hashes still work client-side.
+- Instagram metadata (author, date, counters, caption, cover) is cached in the `instagramMeta` JSONB column and refreshed at most once a day via `POST /map-api/{points|tracks}/:id/instagram-meta` (triggered when a feature is opened). Covers are copied to DO Spaces under `serbia-map/covers/{kind}-{id}.jpg` because Instagram CDN URLs expire.
 
 ## Deployment
 

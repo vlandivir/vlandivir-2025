@@ -209,6 +209,29 @@ body {
   white-space: pre-wrap;
 }
 
+.details-insta-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-3);
+  margin-bottom: var(--v-space-3);
+  font-size: 13px;
+  color: var(--v-muted);
+}
+
+.details-insta-meta:empty {
+  display: none;
+}
+
+.details-insta-meta a {
+  font-weight: 600;
+  color: var(--v-text);
+  text-decoration: none;
+}
+
+.details-insta-meta a:hover {
+  text-decoration: underline;
+}
+
 .details-player {
   display: block;
   margin: 0 auto var(--v-space-4);
@@ -260,8 +283,29 @@ body {
   font-weight: 700;
 }
 
+.list-filters {
+  display: flex;
+  gap: var(--v-control-gap);
+  margin-bottom: var(--v-space-2);
+}
+
+.list-filters select {
+  flex: 1;
+  min-width: 0;
+  min-height: 36px;
+  padding: 0 var(--v-space-2);
+  border: 1px solid hsl(var(--shadcn-input));
+  border-radius: var(--radius);
+  background: hsl(var(--background));
+  color: var(--v-text);
+  font-family: inherit;
+  font-size: 13px;
+}
+
 .recent-item {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: var(--v-space-3);
   width: 100%;
   padding: var(--v-space-2) var(--v-space-2);
   border: none;
@@ -270,6 +314,31 @@ body {
   text-align: left;
   font-family: inherit;
   cursor: pointer;
+}
+
+.recent-cover {
+  flex: 0 0 56px;
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: var(--radius);
+  background: hsl(var(--shadcn-muted));
+}
+
+.recent-cover-placeholder {
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+}
+
+.recent-body {
+  min-width: 0;
+}
+
+.list-more {
+  width: 100%;
+  margin-top: var(--v-space-2);
+  font-size: 13px;
 }
 
 .recent-item:hover {

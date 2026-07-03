@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <link rel="stylesheet" href="/shared/site-theme.css?v=20260603-3" />
-  <link rel="stylesheet" href="/serbia-map/styles.css?v=20260703-2" />
+  <link rel="stylesheet" href="/serbia-map/styles.css?v=20260703-4" />
 </head>
 <body>
   <div class="app">
@@ -49,8 +49,19 @@
       <div id="feature-details" class="feature-details editor-card hidden"></div>
 
       <section class="recent-section editor-card">
-        <div class="recent-header">Последние места</div>
+        <div class="recent-header">Места</div>
+        <div class="list-filters">
+          <select id="filter-kind">
+            <option value="">Все типы</option>
+            <option value="point">📍 Точки</option>
+            <option value="track">🚴 Треки</option>
+          </select>
+          <select id="filter-author">
+            <option value="">Все авторы</option>
+          </select>
+        </div>
         <div id="recent-list"></div>
+        <button id="list-more" class="ghost-btn list-more hidden">Показать ещё</button>
       </section>
 
       <input id="gpx-file-input" type="file" accept=".gpx,application/gpx+xml" class="hidden" />
@@ -89,6 +100,6 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script src="/serbia-map/app.js?v=20260703-3"></script>
+  <script src="/serbia-map/app.js?v=20260703-5"></script>
 </body>
 </html>

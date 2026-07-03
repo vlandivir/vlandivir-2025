@@ -18,6 +18,8 @@ import { ConfigService } from '@nestjs/config';
 import { timingSafeEqual } from 'crypto';
 import { Prisma } from './generated/prisma-client';
 import { PrismaService } from './prisma/prisma.service';
+import { InstagramMetaService } from './services/instagram-meta.service';
+import { StorageService } from './services/storage.service';
 
 type MapPointBody = {
   name?: string;
@@ -35,6 +37,7 @@ type MapTrackBody = {
 };
 
 const MAX_TRACK_POINTS = 5000;
+const INSTAGRAM_META_TTL_MS = 24 * 60 * 60 * 1000;
 
 const SERBIA_BOUNDS = {
   minLat: 41.5,
@@ -48,6 +51,8 @@ export class MapApiController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    private readonly instagramMetaService: InstagramMetaService,
+    private readonly storageService: StorageService,
   ) {}
 
   @Get('points')
@@ -99,6 +104,9 @@ export class MapApiController {
     }
     if (body.instagramUrl !== undefined) {
       data.instagramUrl = this.parseInstagramUrl(body.instagramUrl);
+      // The link changed — cached metadata belongs to the old reel
+      data.instagramMeta = Prisma.DbNull;
+      data.instagramMetaUpdatedAt = null;
     }
     if (body.latitude !== undefined || body.longitude !== undefined) {
       const { latitude, longitude } = this.parseCoordinates(
@@ -169,6 +177,9 @@ export class MapApiController {
     }
     if (body.instagramUrl !== undefined) {
       data.instagramUrl = this.parseInstagramUrl(body.instagramUrl);
+      // The link changed — cached metadata belongs to the old reel
+      data.instagramMeta = Prisma.DbNull;
+      data.instagramMetaUpdatedAt = null;
     }
     if (body.points !== undefined) {
       data.points = this.parseTrackPoints(body.points);
@@ -218,6 +229,122 @@ export class MapApiController {
       const { latitude, longitude } = this.parseCoordinates(point[0], point[1]);
       return [latitude, longitude] as [number, number];
     });
+  }
+
+  // Refresh cached Instagram metadata for a feature. Public on purpose: any
+  // visitor opening a point triggers it, but the 24h freshness window keeps
+  // us from hammering Instagram.
+  @Post('points/:id/instagram-meta')
+  async refreshPointInstagramMeta(@Param('id', ParseIntPipe) id: number) {
+    return this.refreshInstagramMeta('point', id);
+  }
+
+  @Post('tracks/:id/instagram-meta')
+  async refreshTrackInstagramMeta(@Param('id', ParseIntPipe) id: number) {
+    return this.refreshInstagramMeta('track', id);
+  }
+
+  private async refreshInstagramMeta(kind: 'point' | 'track', id: number) {
+    type MetaRecord = {
+      instagramUrl: string | null;
+      instagramMeta: unknown;
+      instagramMetaUpdatedAt: Date | null;
+    };
+    type MetaDelegate = {
+      findUnique(args: { where: { id: number } }): Promise<MetaRecord | null>;
+      update(args: {
+        where: { id: number };
+        data: Record<string, unknown>;
+      }): Promise<MetaRecord>;
+    };
+    const delegate = (kind === 'point'
+      ? this.prisma.mapPoint
+      : this.prisma.mapTrack) as unknown as MetaDelegate;
+
+    const record = await delegate.findUnique({ where: { id } });
+    if (!record) {
+      throw new NotFoundException('Not found');
+    }
+    if (!record.instagramUrl) {
+      return { instagramMeta: null, refreshed: false };
+    }
+
+    const age = record.instagramMetaUpdatedAt
+      ? Date.now() - record.instagramMetaUpdatedAt.getTime()
+      : Infinity;
+    if (record.instagramMeta && age < INSTAGRAM_META_TTL_MS) {
+      return { instagramMeta: record.instagramMeta, refreshed: false };
+    }
+
+    const meta = await this.instagramMetaService.fetchMeta(record.instagramUrl);
+    if (!meta) {
+      // Remember the attempt so failures don't retry on every open
+      await delegate.update({
+        where: { id },
+        data: { instagramMetaUpdatedAt: new Date() },
+      });
+      return { instagramMeta: record.instagramMeta, refreshed: false };
+    }
+
+    const oldMeta = record.instagramMeta as {
+      coverUrl?: string;
+      thumbnailUrl?: string;
+    } | null;
+    const coverUrl = await this.persistCover(
+      kind,
+      id,
+      meta.thumbnailUrl,
+      oldMeta,
+    );
+    if (coverUrl) meta.coverUrl = coverUrl;
+
+    const updated = await delegate.update({
+      where: { id },
+      data: {
+        instagramMeta: meta as Prisma.InputJsonValue,
+        instagramMetaUpdatedAt: new Date(),
+      },
+    });
+    return { instagramMeta: updated.instagramMeta, refreshed: true };
+  }
+
+  // Instagram thumbnail URLs are signed and expire, so copy the cover into
+  // our own Spaces bucket under a stable per-feature key.
+  private async persistCover(
+    kind: 'point' | 'track',
+    id: number,
+    thumbnailUrl: string | undefined,
+    oldMeta: { coverUrl?: string; thumbnailUrl?: string } | null,
+  ): Promise<string | undefined> {
+    if (!thumbnailUrl) return oldMeta?.coverUrl;
+
+    // Same media file (CDN path ignores the signature) — keep the stored copy
+    if (oldMeta?.coverUrl && oldMeta.thumbnailUrl) {
+      try {
+        if (
+          new URL(oldMeta.thumbnailUrl).pathname ===
+          new URL(thumbnailUrl).pathname
+        ) {
+          return oldMeta.coverUrl;
+        }
+      } catch {
+        // fall through to re-download
+      }
+    }
+
+    try {
+      const response = await fetch(thumbnailUrl);
+      if (!response.ok) return oldMeta?.coverUrl;
+      const buffer = Buffer.from(await response.arrayBuffer());
+      const contentType = response.headers.get('content-type') || 'image/jpeg';
+      return await this.storageService.uploadFileWithKey(
+        buffer,
+        contentType,
+        `serbia-map/covers/${kind}-${id}.jpg`,
+      );
+    } catch {
+      return oldMeta?.coverUrl;
+    }
   }
 
   @Post('key-check')

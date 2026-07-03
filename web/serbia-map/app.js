@@ -3,7 +3,7 @@
   const KEY_STORAGE = 'serbia-map-api-key';
   const SERBIA_CENTER = [44.2, 20.9];
   const SERBIA_BOUNDS = L.latLngBounds([41.5, 18.0], [46.5, 23.5]);
-  const RECENT_LIMIT = 15;
+  const LIST_PAGE_SIZE = 10;
   const MAX_TRACK_POINTS = 5000;
 
   const map = L.map('map', {
@@ -41,6 +41,8 @@
     // being changed (null = creating), latlng for new points, trackPoints for
     // new tracks.
     form: null,
+    filters: { kind: '', author: '' },
+    listLimit: LIST_PAGE_SIZE,
   };
 
   const el = (id) => document.getElementById(id);
@@ -104,8 +106,7 @@
       state.trackLayers.get(feature.id)?.setStyle(TRACK_SELECTED_STYLE);
     }
     renderDetails();
-    const prefix = kind === 'track' ? 't' : 'p';
-    history.replaceState(null, '', `#${prefix}=${feature.id}`);
+    history.replaceState(null, '', `/serbia-map/${kind}/${feature.id}`);
     if (fly) flyToFeature(kind, feature);
     if (isMobile()) openDrawer();
   }
@@ -116,7 +117,7 @@
     }
     state.selected = null;
     renderDetails();
-    history.replaceState(null, '', location.pathname);
+    history.replaceState(null, '', '/serbia-map/');
   }
 
   function flyToFeature(kind, feature) {
@@ -128,24 +129,33 @@
   }
 
   function featureUrl(kind, feature) {
-    const prefix = kind === 'track' ? 't' : 'p';
-    return `${location.origin}/serbia-map/#${prefix}=${feature.id}`;
+    return `${location.origin}/serbia-map/${kind}/${feature.id}`;
   }
 
   function openFeatureFromUrl() {
-    const match = /^#(p|t)=(\d+)$/.exec(location.hash);
-    if (!match) return;
-    const id = Number(match[2]);
-    if (match[1] === 'p') {
-      const point = state.points.find((p) => p.id === id);
-      if (point) selectFeature('point', point, { fly: true });
+    // Path form (/serbia-map/point/3) with legacy hash (#p=3) fallback
+    const pathMatch = /^\/serbia-map\/(point|track)\/(\d+)\/?$/.exec(
+      location.pathname,
+    );
+    const hashMatch = /^#(p|t)=(\d+)$/.exec(location.hash);
+    let kind;
+    let id;
+    if (pathMatch) {
+      kind = pathMatch[1];
+      id = Number(pathMatch[2]);
+    } else if (hashMatch) {
+      kind = hashMatch[1] === 'p' ? 'point' : 'track';
+      id = Number(hashMatch[2]);
     } else {
-      const track = state.tracks.find((t) => t.id === id);
-      if (track) selectFeature('track', track, { fly: true });
+      return;
     }
+    const source = kind === 'point' ? state.points : state.tracks;
+    const feature = source.find((f) => f.id === id);
+    if (feature) selectFeature(kind, feature, { fly: true });
   }
 
   window.addEventListener('hashchange', openFeatureFromUrl);
+  window.addEventListener('popstate', openFeatureFromUrl);
 
   // --- Details panel ---
 
@@ -181,6 +191,15 @@
       description.className = 'details-description';
       description.textContent = feature.description;
       details.appendChild(description);
+    }
+
+    if (feature.instagramUrl) {
+      const metaLine = document.createElement('div');
+      metaLine.className = 'details-insta-meta';
+      metaLine.id = 'details-insta-meta';
+      renderInstagramMetaLine(metaLine, feature.instagramMeta);
+      details.appendChild(metaLine);
+      refreshInstagramMeta(kind, feature);
     }
 
     if (feature.instagramUrl) {
@@ -298,6 +317,66 @@
     }
   }
 
+  // --- Instagram metadata (author, date, counters) ---
+
+  function renderInstagramMetaLine(container, meta) {
+    container.innerHTML = '';
+    if (!meta) return;
+
+    if (meta.username) {
+      const author = document.createElement('a');
+      author.href = `https://www.instagram.com/${meta.username}/`;
+      author.target = '_blank';
+      author.rel = 'noopener';
+      author.textContent = '@' + meta.username;
+      if (meta.fullName) author.title = meta.fullName;
+      container.appendChild(author);
+    }
+
+    const addPart = (text) => {
+      const span = document.createElement('span');
+      span.textContent = text;
+      container.appendChild(span);
+    };
+
+    if (meta.publishedAt) {
+      addPart(
+        new Date(meta.publishedAt).toLocaleDateString('ru-RU', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        }),
+      );
+    }
+    if (typeof meta.likeCount === 'number') addPart(`❤ ${meta.likeCount}`);
+    if (typeof meta.commentCount === 'number') {
+      addPart(`💬 ${meta.commentCount}`);
+    }
+  }
+
+  // Ask the server to refresh cached reel metadata (it re-fetches from
+  // Instagram at most once a day) and update the open panel in place.
+  async function refreshInstagramMeta(kind, feature) {
+    const resource = kind === 'track' ? 'tracks' : 'points';
+    try {
+      const response = await fetch(
+        `${API_BASE}/${resource}/${feature.id}/instagram-meta`,
+        { method: 'POST' },
+      );
+      if (!response.ok) return;
+      const { instagramMeta, refreshed } = await response.json();
+      if (!instagramMeta) return;
+      feature.instagramMeta = instagramMeta;
+      if (state.selected?.feature === feature) {
+        const container = document.getElementById('details-insta-meta');
+        if (container) renderInstagramMetaLine(container, instagramMeta);
+      }
+      if (refreshed) renderRecentPanel(); // new cover/author may have appeared
+    } catch {
+      // metadata is best-effort decoration
+    }
+  }
+
   function instagramEmbedUrl(url) {
     const match = /instagram\.com\/(reel|p|tv)\/([A-Za-z0-9_-]+)/.exec(url);
     if (!match) return null;
@@ -341,53 +420,165 @@
     if (state.selected) clearSelection();
   });
 
-  // --- Recent panel ---
+  // --- Places list (covers, meta, filters, pagination) ---
 
-  function renderRecentPanel() {
-    recentList.innerHTML = '';
-
-    const recent = [
+  function allFeatures() {
+    return [
       ...state.points.map((p) => ({ kind: 'point', feature: p })),
       ...state.tracks.map((t) => ({ kind: 'track', feature: t })),
-    ]
-      .sort(
-        (a, b) =>
-          new Date(b.feature.createdAt) - new Date(a.feature.createdAt),
-      )
-      .slice(0, RECENT_LIMIT);
+    ].sort(
+      (a, b) => new Date(b.feature.createdAt) - new Date(a.feature.createdAt),
+    );
+  }
 
-    if (!recent.length) {
+  function matchesFilters(kind, feature) {
+    if (state.filters.kind && kind !== state.filters.kind) return false;
+    if (
+      state.filters.author &&
+      feature.instagramMeta?.username !== state.filters.author
+    ) {
+      return false;
+    }
+    return true;
+  }
+
+  function renderRecentPanel() {
+    updateAuthorFilter();
+    applyMapFilter();
+    recentList.innerHTML = '';
+
+    const filtered = allFeatures().filter(({ kind, feature }) =>
+      matchesFilters(kind, feature),
+    );
+
+    if (!filtered.length) {
       const empty = document.createElement('div');
       empty.className = 'recent-empty';
-      empty.textContent = 'Пока нет ни одной точки';
+      empty.textContent = 'Ничего не найдено';
       recentList.appendChild(empty);
+      el('list-more').classList.add('hidden');
       return;
     }
 
-    recent.forEach(({ kind, feature }) => {
-      const item = document.createElement('button');
-      item.className = 'recent-item';
+    filtered.slice(0, state.listLimit).forEach(({ kind, feature }) => {
+      recentList.appendChild(buildListItem(kind, feature));
+    });
 
-      const icon =
-        kind === 'track' ? '🚴 ' : feature.instagramUrl ? '🎬 ' : '📍 ';
-      const name = document.createElement('div');
-      name.className = 'recent-name';
-      name.textContent = icon + feature.name;
-      item.appendChild(name);
+    const moreButton = el('list-more');
+    const remaining = filtered.length - state.listLimit;
+    moreButton.classList.toggle('hidden', remaining <= 0);
+    if (remaining > 0) {
+      moreButton.textContent = `Показать ещё (${remaining})`;
+    }
+  }
 
-      const meta = document.createElement('div');
-      meta.className = 'recent-meta';
-      meta.textContent = new Date(feature.createdAt).toLocaleDateString(
-        'ru-RU',
-      );
-      item.appendChild(meta);
+  function buildListItem(kind, feature) {
+    const item = document.createElement('button');
+    item.className = 'recent-item';
 
-      item.addEventListener('click', () =>
-        selectFeature(kind, feature, { fly: true }),
-      );
-      recentList.appendChild(item);
+    const meta = feature.instagramMeta;
+    const coverSrc = meta?.coverUrl || meta?.thumbnailUrl;
+    if (coverSrc) {
+      const cover = document.createElement('img');
+      cover.className = 'recent-cover';
+      cover.src = coverSrc;
+      cover.alt = '';
+      cover.loading = 'lazy';
+      item.appendChild(cover);
+    } else {
+      const placeholder = document.createElement('div');
+      placeholder.className = 'recent-cover recent-cover-placeholder';
+      placeholder.textContent = kind === 'track' ? '🚴' : '📍';
+      item.appendChild(placeholder);
+    }
+
+    const body = document.createElement('div');
+    body.className = 'recent-body';
+
+    const name = document.createElement('div');
+    name.className = 'recent-name';
+    name.textContent =
+      (kind === 'track' ? '🚴 ' : '') + feature.name;
+    body.appendChild(name);
+
+    const metaLine = document.createElement('div');
+    metaLine.className = 'recent-meta';
+    const parts = [];
+    if (meta?.username) parts.push('@' + meta.username);
+    const date = meta?.publishedAt || feature.createdAt;
+    parts.push(new Date(date).toLocaleDateString('ru-RU'));
+    if (typeof meta?.likeCount === 'number') parts.push(`❤ ${meta.likeCount}`);
+    if (kind === 'track') {
+      parts.push(`${trackDistanceKm(feature.points)} км`);
+    }
+    metaLine.textContent = parts.join(' · ');
+    body.appendChild(metaLine);
+
+    item.appendChild(body);
+    item.addEventListener('click', () =>
+      selectFeature(kind, feature, { fly: true }),
+    );
+    return item;
+  }
+
+  function updateAuthorFilter() {
+    const select = el('filter-author');
+    const current = select.value;
+    const authors = [
+      ...new Set(
+        allFeatures()
+          .map(({ feature }) => feature.instagramMeta?.username)
+          .filter(Boolean),
+      ),
+    ].sort();
+
+    select.innerHTML = '';
+    const all = document.createElement('option');
+    all.value = '';
+    all.textContent = 'Все авторы';
+    select.appendChild(all);
+    authors.forEach((author) => {
+      const option = document.createElement('option');
+      option.value = author;
+      option.textContent = '@' + author;
+      select.appendChild(option);
+    });
+    if (authors.includes(current)) select.value = current;
+  }
+
+  function applyMapFilter() {
+    state.points.forEach((point) => {
+      const marker = state.markers.get(point.id);
+      if (!marker) return;
+      const visible = matchesFilters('point', point);
+      if (visible && !map.hasLayer(marker)) marker.addTo(map);
+      if (!visible && map.hasLayer(marker)) map.removeLayer(marker);
+    });
+    state.tracks.forEach((track) => {
+      const layer = state.trackLayers.get(track.id);
+      if (!layer) return;
+      const visible = matchesFilters('track', track);
+      if (visible && !map.hasLayer(layer)) layer.addTo(map);
+      if (!visible && map.hasLayer(layer)) map.removeLayer(layer);
     });
   }
+
+  el('filter-kind').addEventListener('change', (event) => {
+    state.filters.kind = event.target.value;
+    state.listLimit = LIST_PAGE_SIZE;
+    renderRecentPanel();
+  });
+
+  el('filter-author').addEventListener('change', (event) => {
+    state.filters.author = event.target.value;
+    state.listLimit = LIST_PAGE_SIZE;
+    renderRecentPanel();
+  });
+
+  el('list-more').addEventListener('click', () => {
+    state.listLimit += LIST_PAGE_SIZE;
+    renderRecentPanel();
+  });
 
   // --- Edit mode ---
 

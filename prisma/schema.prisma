@@ -131,24 +131,28 @@ model TaskImage {
 }
 
 model MapPoint {
-  id           Int      @id @default(autoincrement())
-  name         String
-  description  String?  @db.Text
-  latitude     Float
-  longitude    Float
-  instagramUrl String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                     Int       @id @default(autoincrement())
+  name                   String
+  description            String?   @db.Text
+  latitude               Float
+  longitude              Float
+  instagramUrl           String?
+  instagramMeta          Json?     @db.JsonB
+  instagramMetaUpdatedAt DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 }
 
 model MapTrack {
-  id           Int      @id @default(autoincrement())
-  name         String
-  description  String?  @db.Text
-  instagramUrl String?
-  points       Json     @db.JsonB // [[lat, lng], ...]
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                     Int       @id @default(autoincrement())
+  name                   String
+  description            String?   @db.Text
+  instagramUrl           String?
+  instagramMeta          Json?     @db.JsonB
+  instagramMetaUpdatedAt DateTime?
+  points                 Json      @db.JsonB // [[lat, lng], ...]
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 }
 
 model ChatSettings {

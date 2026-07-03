@@ -10,6 +10,7 @@ import { SubsController } from './subs.controller';
 import { NotesApiController } from './notes-api.controller';
 import { NotificationsApiController } from './notifications-api.controller';
 import { MapApiController } from './map-api.controller';
+import { MapPagesController } from './map-pages.controller';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { MapApiController } from './map-api.controller';
     NotesApiController,
     NotificationsApiController,
     MapApiController,
+    MapPagesController,
   ],
   providers: [AppService],
 })
