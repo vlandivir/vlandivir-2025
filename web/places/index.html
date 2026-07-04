@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <link rel="stylesheet" href="/shared/site-theme.css?v=20260603-3" />
-  <link rel="stylesheet" href="/places/styles.css?v=20260703-5" />
+  <link rel="stylesheet" href="/places/styles.css?v=20260703-7" />
 </head>
 <body>
   <div class="app">
@@ -59,6 +59,9 @@
           <select id="filter-author">
             <option value="">Все авторы</option>
           </select>
+          <select id="filter-tag">
+            <option value="">Все теги</option>
+          </select>
         </div>
         <div id="recent-list"></div>
         <button id="list-more" class="ghost-btn list-more hidden">Показать ещё</button>
@@ -81,6 +84,11 @@
         <label>Ссылка на Instagram reel
           <input id="form-instagram" type="url" placeholder="https://www.instagram.com/reel/…" />
         </label>
+        <div class="form-tags-label">Теги</div>
+        <div id="form-tags" class="form-tags"></div>
+        <div id="form-track-tools" class="form-track-tools hidden">
+          <button type="button" id="form-replace-gpx" class="ghost-btn">🚴 Заменить GPX-файл</button>
+        </div>
         <div id="form-trim-row" class="form-trim hidden">
           <label>Обрезать от начала, м
             <input id="form-trim-start" type="number" min="0" step="50" value="500" />
@@ -100,6 +108,6 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script src="/places/app.js?v=20260703-8"></script>
+  <script src="/places/app.js?v=20260703-10"></script>
 </body>
 </html>

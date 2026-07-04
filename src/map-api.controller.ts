@@ -27,6 +27,7 @@ type MapPointBody = {
   latitude?: number;
   longitude?: number;
   instagramUrl?: string;
+  tags?: unknown;
 };
 
 type MapTrackBody = {
@@ -34,7 +35,11 @@ type MapTrackBody = {
   description?: string;
   instagramUrl?: string;
   points?: unknown;
+  tags?: unknown;
 };
+
+const MAX_TAGS = 10;
+const MAX_TAG_LENGTH = 50;
 
 const MAX_TRACK_POINTS = 5000;
 const INSTAGRAM_META_TTL_MS = 24 * 60 * 60 * 1000;
@@ -75,6 +80,7 @@ export class MapApiController {
         longitude,
         description: this.parseOptionalText(body.description),
         instagramUrl: this.parseInstagramUrl(body.instagramUrl),
+        tags: this.parseTags(body.tags),
       },
     });
   }
@@ -100,6 +106,9 @@ export class MapApiController {
       // The link changed — cached metadata belongs to the old reel
       data.instagramMeta = Prisma.DbNull;
       data.instagramMetaUpdatedAt = null;
+    }
+    if (body.tags !== undefined) {
+      data.tags = this.parseTags(body.tags);
     }
     if (body.latitude !== undefined || body.longitude !== undefined) {
       const { latitude, longitude } = this.parseCoordinates(
@@ -145,6 +154,7 @@ export class MapApiController {
         description: this.parseOptionalText(body.description),
         instagramUrl: this.parseInstagramUrl(body.instagramUrl),
         points: this.parseTrackPoints(body.points) as Prisma.InputJsonValue,
+        tags: this.parseTags(body.tags),
       },
     });
   }
@@ -174,6 +184,9 @@ export class MapApiController {
       data.instagramMeta = Prisma.DbNull;
       data.instagramMetaUpdatedAt = null;
     }
+    if (body.tags !== undefined) {
+      data.tags = this.parseTags(body.tags);
+    }
     if (body.points !== undefined) {
       data.points = this.parseTrackPoints(body.points);
     }
@@ -194,6 +207,34 @@ export class MapApiController {
 
     await this.prisma.mapTrack.delete({ where: { id } });
     return { deleted: true };
+  }
+
+  private parseTags(tags: unknown): string[] {
+    if (tags === undefined || tags === null) return [];
+    if (!Array.isArray(tags)) {
+      throw new BadRequestException('Tags must be an array of strings');
+    }
+    const parsed = [
+      ...new Set(
+        tags.map((tag) => {
+          if (typeof tag !== 'string' || !tag.trim()) {
+            throw new BadRequestException(
+              'Each tag must be a non-empty string',
+            );
+          }
+          if (tag.length > MAX_TAG_LENGTH) {
+            throw new BadRequestException(
+              `Tags must be at most ${MAX_TAG_LENGTH} characters`,
+            );
+          }
+          return tag.trim().toLowerCase();
+        }),
+      ),
+    ];
+    if (parsed.length > MAX_TAGS) {
+      throw new BadRequestException(`At most ${MAX_TAGS} tags are allowed`);
+    }
+    return parsed;
   }
 
   private parseTrackPoints(points: unknown): [number, number][] {

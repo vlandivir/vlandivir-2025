@@ -139,6 +139,7 @@ model MapPoint {
   instagramUrl           String?
   instagramMeta          Json?     @db.JsonB
   instagramMetaUpdatedAt DateTime?
+  tags                   String[]  @default([])
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 }
@@ -150,6 +151,7 @@ model MapTrack {
   instagramUrl           String?
   instagramMeta          Json?     @db.JsonB
   instagramMetaUpdatedAt DateTime?
+  tags                   String[]  @default([])
   points                 Json      @db.JsonB // [[lat, lng], ...]
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt

@@ -62,9 +62,19 @@
     // being changed (null = creating), latlng for new points, trackPoints for
     // new tracks.
     form: null,
-    filters: { kind: '', author: '' },
+    filters: { kind: '', author: '', tag: '' },
     listLimit: LIST_PAGE_SIZE,
   };
+
+  const KNOWN_TAGS = [
+    { value: 'ресторан', label: '🍽 ресторан' },
+    { value: 'бар', label: '🍺 бар' },
+    { value: 'природа', label: '🌿 природа' },
+  ];
+
+  function tagLabel(value) {
+    return KNOWN_TAGS.find((tag) => tag.value === value)?.label || value;
+  }
 
   const el = (id) => document.getElementById(id);
   const searchInput = el('search-input');
@@ -217,6 +227,18 @@
     const title = document.createElement('h2');
     title.textContent = feature.name;
     details.appendChild(title);
+
+    if (feature.tags?.length) {
+      const tagsRow = document.createElement('div');
+      tagsRow.className = 'details-tags';
+      feature.tags.forEach((tag) => {
+        const chip = document.createElement('span');
+        chip.className = 'details-tag';
+        chip.textContent = tagLabel(tag);
+        tagsRow.appendChild(chip);
+      });
+      details.appendChild(tagsRow);
+    }
 
     if (feature.description) {
       const description = document.createElement('p');
@@ -466,11 +488,18 @@
     ) {
       return false;
     }
+    if (
+      state.filters.tag &&
+      !(feature.tags || []).includes(state.filters.tag)
+    ) {
+      return false;
+    }
     return true;
   }
 
   function renderRecentPanel() {
     updateAuthorFilter();
+    updateTagFilter();
     applyMapFilter();
     recentList.innerHTML = '';
 
@@ -538,6 +567,7 @@
     if (kind === 'track') {
       parts.push(`${trackDistanceKm(feature.points)} км`);
     }
+    (feature.tags || []).forEach((tag) => parts.push(tagLabel(tag)));
     metaLine.textContent = parts.join(' · ');
     body.appendChild(metaLine);
 
@@ -573,6 +603,28 @@
     if (authors.includes(current)) select.value = current;
   }
 
+  function updateTagFilter() {
+    const select = el('filter-tag');
+    const current = select.value;
+    const used = allFeatures().flatMap(({ feature }) => feature.tags || []);
+    const tags = [
+      ...new Set([...KNOWN_TAGS.map((tag) => tag.value), ...used]),
+    ].sort();
+
+    select.innerHTML = '';
+    const all = document.createElement('option');
+    all.value = '';
+    all.textContent = 'Все теги';
+    select.appendChild(all);
+    tags.forEach((tag) => {
+      const option = document.createElement('option');
+      option.value = tag;
+      option.textContent = tagLabel(tag);
+      select.appendChild(option);
+    });
+    if (tags.includes(current)) select.value = current;
+  }
+
   function applyMapFilter() {
     state.points.forEach((point) => {
       const marker = state.markers.get(point.id);
@@ -598,6 +650,12 @@
 
   el('filter-author').addEventListener('change', (event) => {
     state.filters.author = event.target.value;
+    state.listLimit = LIST_PAGE_SIZE;
+    renderRecentPanel();
+  });
+
+  el('filter-tag').addEventListener('change', (event) => {
+    state.filters.tag = event.target.value;
     state.listLimit = LIST_PAGE_SIZE;
     renderRecentPanel();
   });
@@ -683,8 +741,22 @@
       return;
     }
 
+    if (state.form?.kind === 'track') {
+      // The track form is open — replace its route with the new file
+      state.form.trackPoints = points;
+      drawDraftTrack(points);
+      // A fresh recording again starts/ends at home — restore default trim
+      el('form-trim-start').value = 500;
+      el('form-trim-end').value = 500;
+      el('form-coords').textContent =
+        `Новый файл: ${points.length} точек, ${trackDistanceKm(points)} км`;
+      return;
+    }
+
     showDraftTrack(points, file.name.replace(/\.gpx$/i, ''));
   });
+
+  el('form-replace-gpx').addEventListener('click', () => gpxInput.click());
 
   function parseGpx(text) {
     const doc = new DOMParser().parseFromString(text, 'application/xml');
@@ -803,11 +875,15 @@
     return (meters / 1000).toFixed(1);
   }
 
-  function showDraftTrack(points, suggestedName) {
+  function drawDraftTrack(points) {
     removeDraftTrack();
     const layer = L.polyline(points, TRACK_PREVIEW_STYLE).addTo(map);
     state.draftTrackLayer = layer;
     map.flyToBounds(layer.getBounds().pad(0.2));
+  }
+
+  function showDraftTrack(points, suggestedName) {
+    drawDraftTrack(points);
     if (isMobile()) closeDrawer();
     openForm({
       kind: 'track',
@@ -925,6 +1001,30 @@
 
   // --- Form (shared between points and tracks) ---
 
+  const formTags = el('form-tags');
+  KNOWN_TAGS.forEach(({ value, label }) => {
+    const chip = document.createElement('label');
+    chip.className = 'tag-chip';
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.value = value;
+    chip.appendChild(input);
+    chip.appendChild(document.createTextNode(label));
+    formTags.appendChild(chip);
+  });
+
+  function setFormTags(tags) {
+    formTags.querySelectorAll('input').forEach((input) => {
+      input.checked = tags.includes(input.value);
+    });
+  }
+
+  function getFormTags() {
+    return [...formTags.querySelectorAll('input:checked')].map(
+      (input) => input.value,
+    );
+  }
+
   function openForm({ kind, editing, latlng, trackPoints, prefillName }) {
     state.form = { kind, editing, latlng, trackPoints };
 
@@ -936,8 +1036,10 @@
     el('form-name').value = editing ? editing.name : prefillName || '';
     el('form-description').value = editing?.description || '';
     el('form-instagram').value = editing?.instagramUrl || '';
+    setFormTags(editing?.tags || []);
 
     el('form-trim-row').classList.toggle('hidden', kind !== 'track');
+    el('form-track-tools').classList.toggle('hidden', kind !== 'track');
     if (kind === 'point') {
       const coords = editing
         ? { lat: editing.latitude, lng: editing.longitude }
@@ -960,8 +1062,11 @@
   }
 
   function closeModals() {
+    const wasTrackForm = state.form?.kind === 'track';
     backdrop.classList.add('hidden');
     state.form = null;
+    // Cancelled/finished track form — the dashed preview has no owner anymore
+    if (wasTrackForm) removeDraftTrack();
   }
 
   el('form-cancel').addEventListener('click', closeModals);
@@ -978,6 +1083,7 @@
       name: el('form-name').value,
       description: el('form-description').value,
       instagramUrl: el('form-instagram').value,
+      tags: getFormTags(),
     };
     if (kind === 'point') {
       body.latitude = latlng.lat;
@@ -985,7 +1091,9 @@
     } else {
       const trimStart = Math.max(0, Number(el('form-trim-start').value) || 0);
       const trimEnd = Math.max(0, Number(el('form-trim-end').value) || 0);
-      let points = editing ? editing.points : trackPoints;
+      // trackPoints is set when creating or after "replace GPX" while editing
+      const replaced = Boolean(trackPoints);
+      let points = replaced ? trackPoints : editing?.points;
       if (trimStart > 0 || trimEnd > 0) {
         points = trimTrack(points, trimStart, trimEnd);
         if (!points) {
@@ -993,7 +1101,7 @@
           return;
         }
         body.points = points;
-      } else if (!editing) {
+      } else if (!editing || replaced) {
         body.points = points;
       }
     }

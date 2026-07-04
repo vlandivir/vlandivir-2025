@@ -412,6 +412,68 @@ body {
   font-size: 14px;
 }
 
+.form-tags-label {
+  margin-bottom: var(--v-space-1);
+  font-size: 13px;
+  color: var(--v-muted);
+}
+
+.form-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-control-gap);
+  margin-bottom: var(--v-space-3);
+}
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border: 1px solid hsl(var(--shadcn-border));
+  border-radius: 999px;
+  background: hsl(var(--background));
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.tag-chip input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tag-chip:has(input:checked) {
+  background: hsl(var(--primary));
+  border-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+.details-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-control-gap);
+  margin-bottom: var(--v-space-3);
+}
+
+.details-tag {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: hsl(var(--secondary));
+  color: hsl(var(--secondary-foreground));
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.form-track-tools {
+  margin-bottom: var(--v-space-3);
+}
+
+.form-track-tools .ghost-btn {
+  width: 100%;
+  font-size: 13px;
+}
+
 .form-trim {
   display: flex;
   gap: var(--v-control-gap);
