@@ -9,46 +9,71 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/shared/site-theme.css?v=20260603-3" />
-  <link rel="stylesheet" href="/reels/styles.css?v=20260706-1" />
+  <link rel="stylesheet" href="/reels/styles.css?v=20260706-2" />
 </head>
 <body>
-  <div class="page">
-    <header class="page-head">
-      <div class="head-row">
-        <a class="panel-brand" href="/">vlandivir</a>
-        <button id="edit-toggle" class="ghost-btn icon-btn" title="Режим редактирования">✏️</button>
+  <div class="app">
+    <div class="player-pane">
+      <div id="player-stage" class="player-stage">
+        <div id="player-empty" class="player-empty">Выберите ролик в списке — он откроется здесь</div>
+        <video id="player" class="hidden" controls playsinline></video>
+        <div id="player-status" class="player-status hidden"></div>
       </div>
-      <h1 class="page-title">Записная книжка рилсов</h1>
-    </header>
-
-    <form id="add-form" class="add-form editor-card hidden">
-      <input id="add-url" type="url" placeholder="https://www.instagram.com/reel/…" autocomplete="off" />
-      <button type="submit" class="primary-btn" id="add-submit">Добавить</button>
-    </form>
-
-    <div class="list-filters">
-      <select id="filter-author">
-        <option value="">Все авторы</option>
-      </select>
-      <select id="filter-status">
-        <option value="">Все статусы</option>
-        <option value="ready">✅ Готовые</option>
-        <option value="pending">⏳ В обработке</option>
-        <option value="error">⚠️ С ошибкой</option>
-      </select>
+      <button id="drawer-open" class="pane-fab" title="Открыть панель">📋</button>
+      <div id="edit-hint" class="edit-hint hidden">
+        Режим редактирования: вставьте ссылку на reel в форму, чтобы добавить ролик
+      </div>
     </div>
 
-    <div id="reels-grid" class="reels-grid"></div>
-    <div id="empty-state" class="recent-empty hidden">Пока пусто — включите режим редактирования и добавьте первую ссылку</div>
-    <div id="access-denied" class="recent-empty hidden">Нет доступа: неверная ссылка на страницу</div>
+    <div id="drawer-overlay" class="drawer-overlay hidden"></div>
+
+    <aside id="side-panel" class="side-panel">
+      <div class="panel-top">
+        <div class="panel-head-row">
+          <a class="panel-brand" href="/">vlandivir</a>
+          <button id="drawer-close" class="ghost-btn icon-btn mobile-only" title="Закрыть">✕</button>
+        </div>
+        <h1 class="panel-title">Записная книжка рилсов</h1>
+        <div class="panel-controls">
+          <div class="search-box">
+            <input id="search-input" type="search" placeholder="Поиск по названию, описанию, автору…" autocomplete="off" />
+          </div>
+          <button id="edit-toggle" class="ghost-btn icon-btn" title="Режим редактирования">✏️</button>
+        </div>
+      </div>
+
+      <form id="add-form" class="add-form editor-card hidden">
+        <input id="add-url" type="url" placeholder="https://www.instagram.com/reel/…" autocomplete="off" />
+        <button type="submit" class="primary-btn" id="add-submit">Добавить</button>
+      </form>
+
+      <div id="empty-state" class="empty-state editor-card">
+        Выберите ролик в списке — здесь появится описание и данные
+      </div>
+
+      <div id="reel-details" class="reel-details editor-card hidden"></div>
+
+      <section class="recent-section editor-card">
+        <div class="recent-header">Ролики</div>
+        <div class="list-filters">
+          <select id="filter-author">
+            <option value="">Все авторы</option>
+          </select>
+          <select id="filter-status">
+            <option value="">Все статусы</option>
+            <option value="ready">✅ Готовые</option>
+            <option value="pending">⏳ В обработке</option>
+            <option value="error">⚠️ С ошибкой</option>
+          </select>
+        </div>
+        <div id="recent-list"></div>
+        <button id="list-more" class="ghost-btn list-more hidden">Показать ещё</button>
+      </section>
+
+      <div id="access-denied" class="empty-state editor-card hidden">Нет доступа: неверная ссылка на страницу</div>
+    </aside>
   </div>
 
-  <div id="modal-backdrop" class="modal-backdrop hidden">
-    <div id="reel-modal" class="modal editor-card">
-      <div id="reel-modal-content"></div>
-    </div>
-  </div>
-
-  <script src="/reels/app.js?v=20260706-1"></script>
+  <script src="/reels/app.js?v=20260706-2"></script>
 </body>
 </html>

@@ -2,26 +2,50 @@
   const API_BASE = '/reels-api';
   const KEY_STORAGE = 'reels-api-key';
   const POLL_INTERVAL_MS = 4000;
+  const LIST_PAGE_SIZE = 10;
 
-  // The page is unlisted: /reels/<secret>. The same secret is the read key
-  // for the API.
+  // The page is unlisted: /reels/<secret>[/<reelId>]. The same secret is the
+  // read key for the API.
   const PAGE_KEY = decodeURIComponent(location.pathname.split('/')[2] || '');
+  const BASE_PATH = `/reels/${encodeURIComponent(PAGE_KEY)}`;
 
   const state = {
     reels: [],
+    selected: null, // reel object
     editMode: false,
-    filters: { author: '', status: '' },
-    openedId: null,
+    filters: { author: '', status: '', query: '' },
+    listLimit: LIST_PAGE_SIZE,
     pollTimer: null,
   };
 
   const el = (id) => document.getElementById(id);
-  const grid = el('reels-grid');
+  const recentList = el('recent-list');
   const editToggle = el('edit-toggle');
   const addForm = el('add-form');
-  const backdrop = el('modal-backdrop');
+  const searchInput = el('search-input');
+  const sidePanel = el('side-panel');
+  const drawerOverlay = el('drawer-overlay');
+  const player = el('player');
 
   const pageHeaders = { 'x-reels-page-key': PAGE_KEY };
+
+  const isMobile = () => window.matchMedia('(max-width: 899px)').matches;
+
+  // --- Mobile drawer ---
+
+  function openDrawer() {
+    sidePanel.classList.add('open');
+    drawerOverlay.classList.remove('hidden');
+  }
+
+  function closeDrawer() {
+    sidePanel.classList.remove('open');
+    drawerOverlay.classList.add('hidden');
+  }
+
+  el('drawer-open').addEventListener('click', openDrawer);
+  el('drawer-close').addEventListener('click', closeDrawer);
+  drawerOverlay.addEventListener('click', closeDrawer);
 
   // --- Loading ---
 
@@ -33,64 +57,89 @@
     }
     if (!response.ok) return;
     state.reels = await response.json();
-    renderGrid();
+    renderList();
+    openReelFromUrl();
     schedulePolling();
+    if (isMobile() && !state.selected) openDrawer();
   }
 
-  // --- Polling: pending reels are being processed by yt-dlp on the server ---
+  // --- Selection (player on the left, details in the panel) ---
 
-  function schedulePolling() {
-    clearTimeout(state.pollTimer);
-    if (!state.reels.some((reel) => reel.status === 'pending')) return;
-    state.pollTimer = setTimeout(pollPending, POLL_INTERVAL_MS);
-  }
-
-  async function pollPending() {
-    const pending = state.reels.filter((reel) => reel.status === 'pending');
-    await Promise.all(
-      pending.map(async (reel) => {
-        try {
-          const response = await fetch(`${API_BASE}/reels/${reel.id}`, {
-            headers: pageHeaders,
-          });
-          if (!response.ok) return;
-          const fresh = await response.json();
-          const index = state.reels.findIndex((r) => r.id === reel.id);
-          if (index !== -1) state.reels[index] = fresh;
-        } catch {
-          // transient network error — retry on the next tick
-        }
-      }),
-    );
-    renderGrid();
-    if (state.openedId !== null) {
-      const opened = state.reels.find((r) => r.id === state.openedId);
-      if (opened) renderModal(opened);
+  function selectReel(reel, { fromUrl = false } = {}) {
+    state.selected = reel;
+    renderPlayer();
+    renderDetails();
+    renderList(); // highlight the selected row
+    if (!fromUrl) {
+      history.replaceState(null, '', `${BASE_PATH}/${reel.id}`);
     }
-    schedulePolling();
+    if (isMobile()) closeDrawer(); // show the player
   }
 
-  // --- Grid ---
+  function clearSelection() {
+    state.selected = null;
+    renderPlayer();
+    renderDetails();
+    renderList();
+    history.replaceState(null, '', BASE_PATH);
+  }
 
-  function matchesFilters(reel) {
-    if (state.filters.author && reel.author !== state.filters.author) {
-      return false;
+  function openReelFromUrl() {
+    const match = /^\/reels\/[^/]+\/(\d+)\/?$/.exec(location.pathname);
+    if (!match) return false;
+    const reel = state.reels.find((r) => r.id === Number(match[1]));
+    if (reel) selectReel(reel, { fromUrl: true });
+    return Boolean(reel);
+  }
+
+  window.addEventListener('popstate', () => {
+    if (!openReelFromUrl()) clearSelection();
+  });
+
+  // Mobile-only buttons in the details block depend on the breakpoint
+  window
+    .matchMedia('(max-width: 899px)')
+    .addEventListener('change', renderDetails);
+
+  // --- Player pane ---
+
+  function renderPlayer() {
+    const empty = el('player-empty');
+    const status = el('player-status');
+    const reel = state.selected;
+
+    if (!reel) {
+      player.pause();
+      player.removeAttribute('src');
+      player.classList.add('hidden');
+      status.classList.add('hidden');
+      empty.classList.remove('hidden');
+      return;
     }
-    if (state.filters.status && reel.status !== state.filters.status) {
-      return false;
+
+    empty.classList.add('hidden');
+
+    if (reel.status === 'ready' && reel.videoUrl) {
+      status.classList.add('hidden');
+      if (player.getAttribute('src') !== reel.videoUrl) {
+        player.src = reel.videoUrl;
+        if (reel.coverUrl) player.poster = reel.coverUrl;
+      }
+      player.classList.remove('hidden');
+      return;
     }
-    return true;
+
+    player.pause();
+    player.removeAttribute('src');
+    player.classList.add('hidden');
+    status.textContent =
+      reel.status === 'pending'
+        ? '⏳ Ролик обрабатывается — видео появится здесь'
+        : '⚠️ Не удалось обработать ролик';
+    status.classList.remove('hidden');
   }
 
-  function renderGrid() {
-    updateAuthorFilter();
-    grid.innerHTML = '';
-
-    const filtered = state.reels.filter(matchesFilters);
-    el('empty-state').classList.toggle('hidden', filtered.length > 0);
-
-    filtered.forEach((reel) => grid.appendChild(buildCard(reel)));
-  }
+  // --- Details panel ---
 
   function formatDuration(seconds) {
     if (typeof seconds !== 'number' || !Number.isFinite(seconds)) return '';
@@ -100,121 +149,20 @@
     return `${minutes}:${rest}`;
   }
 
-  function buildCard(reel) {
-    const card = document.createElement('button');
-    card.className = 'reel-card';
+  function renderDetails() {
+    const details = el('reel-details');
+    const empty = el('empty-state');
+    details.innerHTML = '';
 
-    const cover = document.createElement('div');
-    cover.className = 'reel-cover';
-    if (reel.coverUrl) {
-      const img = document.createElement('img');
-      img.src = reel.coverUrl;
-      img.alt = '';
-      img.loading = 'lazy';
-      cover.appendChild(img);
-    } else {
-      const placeholder = document.createElement('div');
-      placeholder.className = 'reel-cover-placeholder';
-      placeholder.textContent = reel.status === 'error' ? '⚠️' : '🎬';
-      cover.appendChild(placeholder);
+    if (!state.selected) {
+      details.classList.add('hidden');
+      empty.classList.remove('hidden');
+      return;
     }
-    if (reel.status === 'pending') {
-      const badge = document.createElement('span');
-      badge.className = 'reel-status';
-      badge.textContent = '⏳ обработка';
-      cover.appendChild(badge);
-    } else if (reel.status === 'error') {
-      const badge = document.createElement('span');
-      badge.className = 'reel-status';
-      badge.textContent = '⚠️ ошибка';
-      cover.appendChild(badge);
-    }
-    if (reel.duration) {
-      const duration = document.createElement('span');
-      duration.className = 'reel-duration';
-      duration.textContent = formatDuration(reel.duration);
-      cover.appendChild(duration);
-    }
-    card.appendChild(cover);
+    details.classList.remove('hidden');
+    empty.classList.add('hidden');
 
-    const body = document.createElement('div');
-    body.className = 'reel-body';
-
-    const name = document.createElement('div');
-    name.className = 'reel-name';
-    name.textContent = reel.title || reel.shortcode;
-    body.appendChild(name);
-
-    const metaLine = document.createElement('div');
-    metaLine.className = 'reel-meta';
-    const parts = [];
-    if (reel.author) parts.push('@' + reel.author);
-    const date = reel.publishedAt || reel.createdAt;
-    parts.push(new Date(date).toLocaleDateString('ru-RU'));
-    metaLine.textContent = parts.join(' · ');
-    body.appendChild(metaLine);
-
-    card.appendChild(body);
-    card.addEventListener('click', () => openModal(reel));
-    return card;
-  }
-
-  function updateAuthorFilter() {
-    const select = el('filter-author');
-    const current = select.value;
-    const authors = [
-      ...new Set(state.reels.map((reel) => reel.author).filter(Boolean)),
-    ].sort();
-
-    select.innerHTML = '';
-    const all = document.createElement('option');
-    all.value = '';
-    all.textContent = 'Все авторы';
-    select.appendChild(all);
-    authors.forEach((author) => {
-      const option = document.createElement('option');
-      option.value = author;
-      option.textContent = '@' + author;
-      select.appendChild(option);
-    });
-    if (authors.includes(current)) select.value = current;
-  }
-
-  el('filter-author').addEventListener('change', (event) => {
-    state.filters.author = event.target.value;
-    renderGrid();
-  });
-
-  el('filter-status').addEventListener('change', (event) => {
-    state.filters.status = event.target.value;
-    renderGrid();
-  });
-
-  // --- Detail modal ---
-
-  function openModal(reel) {
-    state.openedId = reel.id;
-    renderModal(reel);
-    backdrop.classList.remove('hidden');
-  }
-
-  function closeModal() {
-    state.openedId = null;
-    backdrop.classList.add('hidden');
-    el('reel-modal-content').innerHTML = ''; // stops the <video>
-  }
-
-  backdrop.addEventListener('click', (event) => {
-    if (event.target === backdrop) closeModal();
-  });
-
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') closeModal();
-  });
-
-  function renderModal(reel) {
-    const container = el('reel-modal-content');
-    container.innerHTML = '';
+    const reel = state.selected;
 
     const kicker = document.createElement('p');
     kicker.className = 'details-kicker';
@@ -224,11 +172,11 @@
         : reel.status === 'error'
           ? '⚠️ Ошибка обработки'
           : 'Reel';
-    container.appendChild(kicker);
+    details.appendChild(kicker);
 
     const title = document.createElement('h2');
     title.textContent = reel.title || reel.shortcode;
-    container.appendChild(title);
+    details.appendChild(title);
 
     const metaLine = document.createElement('div');
     metaLine.className = 'details-meta';
@@ -264,36 +212,32 @@
     if (typeof reel.meta?.commentCount === 'number') {
       addPart(`💬 ${reel.meta.commentCount.toLocaleString('ru-RU')}`);
     }
-    container.appendChild(metaLine);
-
-    if (reel.videoUrl) {
-      const player = document.createElement('div');
-      player.className = 'details-player';
-      const video = document.createElement('video');
-      video.src = reel.videoUrl;
-      video.controls = true;
-      video.playsInline = true;
-      if (reel.coverUrl) video.poster = reel.coverUrl;
-      player.appendChild(video);
-      container.appendChild(player);
-    }
+    details.appendChild(metaLine);
 
     if (reel.status === 'error' && reel.error) {
       const error = document.createElement('p');
       error.className = 'details-error';
       error.textContent = reel.error;
-      container.appendChild(error);
+      details.appendChild(error);
     }
 
     if (reel.description) {
       const description = document.createElement('p');
       description.className = 'details-description';
       description.textContent = reel.description;
-      container.appendChild(description);
+      details.appendChild(description);
     }
 
     const actions = document.createElement('div');
     actions.className = 'details-actions';
+
+    if (isMobile()) {
+      const showButton = document.createElement('button');
+      showButton.className = 'mini-btn';
+      showButton.textContent = '▶️ Показать видео';
+      showButton.addEventListener('click', closeDrawer);
+      actions.appendChild(showButton);
+    }
 
     const link = document.createElement('a');
     link.className = 'mini-btn instagram-btn';
@@ -302,6 +246,12 @@
     link.rel = 'noopener';
     link.textContent = 'Instagram';
     actions.appendChild(link);
+
+    const shareButton = document.createElement('button');
+    shareButton.className = 'mini-btn';
+    shareButton.textContent = '🔗 Поделиться';
+    shareButton.addEventListener('click', () => shareReel(reel, shareButton));
+    actions.appendChild(shareButton);
 
     if (state.editMode && reel.status === 'error') {
       const retryButton = document.createElement('button');
@@ -319,13 +269,208 @@
       actions.appendChild(deleteButton);
     }
 
-    const closeButton = document.createElement('button');
-    closeButton.className = 'mini-btn';
-    closeButton.textContent = 'Закрыть';
-    closeButton.addEventListener('click', closeModal);
-    actions.appendChild(closeButton);
+    details.appendChild(actions);
+  }
 
-    container.appendChild(actions);
+  async function shareReel(reel, button) {
+    const url = `${location.origin}${BASE_PATH}/${reel.id}`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: reel.title || reel.shortcode, url });
+        return;
+      } catch {
+        // user cancelled the share sheet — fall back to copying
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(url);
+      const original = button.textContent;
+      button.textContent = '✓ Скопировано';
+      setTimeout(() => {
+        button.textContent = original;
+      }, 1500);
+    } catch {
+      window.prompt('Ссылка:', url);
+    }
+  }
+
+  // --- Reels list (covers, meta, filters, pagination) ---
+
+  function reelDate(reel) {
+    return new Date(reel.publishedAt || reel.createdAt);
+  }
+
+  function matchesFilters(reel) {
+    if (state.filters.author && reel.author !== state.filters.author) {
+      return false;
+    }
+    if (state.filters.status && reel.status !== state.filters.status) {
+      return false;
+    }
+    if (state.filters.query) {
+      const haystack = [reel.title, reel.description, reel.author]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      if (!haystack.includes(state.filters.query)) return false;
+    }
+    return true;
+  }
+
+  function renderList() {
+    updateAuthorFilter();
+    recentList.innerHTML = '';
+
+    const filtered = state.reels
+      .filter(matchesFilters)
+      .sort((a, b) => reelDate(b) - reelDate(a));
+
+    if (!filtered.length) {
+      const empty = document.createElement('div');
+      empty.className = 'recent-empty';
+      empty.textContent = state.reels.length
+        ? 'Ничего не найдено'
+        : 'Пока пусто — включите режим редактирования и добавьте первую ссылку';
+      recentList.appendChild(empty);
+      el('list-more').classList.add('hidden');
+      return;
+    }
+
+    filtered.slice(0, state.listLimit).forEach((reel) => {
+      recentList.appendChild(buildListItem(reel));
+    });
+
+    const moreButton = el('list-more');
+    const remaining = filtered.length - state.listLimit;
+    moreButton.classList.toggle('hidden', remaining <= 0);
+    if (remaining > 0) {
+      moreButton.textContent = `Показать ещё (${remaining})`;
+    }
+  }
+
+  function buildListItem(reel) {
+    const item = document.createElement('button');
+    item.className = 'recent-item';
+    if (state.selected?.id === reel.id) item.classList.add('selected');
+
+    if (reel.coverUrl) {
+      const cover = document.createElement('img');
+      cover.className = 'recent-cover';
+      cover.src = reel.coverUrl;
+      cover.alt = '';
+      cover.loading = 'lazy';
+      item.appendChild(cover);
+    } else {
+      const placeholder = document.createElement('div');
+      placeholder.className = 'recent-cover recent-cover-placeholder';
+      placeholder.textContent =
+        reel.status === 'error' ? '⚠️' : reel.status === 'pending' ? '⏳' : '🎬';
+      item.appendChild(placeholder);
+    }
+
+    const body = document.createElement('div');
+    body.className = 'recent-body';
+
+    const name = document.createElement('div');
+    name.className = 'recent-name';
+    name.textContent = reel.title || reel.shortcode;
+    body.appendChild(name);
+
+    const metaLine = document.createElement('div');
+    metaLine.className = 'recent-meta';
+    const parts = [];
+    if (reel.status === 'pending') parts.push('⏳ обработка');
+    if (reel.status === 'error') parts.push('⚠️ ошибка');
+    if (reel.author) parts.push('@' + reel.author);
+    parts.push(reelDate(reel).toLocaleDateString('ru-RU'));
+    if (reel.duration) parts.push(formatDuration(reel.duration));
+    if (typeof reel.meta?.likeCount === 'number') {
+      parts.push(`❤ ${reel.meta.likeCount}`);
+    }
+    metaLine.textContent = parts.join(' · ');
+    body.appendChild(metaLine);
+
+    item.appendChild(body);
+    item.addEventListener('click', () => selectReel(reel));
+    return item;
+  }
+
+  function updateAuthorFilter() {
+    const select = el('filter-author');
+    const current = select.value;
+    const authors = [
+      ...new Set(state.reels.map((reel) => reel.author).filter(Boolean)),
+    ].sort();
+
+    select.innerHTML = '';
+    const all = document.createElement('option');
+    all.value = '';
+    all.textContent = 'Все авторы';
+    select.appendChild(all);
+    authors.forEach((author) => {
+      const option = document.createElement('option');
+      option.value = author;
+      option.textContent = '@' + author;
+      select.appendChild(option);
+    });
+    if (authors.includes(current)) select.value = current;
+  }
+
+  el('filter-author').addEventListener('change', (event) => {
+    state.filters.author = event.target.value;
+    state.listLimit = LIST_PAGE_SIZE;
+    renderList();
+  });
+
+  el('filter-status').addEventListener('change', (event) => {
+    state.filters.status = event.target.value;
+    state.listLimit = LIST_PAGE_SIZE;
+    renderList();
+  });
+
+  searchInput.addEventListener('input', () => {
+    state.filters.query = searchInput.value.trim().toLowerCase();
+    state.listLimit = LIST_PAGE_SIZE;
+    renderList();
+  });
+
+  el('list-more').addEventListener('click', () => {
+    state.listLimit += LIST_PAGE_SIZE;
+    renderList();
+  });
+
+  // --- Polling: pending reels are being processed by yt-dlp on the server ---
+
+  function schedulePolling() {
+    clearTimeout(state.pollTimer);
+    if (!state.reels.some((reel) => reel.status === 'pending')) return;
+    state.pollTimer = setTimeout(pollPending, POLL_INTERVAL_MS);
+  }
+
+  async function pollPending() {
+    const pending = state.reels.filter((reel) => reel.status === 'pending');
+    await Promise.all(
+      pending.map(async (reel) => {
+        try {
+          const response = await fetch(`${API_BASE}/reels/${reel.id}`, {
+            headers: pageHeaders,
+          });
+          if (!response.ok) return;
+          const fresh = await response.json();
+          const index = state.reels.findIndex((r) => r.id === reel.id);
+          if (index !== -1) state.reels[index] = fresh;
+          if (state.selected?.id === reel.id) state.selected = fresh;
+        } catch {
+          // transient network error — retry on the next tick
+        }
+      }),
+    );
+    renderList();
+    renderPlayer();
+    renderDetails();
+    schedulePolling();
   }
 
   // --- Edit mode (same key flow as the places page) ---
@@ -367,10 +512,8 @@
     state.editMode = enabled;
     editToggle.classList.toggle('active', enabled);
     addForm.classList.toggle('hidden', !enabled);
-    if (state.openedId !== null) {
-      const opened = state.reels.find((r) => r.id === state.openedId);
-      if (opened) renderModal(opened); // retry/delete buttons appear
-    }
+    el('edit-hint').classList.toggle('hidden', !enabled);
+    renderDetails(); // retry/delete buttons appear or disappear
   }
 
   // --- Adding a reel ---
@@ -399,9 +542,13 @@
         return;
       }
       const created = await response.json();
-      state.reels = [created, ...state.reels.filter((r) => r.id !== created.id)];
+      state.reels = [
+        created,
+        ...state.reels.filter((r) => r.id !== created.id),
+      ];
       input.value = '';
-      renderGrid();
+      renderList();
+      selectReel(created);
       schedulePolling();
     } finally {
       submit.disabled = false;
@@ -421,8 +568,10 @@
     const restarted = await response.json();
     const index = state.reels.findIndex((r) => r.id === reel.id);
     if (index !== -1) state.reels[index] = restarted;
-    renderGrid();
-    renderModal(restarted);
+    if (state.selected?.id === reel.id) state.selected = restarted;
+    renderList();
+    renderPlayer();
+    renderDetails();
     schedulePolling();
   }
 
@@ -437,8 +586,11 @@
       return;
     }
     state.reels = state.reels.filter((r) => r.id !== reel.id);
-    closeModal();
-    renderGrid();
+    if (state.selected?.id === reel.id) {
+      clearSelection();
+    } else {
+      renderList();
+    }
   }
 
   loadReels();
