@@ -24,7 +24,7 @@ All public pages under `web/` share one visual language. When building or changi
 
 ## Deployment
 
-Production (https://vlandivir.com) deploys via GitHub Actions, **not** via `run-production-deploy.sh` (that script is legacy).
+Production (https://vlandivir.com) deploys via GitHub Actions.
 
 - Workflow: `.github/workflows/deploy-production.yml`, manual trigger only (`workflow_dispatch`) — run it from the Actions tab or with `gh workflow run deploy-production.yml`. Deploys the pushed state of the repo, so commit and push first.
 - The workflow builds the Docker image (multi-stage: prisma generate → mini-app Vite build → nest build), pushes it to the DigitalOcean registry, then over SSH restarts the container on the droplet. TLS certs are mounted from the host (`/etc/letsencrypt/live/vlandivir.com/`).
