@@ -24,6 +24,11 @@ RUN apt-get update \
        librsvg2-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# yt-dlp — скачивание видео из Instagram (standalone-бинарник, нужен python3)
+RUN curl -fsSL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
+      -o /usr/local/bin/yt-dlp \
+    && chmod a+rx /usr/local/bin/yt-dlp
+
 # Устанавливаем все зависимости (включая dev зависимости для сборки)
 RUN npm ci && npm ci --prefix web/mini-app
 
@@ -53,6 +58,7 @@ ARG OPENAI_API_KEY
 ARG VLANDIVIR_2025_WEBHOOK_URL
 ARG NOTE_API_KEY
 ARG MAP_API_KEY
+ARG REELS_PAGE_KEY
 
 # Set environment variables from build args
 ENV TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN
@@ -65,6 +71,7 @@ ENV OPENAI_API_KEY=$OPENAI_API_KEY
 ENV VLANDIVIR_2025_WEBHOOK_URL=$VLANDIVIR_2025_WEBHOOK_URL
 ENV NOTE_API_KEY=$NOTE_API_KEY
 ENV MAP_API_KEY=$MAP_API_KEY
+ENV REELS_PAGE_KEY=$REELS_PAGE_KEY
 
 # Копируем сгенерированный Prisma клиент в папку dist
 RUN cp -r src/generated dist/

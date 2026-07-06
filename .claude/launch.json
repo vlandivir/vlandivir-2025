@@ -6,6 +6,12 @@
       "runtimeExecutable": "node",
       "runtimeArgs": ["dist/main.js"],
       "port": 3000
+    },
+    {
+      "name": "vlandivir-server-3210",
+      "runtimeExecutable": "env",
+      "runtimeArgs": ["PORT=3210", "node", "dist/main.js"],
+      "port": 3210
     }
   ]
 }

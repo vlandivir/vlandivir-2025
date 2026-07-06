@@ -13,6 +13,7 @@ POSTGRES_CONNECTION_STRING=$(grep POSTGRES_CONNECTION_STRING .env | cut -d '=' -
 DO_SPACES_ACCESS_KEY=$(grep DO_SPACES_ACCESS_KEY .env | cut -d '=' -f2)
 DO_SPACES_SECRET_KEY=$(grep DO_SPACES_SECRET_KEY .env | cut -d '=' -f2)
 MAP_API_KEY=$(grep MAP_API_KEY .env | cut -d '=' -f2)
+REELS_PAGE_KEY=$(grep REELS_PAGE_KEY .env | cut -d '=' -f2)
 
 docker build \
   --platform linux/amd64 \
@@ -23,6 +24,7 @@ docker build \
   --build-arg DO_SPACES_ACCESS_KEY="${DO_SPACES_ACCESS_KEY}" \
   --build-arg DO_SPACES_SECRET_KEY="${DO_SPACES_SECRET_KEY}" \
   --build-arg MAP_API_KEY="${MAP_API_KEY}" \
+  --build-arg REELS_PAGE_KEY="${REELS_PAGE_KEY}" \
   -t vlandivir-2025 .
 
 docker tag vlandivir-2025 registry.digitalocean.com/vlandivir-main/vlandivir-2025:$TAG_NAME

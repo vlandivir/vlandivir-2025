@@ -48,6 +48,10 @@ async function bootstrap() {
     app.useStaticAssets(filesPage, { prefix: '/files' });
     const placesPage = path.join(process.cwd(), 'web', 'places');
     app.useStaticAssets(placesPage, { prefix: '/places' });
+    // Assets only (app.js/styles.css); the page itself is served by
+    // ReelsPagesController after checking the secret in the URL
+    const reelsPage = path.join(process.cwd(), 'web', 'reels');
+    app.useStaticAssets(reelsPage, { prefix: '/reels', index: false });
     const subsPage = path.join(process.cwd(), 'web', 'subs');
     const subsExpPage = path.join(process.cwd(), 'web', 'subs-exp');
     const fontPage = path.join(subsPage, 'font');
@@ -129,6 +133,10 @@ async function bootstrap() {
     app.useStaticAssets(filesPage, { prefix: '/files' });
     const placesPage = path.join(process.cwd(), 'web', 'places');
     app.useStaticAssets(placesPage, { prefix: '/places' });
+    // Assets only (app.js/styles.css); the page itself is served by
+    // ReelsPagesController after checking the secret in the URL
+    const reelsPage = path.join(process.cwd(), 'web', 'reels');
+    app.useStaticAssets(reelsPage, { prefix: '/reels', index: false });
     const subsPage = path.join(process.cwd(), 'web', 'subs');
     const subsExpPage = path.join(process.cwd(), 'web', 'subs-exp');
     const fontPage = path.join(subsPage, 'font');

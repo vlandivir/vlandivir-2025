@@ -310,6 +310,25 @@ export class StorageService implements OnModuleInit {
     return this.getPublicUrl(this.getSubsRenderedVideoKey(hash));
   }
 
+  async uploadStreamWithKey(
+    stream: Readable,
+    mimeType: string,
+    key: string,
+  ): Promise<string> {
+    const upload = new Upload({
+      client: this.s3,
+      params: {
+        Bucket: this.bucket,
+        Key: key,
+        Body: stream,
+        ContentType: mimeType,
+        ACL: 'public-read',
+      },
+    });
+    await upload.done();
+    return this.getPublicUrl(key);
+  }
+
   async uploadFileWithKey(
     buffer: Buffer,
     mimeType: string,

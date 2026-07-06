@@ -11,6 +11,8 @@ import { NotesApiController } from './notes-api.controller';
 import { NotificationsApiController } from './notifications-api.controller';
 import { MapApiController } from './map-api.controller';
 import { MapPagesController } from './map-pages.controller';
+import { ReelsApiController } from './reels-api.controller';
+import { ReelsPagesController } from './reels-pages.controller';
 
 @Module({
   imports: [
@@ -29,6 +31,8 @@ import { MapPagesController } from './map-pages.controller';
     NotificationsApiController,
     MapApiController,
     MapPagesController,
+    ReelsApiController,
+    ReelsPagesController,
   ],
   providers: [AppService],
 })

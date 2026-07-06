@@ -164,6 +164,27 @@ model MapTag {
   createdAt DateTime @default(now())
 }
 
+model Reel {
+  id           Int       @id @default(autoincrement())
+  instagramUrl String
+  shortcode    String    @unique
+  status       String    @default("pending") // pending | ready | error
+  error        String?   @db.Text
+  title        String?
+  description  String?   @db.Text
+  author       String?
+  publishedAt  DateTime?
+  duration     Float?
+  videoUrl     String? // copy in DO Spaces
+  coverUrl     String? // copy in DO Spaces
+  tags         String[]  @default([])
+  meta         Json?     @db.JsonB // raw yt-dlp info
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([status])
+}
+
 model ChatSettings {
   chatId    BigInt   @id
   timeZone  String

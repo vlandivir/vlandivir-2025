@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Записная книжка рилсов</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/shared/site-theme.css?v=20260603-3" />
+  <link rel="stylesheet" href="/reels/styles.css?v=20260706-1" />
+</head>
+<body>
+  <div class="page">
+    <header class="page-head">
+      <div class="head-row">
+        <a class="panel-brand" href="/">vlandivir</a>
+        <button id="edit-toggle" class="ghost-btn icon-btn" title="Режим редактирования">✏️</button>
+      </div>
+      <h1 class="page-title">Записная книжка рилсов</h1>
+    </header>
+
+    <form id="add-form" class="add-form editor-card hidden">
+      <input id="add-url" type="url" placeholder="https://www.instagram.com/reel/…" autocomplete="off" />
+      <button type="submit" class="primary-btn" id="add-submit">Добавить</button>
+    </form>
+
+    <div class="list-filters">
+      <select id="filter-author">
+        <option value="">Все авторы</option>
+      </select>
+      <select id="filter-status">
+        <option value="">Все статусы</option>
+        <option value="ready">✅ Готовые</option>
+        <option value="pending">⏳ В обработке</option>
+        <option value="error">⚠️ С ошибкой</option>
+      </select>
+    </div>
+
+    <div id="reels-grid" class="reels-grid"></div>
+    <div id="empty-state" class="recent-empty hidden">Пока пусто — включите режим редактирования и добавьте первую ссылку</div>
+    <div id="access-denied" class="recent-empty hidden">Нет доступа: неверная ссылка на страницу</div>
+  </div>
+
+  <div id="modal-backdrop" class="modal-backdrop hidden">
+    <div id="reel-modal" class="modal editor-card">
+      <div id="reel-modal-content"></div>
+    </div>
+  </div>
+
+  <script src="/reels/app.js?v=20260706-1"></script>
+</body>
+</html>
