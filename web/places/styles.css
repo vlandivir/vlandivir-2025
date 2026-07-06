@@ -187,6 +187,29 @@ body {
   font-size: 14px;
 }
 
+.feature-details {
+  position: relative;
+}
+
+.details-close {
+  position: absolute;
+  top: var(--v-space-2);
+  right: var(--v-space-2);
+  width: 32px;
+  height: 32px;
+  border: 1px solid hsl(var(--shadcn-border));
+  border-radius: var(--radius);
+  background: hsl(var(--background));
+  color: var(--v-muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.details-close:hover {
+  background: hsl(var(--shadcn-accent));
+  color: var(--v-text);
+}
+
 .feature-details .details-kicker {
   margin: 0 0 var(--v-space-1);
   color: var(--v-muted);

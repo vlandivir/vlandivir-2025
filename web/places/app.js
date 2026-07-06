@@ -147,6 +147,7 @@
       state.trackLayers.get(feature.id)?.setStyle(trackStyle(feature, true));
     }
     renderDetails();
+    applyMapFilter(); // selecting a track hides the other tracks
     history.replaceState(null, '', `/places/${kind}/${feature.id}`);
     if (fly) flyToFeature(kind, feature);
     if (isMobile()) openDrawer();
@@ -159,6 +160,7 @@
     }
     state.selected = null;
     renderDetails();
+    applyMapFilter(); // bring the hidden tracks back
     history.replaceState(null, '', '/places/');
   }
 
@@ -216,6 +218,16 @@
     empty.classList.add('hidden');
 
     const { kind, feature } = state.selected;
+
+    const closeButton = document.createElement('button');
+    closeButton.className = 'details-close';
+    closeButton.title = 'Закрыть';
+    closeButton.textContent = '✕';
+    closeButton.addEventListener('click', () => {
+      clearSelection();
+      if (isMobile()) closeDrawer();
+    });
+    details.appendChild(closeButton);
 
     const kicker = document.createElement('p');
     kicker.className = 'details-kicker';
@@ -304,6 +316,14 @@
     );
     actions.appendChild(shareButton);
 
+    if (kind === 'track') {
+      const gpxButton = document.createElement('button');
+      gpxButton.className = 'mini-btn';
+      gpxButton.textContent = '⬇ GPX';
+      gpxButton.addEventListener('click', () => downloadTrackGpx(feature));
+      actions.appendChild(gpxButton);
+    }
+
     if (state.editMode) {
       const editButton = document.createElement('button');
       editButton.className = 'mini-btn';
@@ -343,6 +363,36 @@
 
   function isInstagramPostUrl(url) {
     return /instagram\.com\/(?:[^/]+\/)?(reel|p|tv)\//.test(url);
+  }
+
+  function downloadTrackGpx(track) {
+    const escapeXml = (text) =>
+      text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    const pointsXml = track.points
+      .map(([lat, lng]) => `      <trkpt lat="${lat}" lon="${lng}"/>`)
+      .join('\n');
+    const gpx = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<gpx xmlns="http://www.topografix.com/GPX/1/1" version="1.1" creator="vlandivir.com">',
+      '  <trk>',
+      `    <name>${escapeXml(track.name)}</name>`,
+      '    <trkseg>',
+      pointsXml,
+      '    </trkseg>',
+      '  </trk>',
+      '</gpx>',
+      '',
+    ].join('\n');
+
+    const blob = new Blob([gpx], { type: 'application/gpx+xml' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${track.name.replace(/[\\/:*?"<>|]+/g, '_')}.gpx`;
+    link.click();
+    URL.revokeObjectURL(link.href);
   }
 
   async function shareFeature(kind, feature, button) {
@@ -448,7 +498,12 @@
   }
 
   function addTrackLayer(track) {
-    const polyline = L.polyline(track.points, trackStyle(track)).addTo(map);
+    // Unlike markers, path clicks bubble to the map by default, and the map's
+    // click handler would immediately clear the selection again
+    const polyline = L.polyline(track.points, {
+      ...trackStyle(track),
+      bubblingMouseEvents: false,
+    }).addTo(map);
     polyline.on('click', () => selectFeature('track', track));
     state.trackLayers.set(track.id, polyline);
   }
@@ -634,10 +689,15 @@
       if (visible && !map.hasLayer(marker)) marker.addTo(map);
       if (!visible && map.hasLayer(marker)) map.removeLayer(marker);
     });
+    // While a track is selected, it is the only track on the map
+    const selectedTrackId =
+      state.selected?.kind === 'track' ? state.selected.feature.id : null;
     state.tracks.forEach((track) => {
       const layer = state.trackLayers.get(track.id);
       if (!layer) return;
-      const visible = matchesFilters('track', track);
+      const visible =
+        matchesFilters('track', track) &&
+        (selectedTrackId === null || track.id === selectedTrackId);
       if (visible && !map.hasLayer(layer)) layer.addTo(map);
       if (!visible && map.hasLayer(layer)) map.removeLayer(layer);
     });

@@ -12,6 +12,12 @@
       "runtimeExecutable": "env",
       "runtimeArgs": ["PORT=3210", "node", "dist/main.js"],
       "port": 3210
+    },
+    {
+      "name": "vlandivir-server-auto",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["dist/main.js"],
+      "autoPort": true
     }
   ]
 }
