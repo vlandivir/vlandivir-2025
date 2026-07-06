@@ -449,6 +449,41 @@ body {
   color: hsl(var(--primary-foreground));
 }
 
+.tag-editor-row {
+  display: flex;
+  gap: var(--v-control-gap);
+  margin-bottom: var(--v-space-2);
+}
+
+.tag-editor-row input:first-child {
+  width: 52px;
+  flex: 0 0 52px;
+  text-align: center;
+}
+
+.tag-editor-row input {
+  min-height: 38px;
+  padding: 0 var(--v-space-2);
+  border: 1px solid hsl(var(--shadcn-input));
+  border-radius: var(--radius);
+  background: hsl(var(--background));
+  font-family: inherit;
+  font-size: 14px;
+  flex: 1;
+  min-width: 0;
+}
+
+.tag-editor-row button {
+  flex: 0 0 42px;
+  padding: 0;
+  min-height: 38px;
+}
+
+.tag-editor-add {
+  margin-top: var(--v-space-3);
+  margin-bottom: var(--v-space-3);
+}
+
 .details-tags {
   display: flex;
   flex-wrap: wrap;

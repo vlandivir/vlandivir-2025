@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <link rel="stylesheet" href="/shared/site-theme.css?v=20260603-3" />
-  <link rel="stylesheet" href="/places/styles.css?v=20260703-7" />
+  <link rel="stylesheet" href="/places/styles.css?v=20260703-8" />
 </head>
 <body>
   <div class="app">
@@ -38,6 +38,7 @@
             <div id="search-results" class="search-results hidden"></div>
           </div>
           <button id="gpx-upload" class="ghost-btn icon-btn hidden" title="Загрузить GPX-трек">🚴</button>
+          <button id="tag-editor-open" class="ghost-btn icon-btn hidden" title="Редактор тегов">🏷</button>
           <button id="edit-toggle" class="ghost-btn icon-btn" title="Режим редактирования">✏️</button>
         </div>
       </div>
@@ -104,10 +105,23 @@
         </div>
       </form>
     </div>
+
+    <div id="tag-editor-modal" class="modal editor-card hidden">
+      <h2>Редактор тегов</h2>
+      <div id="tag-editor-list"></div>
+      <div class="tag-editor-row tag-editor-add">
+        <input id="new-tag-emoji" type="text" maxlength="4" placeholder="🙂" />
+        <input id="new-tag-name" type="text" maxlength="50" placeholder="новый тег" />
+        <button type="button" id="new-tag-add" class="primary-btn">➕</button>
+      </div>
+      <div class="form-actions">
+        <button type="button" id="tag-editor-close" class="ghost-btn">Закрыть</button>
+      </div>
+    </div>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script src="/places/app.js?v=20260703-10"></script>
+  <script src="/places/app.js?v=20260703-11"></script>
 </body>
 </html>

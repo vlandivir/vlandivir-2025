@@ -265,6 +265,98 @@ export class MapApiController {
     });
   }
 
+  // --- Tag dictionary ---
+
+  @Get('tags')
+  async listTags() {
+    return this.prisma.mapTag.findMany({ orderBy: { name: 'asc' } });
+  }
+
+  @Post('tags')
+  async createTag(
+    @Headers('x-map-api-key') apiKey: string | undefined,
+    @Body() body: { name?: string; emoji?: string },
+  ) {
+    this.assertApiKey(apiKey);
+    const name = this.parseTagName(body.name);
+    const existing = await this.prisma.mapTag.findUnique({ where: { name } });
+    if (existing) {
+      throw new BadRequestException('Tag already exists');
+    }
+    return this.prisma.mapTag.create({
+      data: { name, emoji: this.parseOptionalText(body.emoji) },
+    });
+  }
+
+  @Patch('tags/:id')
+  async updateTag(
+    @Headers('x-map-api-key') apiKey: string | undefined,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { name?: string; emoji?: string },
+  ) {
+    this.assertApiKey(apiKey);
+    const tag = await this.prisma.mapTag.findUnique({ where: { id } });
+    if (!tag) {
+      throw new NotFoundException('Tag not found');
+    }
+
+    const data: Record<string, unknown> = {};
+    if (body.emoji !== undefined) {
+      data.emoji = this.parseOptionalText(body.emoji);
+    }
+    if (body.name !== undefined) {
+      const name = this.parseTagName(body.name);
+      if (name !== tag.name) {
+        const duplicate = await this.prisma.mapTag.findUnique({
+          where: { name },
+        });
+        if (duplicate) {
+          throw new BadRequestException('Tag already exists');
+        }
+        data.name = name;
+        // Rename the tag on every feature that uses it
+        await this.prisma
+          .$executeRaw`UPDATE "MapPoint" SET tags = array_replace(tags, ${tag.name}, ${name}) WHERE ${tag.name} = ANY(tags)`;
+        await this.prisma
+          .$executeRaw`UPDATE "MapTrack" SET tags = array_replace(tags, ${tag.name}, ${name}) WHERE ${tag.name} = ANY(tags)`;
+      }
+    }
+
+    return this.prisma.mapTag.update({ where: { id }, data });
+  }
+
+  @Delete('tags/:id')
+  async deleteTag(
+    @Headers('x-map-api-key') apiKey: string | undefined,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    this.assertApiKey(apiKey);
+    const tag = await this.prisma.mapTag.findUnique({ where: { id } });
+    if (!tag) {
+      throw new NotFoundException('Tag not found');
+    }
+
+    await this.prisma
+      .$executeRaw`UPDATE "MapPoint" SET tags = array_remove(tags, ${tag.name}) WHERE ${tag.name} = ANY(tags)`;
+    await this.prisma
+      .$executeRaw`UPDATE "MapTrack" SET tags = array_remove(tags, ${tag.name}) WHERE ${tag.name} = ANY(tags)`;
+    await this.prisma.mapTag.delete({ where: { id } });
+    return { deleted: true };
+  }
+
+  private parseTagName(name?: string): string {
+    if (typeof name !== 'string' || !name.trim()) {
+      throw new BadRequestException('Tag name is required');
+    }
+    const parsed = name.trim().toLowerCase();
+    if (parsed.length > MAX_TAG_LENGTH) {
+      throw new BadRequestException(
+        `Tag name must be at most ${MAX_TAG_LENGTH} characters`,
+      );
+    }
+    return parsed;
+  }
+
   // Refresh cached Instagram metadata for a feature. Public on purpose: any
   // visitor opening a point triggers it, but the 24h freshness window keeps
   // us from hammering Instagram.

@@ -52,6 +52,7 @@
   const state = {
     points: [],
     tracks: [],
+    tags: [], // [{id, name, emoji}] — the editable dictionary
     markers: new Map(), // point id -> Leaflet marker
     trackLayers: new Map(), // track id -> Leaflet polyline
     selected: null, // { kind: 'point' | 'track', feature }
@@ -66,14 +67,10 @@
     listLimit: LIST_PAGE_SIZE,
   };
 
-  const KNOWN_TAGS = [
-    { value: 'ресторан', label: '🍽 ресторан' },
-    { value: 'бар', label: '🍺 бар' },
-    { value: 'природа', label: '🌿 природа' },
-  ];
-
-  function tagLabel(value) {
-    return KNOWN_TAGS.find((tag) => tag.value === value)?.label || value;
+  // Tag dictionary is editable and lives in the DB (see the 🏷 editor)
+  function tagLabel(name) {
+    const tag = state.tags.find((t) => t.name === name);
+    return tag?.emoji ? `${tag.emoji} ${name}` : name;
   }
 
   const el = (id) => document.getElementById(id);
@@ -110,9 +107,10 @@
   // --- Loading ---
 
   async function loadFeatures() {
-    const [pointsResponse, tracksResponse] = await Promise.all([
+    const [pointsResponse, tracksResponse, tagsResponse] = await Promise.all([
       fetch(`${API_BASE}/points`),
       fetch(`${API_BASE}/tracks`),
+      fetch(`${API_BASE}/tags`),
     ]);
     if (pointsResponse.ok) {
       state.points = await pointsResponse.json();
@@ -121,6 +119,9 @@
     if (tracksResponse.ok) {
       state.tracks = await tracksResponse.json();
       state.tracks.forEach(addTrackLayer);
+    }
+    if (tagsResponse.ok) {
+      state.tags = await tagsResponse.json();
     }
     renderRecentPanel();
 
@@ -608,7 +609,7 @@
     const current = select.value;
     const used = allFeatures().flatMap(({ feature }) => feature.tags || []);
     const tags = [
-      ...new Set([...KNOWN_TAGS.map((tag) => tag.value), ...used]),
+      ...new Set([...state.tags.map((tag) => tag.name), ...used]),
     ].sort();
 
     select.innerHTML = '';
@@ -705,6 +706,7 @@
     editToggle.classList.toggle('active', enabled);
     editHint.classList.toggle('hidden', !enabled);
     gpxButton.classList.toggle('hidden', !enabled);
+    el('tag-editor-open').classList.toggle('hidden', !enabled);
     // Double click is reserved for adding points while editing
     if (enabled) {
       map.doubleClickZoom.disable();
@@ -1002,20 +1004,23 @@
   // --- Form (shared between points and tracks) ---
 
   const formTags = el('form-tags');
-  KNOWN_TAGS.forEach(({ value, label }) => {
-    const chip = document.createElement('label');
-    chip.className = 'tag-chip';
-    const input = document.createElement('input');
-    input.type = 'checkbox';
-    input.value = value;
-    chip.appendChild(input);
-    chip.appendChild(document.createTextNode(label));
-    formTags.appendChild(chip);
-  });
 
-  function setFormTags(tags) {
-    formTags.querySelectorAll('input').forEach((input) => {
-      input.checked = tags.includes(input.value);
+  // Rebuilt on every form open — the dictionary is editable at runtime
+  function setFormTags(selected) {
+    formTags.innerHTML = '';
+    const names = [
+      ...new Set([...state.tags.map((tag) => tag.name), ...selected]),
+    ];
+    names.forEach((name) => {
+      const chip = document.createElement('label');
+      chip.className = 'tag-chip';
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.value = name;
+      input.checked = selected.includes(name);
+      chip.appendChild(input);
+      chip.appendChild(document.createTextNode(tagLabel(name)));
+      formTags.appendChild(chip);
     });
   }
 
@@ -1057,6 +1062,8 @@
         `Трек: ${points.length} точек, ${trackDistanceKm(points)} км`;
     }
 
+    el('point-form-modal').classList.remove('hidden');
+    el('tag-editor-modal').classList.add('hidden');
     backdrop.classList.remove('hidden');
     el('form-name').focus();
   }
@@ -1072,6 +1079,152 @@
   el('form-cancel').addEventListener('click', closeModals);
   backdrop.addEventListener('click', (event) => {
     if (event.target === backdrop) closeModals();
+  });
+
+  // --- Tag editor ---
+
+  const tagEditorList = el('tag-editor-list');
+
+  function openTagEditor() {
+    renderTagEditor();
+    el('point-form-modal').classList.add('hidden');
+    el('tag-editor-modal').classList.remove('hidden');
+    backdrop.classList.remove('hidden');
+  }
+
+  el('tag-editor-open').addEventListener('click', openTagEditor);
+  el('tag-editor-close').addEventListener('click', closeModals);
+
+  function renderTagEditor() {
+    tagEditorList.innerHTML = '';
+    state.tags.forEach((tag) => {
+      const row = document.createElement('div');
+      row.className = 'tag-editor-row';
+
+      const emojiInput = document.createElement('input');
+      emojiInput.type = 'text';
+      emojiInput.maxLength = 4;
+      emojiInput.value = tag.emoji || '';
+      row.appendChild(emojiInput);
+
+      const nameInput = document.createElement('input');
+      nameInput.type = 'text';
+      nameInput.maxLength = 50;
+      nameInput.value = tag.name;
+      row.appendChild(nameInput);
+
+      const saveButton = document.createElement('button');
+      saveButton.type = 'button';
+      saveButton.className = 'ghost-btn';
+      saveButton.textContent = '💾';
+      saveButton.title = 'Сохранить изменения';
+      saveButton.addEventListener('click', () =>
+        saveTag(tag, nameInput.value, emojiInput.value),
+      );
+      row.appendChild(saveButton);
+
+      const deleteButton = document.createElement('button');
+      deleteButton.type = 'button';
+      deleteButton.className = 'ghost-btn';
+      deleteButton.textContent = '🗑';
+      deleteButton.title = 'Удалить тег';
+      deleteButton.addEventListener('click', () => deleteTag(tag));
+      row.appendChild(deleteButton);
+
+      tagEditorList.appendChild(row);
+    });
+
+    if (!state.tags.length) {
+      const empty = document.createElement('div');
+      empty.className = 'recent-empty';
+      empty.textContent = 'Тегов пока нет — добавьте первый';
+      tagEditorList.appendChild(empty);
+    }
+  }
+
+  async function saveTag(tag, name, emoji) {
+    const response = await fetch(`${API_BASE}/tags/${tag.id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-map-api-key': getApiKey(),
+      },
+      body: JSON.stringify({ name, emoji }),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => null);
+      alert(error?.message || 'Не удалось сохранить тег');
+      return;
+    }
+    const saved = await response.json();
+    if (saved.name !== tag.name) {
+      // The server already renamed it on every feature — mirror that locally
+      [...state.points, ...state.tracks].forEach((feature) => {
+        if (feature.tags) {
+          feature.tags = feature.tags.map((t) =>
+            t === tag.name ? saved.name : t,
+          );
+        }
+      });
+      if (state.filters.tag === tag.name) state.filters.tag = saved.name;
+    }
+    Object.assign(tag, saved);
+    state.tags.sort((a, b) => a.name.localeCompare(b.name));
+    renderTagEditor();
+    renderRecentPanel();
+    renderDetails();
+  }
+
+  async function deleteTag(tag) {
+    if (
+      !confirm(
+        `Удалить тег «${tag.name}»? Он будет снят со всех точек и треков.`,
+      )
+    ) {
+      return;
+    }
+    const response = await fetch(`${API_BASE}/tags/${tag.id}`, {
+      method: 'DELETE',
+      headers: { 'x-map-api-key': getApiKey() },
+    });
+    if (!response.ok) {
+      alert('Не удалось удалить тег');
+      return;
+    }
+    [...state.points, ...state.tracks].forEach((feature) => {
+      if (feature.tags) {
+        feature.tags = feature.tags.filter((t) => t !== tag.name);
+      }
+    });
+    if (state.filters.tag === tag.name) state.filters.tag = '';
+    state.tags = state.tags.filter((t) => t.id !== tag.id);
+    renderTagEditor();
+    renderRecentPanel();
+    renderDetails();
+  }
+
+  el('new-tag-add').addEventListener('click', async () => {
+    const name = el('new-tag-name').value.trim();
+    if (!name) return;
+    const response = await fetch(`${API_BASE}/tags`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-map-api-key': getApiKey(),
+      },
+      body: JSON.stringify({ name, emoji: el('new-tag-emoji').value.trim() }),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => null);
+      alert(error?.message || 'Не удалось добавить тег');
+      return;
+    }
+    state.tags.push(await response.json());
+    state.tags.sort((a, b) => a.name.localeCompare(b.name));
+    el('new-tag-name').value = '';
+    el('new-tag-emoji').value = '';
+    renderTagEditor();
+    renderRecentPanel();
   });
 
   pointForm.addEventListener('submit', async (event) => {
