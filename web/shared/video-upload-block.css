@@ -15,10 +15,10 @@
   min-height: 86px;
   align-content: center;
   gap: 5px;
-  border: 1px dashed var(--green);
-  border-radius: 8px;
+  border: 1px dashed hsl(var(--primary));
+  border-radius: var(--radius);
   padding: 18px;
-  background: #f9fbf8;
+  background: hsl(var(--shadcn-muted));
   cursor: pointer;
 }
 
@@ -62,21 +62,21 @@
   overflow: hidden;
   margin-top: 16px;
   border-radius: 999px;
-  background: #dbe5df;
+  background: hsl(var(--secondary));
 }
 
 .progress-bar {
   width: 0;
   height: 100%;
   border-radius: inherit;
-  background: var(--green);
+  background: hsl(var(--primary));
   transition: width 0.18s ease;
 }
 
 .upload-status {
   min-height: 24px;
   margin: 12px 0 0;
-  color: var(--green-dark);
+  color: hsl(var(--shadcn-muted-foreground));
   font-size: 14px;
 }
 

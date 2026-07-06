@@ -1,23 +1,20 @@
-/* ---- Tokens ---- */
+/* ---- Tokens (derived from shared site theme, web/shared/site-theme.css) ---- */
 :root {
-  --bg: #F4EFE3;            /* warm paper */
-  --bg-2: #EDE6D4;
-  --ink: #1A2A24;           /* deep forest ink */
-  --ink-2: #3A4A42;
-  --ink-muted: #6B776F;
-  --ink-faint: #A6AFA5;
-  --border: #D8CFB7;
-  --border-2: #C8BE9F;
-  --surface: #FBF7EC;
-  --accent: #C95A2B;        /* terracotta — compass needle */
-  --accent-deep: #A6451F;
-  --accent-soft: #E6B891;
-  --moss: #4E6B4A;
-  --shadow: 0 2px 12px rgba(26,42,36,.06), 0 24px 60px -24px rgba(26,42,36,.18);
-  --radius: 14px;
+  --bg: hsl(var(--background));
+  --bg-2: hsl(var(--shadcn-muted));
+  --ink: hsl(var(--foreground));
+  --ink-2: hsl(var(--foreground) / 0.8);
+  --ink-muted: hsl(var(--shadcn-muted-foreground));
+  --ink-faint: hsl(var(--shadcn-muted-foreground) / 0.55);
+  --border: hsl(var(--shadcn-border));
+  --border-2: hsl(var(--shadcn-border));
+  --surface: hsl(var(--card));
+  --accent: hsl(var(--primary));
+  --accent-deep: hsl(var(--primary) / 0.85);
+  --accent-soft: hsl(var(--primary) / 0.35);
+  --moss: hsl(var(--shadcn-muted-foreground));
+  --shadow: var(--v-shadow);
   --radius-sm: 8px;
-  --font-sans: "Satoshi", -apple-system, "Segoe UI", Inter, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
 
 * { box-sizing: border-box; }
@@ -33,20 +30,11 @@ body {
   position: relative;
 }
 
-/* Topographic background — subtle contour lines */
+/* Decorative background removed — shared theme's plain body background shows */
 .grid-bg {
   position: fixed; inset: 0;
   pointer-events: none;
   z-index: 0;
-  opacity: .55;
-  background-image:
-    radial-gradient(ellipse 60% 40% at 18% 22%, transparent 38%, rgba(78,107,74,.05) 39%, transparent 41%),
-    radial-gradient(ellipse 60% 40% at 18% 22%, transparent 48%, rgba(78,107,74,.05) 49%, transparent 51%),
-    radial-gradient(ellipse 60% 40% at 18% 22%, transparent 58%, rgba(78,107,74,.04) 59%, transparent 61%),
-    radial-gradient(ellipse 50% 38% at 82% 78%, transparent 38%, rgba(78,107,74,.05) 39%, transparent 41%),
-    radial-gradient(ellipse 50% 38% at 82% 78%, transparent 48%, rgba(78,107,74,.05) 49%, transparent 51%),
-    radial-gradient(ellipse 50% 38% at 82% 78%, transparent 58%, rgba(78,107,74,.04) 59%, transparent 61%),
-    linear-gradient(180deg, rgba(244,239,227,.0), rgba(237,230,212,.4));
 }
 
 .container, .site-header, .site-footer {
@@ -94,7 +82,7 @@ body {
 }
 .lang-switcher a.is-active {
   background: var(--ink);
-  color: #F5EFE0;
+  color: hsl(var(--primary-foreground));
 }
 .meta-chip {
   font-family: var(--font-mono);
@@ -140,12 +128,12 @@ body {
 }
 .drop-zone:hover, .drop-zone:focus-visible {
   border-color: var(--accent);
-  background: #FCF8EE;
+  background: hsl(var(--shadcn-muted) / 0.5);
   outline: none;
 }
 .drop-zone.is-drag {
   border-color: var(--accent);
-  background: #FAF1E0;
+  background: hsl(var(--shadcn-muted));
   border-style: solid;
 }
 .drop-inner { display: flex; flex-direction: column; align-items: center; gap: 6px; }
@@ -165,7 +153,7 @@ body {
 .sample-btn {
   border: 1px solid var(--border-2);
   border-radius: 999px;
-  background: rgba(255,255,255,.55);
+  background: hsl(var(--card) / 0.55);
   color: var(--ink-2);
   cursor: pointer;
   font: 500 13px var(--font-sans);
@@ -175,7 +163,7 @@ body {
 .sample-btn:hover {
   border-color: var(--accent);
   color: var(--accent-deep);
-  background: white;
+  background: hsl(var(--card));
 }
 .sample-btn:disabled {
   cursor: wait;
@@ -190,9 +178,9 @@ body {
   margin-top: 20px;
   padding: 14px 18px;
   border-radius: var(--radius-sm);
-  background: #FBEAE2;
-  border: 1px solid #E6B6A0;
-  color: #7A2B12;
+  background: hsl(var(--destructive) / 0.1);
+  border: 1px solid hsl(var(--destructive) / 0.35);
+  color: hsl(var(--destructive));
   font-size: 14.5px;
   display: flex;
   align-items: flex-start;
@@ -202,7 +190,7 @@ body {
   content: "!";
   display: inline-flex; align-items: center; justify-content: center;
   width: 22px; height: 22px; border-radius: 50%;
-  background: #C95A2B; color: white; font-weight: 700; font-size: 13px;
+  background: hsl(var(--destructive)); color: hsl(var(--destructive-foreground)); font-weight: 700; font-size: 13px;
   flex-shrink: 0; margin-top: 1px;
 }
 
@@ -243,7 +231,7 @@ body {
 
 .primary-btn {
   background: var(--ink);
-  color: #F5EFE0;
+  color: hsl(var(--primary-foreground));
   border: none;
   padding: 14px 22px;
   border-radius: 10px;
@@ -255,7 +243,7 @@ body {
   transition: background .15s ease, transform .15s ease;
   letter-spacing: 0.005em;
 }
-.primary-btn:hover { background: #0F1F1A; }
+.primary-btn:hover { background: hsl(var(--primary)); }
 .primary-btn:active { transform: translateY(1px); }
 .primary-btn:disabled {
   opacity: 0.45;
@@ -340,7 +328,7 @@ body {
   padding: 10px 12px;
   border: 1px solid var(--border-2);
   border-radius: 8px;
-  background: white;
+  background: hsl(var(--card));
   color: var(--ink);
   outline: none;
   transition: border-color .15s ease;
@@ -385,7 +373,7 @@ body {
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 14px;
-  background: rgba(255,255,255,.38);
+  background: hsl(var(--shadcn-muted) / 0.4);
 }
 .waypoints-head {
   display: flex;
@@ -401,7 +389,7 @@ body {
 .mini-btn,
 .remove-waypoint {
   border: 1px solid var(--border-2);
-  background: white;
+  background: hsl(var(--card));
   color: var(--ink-2);
   border-radius: 8px;
   cursor: pointer;
@@ -465,7 +453,7 @@ body {
   resize: vertical;
   font: 12px/1.45 var(--font-mono);
   color: var(--ink-2);
-  background: rgba(255,255,255,.55);
+  background: hsl(var(--card));
 }
 @media (max-width: 480px) {
   .field-grid { grid-template-columns: 1fr; }
@@ -478,7 +466,7 @@ body {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 4px;
-  background: white;
+  background: hsl(var(--card));
   border: 1px solid var(--border-2);
   border-radius: 8px;
   padding: 3px;
@@ -493,7 +481,7 @@ body {
   cursor: pointer;
   transition: background .15s ease, color .15s ease;
 }
-.seg-btn.is-active { background: var(--ink); color: #F5EFE0; }
+.seg-btn.is-active { background: var(--ink); color: hsl(var(--primary-foreground)); }
 
 /* ---- Workflow steps (главная страница) ---- */
 .workflow-step {
@@ -514,7 +502,7 @@ body {
   justify-content: center;
   border-radius: 10px;
   background: var(--ink);
-  color: #f5efe0;
+  color: hsl(var(--primary-foreground));
   font-weight: 700;
   font-size: 17px;
   font-family: var(--font-mono);
@@ -650,7 +638,7 @@ body {
   font-size: 14px;
   color: var(--ink-muted);
   line-height: 1.45;
-  background: rgba(251, 247, 236, 0.82);
+  background: hsl(var(--background) / 0.85);
 }
 .step2-preview-placeholder[hidden] {
   display: none !important;
@@ -802,14 +790,14 @@ body {
   border: 1px solid var(--border-2);
   padding: 0 14px;
   color: var(--ink);
-  background: white;
+  background: hsl(var(--card));
   text-decoration: none;
   font-weight: 600;
 }
 .render-video-link {
   border-color: var(--accent);
   background: var(--accent);
-  color: white;
+  color: hsl(var(--primary-foreground));
 }
 
 .step3-block {
@@ -859,7 +847,7 @@ body {
   padding: 12px 18px;
   border-radius: 12px;
   border: 1px solid var(--border-2);
-  background: white;
+  background: hsl(var(--card));
   color: var(--ink);
   text-decoration: none;
   font-weight: 600;
@@ -869,7 +857,7 @@ body {
 .instagram-cta:hover {
   border-color: var(--accent);
   color: var(--accent-deep);
-  background: #fcf8ee;
+  background: hsl(var(--shadcn-muted) / 0.5);
 }
 .instagram-cta__icon {
   flex-shrink: 0;

@@ -4,15 +4,43 @@
 
 ## Design system (web pages)
 
-All public pages under `web/` share one visual language. When building or changing a page:
+All public pages under `web/` share one visual language, defined by `web/shared/site-theme.css` (shadcn-style HSL tokens + shared component styling). Page CSS must be **layout-only**: no palettes, no hardcoded colors, no font stacks.
 
-- Link the shared stylesheets with a cache-busting query (`?v=YYYYMMDD-N`, bump on change):
-  `/shared/site-theme.css` (design tokens + components), and for pages with the site header also `/shared/site-header.css` + `/shared/site-header.js` with `<header data-site-header data-active="..." data-lang-ru="..." data-lang-en="...">`.
-- Font is Inter (Google Fonts, weights 400–700). Never hardcode font stacks — use `var(--font-sans)`.
-- Colors, spacing, radii and shadows come from CSS variables in site-theme.css: `--v-text`, `--v-muted`, `--v-line`, `--v-bg`, `--v-surface`, spacing scale `--v-space-1..8`, `--radius`, `hsl(var(--shadcn-border))`, `hsl(var(--primary))`, etc. Page CSS should contain layout only, not new colors.
-- Reuse component classes from site-theme.css instead of inventing new ones: cards `.editor-card` / `.tool-block` (border + radius + surface + shadow), buttons `.primary-btn` (filled dark) and `.ghost-btn` / `.mini-btn` (outlined, min-height 40px, font-weight 750), kickers `.section-kicker`.
-- Inputs: 1px `hsl(var(--shadcn-input))` border, `var(--radius)` radius, min-height 40px, `hsl(var(--background))` background.
-- Pages are bilingual where it matters: `index.html` (Russian) + `en.html` (English), linked via the header language switcher.
+### Tokens (the only allowed sources of color/spacing/type)
+
+- Surfaces: `hsl(var(--background))` page, `hsl(var(--card))` panels, `hsl(var(--shadcn-muted))` soft fills, `hsl(var(--popover))` dropdowns.
+- Text: `var(--v-text)` main, `var(--v-muted)` secondary, `hsl(var(--primary-foreground))` on filled-primary.
+- Borders: `hsl(var(--shadcn-border))`; form inputs `hsl(var(--shadcn-input))`; focus ring `hsl(var(--shadcn-ring))`.
+- Accents: `hsl(var(--primary))` (actions/links/progress), `hsl(var(--destructive))` (errors, warm highlights like the Instagram icon). Tints via alpha: `hsl(var(--primary) / 0.1)`.
+- Spacing scale `--v-space-1` (4px) … `--v-space-8` (64px); page/panel/card paddings `--v-section-padding` / `--v-panel-padding` / `--v-card-padding`.
+- Radius `var(--radius)` (nested elements `calc(var(--radius) - 2px)`); shadows `var(--v-shadow)` (cards) and `var(--shadcn-popover-shadow)` (popovers/modals).
+- Fonts: `var(--font-sans)` (Inter, Google Fonts weights 400–700) and `var(--font-mono)`. 
+- Legacy aliases (`--page`, `--paper`, `--ink`, `--line`, `--accent`, `--green`…) exist in the theme for old code; don't use them in new CSS and never redefine them in a page `:root`.
+
+**Allowed hardcoded colors (the only exceptions):** overlays above photos/video (`rgba(0,0,0,.5)`, white text on them), dark letterbox backdrops behind media (`#000`), brand gradients (Instagram button), colors that are literal data (subtitle/route color options the user picks, canvas-rendering colors in JS — those also may keep their own fonts, e.g. Montserrat/Satoshi in the GPX PNG generator output), and the dark video-editor workbench palette in subs (`--charcoal`/`--coral`/`--yellow`/`--blue`).
+
+### Components — reuse, don't reinvent
+
+- Cards/panels: `.editor-card` (card padding), `.tool-block`/`.workflow-step`/`.archive-section` (section padding). All get border+radius+surface+shadow from the theme.
+- Buttons: `.primary-btn` (filled), `.ghost-btn`/`.mini-btn`/`.tool-link` (outlined, min-height 40px, font-weight 750). Icon-only: add `.icon-btn`.
+- Kickers: `.eyebrow`/`.section-kicker` (uppercase 12–13px, themed color); page width wrappers: `.page-shell`/`.shell`/`.container` (min(1160px, 100% − gutters)).
+- Inputs get themed borders/radius from the theme automatically; keep min-height 40px.
+- Badges/chips: `.badge`, `.meta-chip` (pill, `--secondary` fill).
+
+### Page anatomy
+
+- Content pages (home, files, gpx, subs): shared header `<header data-site-header data-active="..." data-lang-ru="..." data-lang-en="...">` + `/shared/site-header.css` + `/shared/site-header.js`; bilingual `index.html` (RU) / `en.html` (EN).
+- App-like pages (places — fullscreen map, reels — unlisted catalog) skip the big header and use a compact `.panel-brand` link to `/` instead.
+- Stylesheet link order on existing legacy pages is `page styles → site-theme.css` (the theme intentionally loads **last** as an override layer). New pages should do the opposite, clean pattern: `site-theme.css → page styles`, where page styles only add layout. Either way the rule is the same: the theme owns all colors.
+- Every stylesheet link carries a cache-busting query `?v=YYYYMMDD-N` — bump it whenever you change that file.
+
+### Checklist when touching a page
+
+1. No new hex/rgb colors in page CSS (except the allowed list above); run `grep -nE '#[0-9a-fA-F]{3,8}\b|rgba?\(' <file>` and justify every hit.
+2. No `:root` palette overrides, no `font-family` other than the tokens.
+3. Reused theme component classes before adding custom ones.
+4. Bumped `?v=` on changed CSS.
+5. Screenshot the page (dev server + browser preview) and compare against home/places for consistency.
 
 ### My places map page (`web/places/`)
 
