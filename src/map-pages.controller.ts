@@ -58,33 +58,80 @@ export class MapPagesController {
       username?: string;
     } | null;
 
+    // The shared Reel table has stable covers and richer texts for features
+    // whose Instagram link went through the reels pipeline
+    const shortcode = record.instagramUrl
+      ? /instagram\.com\/(?:[^/]+\/)?(?:reel|reels|p|tv)\/([A-Za-z0-9_-]+)/.exec(
+          record.instagramUrl,
+        )?.[1]
+      : null;
+    const reel = shortcode
+      ? await this.prisma.reel.findUnique({ where: { shortcode } })
+      : null;
+
     const baseUrl =
       process.env.VLANDIVIR_2025_BASE_URL ||
       `${req.protocol}://${req.get('host')}`;
     const title = `${record.name} — Карта моих мест`;
-    const description =
+    // Messenger previews are one-liners: collapse the newlines Instagram
+    // captions are full of, and keep the text short
+    const description = (
       record.description ||
       meta?.caption ||
-      'Места, которые я посетил или планирую посетить, — с видео из Instagram';
-    const image = meta?.coverUrl || meta?.thumbnailUrl;
+      reel?.description ||
+      reel?.visionDescription ||
+      this.fallbackDescription(kind, record)
+    )
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 300);
+    // Only stable image URLs: Instagram thumbnailUrl is signed and expires,
+    // so messengers that fetch the preview later get a broken picture
+    const image =
+      meta?.coverUrl || reel?.coverUrl || `${baseUrl}/shared/og-places.png`;
 
     const tags = [
       `<meta property="og:type" content="article" />`,
       `<meta property="og:title" content="${this.escape(title)}" />`,
       `<meta property="og:description" content="${this.escape(description)}" />`,
       `<meta property="og:url" content="${this.escape(`${baseUrl}/places/${kind}/${record.id}`)}" />`,
-      ...(image
-        ? [
-            `<meta property="og:image" content="${this.escape(image)}" />`,
-            `<meta name="twitter:card" content="summary_large_image" />`,
-          ]
-        : []),
+      `<meta property="og:image" content="${this.escape(image)}" />`,
+      `<meta name="twitter:card" content="summary_large_image" />`,
     ].join('\n  ');
 
     const page = html
       .replace(/<title>[^<]*<\/title>/, `<title>${this.escape(title)}</title>`)
       .replace('</head>', `  ${tags}\n</head>`);
     res.type('html').send(page);
+  }
+
+  private fallbackDescription(
+    kind: 'point' | 'track',
+    record: {
+      name: string;
+      tags?: string[];
+      latitude?: number;
+      longitude?: number;
+    },
+  ): string {
+    const parts = [
+      kind === 'track'
+        ? `Маршрут «${record.name}» на карте моих мест`
+        : `«${record.name}» — точка на карте моих мест`,
+    ];
+    if (record.tags?.length) {
+      parts.push(record.tags.join(', '));
+    }
+    if (
+      kind === 'point' &&
+      typeof record.latitude === 'number' &&
+      typeof record.longitude === 'number'
+    ) {
+      parts.push(
+        `Координаты: ${record.latitude.toFixed(4)}, ${record.longitude.toFixed(4)}`,
+      );
+    }
+    return parts.join(' · ');
   }
 
   private escape(text: string): string {
