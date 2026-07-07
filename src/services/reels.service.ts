@@ -48,6 +48,40 @@ export class ReelsService {
     return match ? match[1] : null;
   }
 
+  // Fire-and-forget entry point for reels referenced outside the notebook
+  // (e.g. map features): make sure a shared Reel record exists and kick off
+  // meta/video processing without delaying the caller's request.
+  ensureInBackground(
+    instagramUrl: string,
+    source: string,
+    retryErrors = false,
+  ): void {
+    const shortcode = this.extractShortcode(instagramUrl);
+    if (!shortcode) return;
+
+    void (async () => {
+      const existing = await this.prisma.reel.findUnique({
+        where: { shortcode },
+      });
+      if (!existing) {
+        const reel = await this.prisma.reel.create({
+          data: { instagramUrl, shortcode, source },
+        });
+        this.processInBackground(reel.id);
+      } else if (existing.status === 'error' && retryErrors) {
+        await this.prisma.reel.update({
+          where: { id: existing.id },
+          data: { status: 'pending', error: null },
+        });
+        this.processInBackground(existing.id);
+      }
+    })().catch((error) => {
+      this.logger.warn(
+        `Failed to ensure reel for ${instagramUrl}: ${String(error)}`,
+      );
+    });
+  }
+
   // Fire-and-forget: the HTTP request returns immediately with a pending
   // record while yt-dlp works in the background; the frontend polls.
   processInBackground(reelId: number): void {

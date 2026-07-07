@@ -19,6 +19,7 @@ import { timingSafeEqual } from 'crypto';
 import { Prisma } from './generated/prisma-client';
 import { PrismaService } from './prisma/prisma.service';
 import { InstagramMetaService } from './services/instagram-meta.service';
+import { ReelsService } from './services/reels.service';
 import { StorageService } from './services/storage.service';
 
 type MapPointBody = {
@@ -51,6 +52,7 @@ export class MapApiController {
     private readonly configService: ConfigService,
     private readonly instagramMetaService: InstagramMetaService,
     private readonly storageService: StorageService,
+    private readonly reelsService: ReelsService,
   ) {}
 
   @Get('points')
@@ -72,6 +74,8 @@ export class MapApiController {
       body.latitude,
       body.longitude,
     );
+    const instagramUrl = this.parseInstagramUrl(body.instagramUrl);
+    this.archiveReel(instagramUrl, true);
 
     return this.prisma.mapPoint.create({
       data: {
@@ -79,7 +83,7 @@ export class MapApiController {
         latitude,
         longitude,
         description: this.parseOptionalText(body.description),
-        instagramUrl: this.parseInstagramUrl(body.instagramUrl),
+        instagramUrl,
         tags: this.parseTags(body.tags),
       },
     });
@@ -106,6 +110,7 @@ export class MapApiController {
       // The link changed — cached metadata belongs to the old reel
       data.instagramMeta = Prisma.DbNull;
       data.instagramMetaUpdatedAt = null;
+      this.archiveReel(data.instagramUrl as string | null, true);
     }
     if (body.tags !== undefined) {
       data.tags = this.parseTags(body.tags);
@@ -148,11 +153,14 @@ export class MapApiController {
   ) {
     this.assertApiKey(apiKey);
 
+    const instagramUrl = this.parseInstagramUrl(body.instagramUrl);
+    this.archiveReel(instagramUrl, true);
+
     return this.prisma.mapTrack.create({
       data: {
         name: this.parseName(body.name),
         description: this.parseOptionalText(body.description),
-        instagramUrl: this.parseInstagramUrl(body.instagramUrl),
+        instagramUrl,
         points: this.parseTrackPoints(body.points) as Prisma.InputJsonValue,
         tags: this.parseTags(body.tags),
       },
@@ -183,6 +191,7 @@ export class MapApiController {
       // The link changed — cached metadata belongs to the old reel
       data.instagramMeta = Prisma.DbNull;
       data.instagramMetaUpdatedAt = null;
+      this.archiveReel(data.instagramUrl as string | null, true);
     }
     if (body.tags !== undefined) {
       data.tags = this.parseTags(body.tags);
@@ -395,6 +404,11 @@ export class MapApiController {
       return { instagramMeta: null, refreshed: false };
     }
 
+    // Lazy backfill: features saved before reel archiving existed get their
+    // video/meta copied to Spaces the first time someone opens them. No error
+    // retries here — the endpoint is public.
+    this.archiveReel(record.instagramUrl, false);
+
     const age = record.instagramMetaUpdatedAt
       ? Date.now() - record.instagramMetaUpdatedAt.getTime()
       : Infinity;
@@ -471,6 +485,14 @@ export class MapApiController {
     } catch {
       return oldMeta?.coverUrl;
     }
+  }
+
+  // Map reels join the shared reel notebook pipeline: yt-dlp meta plus a
+  // video/cover copy in DO Spaces. The map keeps rendering the Instagram
+  // embed player; the archive is for meta, search and longevity.
+  private archiveReel(instagramUrl: string | null, retryErrors: boolean): void {
+    if (!instagramUrl) return;
+    this.reelsService.ensureInBackground(instagramUrl, 'map', retryErrors);
   }
 
   @Post('key-check')

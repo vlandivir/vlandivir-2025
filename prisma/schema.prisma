@@ -168,6 +168,7 @@ model Reel {
   id           Int       @id @default(autoincrement())
   instagramUrl String
   shortcode    String    @unique
+  source       String    @default("notebook") // notebook | map
   status       String    @default("pending") // pending | ready | error
   error        String?   @db.Text
   title        String?
