@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { spawn } from 'child_process';
 import { createReadStream } from 'fs';
-import { mkdtemp, readdir, readFile, rm, writeFile } from 'fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 import { Prisma } from '../generated/prisma-client';
@@ -29,6 +29,8 @@ type YtDlpInfo = {
 };
 
 const YTDLP_TIMEOUT_MS = 3 * 60 * 1000;
+// 1 fps cap: 2 minutes of frames ≈ 130k input tokens — safely within limits
+const MAX_VISION_FRAMES = 120;
 
 @Injectable()
 export class ReelsService {
@@ -137,8 +139,9 @@ export class ReelsService {
         },
       });
 
-      // The video is ready for the UI; transcription failures must not mark
-      // the reel itself as broken
+      // The video is ready for the UI; transcription/vision failures must not
+      // mark the reel itself as broken. Vision runs after transcription so it
+      // can use the transcript as context.
       await this.transcribe(reelId, videoPath, tempDir).catch(async (error) => {
         this.logger.warn(
           `Reel ${reelId} transcription failed: ${String(error)}`,
@@ -153,6 +156,25 @@ export class ReelsService {
           })
           .catch(() => undefined);
       });
+
+      await this.analyzeFrames(reelId, videoPath, tempDir).catch(
+        async (error) => {
+          this.logger.warn(`Reel ${reelId} vision failed: ${String(error)}`);
+          await this.prisma.reel
+            .update({
+              where: { id: reelId },
+              data: {
+                visionStatus: 'error',
+                visionError: this.userMessage(error),
+              },
+            })
+            .catch(() => undefined);
+        },
+      );
+
+      // With transcript and vision in place, replace yt-dlp's generic
+      // "Video by <author>" with a meaningful title
+      this.generateTitleInBackground(reelId);
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
@@ -224,9 +246,246 @@ export class ReelsService {
       const buffer = await this.storageService.downloadFile(reel.videoUrl);
       await writeFile(videoPath, buffer);
       await this.transcribe(reelId, videoPath, tempDir);
+      this.generateTitleInBackground(reelId);
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
+  }
+
+  // Generate a short human title from everything we know about the reel
+  // (caption, transcript, vision description) instead of yt-dlp's generic
+  // "Video by <author>". Best-effort: failures keep the old title.
+  async generateTitle(reelId: number): Promise<void> {
+    const reel = await this.prisma.reel.findUnique({ where: { id: reelId } });
+    if (!reel) return;
+
+    const sources = [
+      reel.visionDescription
+        ? `Что происходит в ролике:\n${reel.visionDescription.slice(0, 1500)}`
+        : null,
+      reel.transcriptClean || reel.transcript
+        ? `Расшифровка речи:\n${(reel.transcriptClean || reel.transcript || '').slice(0, 1500)}`
+        : null,
+      reel.description
+        ? `Описание под видео:\n${reel.description.slice(0, 800)}`
+        : null,
+    ].filter(Boolean);
+    if (!sources.length) return;
+
+    const apiKey = this.configService.get<string>('OPENAI_API_KEY');
+    if (!apiKey) return;
+    const model =
+      this.configService.get<string>('REELS_LLM_MODEL') || 'gpt-5-mini';
+
+    const prompt = [
+      'Придумай короткое название для записи о коротком видео (Instagram reel) в личной записной книжке.',
+      'Требования: русский язык, 3–8 слов, по сути содержания, без кавычек, эмодзи и точки в конце, без слов «видео» и «ролик».',
+      'В ответе верни только само название.',
+      ...sources,
+    ].join('\n\n');
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: prompt }],
+        max_completion_tokens: 500,
+        reasoning_effort: 'minimal',
+      }),
+      signal: AbortSignal.timeout(60 * 1000),
+    });
+    if (!response.ok) {
+      throw new Error(`Title LLM error: ${response.status}`);
+    }
+
+    const data = (await response.json()) as {
+      choices?: { message?: { content?: string } }[];
+    };
+    const title = data.choices?.[0]?.message?.content
+      ?.trim()
+      .replace(/^["«»']+|["«»'.]+$/g, '')
+      .slice(0, 200);
+    if (!title) return;
+
+    await this.prisma.reel.update({
+      where: { id: reelId },
+      data: { title },
+    });
+  }
+
+  private generateTitleInBackground(reelId: number): void {
+    void this.generateTitle(reelId).catch((error) => {
+      this.logger.warn(
+        `Reel ${reelId} title generation failed: ${String(error)}`,
+      );
+    });
+  }
+
+  // Force (re-)extraction of frames + LLM description for a downloaded reel
+  visionInBackground(reelId: number): void {
+    void (async () => {
+      const reel = await this.prisma.reel.findUnique({ where: { id: reelId } });
+      if (!reel?.videoUrl) return;
+
+      const tempDir = await mkdtemp(path.join(os.tmpdir(), 'reel-vision-'));
+      try {
+        const videoPath = path.join(tempDir, 'video.mp4');
+        const buffer = await this.storageService.downloadFile(reel.videoUrl);
+        await writeFile(videoPath, buffer);
+        await this.analyzeFrames(reelId, videoPath, tempDir);
+        this.generateTitleInBackground(reelId);
+      } finally {
+        await rm(tempDir, { recursive: true, force: true });
+      }
+    })().catch(async (error) => {
+      this.logger.warn(`Reel ${reelId} vision failed: ${String(error)}`);
+      await this.prisma.reel
+        .update({
+          where: { id: reelId },
+          data: {
+            visionStatus: 'error',
+            visionError: this.userMessage(error),
+          },
+        })
+        .catch(() => undefined);
+    });
+  }
+
+  // Extract 1 frame per second, store the frames in Spaces and ask the LLM
+  // to describe what happens in the video (using the transcript as context).
+  private async analyzeFrames(
+    reelId: number,
+    videoPath: string,
+    tempDir: string,
+  ): Promise<void> {
+    const reel = await this.prisma.reel.findUnique({ where: { id: reelId } });
+    if (!reel) return;
+
+    await this.prisma.reel.update({
+      where: { id: reelId },
+      data: { visionStatus: 'pending', visionError: null },
+    });
+
+    const framesDir = path.join(tempDir, 'frames');
+    await mkdir(framesDir, { recursive: true });
+    // 768px wide is what the vision model gets after its own downscale anyway
+    await this.runFfmpeg([
+      '-y',
+      '-i',
+      videoPath,
+      '-vf',
+      'fps=1,scale=768:-2',
+      '-q:v',
+      '4',
+      '-frames:v',
+      String(MAX_VISION_FRAMES),
+      path.join(framesDir, '%03d.jpg'),
+    ]);
+
+    const frameFiles = (await readdir(framesDir))
+      .filter((file) => file.endsWith('.jpg'))
+      .sort();
+    if (!frameFiles.length) {
+      throw new Error('ffmpeg produced no frames');
+    }
+
+    const frameUrls: string[] = [];
+    const buffers: Buffer[] = [];
+    for (const file of frameFiles) {
+      const buffer = await readFile(path.join(framesDir, file));
+      buffers.push(buffer);
+      frameUrls.push(
+        await this.storageService.uploadFileWithKey(
+          buffer,
+          'image/jpeg',
+          `reels/frames/${reel.shortcode}/${file}`,
+        ),
+      );
+    }
+
+    const visionDescription = await this.describeFrames(buffers, reel);
+
+    await this.prisma.reel.update({
+      where: { id: reelId },
+      data: {
+        frameUrls,
+        visionDescription,
+        visionStatus: 'ready',
+        visionError: null,
+      },
+    });
+  }
+
+  private async describeFrames(
+    frames: Buffer[],
+    reel: {
+      description: string | null;
+      transcriptClean: string | null;
+      transcript: string | null;
+    },
+  ): Promise<string | null> {
+    const apiKey = this.configService.get<string>('OPENAI_API_KEY');
+    if (!apiKey) throw new Error('OPENAI_API_KEY is not configured');
+
+    const model =
+      this.configService.get<string>('REELS_LLM_MODEL') || 'gpt-5-mini';
+    const transcript = reel.transcriptClean || reel.transcript;
+
+    const prompt = [
+      'Ниже кадры из короткого видео (Instagram reel), взятые по одному в секунду, в хронологическом порядке.',
+      'Опиши на русском языке, что происходит в ролике: последовательность действий и сцен, место съёмки, важные объекты и детали.',
+      'Если на кадрах есть экранные надписи или текстовые плашки — обязательно перепиши их текст дословно (в оригинальном языке).',
+      'Пиши связным текстом без вводных слов, не упоминай слова «кадр» и «видео». Не пересказывай расшифровку речи — она дана только как контекст.',
+      reel.description
+        ? `Контекст — описание под видео:\n${reel.description.slice(0, 800)}`
+        : null,
+      transcript
+        ? `Контекст — расшифровка речи:\n${transcript.slice(0, 2000)}`
+        : null,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+
+    const content: unknown[] = [{ type: 'text', text: prompt }];
+    for (const frame of frames) {
+      content.push({
+        type: 'image_url',
+        image_url: {
+          url: `data:image/jpeg;base64,${frame.toString('base64')}`,
+        },
+      });
+    }
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content }],
+        max_completion_tokens: 4000,
+        reasoning_effort: 'minimal',
+      }),
+      signal: AbortSignal.timeout(5 * 60 * 1000),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => '');
+      throw new Error(
+        `Vision LLM error: ${response.status} ${response.statusText}${errorBody ? `: ${errorBody.slice(0, 200)}` : ''}`,
+      );
+    }
+
+    const data = (await response.json()) as {
+      choices?: { message?: { content?: string } }[];
+    };
+    return data.choices?.[0]?.message?.content?.trim() || null;
   }
 
   private async transcribe(

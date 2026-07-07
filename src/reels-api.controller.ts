@@ -129,6 +129,46 @@ export class ReelsApiController {
     return updated;
   }
 
+  // Regenerate titles for every analyzed reel (sequential, background)
+  @Post('generate-titles')
+  async generateTitles(@Headers('x-reels-api-key') apiKey: string | undefined) {
+    this.assertEditKey(apiKey);
+    const reels = await this.prisma.reel.findMany({
+      where: { status: 'ready' },
+      select: { id: true },
+      orderBy: { id: 'asc' },
+    });
+    void (async () => {
+      for (const { id } of reels) {
+        await this.reelsService.generateTitle(id).catch(() => undefined);
+      }
+    })();
+    return { queued: reels.length };
+  }
+
+  // Force frame extraction + LLM description for an already downloaded reel
+  @Post('reels/:id/vision')
+  async visionReel(
+    @Headers('x-reels-api-key') apiKey: string | undefined,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    this.assertEditKey(apiKey);
+    const reel = await this.prisma.reel.findUnique({ where: { id } });
+    if (!reel) throw new NotFoundException('Reel not found');
+    if (reel.status !== 'ready' || !reel.videoUrl) {
+      throw new BadRequestException(
+        'Сначала должно загрузиться видео — разбирать пока нечего',
+      );
+    }
+
+    const updated = await this.prisma.reel.update({
+      where: { id },
+      data: { visionStatus: 'pending', visionError: null },
+    });
+    this.reelsService.visionInBackground(id);
+    return updated;
+  }
+
   @Delete('reels/:id')
   async deleteReel(
     @Headers('x-reels-api-key') apiKey: string | undefined,

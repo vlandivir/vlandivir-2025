@@ -255,6 +255,7 @@
     }
 
     renderTranscript(details, reel);
+    renderVision(details, reel);
 
     const actions = document.createElement('div');
     actions.className = 'details-actions';
@@ -301,6 +302,20 @@
         : '🎙 Распознать аудио';
       transcribeButton.addEventListener('click', () => transcribeReel(reel));
       actions.appendChild(transcribeButton);
+    }
+
+    if (
+      state.editMode &&
+      reel.status === 'ready' &&
+      reel.visionStatus !== 'pending'
+    ) {
+      const visionButton = document.createElement('button');
+      visionButton.className = 'mini-btn';
+      visionButton.textContent = reel.visionDescription
+        ? '🖼 Обновить кадры'
+        : '🖼 Разобрать кадры';
+      visionButton.addEventListener('click', () => visionReel(reel));
+      actions.appendChild(visionButton);
     }
 
     if (state.editMode) {
@@ -370,6 +385,76 @@
     container.appendChild(block);
   }
 
+  // --- Frames carousel + vision description ---
+
+  function renderVision(container, reel) {
+    if (reel.frameUrls?.length) {
+      const strip = document.createElement('div');
+      strip.className = 'frames-strip';
+      reel.frameUrls.forEach((url, index) => {
+        const link = document.createElement('a');
+        link.href = url;
+        link.target = '_blank';
+        link.rel = 'noopener';
+        link.title = `${index + 1} сек`;
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = '';
+        img.loading = 'lazy';
+        link.appendChild(img);
+        strip.appendChild(link);
+      });
+      container.appendChild(strip);
+    }
+
+    if (reel.visionStatus === 'pending') {
+      const status = document.createElement('p');
+      status.className = 'transcript-status';
+      status.textContent = '🖼 Разбираем кадры…';
+      container.appendChild(status);
+      return;
+    }
+
+    if (reel.visionStatus === 'error' && reel.visionError) {
+      const error = document.createElement('p');
+      error.className = 'details-error';
+      error.textContent = `Разбор кадров не удался: ${reel.visionError}`;
+      container.appendChild(error);
+      return;
+    }
+
+    if (reel.visionStatus !== 'ready' || !reel.visionDescription) return;
+
+    const block = document.createElement('details');
+    block.className = 'transcript-block';
+    const summary = document.createElement('summary');
+    summary.textContent = '🖼 Что происходит в ролике';
+    block.appendChild(summary);
+    const text = document.createElement('p');
+    text.className = 'transcript-text';
+    text.textContent = reel.visionDescription;
+    block.appendChild(text);
+    container.appendChild(block);
+  }
+
+  async function visionReel(reel) {
+    const response = await fetch(`${API_BASE}/reels/${reel.id}/vision`, {
+      method: 'POST',
+      headers: { 'x-reels-api-key': getApiKey() },
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => null);
+      alert(error?.message || 'Не удалось запустить разбор кадров');
+      return;
+    }
+    const updated = await response.json();
+    const index = state.reels.findIndex((r) => r.id === reel.id);
+    if (index !== -1) state.reels[index] = updated;
+    if (state.selected?.id === reel.id) state.selected = updated;
+    renderDetails();
+    schedulePolling();
+  }
+
   async function transcribeReel(reel) {
     const response = await fetch(`${API_BASE}/reels/${reel.id}/transcribe`, {
       method: 'POST',
@@ -432,6 +517,7 @@
         reel.author,
         reel.transcript,
         reel.transcriptClean,
+        reel.visionDescription,
       ]
         .filter(Boolean)
         .join(' ')
@@ -567,7 +653,11 @@
   // --- Polling: pending reels are being processed by yt-dlp on the server ---
 
   function isProcessing(reel) {
-    return reel.status === 'pending' || reel.transcriptStatus === 'pending';
+    return (
+      reel.status === 'pending' ||
+      reel.transcriptStatus === 'pending' ||
+      reel.visionStatus === 'pending'
+    );
   }
 
   function schedulePolling() {

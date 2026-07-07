@@ -318,6 +318,32 @@ body {
   margin-top: var(--v-space-2);
 }
 
+/* --- Frames carousel --- */
+
+.frames-strip {
+  display: flex;
+  gap: var(--v-space-2);
+  margin: 0 0 var(--v-space-4);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: var(--v-space-1);
+}
+
+.frames-strip a {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+
+.frames-strip img {
+  display: block;
+  height: 120px;
+  width: auto;
+  border: 1px solid hsl(var(--shadcn-border));
+  border-radius: calc(var(--radius) - 2px);
+  background: hsl(var(--shadcn-muted));
+}
+
 .transcript-raw summary {
   color: var(--v-muted);
   font-size: 12px;
