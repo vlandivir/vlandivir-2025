@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { spawn } from 'child_process';
 import { createReadStream } from 'fs';
-import { mkdtemp, readdir, rm } from 'fs/promises';
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 import { Prisma } from '../generated/prisma-client';
@@ -113,7 +113,11 @@ export class ReelsService {
         `reels/videos/${reel.shortcode}.mp4`,
       );
 
-      const coverUrl = await this.persistCover(reel.shortcode, info.thumbnail);
+      // Instagram sometimes refuses the thumbnail download — fall back to a
+      // frame from the video itself
+      const coverUrl =
+        (await this.persistCover(reel.shortcode, info.thumbnail)) ||
+        (await this.persistCoverFromVideo(reel.shortcode, videoPath, tempDir));
 
       await this.prisma.reel.update({
         where: { id: reelId },
@@ -132,9 +136,326 @@ export class ReelsService {
           meta: this.trimInfo(info) as Prisma.InputJsonValue,
         },
       });
+
+      // The video is ready for the UI; transcription failures must not mark
+      // the reel itself as broken
+      await this.transcribe(reelId, videoPath, tempDir).catch(async (error) => {
+        this.logger.warn(
+          `Reel ${reelId} transcription failed: ${String(error)}`,
+        );
+        await this.prisma.reel
+          .update({
+            where: { id: reelId },
+            data: {
+              transcriptStatus: 'error',
+              transcriptError: this.userMessage(error),
+            },
+          })
+          .catch(() => undefined);
+      });
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
+  }
+
+  // Force (re-)transcription of an already downloaded reel: fetches the video
+  // copy from Spaces, extracts the audio and runs Whisper.
+  transcribeInBackground(reelId: number): void {
+    void this.transcribeFromSpaces(reelId).catch(async (error) => {
+      this.logger.warn(`Reel ${reelId} transcription failed: ${String(error)}`);
+      await this.prisma.reel
+        .update({
+          where: { id: reelId },
+          data: {
+            transcriptStatus: 'error',
+            transcriptError: this.userMessage(error),
+          },
+        })
+        .catch(() => undefined);
+    });
+  }
+
+  // Re-run transcription for every downloaded reel, one at a time so we don't
+  // hammer Spaces/OpenAI. Returns the number of queued reels immediately.
+  async transcribeAllInBackground(): Promise<number> {
+    const reels = await this.prisma.reel.findMany({
+      where: { status: 'ready', videoUrl: { not: null } },
+      select: { id: true },
+      orderBy: { id: 'asc' },
+    });
+
+    await this.prisma.reel.updateMany({
+      where: { id: { in: reels.map((reel) => reel.id) } },
+      data: { transcriptStatus: 'pending', transcriptError: null },
+    });
+
+    void (async () => {
+      for (const { id } of reels) {
+        try {
+          await this.transcribeFromSpaces(id);
+        } catch (error) {
+          this.logger.warn(
+            `Reel ${id} bulk transcription failed: ${String(error)}`,
+          );
+          await this.prisma.reel
+            .update({
+              where: { id },
+              data: {
+                transcriptStatus: 'error',
+                transcriptError: this.userMessage(error),
+              },
+            })
+            .catch(() => undefined);
+        }
+      }
+      this.logger.log(`Bulk transcription finished (${reels.length} reels)`);
+    })();
+
+    return reels.length;
+  }
+
+  private async transcribeFromSpaces(reelId: number): Promise<void> {
+    const reel = await this.prisma.reel.findUnique({ where: { id: reelId } });
+    if (!reel?.videoUrl) return;
+
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), 'reel-audio-'));
+    try {
+      const videoPath = path.join(tempDir, 'video.mp4');
+      const buffer = await this.storageService.downloadFile(reel.videoUrl);
+      await writeFile(videoPath, buffer);
+      await this.transcribe(reelId, videoPath, tempDir);
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  }
+
+  private async transcribe(
+    reelId: number,
+    videoPath: string,
+    tempDir: string,
+  ): Promise<void> {
+    const reel = await this.prisma.reel.findUnique({ where: { id: reelId } });
+    if (!reel) return;
+
+    await this.prisma.reel.update({
+      where: { id: reelId },
+      data: { transcriptStatus: 'pending', transcriptError: null },
+    });
+
+    const audioPath = path.join(tempDir, 'audio.mp3');
+    await this.runFfmpeg([
+      '-y',
+      '-i',
+      videoPath,
+      '-vn',
+      '-acodec',
+      'libmp3lame',
+      '-ac',
+      '1',
+      '-b:a',
+      '64k',
+      audioPath,
+    ]);
+
+    const audioBuffer = await readFile(audioPath);
+    const audioUrl = await this.storageService.uploadFileWithKey(
+      audioBuffer,
+      'audio/mpeg',
+      `reels/audio/${reel.shortcode}.mp3`,
+    );
+
+    const result = await this.requestWhisper(audioBuffer, reel.shortcode);
+
+    // Keep the raw verbose response (segments etc.) for future LLM steps
+    await this.storageService
+      .uploadFileWithKey(
+        Buffer.from(JSON.stringify(result)),
+        'application/json',
+        `reels/transcripts/${reel.shortcode}.json`,
+      )
+      .catch(() => undefined);
+
+    const transcript = (result.text || '').trim();
+
+    // Best-effort LLM pass: fix recognition errors and split into replicas.
+    // The raw Whisper text stays authoritative if this fails.
+    let transcriptClean: string | null = null;
+    if (transcript) {
+      transcriptClean = await this.refineTranscript(
+        transcript,
+        reel.description,
+      ).catch((error) => {
+        this.logger.warn(
+          `Transcript refine failed for reel ${reelId}: ${String(error)}`,
+        );
+        return null;
+      });
+    }
+
+    await this.prisma.reel.update({
+      where: { id: reelId },
+      data: {
+        audioUrl,
+        transcript,
+        transcriptClean,
+        transcriptLang: result.language || null,
+        transcriptStatus: 'ready',
+        transcriptError: null,
+      },
+    });
+  }
+
+  // Ask a small LLM to correct Whisper mistakes (using the reel description
+  // as context) and split the text into replicas, one per line.
+  private async refineTranscript(
+    transcript: string,
+    description: string | null,
+  ): Promise<string | null> {
+    const apiKey = this.configService.get<string>('OPENAI_API_KEY');
+    if (!apiKey) return null;
+
+    const model =
+      this.configService.get<string>('REELS_LLM_MODEL') || 'gpt-5-mini';
+
+    const prompt = [
+      'Ниже автоматическая расшифровка аудиодорожки короткого видео (Instagram reel).',
+      'Исправь ошибки распознавания речи, расставь пунктуацию и разбей текст на реплики — законченные фразы, каждая на отдельной строке.',
+      'Язык текста сохрани, ничего не переводи, не пересказывай и не добавляй от себя. Если фрагмент бессмысленный — оставь как есть.',
+      'В ответе верни только исправленный текст, без пояснений.',
+      description
+        ? `Контекст (описание под видео, поможет с именами и терминами):\n${description.slice(0, 1000)}`
+        : null,
+      `Расшифровка:\n${transcript}`,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: prompt }],
+        max_completion_tokens: 4000,
+        reasoning_effort: 'minimal',
+      }),
+      signal: AbortSignal.timeout(2 * 60 * 1000),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => '');
+      throw new Error(
+        `LLM error: ${response.status} ${response.statusText}${errorBody ? `: ${errorBody.slice(0, 200)}` : ''}`,
+      );
+    }
+
+    const data = (await response.json()) as {
+      choices?: { message?: { content?: string } }[];
+    };
+    const text = data.choices?.[0]?.message?.content?.trim();
+    return text || null;
+  }
+
+  private async requestWhisper(
+    audioBuffer: Buffer,
+    shortcode: string,
+  ): Promise<{ text?: string; language?: string }> {
+    const apiKey = this.configService.get<string>('OPENAI_API_KEY');
+    if (!apiKey) {
+      throw new Error('OPENAI_API_KEY is not configured');
+    }
+
+    const formData = new FormData();
+    formData.append(
+      'file',
+      new Blob([new Uint8Array(audioBuffer)], { type: 'audio/mpeg' }),
+      `${shortcode}.mp3`,
+    );
+    formData.append('model', 'whisper-1');
+    formData.append('response_format', 'verbose_json');
+    formData.append('temperature', '0');
+
+    const response = await fetch(
+      'https://api.openai.com/v1/audio/transcriptions',
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}` },
+        body: formData,
+        signal: AbortSignal.timeout(10 * 60 * 1000),
+      },
+    );
+
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => '');
+      throw new Error(
+        `Whisper error: ${response.status} ${response.statusText}${errorBody ? `: ${errorBody.slice(0, 200)}` : ''}`,
+      );
+    }
+
+    return (await response.json()) as { text?: string; language?: string };
+  }
+
+  private async persistCoverFromVideo(
+    shortcode: string,
+    videoPath: string,
+    tempDir: string,
+  ): Promise<string | null> {
+    try {
+      const framePath = path.join(tempDir, 'cover.jpg');
+      await this.runFfmpeg([
+        '-y',
+        '-ss',
+        '0.5',
+        '-i',
+        videoPath,
+        '-frames:v',
+        '1',
+        '-q:v',
+        '3',
+        framePath,
+      ]);
+      const buffer = await readFile(framePath);
+      return await this.storageService.uploadFileWithKey(
+        buffer,
+        'image/jpeg',
+        `reels/covers/${shortcode}.jpg`,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Cover frame extraction failed for ${shortcode}: ${String(error)}`,
+      );
+      return null;
+    }
+  }
+
+  private runFfmpeg(args: string[]): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const child = spawn('ffmpeg', args, { timeout: YTDLP_TIMEOUT_MS });
+      let stderr = '';
+      child.stderr.on('data', (chunk: Buffer) => {
+        stderr += chunk.toString();
+      });
+      child.on('error', (error) => {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+          reject(new Error('ffmpeg is not installed on the server'));
+        } else {
+          reject(error);
+        }
+      });
+      child.on('close', (code) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          const lastLine =
+            stderr.trim().split('\n').filter(Boolean).pop() ||
+            `ffmpeg exited with code ${code}`;
+          reject(new Error(lastLine));
+        }
+      });
+    });
   }
 
   private async fetchInfo(url: string): Promise<YtDlpInfo> {

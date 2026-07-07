@@ -103,15 +103,39 @@
 
   // --- Player pane ---
 
+  // The <video> keeps showing the previous reel's frame while the next one
+  // buffers, so on switch we hide it and show a loading card until the new
+  // video has its first frame (loadeddata).
+  function resetPlayer() {
+    player.pause();
+    player.removeAttribute('src');
+    player.removeAttribute('poster');
+    player.load();
+    player.classList.add('hidden');
+  }
+
+  player.addEventListener('loadeddata', () => {
+    el('player-loading').classList.add('hidden');
+    player.classList.remove('hidden');
+  });
+
+  player.addEventListener('error', () => {
+    if (!player.getAttribute('src')) return; // fired by resetPlayer()
+    el('player-loading').classList.add('hidden');
+    const status = el('player-status');
+    status.textContent = '⚠️ Не удалось загрузить видео';
+    status.classList.remove('hidden');
+  });
+
   function renderPlayer() {
     const empty = el('player-empty');
     const status = el('player-status');
+    const loading = el('player-loading');
     const reel = state.selected;
 
     if (!reel) {
-      player.pause();
-      player.removeAttribute('src');
-      player.classList.add('hidden');
+      resetPlayer();
+      loading.classList.add('hidden');
       status.classList.add('hidden');
       empty.classList.remove('hidden');
       return;
@@ -122,16 +146,17 @@
     if (reel.status === 'ready' && reel.videoUrl) {
       status.classList.add('hidden');
       if (player.getAttribute('src') !== reel.videoUrl) {
-        player.src = reel.videoUrl;
+        resetPlayer();
+        loading.classList.remove('hidden');
         if (reel.coverUrl) player.poster = reel.coverUrl;
+        player.src = reel.videoUrl;
+        player.load();
       }
-      player.classList.remove('hidden');
       return;
     }
 
-    player.pause();
-    player.removeAttribute('src');
-    player.classList.add('hidden');
+    resetPlayer();
+    loading.classList.add('hidden');
     status.textContent =
       reel.status === 'pending'
         ? '⏳ Ролик обрабатывается — видео появится здесь'
@@ -229,6 +254,8 @@
       details.appendChild(description);
     }
 
+    renderTranscript(details, reel);
+
     const actions = document.createElement('div');
     actions.className = 'details-actions';
 
@@ -262,6 +289,20 @@
       actions.appendChild(retryButton);
     }
 
+    if (
+      state.editMode &&
+      reel.status === 'ready' &&
+      reel.transcriptStatus !== 'pending'
+    ) {
+      const transcribeButton = document.createElement('button');
+      transcribeButton.className = 'mini-btn';
+      transcribeButton.textContent = reel.transcript
+        ? '🎙 Распознать заново'
+        : '🎙 Распознать аудио';
+      transcribeButton.addEventListener('click', () => transcribeReel(reel));
+      actions.appendChild(transcribeButton);
+    }
+
     if (state.editMode) {
       const deleteButton = document.createElement('button');
       deleteButton.className = 'mini-btn danger-btn';
@@ -271,6 +312,80 @@
     }
 
     details.appendChild(actions);
+  }
+
+  // --- Transcript block ---
+
+  function renderTranscript(container, reel) {
+    if (reel.transcriptStatus === 'pending') {
+      const status = document.createElement('p');
+      status.className = 'transcript-status';
+      status.textContent = '🎙 Распознаём аудио…';
+      container.appendChild(status);
+      return;
+    }
+
+    if (reel.transcriptStatus === 'error' && reel.transcriptError) {
+      const error = document.createElement('p');
+      error.className = 'details-error';
+      error.textContent = `Распознавание не удалось: ${reel.transcriptError}`;
+      container.appendChild(error);
+      return;
+    }
+
+    if (reel.transcriptStatus !== 'ready') return;
+
+    const cleaned = reel.transcriptClean || '';
+    const raw = reel.transcript || '';
+
+    const block = document.createElement('details');
+    block.className = 'transcript-block';
+    const summary = document.createElement('summary');
+    summary.textContent = raw
+      ? `🎙 Расшифровка${reel.transcriptLang ? ` (${reel.transcriptLang})` : ''}`
+      : '🎙 Расшифровка: речи не найдено';
+    block.appendChild(summary);
+
+    if (cleaned || raw) {
+      const text = document.createElement('p');
+      text.className = 'transcript-text';
+      text.textContent = cleaned || raw;
+      block.appendChild(text);
+    }
+
+    // The uncorrected Whisper text, in case the LLM cleanup distorted a phrase
+    if (cleaned && raw && cleaned !== raw) {
+      const rawBlock = document.createElement('details');
+      rawBlock.className = 'transcript-raw';
+      const rawSummary = document.createElement('summary');
+      rawSummary.textContent = 'Оригинал распознавания';
+      rawBlock.appendChild(rawSummary);
+      const rawText = document.createElement('p');
+      rawText.className = 'transcript-text';
+      rawText.textContent = raw;
+      rawBlock.appendChild(rawText);
+      block.appendChild(rawBlock);
+    }
+
+    container.appendChild(block);
+  }
+
+  async function transcribeReel(reel) {
+    const response = await fetch(`${API_BASE}/reels/${reel.id}/transcribe`, {
+      method: 'POST',
+      headers: { 'x-reels-api-key': getApiKey() },
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => null);
+      alert(error?.message || 'Не удалось запустить распознавание');
+      return;
+    }
+    const updated = await response.json();
+    const index = state.reels.findIndex((r) => r.id === reel.id);
+    if (index !== -1) state.reels[index] = updated;
+    if (state.selected?.id === reel.id) state.selected = updated;
+    renderDetails();
+    schedulePolling();
   }
 
   async function shareReel(reel, button) {
@@ -311,7 +426,13 @@
       return false;
     }
     if (state.filters.query) {
-      const haystack = [reel.title, reel.description, reel.author]
+      const haystack = [
+        reel.title,
+        reel.description,
+        reel.author,
+        reel.transcript,
+        reel.transcriptClean,
+      ]
         .filter(Boolean)
         .join(' ')
         .toLowerCase();
@@ -445,14 +566,18 @@
 
   // --- Polling: pending reels are being processed by yt-dlp on the server ---
 
+  function isProcessing(reel) {
+    return reel.status === 'pending' || reel.transcriptStatus === 'pending';
+  }
+
   function schedulePolling() {
     clearTimeout(state.pollTimer);
-    if (!state.reels.some((reel) => reel.status === 'pending')) return;
+    if (!state.reels.some(isProcessing)) return;
     state.pollTimer = setTimeout(pollPending, POLL_INTERVAL_MS);
   }
 
   async function pollPending() {
-    const pending = state.reels.filter((reel) => reel.status === 'pending');
+    const pending = state.reels.filter(isProcessing);
     await Promise.all(
       pending.map(async (reel) => {
         try {

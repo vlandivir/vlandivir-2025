@@ -97,6 +97,38 @@ export class ReelsApiController {
     return restarted;
   }
 
+  // Re-run transcription for every downloaded reel (sequential, background)
+  @Post('transcribe-all')
+  async transcribeAll(@Headers('x-reels-api-key') apiKey: string | undefined) {
+    this.assertEditKey(apiKey);
+    const queued = await this.reelsService.transcribeAllInBackground();
+    return { queued };
+  }
+
+  // Force audio extraction + Whisper transcription for an already
+  // downloaded reel
+  @Post('reels/:id/transcribe')
+  async transcribeReel(
+    @Headers('x-reels-api-key') apiKey: string | undefined,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    this.assertEditKey(apiKey);
+    const reel = await this.prisma.reel.findUnique({ where: { id } });
+    if (!reel) throw new NotFoundException('Reel not found');
+    if (reel.status !== 'ready' || !reel.videoUrl) {
+      throw new BadRequestException(
+        'Сначала должно загрузиться видео — распознавать пока нечего',
+      );
+    }
+
+    const updated = await this.prisma.reel.update({
+      where: { id },
+      data: { transcriptStatus: 'pending', transcriptError: null },
+    });
+    this.reelsService.transcribeInBackground(id);
+    return updated;
+  }
+
   @Delete('reels/:id')
   async deleteReel(
     @Headers('x-reels-api-key') apiKey: string | undefined,

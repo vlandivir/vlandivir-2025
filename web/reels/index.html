@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/shared/site-theme.css?v=20260603-3" />
-  <link rel="stylesheet" href="/reels/styles.css?v=20260706-2" />
+  <link rel="stylesheet" href="/reels/styles.css?v=20260707-3" />
 </head>
 <body>
   <div class="app">
@@ -17,6 +17,10 @@
       <div id="player-stage" class="player-stage">
         <div id="player-empty" class="player-empty">Выберите ролик в списке — он откроется здесь</div>
         <video id="player" class="hidden" controls playsinline></video>
+        <div id="player-loading" class="player-loading hidden">
+          <span class="spinner"></span>
+          <span>Загружаем видео…</span>
+        </div>
         <div id="player-status" class="player-status hidden"></div>
       </div>
       <button id="drawer-open" class="pane-fab" title="Открыть панель">📋</button>
@@ -74,6 +78,6 @@
     </aside>
   </div>
 
-  <script src="/reels/app.js?v=20260707-1"></script>
+  <script src="/reels/app.js?v=20260707-3"></script>
 </body>
 </html>
