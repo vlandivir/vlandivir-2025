@@ -274,7 +274,10 @@
       wrap.className = 'details-player';
       const embed = document.createElement('blockquote');
       embed.className = 'instagram-media';
-      embed.setAttribute('data-instgrm-permalink', feature.instagramUrl);
+      embed.setAttribute(
+        'data-instgrm-permalink',
+        canonicalInstagramUrl(feature.instagramUrl),
+      );
       embed.setAttribute('data-instgrm-version', '14');
       wrap.appendChild(embed);
       details.appendChild(wrap);
@@ -333,6 +336,21 @@
       );
       actions.appendChild(editButton);
 
+      if (feature.instagramUrl) {
+        const refreshButton = document.createElement('button');
+        refreshButton.className = 'mini-btn';
+        refreshButton.textContent = '↻ Обновить reels';
+        refreshButton.addEventListener('click', async () => {
+          refreshButton.disabled = true;
+          refreshButton.textContent = '↻ Обновляю…';
+          const ok = await refreshInstagramMeta(kind, feature, true);
+          refreshButton.disabled = false;
+          refreshButton.textContent = '↻ Обновить reels';
+          if (!ok) alert('Не удалось получить данные reels из Instagram');
+        });
+        actions.appendChild(refreshButton);
+      }
+
       const deleteButton = document.createElement('button');
       deleteButton.className = 'mini-btn danger-btn';
       deleteButton.textContent = 'Удалить';
@@ -362,7 +380,13 @@
   }
 
   function isInstagramPostUrl(url) {
-    return /instagram\.com\/(?:[^/]+\/)?(reel|p|tv)\//.test(url);
+    return /instagram\.com\/(?:[^/]+\/)?(reels?|p|tv)\//.test(url);
+  }
+
+  // Instagram's embed script only accepts canonical /reel/ permalinks, but
+  // links copied from the web UI often come as /reels/
+  function canonicalInstagramUrl(url) {
+    return url.replace(/(instagram\.com(?:\/[^/]+)?)\/reels\//, '$1/reel/');
   }
 
   function downloadTrackGpx(track) {
@@ -458,24 +482,31 @@
 
   // Ask the server to refresh cached reel metadata (it re-fetches from
   // Instagram at most once a day) and update the open panel in place.
-  async function refreshInstagramMeta(kind, feature) {
+  // Editors can force a refresh past that window; force requires the API key.
+  async function refreshInstagramMeta(kind, feature, force = false) {
     const resource = kind === 'track' ? 'tracks' : 'points';
     try {
       const response = await fetch(
-        `${API_BASE}/${resource}/${feature.id}/instagram-meta`,
-        { method: 'POST' },
+        `${API_BASE}/${resource}/${feature.id}/instagram-meta` +
+          (force ? '?force=1' : ''),
+        {
+          method: 'POST',
+          headers: force ? { 'x-map-api-key': getApiKey() } : {},
+        },
       );
-      if (!response.ok) return;
+      if (!response.ok) return false;
       const { instagramMeta, refreshed } = await response.json();
-      if (!instagramMeta) return;
+      if (!instagramMeta) return false;
       feature.instagramMeta = instagramMeta;
       if (state.selected?.feature === feature) {
         const container = document.getElementById('details-insta-meta');
         if (container) renderInstagramMetaLine(container, instagramMeta);
       }
       if (refreshed) renderRecentPanel(); // new cover/author may have appeared
+      return true;
     } catch {
       // metadata is best-effort decoration
+      return false;
     }
   }
 

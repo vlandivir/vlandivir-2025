@@ -212,6 +212,7 @@
     if (typeof reel.meta?.commentCount === 'number') {
       addPart(`💬 ${reel.meta.commentCount.toLocaleString('ru-RU')}`);
     }
+    if (reel.source === 'map') addPart('📍 с карты');
     details.appendChild(metaLine);
 
     if (reel.status === 'error' && reel.error) {
@@ -389,6 +390,7 @@
     if (typeof reel.meta?.likeCount === 'number') {
       parts.push(`❤ ${reel.meta.likeCount}`);
     }
+    if (reel.source === 'map') parts.push('📍 с карты');
     metaLine.textContent = parts.join(' · ');
     body.appendChild(metaLine);
 

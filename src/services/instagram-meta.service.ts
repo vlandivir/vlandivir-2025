@@ -25,7 +25,7 @@ export class InstagramMetaService {
 
   async fetchMeta(instagramUrl: string): Promise<InstagramMeta | null> {
     const match =
-      /instagram\.com\/(?:[^/]+\/)?(reel|p|tv)\/([A-Za-z0-9_-]+)/.exec(
+      /instagram\.com\/(?:[^/]+\/)?(reels?|p|tv)\/([A-Za-z0-9_-]+)/.exec(
         instagramUrl,
       );
     if (!match) return null;

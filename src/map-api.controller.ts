@@ -368,18 +368,45 @@ export class MapApiController {
 
   // Refresh cached Instagram metadata for a feature. Public on purpose: any
   // visitor opening a point triggers it, but the 24h freshness window keeps
-  // us from hammering Instagram.
+  // us from hammering Instagram. Editors can pass ?force=1 (with the API key)
+  // to bypass the window.
   @Post('points/:id/instagram-meta')
-  async refreshPointInstagramMeta(@Param('id', ParseIntPipe) id: number) {
-    return this.refreshInstagramMeta('point', id);
+  async refreshPointInstagramMeta(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('force') force: string | undefined,
+    @Headers('x-map-api-key') apiKey: string | undefined,
+  ) {
+    return this.refreshInstagramMeta(
+      'point',
+      id,
+      this.parseForce(force, apiKey),
+    );
   }
 
   @Post('tracks/:id/instagram-meta')
-  async refreshTrackInstagramMeta(@Param('id', ParseIntPipe) id: number) {
-    return this.refreshInstagramMeta('track', id);
+  async refreshTrackInstagramMeta(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('force') force: string | undefined,
+    @Headers('x-map-api-key') apiKey: string | undefined,
+  ) {
+    return this.refreshInstagramMeta(
+      'track',
+      id,
+      this.parseForce(force, apiKey),
+    );
   }
 
-  private async refreshInstagramMeta(kind: 'point' | 'track', id: number) {
+  private parseForce(force: string | undefined, apiKey: string | undefined) {
+    if (!force) return false;
+    this.assertApiKey(apiKey);
+    return true;
+  }
+
+  private async refreshInstagramMeta(
+    kind: 'point' | 'track',
+    id: number,
+    force = false,
+  ) {
     type MetaRecord = {
       instagramUrl: string | null;
       instagramMeta: unknown;
@@ -412,7 +439,7 @@ export class MapApiController {
     const age = record.instagramMetaUpdatedAt
       ? Date.now() - record.instagramMetaUpdatedAt.getTime()
       : Infinity;
-    if (record.instagramMeta && age < INSTAGRAM_META_TTL_MS) {
+    if (!force && record.instagramMeta && age < INSTAGRAM_META_TTL_MS) {
       return { instagramMeta: record.instagramMeta, refreshed: false };
     }
 
