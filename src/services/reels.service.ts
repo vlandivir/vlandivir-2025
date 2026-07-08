@@ -89,7 +89,18 @@ export class ReelsService {
   // Fire-and-forget: the HTTP request returns immediately with a pending
   // record while yt-dlp works in the background; the frontend polls.
   processInBackground(reelId: number): void {
-    this.process(reelId).catch(async (error) => {
+    void (async () => {
+      try {
+        await this.process(reelId);
+      } catch (error) {
+        // The managed Postgres occasionally drops connections for a few
+        // seconds (failover) — retry once before surfacing the error
+        if (!this.isTransientDbError(error)) throw error;
+        this.logger.warn(`Reel ${reelId}: transient DB error, retrying in 15s`);
+        await new Promise((resolve) => setTimeout(resolve, 15_000));
+        await this.process(reelId);
+      }
+    })().catch(async (error) => {
       this.logger.error(`Reel ${reelId} processing failed: ${String(error)}`);
       await this.prisma.reel
         .update({
@@ -98,6 +109,15 @@ export class ReelsService {
         })
         .catch(() => undefined);
     });
+  }
+
+  private isTransientDbError(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+    return (
+      message.includes("Can't reach database server") ||
+      message.includes('Connection terminated') ||
+      message.includes('connection slots')
+    );
   }
 
   private async process(reelId: number): Promise<void> {

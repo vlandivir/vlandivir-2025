@@ -323,11 +323,14 @@ export class MapApiController {
           throw new BadRequestException('Tag already exists');
         }
         data.name = name;
-        // Rename the tag on every feature that uses it
+        // Rename the tag on every feature that uses it (the dictionary is
+        // shared with the reels notebook)
         await this.prisma
           .$executeRaw`UPDATE "MapPoint" SET tags = array_replace(tags, ${tag.name}, ${name}) WHERE ${tag.name} = ANY(tags)`;
         await this.prisma
           .$executeRaw`UPDATE "MapTrack" SET tags = array_replace(tags, ${tag.name}, ${name}) WHERE ${tag.name} = ANY(tags)`;
+        await this.prisma
+          .$executeRaw`UPDATE "Reel" SET tags = array_replace(tags, ${tag.name}, ${name}) WHERE ${tag.name} = ANY(tags)`;
       }
     }
 
@@ -349,6 +352,8 @@ export class MapApiController {
       .$executeRaw`UPDATE "MapPoint" SET tags = array_remove(tags, ${tag.name}) WHERE ${tag.name} = ANY(tags)`;
     await this.prisma
       .$executeRaw`UPDATE "MapTrack" SET tags = array_remove(tags, ${tag.name}) WHERE ${tag.name} = ANY(tags)`;
+    await this.prisma
+      .$executeRaw`UPDATE "Reel" SET tags = array_remove(tags, ${tag.name}) WHERE ${tag.name} = ANY(tags)`;
     await this.prisma.mapTag.delete({ where: { id } });
     return { deleted: true };
   }
