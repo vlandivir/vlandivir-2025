@@ -129,6 +129,25 @@ export class ReelsApiController {
     return updated;
   }
 
+  // Assign tags for every analyzed reel (sequential, background). Sequential
+  // matters: the dictionary grows as we go, so later reels reuse tags
+  // created for earlier ones instead of inventing near-duplicates.
+  @Post('generate-tags')
+  async generateTags(@Headers('x-reels-api-key') apiKey: string | undefined) {
+    this.assertEditKey(apiKey);
+    const reels = await this.prisma.reel.findMany({
+      where: { status: 'ready' },
+      select: { id: true },
+      orderBy: { id: 'asc' },
+    });
+    void (async () => {
+      for (const { id } of reels) {
+        await this.reelsService.generateTags(id).catch(() => undefined);
+      }
+    })();
+    return { queued: reels.length };
+  }
+
   // Regenerate titles for every analyzed reel (sequential, background)
   @Post('generate-titles')
   async generateTitles(@Headers('x-reels-api-key') apiKey: string | undefined) {

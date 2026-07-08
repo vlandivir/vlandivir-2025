@@ -11,9 +11,10 @@
 
   const state = {
     reels: [],
+    tags: [], // [{id, name, emoji}] — dictionary shared with the map
     selected: null, // reel object
     editMode: false,
-    filters: { author: '', status: '', query: '' },
+    filters: { author: '', status: '', tag: '', query: '' },
     listLimit: LIST_PAGE_SIZE,
     pollTimer: null,
   };
@@ -50,17 +51,28 @@
   // --- Loading ---
 
   async function loadReels() {
-    const response = await fetch(`${API_BASE}/reels`, { headers: pageHeaders });
+    const [response, tagsResponse] = await Promise.all([
+      fetch(`${API_BASE}/reels`, { headers: pageHeaders }),
+      // The tag dictionary is shared with the places map
+      fetch('/map-api/tags'),
+    ]);
     if (response.status === 401) {
       el('access-denied').classList.remove('hidden');
       return;
     }
     if (!response.ok) return;
     state.reels = await response.json();
+    if (tagsResponse.ok) state.tags = await tagsResponse.json();
     renderList();
     openReelFromUrl();
     schedulePolling();
     if (isMobile() && !state.selected) openDrawer();
+  }
+
+  // Tag dictionary is shared with the map (see the 🏷 editor on /places)
+  function tagLabel(name) {
+    const tag = state.tags.find((t) => t.name === name);
+    return tag?.emoji ? `${tag.emoji} ${name}` : name;
   }
 
   // --- Selection (player on the left, details in the panel) ---
@@ -202,6 +214,25 @@
     const title = document.createElement('h2');
     title.textContent = reel.title || reel.shortcode;
     details.appendChild(title);
+
+    if (reel.tags?.length) {
+      const tagsRow = document.createElement('div');
+      tagsRow.className = 'details-tags';
+      reel.tags.forEach((tag) => {
+        const chip = document.createElement('button');
+        chip.className = 'details-tag';
+        chip.textContent = tagLabel(tag);
+        chip.title = 'Показать все ролики с этим тегом';
+        chip.addEventListener('click', () => {
+          state.filters.tag = tag;
+          el('filter-tag').value = tag;
+          state.listLimit = LIST_PAGE_SIZE;
+          renderList();
+        });
+        tagsRow.appendChild(chip);
+      });
+      details.appendChild(tagsRow);
+    }
 
     const metaLine = document.createElement('div');
     metaLine.className = 'details-meta';
@@ -510,6 +541,9 @@
     if (state.filters.status && reel.status !== state.filters.status) {
       return false;
     }
+    if (state.filters.tag && !(reel.tags || []).includes(state.filters.tag)) {
+      return false;
+    }
     if (state.filters.query) {
       const haystack = [
         reel.title,
@@ -529,6 +563,7 @@
 
   function renderList() {
     updateAuthorFilter();
+    updateTagFilter();
     recentList.innerHTML = '';
 
     const filtered = state.reels
@@ -598,6 +633,7 @@
       parts.push(`❤ ${reel.meta.likeCount}`);
     }
     if (reel.source === 'map') parts.push('📍 с карты');
+    (reel.tags || []).slice(0, 3).forEach((tag) => parts.push(tagLabel(tag)));
     metaLine.textContent = parts.join(' · ');
     body.appendChild(metaLine);
 
@@ -627,8 +663,34 @@
     if (authors.includes(current)) select.value = current;
   }
 
+  function updateTagFilter() {
+    const select = el('filter-tag');
+    const current = select.value;
+    const used = new Set(state.reels.flatMap((reel) => reel.tags || []));
+    const tags = [...used].sort();
+
+    select.innerHTML = '';
+    const all = document.createElement('option');
+    all.value = '';
+    all.textContent = 'Все теги';
+    select.appendChild(all);
+    tags.forEach((tag) => {
+      const option = document.createElement('option');
+      option.value = tag;
+      option.textContent = tagLabel(tag);
+      select.appendChild(option);
+    });
+    if (tags.includes(current)) select.value = current;
+  }
+
   el('filter-author').addEventListener('change', (event) => {
     state.filters.author = event.target.value;
+    state.listLimit = LIST_PAGE_SIZE;
+    renderList();
+  });
+
+  el('filter-tag').addEventListener('change', (event) => {
+    state.filters.tag = event.target.value;
     state.listLimit = LIST_PAGE_SIZE;
     renderList();
   });

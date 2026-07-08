@@ -247,6 +247,29 @@ body {
   line-height: 1.25;
 }
 
+.details-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-control-gap);
+  margin-bottom: var(--v-space-3);
+}
+
+.details-tag {
+  padding: 4px 10px;
+  border: none;
+  border-radius: 999px;
+  background: hsl(var(--secondary));
+  color: hsl(var(--secondary-foreground));
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.details-tag:hover {
+  background: hsl(var(--shadcn-accent));
+}
+
 .details-meta {
   display: flex;
   flex-wrap: wrap;
