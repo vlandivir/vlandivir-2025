@@ -181,31 +181,6 @@ export class DairyCommandsService {
           chatId: ctx.chat?.id,
           videosCount: note.videos.length,
         });
-        // #region agent log
-        fetch(
-          'http://127.0.0.1:7651/ingest/2258b12e-88c5-48b5-93f6-d9873e1c1f96',
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Debug-Session-Id': '1f338d',
-            },
-            body: JSON.stringify({
-              sessionId: '1f338d',
-              runId: 'pre-fix',
-              hypothesisId: 'H5',
-              location: 'dairy-commands.service.ts:176',
-              message: 'Sending videos in /d output',
-              data: {
-                chatId: ctx.chat?.id,
-                videosCount: note.videos.length,
-                hasText: !!note.content,
-              },
-              timestamp: Date.now(),
-            }),
-          },
-        ).catch(() => {});
-        // #endregion
         for (const video of note.videos) {
           try {
             await ctx.replyWithVideo(video.url, {
@@ -221,31 +196,6 @@ export class DairyCommandsService {
                 error: e instanceof Error ? e.message : 'unknown',
               },
             );
-            // #region agent log
-            fetch(
-              'http://127.0.0.1:7651/ingest/2258b12e-88c5-48b5-93f6-d9873e1c1f96',
-              {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'X-Debug-Session-Id': '1f338d',
-                },
-                body: JSON.stringify({
-                  sessionId: '1f338d',
-                  runId: 'pre-fix',
-                  hypothesisId: 'H5',
-                  location: 'dairy-commands.service.ts:186',
-                  message: 'replyWithVideo failed, fallback to URL',
-                  data: {
-                    chatId: ctx.chat?.id,
-                    videoUrl: video.url,
-                    error: e instanceof Error ? e.message : 'unknown',
-                  },
-                  timestamp: Date.now(),
-                }),
-              },
-            ).catch(() => {});
-            // #endregion
             console.warn(
               'Failed to send video via Telegram, falling back to URL',
               e,

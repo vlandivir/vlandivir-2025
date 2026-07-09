@@ -1,5 +1,7 @@
 # Project Agent Rules
 
+New to the project? Start with [docs/project-overview.md](docs/project-overview.md) — architecture, controllers, bot commands, data model, web apps.
+
 - Do not run Puppeteer in this repository. For frontend checks, use simpler static/HTTP verification unless the user explicitly asks otherwise.
 
 ## Design system (web pages)

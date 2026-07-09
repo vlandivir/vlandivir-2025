@@ -21,7 +21,6 @@ import { HistoryCommandsService } from './history-commands.service';
 import { CollageCommandsService } from './collage-commands.service';
 import { DebugLogService } from '../services/debug-log.service';
 import * as sharp from 'sharp';
-// import { getUserTimeZone } from '../utils/timezone';
 import { Readable } from 'stream';
 
 // Telegram Bot API limitation: bots cannot download files larger than ~20 MB via getFile
@@ -87,40 +86,6 @@ export class TelegramBotService {
         hasVideo: !!(ctx.message && 'video' in ctx.message),
         hasVideoNote: !!(ctx.message && 'video_note' in ctx.message),
       });
-      // #region agent log
-      fetch(
-        'http://127.0.0.1:7651/ingest/2258b12e-88c5-48b5-93f6-d9873e1c1f96',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Debug-Session-Id': '1f338d',
-          },
-          body: JSON.stringify({
-            sessionId: '1f338d',
-            runId: 'pre-fix',
-            hypothesisId: 'H1',
-            location: 'telegram-bot.service.ts:73',
-            message: 'Incoming Telegram update shape',
-            data: {
-              updateType,
-              chatType,
-              hasMessage: !!ctx.message,
-              hasVideo: !!(ctx.message && 'video' in ctx.message),
-              hasVideoNote: !!(ctx.message && 'video_note' in ctx.message),
-              hasChannelPost: !!ctx.channelPost,
-              hasChannelVideo: !!(
-                ctx.channelPost && 'video' in ctx.channelPost
-              ),
-              hasChannelVideoNote: !!(
-                ctx.channelPost && 'video_note' in ctx.channelPost
-              ),
-            },
-            timestamp: Date.now(),
-          }),
-        },
-      ).catch(() => {});
-      // #endregion
       return next();
     });
 
@@ -949,32 +914,6 @@ export class TelegramBotService {
         hasVideoNote: !!videoNote,
         captionLength: caption?.length || 0,
       });
-      // #region agent log
-      fetch(
-        'http://127.0.0.1:7651/ingest/2258b12e-88c5-48b5-93f6-d9873e1c1f96',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Debug-Session-Id': '1f338d',
-          },
-          body: JSON.stringify({
-            sessionId: '1f338d',
-            runId: 'pre-fix',
-            hypothesisId: 'H2',
-            location: 'telegram-bot.service.ts:650',
-            message: 'Entered handleIncomingVideo',
-            data: {
-              chatId: ctx.chat?.id,
-              hasVideo: !!video,
-              hasVideoNote: !!('video_note' in ctx.message),
-              captionLength: caption?.length || 0,
-            },
-            timestamp: Date.now(),
-          }),
-        },
-      ).catch(() => {});
-      // #endregion
 
       if (!media || !ctx.chat) return;
 
@@ -1059,34 +998,6 @@ export class TelegramBotService {
         fileSize,
         videoUrl,
       });
-      // #region agent log
-      fetch(
-        'http://127.0.0.1:7651/ingest/2258b12e-88c5-48b5-93f6-d9873e1c1f96',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Debug-Session-Id': '1f338d',
-          },
-          body: JSON.stringify({
-            sessionId: '1f338d',
-            runId: 'pre-fix',
-            hypothesisId: 'H4',
-            location: 'telegram-bot.service.ts:732',
-            message: 'Video uploaded to storage',
-            data: {
-              chatId: ctx.chat.id,
-              mimeType: video?.mime_type || 'video/mp4',
-              fileSize:
-                typeof media.file_size === 'number' ? media.file_size : null,
-              videoUrl,
-              mediaType,
-            },
-            timestamp: Date.now(),
-          }),
-        },
-      ).catch(() => {});
-      // #endregion
 
       const { date: noteDate, cleanContent } =
         this.dateParser.extractDateFromFirstLine(caption || '');
@@ -1128,31 +1039,6 @@ export class TelegramBotService {
         mediaType,
         videosCount: savedNote.videos.length,
       });
-      // #region agent log
-      fetch(
-        'http://127.0.0.1:7651/ingest/2258b12e-88c5-48b5-93f6-d9873e1c1f96',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Debug-Session-Id': '1f338d',
-          },
-          body: JSON.stringify({
-            sessionId: '1f338d',
-            runId: 'pre-fix',
-            hypothesisId: 'H3',
-            location: 'telegram-bot.service.ts:767',
-            message: 'Video note persisted',
-            data: {
-              noteId: savedNote.id,
-              chatId: ctx.chat.id,
-              videosCount: savedNote.videos?.length || 0,
-            },
-            timestamp: Date.now(),
-          }),
-        },
-      ).catch(() => {});
-      // #endregion
 
       if (!silent) {
         const botResponse = `Видео сохранено${
