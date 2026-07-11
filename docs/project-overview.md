@@ -61,7 +61,7 @@ Root module: [src/app.module.ts](../src/app.module.ts) — ConfigModule (global)
 - [reels.service.ts](../src/services/reels.service.ts) — reels pipeline: yt-dlp download, cover/audio extraction, Whisper, frame vision, tag/title generation; fire-and-forget background processing with status fields on the `Reel` model
 - [instagram-meta.service.ts](../src/services/instagram-meta.service.ts) — scrape Instagram post metadata (author, counters, caption, cover)
 - [date-parser.service.ts](../src/services/date-parser.service.ts) — extract date from a note's first line
-- [pdf.service.ts](../src/services/pdf.service.ts) — renders HTML to PDF via a dynamic `import('puppeteer')` for `/history` PDF export. Note: puppeteer is a devDependency and is pruned from the production image, so the PDF branch only works locally
+- [pdf.service.ts](../src/services/pdf.service.ts) — renders `/history pdf` export with pdfkit (works in prod; Cyrillic via the bundled `assets/fonts/NotoSans-Regular.ttf`)
 - [debug-log.service.ts](../src/services/debug-log.service.ts) — in-memory ring buffer for bot debugging
 
 ## Data model (`prisma/schema.prisma`)
