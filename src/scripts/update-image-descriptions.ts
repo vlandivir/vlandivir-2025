@@ -1,3 +1,4 @@
+import { writeFileSync } from 'fs';
 import { PrismaClient, Prisma } from '../generated/prisma-client';
 import { LlmService } from '../services/llm.service';
 import { StorageService } from '../services/storage.service';
@@ -10,6 +11,19 @@ interface UpdateResult {
   description?: string;
 }
 
+// Error messages that LlmService returns instead of a real description;
+// rows containing these are treated as having no description.
+const ERROR_DESCRIPTIONS = [
+  'Не удалось описать изображение',
+  'Ошибка API OpenAI',
+  'Превышено время ожидания ответа от OpenAI',
+  'Модель отказалась описать изображение',
+  'Неожиданный формат ответа от OpenAI',
+  'Не удалось получить описание от OpenAI',
+  'Ошибка конфигурации API ключа',
+  'Ошибка при обработке ответа от OpenAI',
+];
+
 // Parse command line arguments
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -19,11 +33,22 @@ function parseArgs() {
       ? parseInt(args[limitIndex + 1], 10)
       : null;
 
-  return { limit };
+  const force = args.includes('--force');
+
+  const olderThanIndex = args.indexOf('--older-than');
+  const olderThan =
+    olderThanIndex !== -1 && args[olderThanIndex + 1]
+      ? new Date(args[olderThanIndex + 1])
+      : null;
+  if (olderThan && isNaN(olderThan.getTime())) {
+    throw new Error('Invalid --older-than date, expected YYYY-MM-DD');
+  }
+
+  return { limit, force, olderThan };
 }
 
 async function updateImageDescriptions() {
-  const { limit } = parseArgs();
+  const { limit, force, olderThan } = parseArgs();
   const prisma = new PrismaClient();
   const configService = new ConfigService();
   const storageService = new StorageService(configService);
@@ -31,10 +56,16 @@ async function updateImageDescriptions() {
 
   try {
     console.log('Starting image description update...');
-    if (limit) {
+    if (force) {
+      console.log('⚠️  --force: regenerating existing descriptions');
+    }
+    if (olderThan) {
       console.log(
-        `📋 Processing only the last ${limit} images without descriptions`,
+        `📅 Only images created before ${olderThan.toISOString().slice(0, 10)}`,
       );
+    }
+    if (limit) {
+      console.log(`📋 Processing at most ${limit} images (newest first)`);
     }
 
     // Check if OpenAI API key is configured
@@ -46,34 +77,55 @@ async function updateImageDescriptions() {
       return;
     }
 
-    // Get images without descriptions, ordered by creation date (newest first)
-    const imagesQuery: Prisma.ImageFindManyArgs = {
-      where: {
-        OR: [{ description: null }, { description: '' }],
-      },
+    // Without --force: images with no real description (empty or an error text).
+    // With --force: every image. --older-than narrows either mode by createdAt.
+    const missingDescription: Prisma.ImageWhereInput = {
+      OR: [
+        { description: null },
+        { description: '' },
+        { description: { in: ERROR_DESCRIPTIONS } },
+      ],
+    };
+    const where: Prisma.ImageWhereInput = {
+      ...(force ? {} : missingDescription),
+      ...(olderThan ? { createdAt: { lt: olderThan } } : {}),
+    };
+
+    const imagesWithoutDescriptions = await prisma.image.findMany({
+      where,
       include: {
         note: true,
       },
       orderBy: {
         createdAt: 'desc', // Get newest first
       },
-    };
+      ...(limit ? { take: limit } : {}),
+    });
 
-    // Apply limit if specified
-    if (limit) {
-      imagesQuery.take = limit;
-    }
-
-    const imagesWithoutDescriptions = await prisma.image.findMany(imagesQuery);
-
-    console.log(
-      `Found ${imagesWithoutDescriptions.length} images without descriptions`,
-    );
+    console.log(`Found ${imagesWithoutDescriptions.length} images to process`);
 
     if (imagesWithoutDescriptions.length === 0) {
       console.log('✅ No images need description updates');
       return;
     }
+
+    // Back up current descriptions before overwriting anything
+    const backupPath = `image-descriptions-backup-${new Date()
+      .toISOString()
+      .replace(/[:.]/g, '-')}.json`;
+    writeFileSync(
+      backupPath,
+      JSON.stringify(
+        imagesWithoutDescriptions.map((img) => ({
+          id: img.id,
+          url: img.url,
+          description: img.description,
+        })),
+        null,
+        2,
+      ),
+    );
+    console.log(`💾 Backed up current descriptions to ${backupPath}`);
 
     // Process images in batches to avoid rate limits
     const batchSize = 5; // Reduced batch size for better rate limit handling
@@ -101,11 +153,15 @@ async function updateImageDescriptions() {
           // Download image from storage
           const imageBuffer = await storageService.downloadFile(image.url);
 
-          // Get description from LLM
-          const description = await llmService.describeImage(imageBuffer);
+          // Get description from LLM, with the note text as context
+          const description = await llmService.describeImage(
+            imageBuffer,
+            undefined,
+            image.note?.content,
+          );
 
-          // Skip if description is the error message
-          if (description === 'Не удалось описать изображение') {
+          // Skip if description is one of the error messages
+          if (ERROR_DESCRIPTIONS.includes(description)) {
             throw new Error('LLM service returned error message');
           }
 

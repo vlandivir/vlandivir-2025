@@ -144,3 +144,4 @@ custom-images
 pdf
 assets/fonts/*
 !assets/fonts/NotoSans-Regular.ttf
+image-descriptions-backup-*.json
