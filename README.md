@@ -83,6 +83,9 @@ Shows a list of all available commands.
 
 ```bash
 $ npm install
+
+# Install Telegram Mini App dependencies
+$ npm install --prefix telegram-app
 ```
 
 ## Compile and run the project
@@ -96,6 +99,9 @@ $ npm run start:dev
 
 # production mode
 $ npm run start:prod
+
+# Telegram Mini App dev server (separate)
+$ npm run telegram-app:dev
 ```
 
 ## Run tests
@@ -114,3 +120,10 @@ $ npm run test:cov
 ## Code Style
 
 See [docs/code-style.md](docs/code-style.md) for linting and formatting rules. Code is automatically checked before each commit.
+
+## Project Structure
+
+- **`src/`** — NestJS backend (bot, APIs, controllers)
+- **`web/`** — Public web pages (home, places, gpx tools, subs)
+- **`telegram-app/`** — Telegram Mini App (React + Vite, independent frontend)
+- **`prisma/`** — Database schema and migrations

@@ -33,9 +33,9 @@ async function bootstrap() {
     const app = await NestFactory.create<NestExpressApplication>(AppModule, {
       httpsOptions,
     });
-    // Serve Mini App static build
-    const miniAppDist = path.join(process.cwd(), 'web', 'mini-app', 'dist');
-    app.useStaticAssets(miniAppDist, { prefix: '/mini-app' });
+    // Serve Telegram Mini App static build
+    const telegramAppDist = path.join(process.cwd(), 'telegram-app', 'dist');
+    app.useStaticAssets(telegramAppDist, { prefix: '/mini-app' });
     // Main static page assets
     const homePage = path.join(process.cwd(), 'web', 'home');
     app.useStaticAssets(homePage, { prefix: '/home' });
@@ -66,7 +66,7 @@ async function bootstrap() {
       res.sendFile(path.join(placesPage, 'index.html'));
     });
     instance.get(/^\/mini-app(?:\/.*)?$/, (_req: unknown, res: Response) => {
-      res.sendFile(path.join(miniAppDist, 'index.html'));
+      res.sendFile(path.join(telegramAppDist, 'index.html'));
     });
     instance.get(/^\/gpx-route-png\/?$/, (_req: unknown, res: Response) => {
       res.sendFile(path.join(gpxRoutePng, 'index.html'));
@@ -120,9 +120,9 @@ async function bootstrap() {
   } else {
     // Development mode - HTTP
     const app = await NestFactory.create<NestExpressApplication>(AppModule);
-    // Serve Mini App static build in dev too (or use Vite dev server separately)
-    const miniAppDist = path.join(process.cwd(), 'web', 'mini-app', 'dist');
-    app.useStaticAssets(miniAppDist, { prefix: '/mini-app' });
+    // Serve Telegram Mini App static build in dev too (or use Vite dev server separately)
+    const telegramAppDist = path.join(process.cwd(), 'telegram-app', 'dist');
+    app.useStaticAssets(telegramAppDist, { prefix: '/mini-app' });
     const homePage = path.join(process.cwd(), 'web', 'home');
     app.useStaticAssets(homePage, { prefix: '/home' });
     const sharedAssets = path.join(process.cwd(), 'web', 'shared');
@@ -150,7 +150,7 @@ async function bootstrap() {
       res.sendFile(path.join(placesPage, 'index.html'));
     });
     instance.get(/^\/mini-app(?:\/.*)?$/, (_req: unknown, res: Response) => {
-      res.sendFile(path.join(miniAppDist, 'index.html'));
+      res.sendFile(path.join(telegramAppDist, 'index.html'));
     });
     instance.get(/^\/gpx-route-png\/?$/, (_req: unknown, res: Response) => {
       res.sendFile(path.join(gpxRoutePng, 'index.html'));
