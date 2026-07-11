@@ -5,6 +5,7 @@
     "test",
     "dist",
     "web/**",
+    "telegram-app/**",
     "**/*spec.ts"
   ]
 }
