@@ -3,6 +3,7 @@ import { HistoryCommandsService } from './history-commands.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { StorageService } from '../services/storage.service';
+import { PdfService } from '../services/pdf.service';
 import { Context } from 'telegraf';
 
 describe('HistoryCommandsService', () => {
@@ -22,6 +23,10 @@ describe('HistoryCommandsService', () => {
     uploadFileWithKey: jest.fn(),
   };
 
+  const mockPdfService = {
+    renderHistoryPdf: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -37,6 +42,10 @@ describe('HistoryCommandsService', () => {
         {
           provide: StorageService,
           useValue: mockStorageService,
+        },
+        {
+          provide: PdfService,
+          useValue: mockPdfService,
         },
       ],
     }).compile();
@@ -122,6 +131,43 @@ describe('HistoryCommandsService', () => {
         expect.stringContaining(
           'История чата доступна по ссылке: https://fra1.digitaloceanspaces.com/vlandivir-2025/history/',
         ),
+      );
+    });
+
+    it('should render a PDF and upload it when the command asks for pdf', async () => {
+      const mockReply = jest.fn();
+      const mockContext = {
+        chat: { id: 123 },
+        message: { text: '/history pdf' },
+        reply: mockReply,
+      } as unknown as Context;
+
+      mockPrismaService.note.findMany.mockResolvedValue([
+        {
+          content:
+            'This is a much longer message that should be included in the history',
+          noteDate: new Date(),
+          images: [],
+          videos: [],
+        },
+      ]);
+      mockPdfService.renderHistoryPdf.mockResolvedValue(
+        Buffer.from('%PDF-fake'),
+      );
+      mockStorageService.uploadFileWithKey.mockResolvedValue(
+        'https://fra1.digitaloceanspaces.com/vlandivir-2025/history/test-uuid.pdf',
+      );
+
+      await service.handleHistoryCommand(mockContext);
+
+      expect(mockPdfService.renderHistoryPdf).toHaveBeenCalledTimes(1);
+      expect(mockStorageService.uploadFileWithKey).toHaveBeenCalledWith(
+        expect.any(Buffer),
+        'application/pdf',
+        expect.stringMatching(/^history\/[a-f0-9-]+\.pdf$/),
+      );
+      expect(mockReply).toHaveBeenCalledWith(
+        expect.stringContaining('История чата (PDF): '),
       );
     });
   });

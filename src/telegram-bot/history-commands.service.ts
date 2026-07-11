@@ -69,8 +69,8 @@ export class HistoryCommandsService {
       const secretId = uuidv4();
 
       if (wantsPdf) {
-        const pdfHtml = this.generatePdfHtmlPage(filteredMessages);
-        const pdfBuffer = await this.pdfService.renderPdfFromHtml(pdfHtml);
+        const pdfBuffer =
+          await this.pdfService.renderHistoryPdf(filteredMessages);
         const pdfKey = `history/${secretId}.pdf`;
         const pdfUrl = await this.storageService.uploadFileWithKey(
           pdfBuffer,
@@ -250,70 +250,5 @@ export class HistoryCommandsService {
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
-  }
-
-  private generatePdfHtmlPage(messages: NoteWithMedia[]): string {
-    let html = `
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chat History PDF</title>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;700&family=Noto+Sans+JP:wght@400;700&family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
-  <style>
-    @page { margin: 20mm; }
-    body {
-      font-family: 'Noto Sans', 'Noto Sans JP', 'Noto Sans KR', 'Segoe UI', Arial, Helvetica, 'Apple Color Emoji', 'Noto Color Emoji', sans-serif;
-      color: #222;
-    }
-    .message { page-break-after: always; }
-    .message:last-child { page-break-after: auto; }
-    .message-date { color: #666; font-size: 12px; margin-bottom: 8px; }
-    .message-content { white-space: pre-wrap; font-size: 14px; margin-bottom: 10px; }
-    .message-image { margin-top: 8px; }
-    .message-image img { max-height: 400px; width: auto; height: auto; display: block; border-radius: 4px; }
-    .image-description { margin-top: 4px; font-size: 12px; color: #555; }
-    .message-video { margin-top: 8px; font-size: 12px; }
-    a { color: #1a73e8; text-decoration: none; }
-  </style>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data:; img-src https: data:; style-src 'unsafe-inline' https:; font-src https: data:;">
-</head>
-<body>
-`;
-
-    messages.forEach((message) => {
-      const date = format(message.noteDate, 'dd.MM.yyyy HH:mm', { locale: ru });
-      html += `
-  <div class="message">
-    <div class="message-date">${date}</div>
-    <div class="message-content">${this.escapeHtml(message.content || '')}</div>
-`;
-      if (message.images && message.images.length > 0) {
-        message.images.forEach((image) => {
-          const description = image.description
-            ? this.escapeHtml(image.description)
-            : '';
-          html += `
-    <div class="message-image">
-      <img src="${image.url}" alt="${description || 'image'}" />
-      ${description ? `<div class="image-description">${description}</div>` : ''}
-    </div>
-`;
-        });
-      }
-      if (message.videos && message.videos.length > 0) {
-        message.videos.forEach((video) => {
-          const safe = this.escapeHtml(video.url);
-          html += `
-    <div class="message-video">Video: <a href="${safe}">${safe}</a></div>
-`;
-        });
-      }
-      html += '  </div>';
-    });
-
-    html += '\n</body>\n</html>';
-    return html;
   }
 }

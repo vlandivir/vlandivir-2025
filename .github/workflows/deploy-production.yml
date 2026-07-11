@@ -90,8 +90,10 @@ jobs:
           docker stop vlandivir-2025 || true
           docker rm vlandivir-2025 || true
           docker run -d -p 443:443 -e ENVIRONMENT=PROD \
+            -e YTDLP_COOKIES_FILE=/usr/src/app/.secret/cookies/instagram-cookies.txt \
             --restart unless-stopped \
             -v /etc/letsencrypt/live/vlandivir.com/fullchain.pem:/usr/src/app/.secret/fullchain.pem:ro \
             -v /etc/letsencrypt/live/vlandivir.com/privkey.pem:/usr/src/app/.secret/privkey.pem:ro \
+            -v /root/secrets:/usr/src/app/.secret/cookies \
             --name vlandivir-2025 \
             registry.digitalocean.com/vlandivir-main/vlandivir-2025:${{ steps.tag.outputs.TAG_NAME }}

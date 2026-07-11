@@ -142,4 +142,5 @@ dist
 src/generated
 custom-images
 pdf
-assets/fonts
+assets/fonts/*
+!assets/fonts/NotoSans-Regular.ttf
