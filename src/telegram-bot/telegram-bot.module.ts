@@ -5,6 +5,7 @@ import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from '../prisma/prisma.module';
 import { ServicesModule } from '../services/services.module';
 import { DairyCommandsService } from './dairy-commands.service';
+import { FindCommandsService } from './find-commands.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SerbianCommandsService } from './serbian-commands.service';
 import { ForeignCommandsService } from './foreign-commands.service';
@@ -17,6 +18,7 @@ import { CollageCommandsService } from './collage-commands.service';
   providers: [
     TelegramBotService,
     DairyCommandsService,
+    FindCommandsService,
     PrismaService,
     SerbianCommandsService,
     ForeignCommandsService,

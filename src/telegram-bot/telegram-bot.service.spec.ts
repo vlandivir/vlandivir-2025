@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { DateParserService } from '../services/date-parser.service';
 import { DairyCommandsService } from './dairy-commands.service';
+import { FindCommandsService } from './find-commands.service';
 import { StorageService } from '../services/storage.service';
 import { LlmService } from '../services/llm.service';
 import { SerbianCommandsService } from './serbian-commands.service';
@@ -113,6 +114,12 @@ describe('TelegramBotService', () => {
           },
         },
         {
+          provide: FindCommandsService,
+          useValue: {
+            handleFindCommand: jest.fn(),
+          },
+        },
+        {
           provide: StorageService,
           useValue: {
             uploadFile: jest
@@ -219,6 +226,7 @@ describe('TelegramBotService', () => {
       '/c or /collage - Create image collage',
       '/d or /dairy - Dairy Notes',
       '/dl or /debuglog - Export in-memory debug log',
+      '/f or /find - Semantic search over notes',
       '/help - Show this help message',
       '/history - Chat History',
       '/p or /phrase - Translate between RU/EN/SR',

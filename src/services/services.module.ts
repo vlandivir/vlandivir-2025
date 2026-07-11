@@ -7,6 +7,7 @@ import { DebugLogService } from './debug-log.service';
 import { InstagramMetaService } from './instagram-meta.service';
 import { ReelsService } from './reels.service';
 import { EmbeddingsService } from './embeddings.service';
+import { DiarySearchService } from './diary-search.service';
 
 @Module({
   providers: [
@@ -18,6 +19,7 @@ import { EmbeddingsService } from './embeddings.service';
     InstagramMetaService,
     ReelsService,
     EmbeddingsService,
+    DiarySearchService,
   ],
   exports: [
     DateParserService,
@@ -28,6 +30,7 @@ import { EmbeddingsService } from './embeddings.service';
     InstagramMetaService,
     ReelsService,
     EmbeddingsService,
+    DiarySearchService,
   ],
 })
 export class ServicesModule {}
