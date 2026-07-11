@@ -230,6 +230,7 @@ describe('TelegramBotService', () => {
       '/help - Show this help message',
       '/history - Chat History',
       '/p or /phrase - Translate between RU/EN/SR',
+      '/q or /ask - Answer a question from the diary',
       '/s - Serbian Translation',
     ].join('\n');
     expect(result).toBe(expected);

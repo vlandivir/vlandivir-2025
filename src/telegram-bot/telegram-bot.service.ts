@@ -311,6 +311,11 @@ export class TelegramBotService {
       return this.findCommands.handleFindCommand(ctx);
     });
 
+    this.bot.command(['q', 'ask'], (ctx) => {
+      console.log('Получена команда /q /ask:', ctx.message?.text);
+      return this.findCommands.handleAskCommand(ctx);
+    });
+
     // Регистрируем те же команды для каналов
     this.bot.on(channelPost('text'), async (ctx) => {
       console.log('Получено сообщение из канала:', {
@@ -1319,6 +1324,7 @@ export class TelegramBotService {
     const commands = [
       { name: '/d or /dairy', description: 'Dairy Notes' },
       { name: '/f or /find', description: 'Semantic search over notes' },
+      { name: '/q or /ask', description: 'Answer a question from the diary' },
       { name: '/history', description: 'Chat History' },
       { name: '/s', description: 'Serbian Translation' },
       { name: '/p or /phrase', description: 'Translate between RU/EN/SR' },

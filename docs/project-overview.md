@@ -45,6 +45,7 @@ Root module: [src/app.module.ts](../src/app.module.ts) — ConfigModule (global)
 |---|---|---|
 | `/d`, `/dairy` | [dairy-commands.service.ts](../src/telegram-bot/dairy-commands.service.ts) | Show notes for a date (or same day across years) |
 | `/f`, `/find` | [find-commands.service.ts](../src/telegram-bot/find-commands.service.ts) | Semantic search over the chat's notes and photo descriptions (pgvector) |
+| `/q`, `/ask` | [find-commands.service.ts](../src/telegram-bot/find-commands.service.ts) | Answer a question from the diary (RAG: retrieved notes → LLM, cites dates) |
 | `/history` | [history-commands.service.ts](../src/telegram-bot/history-commands.service.ts) | Generate HTML history page, upload to Spaces, return secret UUID link |
 | `/s` | [serbian-commands.service.ts](../src/telegram-bot/serbian-commands.service.ts) | Serbian translation (private chats only) |
 | `/p`, `/phrase` | [foreign-commands.service.ts](../src/telegram-bot/foreign-commands.service.ts) | RU/EN/SR phrase translation via LLM (private only) |
@@ -63,6 +64,7 @@ Root module: [src/app.module.ts](../src/app.module.ts) — ConfigModule (global)
 - [embeddings.service.ts](../src/services/embeddings.service.ts) — semantic search: OpenAI `text-embedding-3-small` (override via `EMBEDDING_MODEL`) + pgvector; unified `Embedding` table (`kind`: reel | note | image, `chatId` scopes private kinds), raw-SQL upsert and cosine search
 - [diary-search.service.ts](../src/services/diary-search.service.ts) — `/f` bot command backend: lazily indexes missing notes/image descriptions (per chat) before each search, merges note+image hits per note, strictly chatId-scoped
 - [reels-qa.service.ts](../src/services/reels-qa.service.ts) — `GET /reels-api/ask` backend: RAG over the reels notebook (top-10 reels → `gpt-5-mini` via `REELS_LLM_MODEL`), answers strictly from excerpts, references reels as `[#id]` for the UI to link
+- [diary-qa.service.ts](../src/services/diary-qa.service.ts) — `/q` bot command backend: RAG answer over retrieved notes (top-12 → `gpt-5-mini`, override via `DIARY_LLM_MODEL`); answers strictly from excerpts, cites note dates
 - [instagram-meta.service.ts](../src/services/instagram-meta.service.ts) — scrape Instagram post metadata (author, counters, caption, cover)
 - [date-parser.service.ts](../src/services/date-parser.service.ts) — extract date from a note's first line
 - [pdf.service.ts](../src/services/pdf.service.ts) — renders `/history pdf` export with pdfkit (works in prod; Cyrillic via the bundled `assets/fonts/NotoSans-Regular.ttf`)

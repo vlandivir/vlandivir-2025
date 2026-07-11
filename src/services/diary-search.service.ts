@@ -89,6 +89,33 @@ export class DiarySearchService {
     query: string,
     limit = 8,
   ): Promise<DiarySearchResult[]> {
+    const hits = await this.retrieve(chatId, query, limit);
+    return hits.map((hit) => ({
+      noteId: hit.noteId,
+      noteDate: hit.noteDate,
+      snippet: hit.content.replace(/\s+/g, ' ').slice(0, 120),
+      similarity: hit.similarity,
+      viaImage: hit.viaImage,
+    }));
+  }
+
+  /**
+   * Same retrieval, but with the full note text (plus the matched image
+   * description, if any) — used by search snippets and the Q&A mode.
+   */
+  async retrieve(
+    chatId: bigint,
+    query: string,
+    limit = 8,
+  ): Promise<
+    {
+      noteId: number;
+      noteDate: Date;
+      content: string;
+      similarity: number;
+      viaImage: boolean;
+    }[]
+  > {
     await this.indexMissing(chatId);
 
     const [noteHits, imageHits] = await Promise.all([
@@ -134,12 +161,14 @@ export class DiarySearchService {
     return noteRows
       .map((note) => {
         const hit = byNote.get(note.id)!;
-        const source =
-          note.content?.trim() || hit.imageDescription || '(без текста)';
+        const parts = [note.content?.trim() || null];
+        if (hit.viaImage && hit.imageDescription) {
+          parts.push(`Описание фото: ${hit.imageDescription.trim()}`);
+        }
         return {
           noteId: note.id,
           noteDate: note.noteDate,
-          snippet: source.replace(/\s+/g, ' ').slice(0, 120),
+          content: parts.filter(Boolean).join('\n') || '(без текста)',
           similarity: hit.similarity,
           viaImage: hit.viaImage,
         };
