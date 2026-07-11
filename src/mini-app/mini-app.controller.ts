@@ -13,7 +13,8 @@ export class MiniAppController {
     private readonly config: ConfigService,
   ) {}
 
-  // Index HTML is now served by static frontend under `/mini-app` via Vite build.
+  // Index HTML is now served by static frontend under `/mini-app` via Vite build
+  // from the telegram-app/ directory.
 
   @Get('user')
   async getUser(@Query('initData') initData?: string) {

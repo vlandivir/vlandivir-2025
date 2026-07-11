@@ -23,9 +23,9 @@
     "update-image-descriptions": "ts-node src/scripts/update-image-descriptions.ts --limit 5",
     "check-image-status": "ts-node src/scripts/check-image-status.ts",
     "test-collage": "ts-node src/scripts/test-collage-custom.ts",
-    "web:mini-app:dev": "npm run dev --prefix web/mini-app",
-    "web:mini-app:build": "npm run build --prefix web/mini-app",
-    "web:mini-app:preview": "npm run preview --prefix web/mini-app",
+    "telegram-app:dev": "npm run dev --prefix telegram-app",
+    "telegram-app:build": "npm run build --prefix telegram-app",
+    "telegram-app:preview": "npm run preview --prefix telegram-app",
     "generate-history-pdf": "ts-node src/scripts/generate-history-pdf.ts",
     "generate-history-pdf:html": "ts-node src/scripts/generate-history-html.ts",
     "generate-history-md": "ts-node src/scripts/generate-history-md.ts"
