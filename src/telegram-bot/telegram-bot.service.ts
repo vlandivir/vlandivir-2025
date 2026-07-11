@@ -13,6 +13,7 @@ import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { message, channelPost } from 'telegraf/filters';
 import { DairyCommandsService } from './dairy-commands.service';
+import { FindCommandsService } from './find-commands.service';
 import { StorageService } from '../services/storage.service';
 import { LlmService } from '../services/llm.service';
 import { SerbianCommandsService } from './serbian-commands.service';
@@ -58,6 +59,7 @@ export class TelegramBotService {
     private readonly prisma: PrismaService,
     private readonly dateParser: DateParserService,
     private readonly dairyCommands: DairyCommandsService,
+    private readonly findCommands: FindCommandsService,
     private readonly storageService: StorageService,
     private readonly llmService: LlmService,
     private readonly serbianCommands: SerbianCommandsService,
@@ -302,6 +304,11 @@ export class TelegramBotService {
     this.bot.command(['dairy', 'd'], (ctx) => {
       console.log('Получена команда /dairy /d:', ctx.message?.text);
       return this.dairyCommands.handleDairyCommand(ctx);
+    });
+
+    this.bot.command(['find', 'f'], (ctx) => {
+      console.log('Получена команда /find /f:', ctx.message?.text);
+      return this.findCommands.handleFindCommand(ctx);
     });
 
     // Регистрируем те же команды для каналов
@@ -1311,6 +1318,7 @@ export class TelegramBotService {
   private getHelpMessage(): string {
     const commands = [
       { name: '/d or /dairy', description: 'Dairy Notes' },
+      { name: '/f or /find', description: 'Semantic search over notes' },
       { name: '/history', description: 'Chat History' },
       { name: '/s', description: 'Serbian Translation' },
       { name: '/p or /phrase', description: 'Translate between RU/EN/SR' },

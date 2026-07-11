@@ -25,6 +25,12 @@ export class EmbeddingsService {
   }
 
   async embedText(text: string): Promise<number[]> {
+    const [embedding] = await this.embedTexts([text]);
+    return embedding;
+  }
+
+  // One API call for up to ~100 texts — used by bulk indexing
+  async embedTexts(texts: string[]): Promise<number[][]> {
     const apiKey = this.configService.get<string>('OPENAI_API_KEY');
     if (!apiKey) {
       throw new Error('OPENAI_API_KEY is not defined');
@@ -38,7 +44,7 @@ export class EmbeddingsService {
       },
       body: JSON.stringify({
         model: this.model,
-        input: text.slice(0, MAX_INPUT_CHARS),
+        input: texts.map((text) => text.slice(0, MAX_INPUT_CHARS)),
       }),
       signal: AbortSignal.timeout(EMBEDDINGS_TIMEOUT_MS),
     });
@@ -47,13 +53,17 @@ export class EmbeddingsService {
     }
 
     const data = (await response.json()) as {
-      data?: { embedding?: number[] }[];
+      data?: { index?: number; embedding?: number[] }[];
     };
-    const embedding = data.data?.[0]?.embedding;
-    if (!embedding?.length) {
-      throw new Error('Embeddings API returned no embedding');
+    const embeddings = data.data?.map((d) => d.embedding);
+    if (
+      !embeddings ||
+      embeddings.length !== texts.length ||
+      embeddings.some((e) => !e?.length)
+    ) {
+      throw new Error('Embeddings API returned an incomplete result');
     }
-    return embedding;
+    return embeddings as number[][];
   }
 
   async upsert(
@@ -73,6 +83,31 @@ export class EmbeddingsService {
         "chatId" = EXCLUDED."chatId",
         "updatedAt" = NOW()
     `;
+  }
+
+  // Bulk upsert: one embeddings API call per chunk, then row-by-row insert
+  async upsertMany(
+    kind: EmbeddingKind,
+    items: { refId: number; content: string; chatId?: bigint | null }[],
+  ): Promise<void> {
+    const CHUNK = 100;
+    for (let i = 0; i < items.length; i += CHUNK) {
+      const chunk = items.slice(i, i + CHUNK);
+      const vectors = await this.embedTexts(chunk.map((item) => item.content));
+      for (let j = 0; j < chunk.length; j++) {
+        const item = chunk[j];
+        const vector = `[${vectors[j].join(',')}]`;
+        await this.prisma.$executeRaw`
+          INSERT INTO "Embedding" ("kind", "refId", "chatId", "content", "embedding", "updatedAt")
+          VALUES (${kind}, ${item.refId}, ${item.chatId ?? null}, ${item.content}, ${vector}::vector, NOW())
+          ON CONFLICT ("kind", "refId") DO UPDATE SET
+            "content" = EXCLUDED."content",
+            "embedding" = EXCLUDED."embedding",
+            "chatId" = EXCLUDED."chatId",
+            "updatedAt" = NOW()
+        `;
+      }
+    }
   }
 
   async remove(kind: EmbeddingKind, refId: number): Promise<void> {
