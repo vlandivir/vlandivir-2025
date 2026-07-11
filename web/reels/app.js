@@ -15,6 +15,7 @@
     selected: null, // reel object
     editMode: false,
     filters: { author: '', status: '', tag: '', query: '' },
+    semantic: null, // Map<reelId, similarity> for the current query, or null
     listLimit: LIST_PAGE_SIZE,
     pollTimer: null,
   };
@@ -552,13 +553,49 @@
         reel.transcript,
         reel.transcriptClean,
         reel.visionDescription,
+        (reel.tags || []).join(' '),
       ]
         .filter(Boolean)
         .join(' ')
         .toLowerCase();
-      if (!haystack.includes(state.filters.query)) return false;
+      const substringMatch = haystack.includes(state.filters.query);
+      const semanticMatch = state.semantic?.has(reel.id);
+      if (!substringMatch && !semanticMatch) return false;
     }
     return true;
+  }
+
+  // --- Semantic search (server-side, pgvector) ---
+
+  let semanticTimer = null;
+  let semanticSeq = 0;
+
+  async function fetchSemantic(query) {
+    const seq = ++semanticSeq;
+    try {
+      const response = await fetch(
+        `${API_BASE}/search?q=${encodeURIComponent(query)}`,
+        { headers: pageHeaders },
+      );
+      if (!response.ok) return;
+      const results = await response.json();
+      // Ignore stale responses (query changed while we were waiting)
+      if (seq !== semanticSeq || query !== state.filters.query) return;
+      state.semantic = new Map(results.map((r) => [r.id, r.similarity]));
+      renderList();
+    } catch {
+      /* network error — substring filtering still works */
+    }
+  }
+
+  function scheduleSemanticSearch() {
+    clearTimeout(semanticTimer);
+    state.semantic = null;
+    if (state.filters.query.length < 3) return;
+    semanticTimer = setTimeout(
+      () => fetchSemantic(state.filters.query),
+      400,
+    );
   }
 
   function renderList() {
@@ -566,9 +603,16 @@
     updateTagFilter();
     recentList.innerHTML = '';
 
-    const filtered = state.reels
-      .filter(matchesFilters)
-      .sort((a, b) => reelDate(b) - reelDate(a));
+    // With an active search: most relevant first (semantic similarity),
+    // substring-only matches after, newest first within equal relevance
+    const filtered = state.reels.filter(matchesFilters).sort((a, b) => {
+      if (state.filters.query && state.semantic) {
+        const sa = state.semantic.get(a.id) ?? -1;
+        const sb = state.semantic.get(b.id) ?? -1;
+        if (sa !== sb) return sb - sa;
+      }
+      return reelDate(b) - reelDate(a);
+    });
 
     if (!filtered.length) {
       const empty = document.createElement('div');
@@ -704,6 +748,7 @@
   searchInput.addEventListener('input', () => {
     state.filters.query = searchInput.value.trim().toLowerCase();
     state.listLimit = LIST_PAGE_SIZE;
+    scheduleSemanticSearch();
     renderList();
   });
 

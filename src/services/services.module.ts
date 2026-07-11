@@ -6,6 +6,7 @@ import { PdfService } from './pdf.service';
 import { DebugLogService } from './debug-log.service';
 import { InstagramMetaService } from './instagram-meta.service';
 import { ReelsService } from './reels.service';
+import { EmbeddingsService } from './embeddings.service';
 
 @Module({
   providers: [
@@ -16,6 +17,7 @@ import { ReelsService } from './reels.service';
     DebugLogService,
     InstagramMetaService,
     ReelsService,
+    EmbeddingsService,
   ],
   exports: [
     DateParserService,
@@ -25,6 +27,7 @@ import { ReelsService } from './reels.service';
     DebugLogService,
     InstagramMetaService,
     ReelsService,
+    EmbeddingsService,
   ],
 })
 export class ServicesModule {}

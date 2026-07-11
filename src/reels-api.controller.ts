@@ -10,6 +10,7 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Query,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -29,6 +30,19 @@ export class ReelsApiController {
   async listReels(@Headers('x-reels-page-key') pageKey: string | undefined) {
     this.assertPageKey(pageKey);
     return this.prisma.reel.findMany({ orderBy: { createdAt: 'desc' } });
+  }
+
+  // Semantic search over indexed reels: [{id, similarity}], best first.
+  // The client merges these with its own substring filtering.
+  @Get('search')
+  async searchReels(
+    @Headers('x-reels-page-key') pageKey: string | undefined,
+    @Query('q') q: string | undefined,
+  ) {
+    this.assertPageKey(pageKey);
+    const query = (q || '').trim();
+    if (!query) return [];
+    return this.reelsService.searchReels(query);
   }
 
   @Get('reels/:id')
@@ -165,6 +179,14 @@ export class ReelsApiController {
     return { queued: reels.length };
   }
 
+  // (Re)compute search embeddings for every analyzed reel (background)
+  @Post('embed-all')
+  async embedAll(@Headers('x-reels-api-key') apiKey: string | undefined) {
+    this.assertEditKey(apiKey);
+    const queued = await this.reelsService.embedAllInBackground();
+    return { queued };
+  }
+
   // Force frame extraction + LLM description for an already downloaded reel
   @Post('reels/:id/vision')
   async visionReel(
@@ -198,6 +220,7 @@ export class ReelsApiController {
     if (!reel) throw new NotFoundException('Reel not found');
 
     await this.prisma.reel.delete({ where: { id } });
+    await this.reelsService.unindexReel(id);
     return { deleted: true };
   }
 

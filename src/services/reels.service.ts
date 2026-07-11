@@ -8,6 +8,7 @@ import * as path from 'path';
 import { Prisma } from '../generated/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from './storage.service';
+import { EmbeddingsService } from './embeddings.service';
 
 // The subset of `yt-dlp --dump-single-json` output we care about
 type YtDlpInfo = {
@@ -42,6 +43,7 @@ export class ReelsService {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly storageService: StorageService,
+    private readonly embeddingsService: EmbeddingsService,
   ) {}
 
   extractShortcode(instagramUrl: string): string | null {
@@ -339,7 +341,8 @@ export class ReelsService {
     });
   }
 
-  // Title first (tags use it as one of the sources), then tags
+  // Title first (tags use it as one of the sources), then tags,
+  // then the search embedding (it uses both)
   private enrichInBackground(reelId: number): void {
     void (async () => {
       await this.generateTitle(reelId).catch((error) => {
@@ -352,7 +355,68 @@ export class ReelsService {
           `Reel ${reelId} tags generation failed: ${String(error)}`,
         );
       });
+      await this.indexReel(reelId).catch((error) => {
+        this.logger.warn(`Reel ${reelId} embedding failed: ${String(error)}`);
+      });
     })();
+  }
+
+  // Concatenate everything we know about the reel and store its embedding
+  async indexReel(reelId: number): Promise<void> {
+    const reel = await this.prisma.reel.findUnique({ where: { id: reelId } });
+    if (!reel) return;
+
+    const content = [
+      reel.title,
+      reel.description,
+      reel.tags?.length ? `Теги: ${reel.tags.join(', ')}` : null,
+      reel.transcriptClean || reel.transcript,
+      reel.visionDescription,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+    if (!content.trim()) return;
+
+    await this.embeddingsService.upsert('reel', reel.id, content);
+  }
+
+  // Semantic search over indexed reels: [{id, similarity}], best first
+  async searchReels(
+    query: string,
+    limit = 12,
+  ): Promise<{ id: number; similarity: number }[]> {
+    const results = await this.embeddingsService.search('reel', query, {
+      limit,
+    });
+    return results.map((r) => ({ id: r.refId, similarity: r.similarity }));
+  }
+
+  async unindexReel(reelId: number): Promise<void> {
+    await this.embeddingsService.remove('reel', reelId);
+  }
+
+  // Recompute embeddings for all ready reels; returns how many were queued
+  async embedAllInBackground(): Promise<number> {
+    const reels = await this.prisma.reel.findMany({
+      where: { status: 'ready' },
+      select: { id: true },
+      orderBy: { id: 'asc' },
+    });
+
+    void (async () => {
+      for (const { id } of reels) {
+        try {
+          await this.indexReel(id);
+        } catch (error) {
+          this.logger.warn(
+            `Reel ${id} bulk embedding failed: ${String(error)}`,
+          );
+        }
+      }
+      this.logger.log(`Bulk embedding finished for ${reels.length} reels`);
+    })();
+
+    return reels.length;
   }
 
   // Assign up to MAX_TAGS_PER_REEL tags based on the analyzed content.

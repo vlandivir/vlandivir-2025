@@ -28,7 +28,7 @@ Root module: [src/app.module.ts](../src/app.module.ts) — ConfigModule (global)
 | [notifications-api.controller.ts](../src/notifications-api.controller.ts) | `/notifications-api` | Send a Telegram message to the primary chat (auth: `x-notification-api-key`) |
 | [map-api.controller.ts](../src/map-api.controller.ts) | `/map-api` | CRUD for map points, tracks and the tag dictionary; Instagram-meta refresh (24h cache in JSONB, covers copied to Spaces); Google Maps short-link resolver. Reads are public, writes need `x-map-api-key` |
 | [map-pages.controller.ts](../src/map-pages.controller.ts) | `/places/point/:id`, `/places/track/:id` | Server-side Open Graph tags for shareable map links (injected into `web/places/index.html`) |
-| [reels-api.controller.ts](../src/reels-api.controller.ts) | `/reels-api` | Instagram reels archive: create/retry/delete, transcribe (Whisper), vision (frame extraction + LLM), tag/title generation. Reads: `x-reels-page-key`, writes: `x-reels-api-key` |
+| [reels-api.controller.ts](../src/reels-api.controller.ts) | `/reels-api` | Instagram reels archive: create/retry/delete, transcribe (Whisper), vision (frame extraction + LLM), tag/title generation, semantic search (`GET /search`) + embeddings backfill (`POST /embed-all`). Reads: `x-reels-page-key`, writes: `x-reels-api-key` |
 | [reels-pages.controller.ts](../src/reels-pages.controller.ts) | `/reels/:secret`, `/reels/:secret/:id` | Unlisted reels catalog (secret = `REELS_PAGE_KEY`); per-reel OG tags |
 | [subs.controller.ts](../src/subs.controller.ts) | `/subs-api` | Subtitle pipeline: upload vertical video → extract MP3 + waveform manifest → Whisper transcript → LLM translation → ffmpeg render with ASS subtitles → download. Everything cached in Spaces under `subs/*` by video hash |
 | [mini-app/mini-app.controller.ts](../src/mini-app/mini-app.controller.ts) | `/mini-app-api` | Telegram Mini App backend: verifies signed initData, returns user profile/note count/avatar |
@@ -58,7 +58,8 @@ Root module: [src/app.module.ts](../src/app.module.ts) — ConfigModule (global)
 
 - [storage.service.ts](../src/services/storage.service.ts) — all Spaces uploads/downloads (chat media, subs artifacts, arbitrary keys)
 - [llm.service.ts](../src/services/llm.service.ts) — OpenAI wrapper (image description in Russian)
-- [reels.service.ts](../src/services/reels.service.ts) — reels pipeline: yt-dlp download, cover/audio extraction, Whisper, frame vision, tag/title generation; fire-and-forget background processing with status fields on the `Reel` model
+- [reels.service.ts](../src/services/reels.service.ts) — reels pipeline: yt-dlp download, cover/audio extraction, Whisper, frame vision, tag/title generation, search-embedding upsert; fire-and-forget background processing with status fields on the `Reel` model
+- [embeddings.service.ts](../src/services/embeddings.service.ts) — semantic search: OpenAI `text-embedding-3-small` (override via `EMBEDDING_MODEL`) + pgvector; unified `Embedding` table (`kind`: reel | note | image, `chatId` scopes private kinds), raw-SQL upsert and cosine search
 - [instagram-meta.service.ts](../src/services/instagram-meta.service.ts) — scrape Instagram post metadata (author, counters, caption, cover)
 - [date-parser.service.ts](../src/services/date-parser.service.ts) — extract date from a note's first line
 - [pdf.service.ts](../src/services/pdf.service.ts) — renders `/history pdf` export with pdfkit (works in prod; Cyrillic via the bundled `assets/fonts/NotoSans-Regular.ttf`)
