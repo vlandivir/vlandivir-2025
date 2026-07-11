@@ -598,6 +598,82 @@
     );
   }
 
+  // --- Q&A over the notebook (🤖 button) ---
+
+  const askPanel = el('ask-panel');
+  const askAnswer = el('ask-answer');
+  const askSources = el('ask-sources');
+
+  // The model references reels as [#id]; turn those into links
+  function renderAskAnswer(text) {
+    askAnswer.innerHTML = '';
+    const parts = String(text).split(/\[#(\d+)\]/g);
+    parts.forEach((part, index) => {
+      if (index % 2 === 0) {
+        askAnswer.appendChild(document.createTextNode(part));
+        return;
+      }
+      const reel = state.reels.find((r) => r.id === Number(part));
+      if (!reel) {
+        askAnswer.appendChild(document.createTextNode(`[#${part}]`));
+        return;
+      }
+      const link = document.createElement('span');
+      link.className = 'ask-reel-link';
+      link.textContent = reel.title ? `«${reel.title}»` : `#${part}`;
+      link.addEventListener('click', () => selectReel(reel));
+      askAnswer.appendChild(link);
+    });
+  }
+
+  function renderAskSources(sources) {
+    askSources.innerHTML = '';
+    sources.forEach((source) => {
+      const reel = state.reels.find((r) => r.id === source.id);
+      if (!reel) return;
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'ask-source-chip';
+      chip.textContent = reel.title || `Рилс #${reel.id}`;
+      chip.addEventListener('click', () => selectReel(reel));
+      askSources.appendChild(chip);
+    });
+  }
+
+  async function askNotebook() {
+    const question = searchInput.value.trim();
+    if (!question) {
+      searchInput.placeholder = 'Введите вопрос и нажмите 🤖';
+      searchInput.focus();
+      return;
+    }
+    askPanel.classList.remove('hidden');
+    askAnswer.textContent = 'Думаю…';
+    askSources.innerHTML = '';
+    try {
+      const response = await fetch(
+        `${API_BASE}/ask?q=${encodeURIComponent(question)}`,
+        { headers: pageHeaders },
+      );
+      if (!response.ok) throw new Error(String(response.status));
+      const result = await response.json();
+      if (!result.answer) {
+        askAnswer.textContent =
+          'В записной книжке не нашлось ничего подходящего к вопросу';
+        return;
+      }
+      renderAskAnswer(result.answer);
+      renderAskSources(result.sources || []);
+    } catch {
+      askAnswer.textContent = 'Не получилось получить ответ — попробуйте ещё раз';
+    }
+  }
+
+  el('ask-button').addEventListener('click', askNotebook);
+  el('ask-close').addEventListener('click', () =>
+    askPanel.classList.add('hidden'),
+  );
+
   function renderList() {
     updateAuthorFilter();
     updateTagFilter();
