@@ -42,8 +42,18 @@
           <div class="search-box">
             <input id="search-input" type="search" placeholder="Поиск по названию, описанию, автору…" autocomplete="off" />
           </div>
+          <button id="ask-button" class="ghost-btn icon-btn" title="Спросить у записной книжки">🤖</button>
           <button id="edit-toggle" class="ghost-btn icon-btn" title="Режим редактирования">✏️</button>
         </div>
+      </div>
+
+      <div id="ask-panel" class="ask-panel editor-card hidden">
+        <div class="ask-panel-head">
+          <span class="ask-panel-title">🤖 Ответ по записной книжке</span>
+          <button id="ask-close" class="ghost-btn icon-btn" title="Закрыть">✕</button>
+        </div>
+        <div id="ask-answer" class="ask-answer"></div>
+        <div id="ask-sources" class="ask-sources"></div>
       </div>
 
       <form id="add-form" class="add-form editor-card hidden">

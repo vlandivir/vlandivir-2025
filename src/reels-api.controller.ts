@@ -17,6 +17,7 @@ import { ConfigService } from '@nestjs/config';
 import { timingSafeEqual } from 'crypto';
 import { PrismaService } from './prisma/prisma.service';
 import { ReelsService } from './services/reels.service';
+import { ReelsQaService } from './services/reels-qa.service';
 
 @Controller('reels-api')
 export class ReelsApiController {
@@ -24,6 +25,7 @@ export class ReelsApiController {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly reelsService: ReelsService,
+    private readonly reelsQaService: ReelsQaService,
   ) {}
 
   @Get('reels')
@@ -43,6 +45,19 @@ export class ReelsApiController {
     const query = (q || '').trim();
     if (!query) return [];
     return this.reelsService.searchReels(query);
+  }
+
+  // RAG Q&A over the notebook: answer + source reels ([#id] refs in text)
+  @Get('ask')
+  async askReels(
+    @Headers('x-reels-page-key') pageKey: string | undefined,
+    @Query('q') q: string | undefined,
+  ) {
+    this.assertPageKey(pageKey);
+    const question = (q || '').trim();
+    if (!question) throw new BadRequestException('Нужен вопрос (?q=…)');
+    const result = await this.reelsQaService.ask(question);
+    return result ?? { answer: null, sources: [] };
   }
 
   @Get('reels/:id')

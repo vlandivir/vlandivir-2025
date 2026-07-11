@@ -8,6 +8,7 @@ import { InstagramMetaService } from './instagram-meta.service';
 import { ReelsService } from './reels.service';
 import { EmbeddingsService } from './embeddings.service';
 import { DiarySearchService } from './diary-search.service';
+import { ReelsQaService } from './reels-qa.service';
 
 @Module({
   providers: [
@@ -20,6 +21,7 @@ import { DiarySearchService } from './diary-search.service';
     ReelsService,
     EmbeddingsService,
     DiarySearchService,
+    ReelsQaService,
   ],
   exports: [
     DateParserService,
@@ -31,6 +33,7 @@ import { DiarySearchService } from './diary-search.service';
     ReelsService,
     EmbeddingsService,
     DiarySearchService,
+    ReelsQaService,
   ],
 })
 export class ServicesModule {}

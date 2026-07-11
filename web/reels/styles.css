@@ -495,6 +495,53 @@ body {
   color: var(--v-muted);
 }
 
+/* --- Ask panel (Q&A over the notebook) --- */
+
+.ask-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--v-space-2);
+  margin-bottom: var(--v-space-2);
+}
+
+.ask-panel-title {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.ask-answer {
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.ask-reel-link {
+  color: hsl(var(--shadcn-primary));
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.ask-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-2);
+  margin-top: var(--v-space-3);
+}
+
+.ask-sources:empty {
+  display: none;
+}
+
+.ask-source-chip {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid hsl(var(--shadcn-border));
+  background: hsl(var(--shadcn-accent));
+  cursor: pointer;
+}
+
 .list-more {
   width: 100%;
   margin-top: var(--v-space-2);
