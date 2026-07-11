@@ -196,6 +196,22 @@ model Reel {
   @@index([status])
 }
 
+// Unified embeddings for semantic search over reels, notes and images.
+// Rows are written/queried via raw SQL (pgvector); Prisma client can't
+// handle the vector type directly.
+model Embedding {
+  id        Int                          @id @default(autoincrement())
+  kind      String // reel | note | image
+  refId     Int
+  chatId    BigInt? // scope for private notes/images; null for reels
+  content   String                       @db.Text // the text that was embedded
+  embedding Unsupported("vector(1536)")
+  createdAt DateTime                     @default(now())
+  updatedAt DateTime                     @updatedAt
+
+  @@unique([kind, refId])
+}
+
 model ChatSettings {
   chatId    BigInt   @id
   timeZone  String
