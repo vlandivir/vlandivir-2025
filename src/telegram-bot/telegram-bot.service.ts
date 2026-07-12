@@ -21,6 +21,7 @@ import { ForeignCommandsService } from './foreign-commands.service';
 import { HistoryCommandsService } from './history-commands.service';
 import { CollageCommandsService } from './collage-commands.service';
 import { DebugLogService } from '../services/debug-log.service';
+import { ReelsService } from '../services/reels.service';
 import * as sharp from 'sharp';
 import { Readable } from 'stream';
 
@@ -67,6 +68,7 @@ export class TelegramBotService {
     private readonly historyCommands: HistoryCommandsService,
     private readonly collageCommands: CollageCommandsService,
     private readonly debugLogService: DebugLogService,
+    private readonly reelsService: ReelsService,
   ) {
     const token = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
     if (!token) {
@@ -489,11 +491,21 @@ export class TelegramBotService {
     this.bot.on(message('text'), async (ctx) => {
       console.log('Получено текстовое сообщение:', ctx.message.text);
 
-      if (!ctx.message.text.startsWith('/')) {
-        const isGroup =
-          ctx.chat.type === 'group' || ctx.chat.type === 'supergroup';
-        await this.handleIncomingMessage(ctx.chat.id, ctx.update, isGroup);
+      if (ctx.message.text.startsWith('/')) return;
+
+      // In private chats an Instagram reel/post link is added to the reels
+      // notebook instead of being saved as a plain diary note.
+      if (
+        ctx.chat.type === 'private' &&
+        this.reelsService.extractShortcode(ctx.message.text)
+      ) {
+        await this.handleReelLink(ctx.chat.id, ctx.message.text);
+        return;
       }
+
+      const isGroup =
+        ctx.chat.type === 'group' || ctx.chat.type === 'supergroup';
+      await this.handleIncomingMessage(ctx.chat.id, ctx.update, isGroup);
     });
 
     // Обработчик для фото в личных чатах и группах
@@ -757,6 +769,71 @@ export class TelegramBotService {
     } catch (error) {
       console.error('Error processing message:', error);
     }
+  }
+
+  // Save an Instagram reel/post link into the shared reels notebook
+  // (the `Reel` archive behind /reels). Mirrors POST /reels-api/reels:
+  // dedup by shortcode, retry failed reels, otherwise create a pending
+  // record and kick off background download/analysis.
+  public async handleReelLink(chatId: number, text: string): Promise<boolean> {
+    const shortcode = this.reelsService.extractShortcode(text);
+    if (!shortcode) return false;
+
+    try {
+      const instagramUrl =
+        this.extractInstagramUrl(text) ||
+        `https://www.instagram.com/reel/${shortcode}/`;
+
+      const existing = await this.prisma.reel.findUnique({
+        where: { shortcode },
+      });
+
+      if (existing) {
+        if (existing.status === 'error') {
+          await this.prisma.reel.update({
+            where: { id: existing.id },
+            data: { status: 'pending', error: null },
+          });
+          this.reelsService.processInBackground(existing.id);
+          await this.bot.telegram.sendMessage(
+            chatId,
+            'Перезапускаю обработку этого рилса в записной книжке 🎬',
+          );
+        } else {
+          await this.bot.telegram.sendMessage(
+            chatId,
+            'Этот рилс уже есть в записной книжке 🎬',
+          );
+        }
+        return true;
+      }
+
+      const reel = await this.prisma.reel.create({
+        data: { instagramUrl, shortcode, source: 'notebook' },
+      });
+      this.reelsService.processInBackground(reel.id);
+      await this.bot.telegram.sendMessage(
+        chatId,
+        'Ссылка на рилс сохранена в записную книжку, обрабатываю 🎬',
+      );
+      return true;
+    } catch (error) {
+      console.error('Error saving reel link:', error);
+      this.debugLogService.warn('reel-link', 'Failed to save reel link', {
+        chatId,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
+      await this.bot.telegram.sendMessage(
+        chatId,
+        'Не удалось сохранить рилс в записную книжку',
+      );
+      return true;
+    }
+  }
+
+  private extractInstagramUrl(text: string): string | null {
+    const match = /https?:\/\/[^\s]*instagram\.com\/[^\s]+/i.exec(text);
+    return match ? match[0] : null;
   }
 
   private extractMessageText(update: TelegramUpdate): string {
