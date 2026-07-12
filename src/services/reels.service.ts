@@ -90,7 +90,13 @@ export class ReelsService {
 
   // Fire-and-forget: the HTTP request returns immediately with a pending
   // record while yt-dlp works in the background; the frontend polls.
-  processInBackground(reelId: number): void {
+  // `onComplete` (when provided) runs once processing has settled — either
+  // fully ready (video + transcript + vision + title/tags) or failed — so
+  // callers like the Telegram bot can notify the user with the final result.
+  processInBackground(
+    reelId: number,
+    onComplete?: (reelId: number) => void,
+  ): void {
     void (async () => {
       try {
         await this.process(reelId);
@@ -102,15 +108,26 @@ export class ReelsService {
         await new Promise((resolve) => setTimeout(resolve, 15_000));
         await this.process(reelId);
       }
-    })().catch(async (error) => {
-      this.logger.error(`Reel ${reelId} processing failed: ${String(error)}`);
-      await this.prisma.reel
-        .update({
-          where: { id: reelId },
-          data: { status: 'error', error: this.userMessage(error) },
-        })
-        .catch(() => undefined);
-    });
+    })()
+      .catch(async (error) => {
+        this.logger.error(`Reel ${reelId} processing failed: ${String(error)}`);
+        await this.prisma.reel
+          .update({
+            where: { id: reelId },
+            data: { status: 'error', error: this.userMessage(error) },
+          })
+          .catch(() => undefined);
+      })
+      .finally(() => {
+        if (!onComplete) return;
+        try {
+          onComplete(reelId);
+        } catch (error) {
+          this.logger.warn(
+            `Reel ${reelId} completion callback failed: ${String(error)}`,
+          );
+        }
+      });
   }
 
   private isTransientDbError(error: unknown): boolean {
@@ -197,8 +214,9 @@ export class ReelsService {
       );
 
       // With transcript and vision in place, replace yt-dlp's generic
-      // "Video by <author>" with a meaningful title
-      this.enrichInBackground(reelId);
+      // "Video by <author>" with a meaningful title. Awaited so callers of
+      // processInBackground see the finished title/tags in their onComplete.
+      await this.enrich(reelId);
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
@@ -341,24 +359,27 @@ export class ReelsService {
     });
   }
 
-  // Title first (tags use it as one of the sources), then tags,
-  // then the search embedding (it uses both)
   private enrichInBackground(reelId: number): void {
-    void (async () => {
-      await this.generateTitle(reelId).catch((error) => {
-        this.logger.warn(
-          `Reel ${reelId} title generation failed: ${String(error)}`,
-        );
-      });
-      await this.generateTags(reelId).catch((error) => {
-        this.logger.warn(
-          `Reel ${reelId} tags generation failed: ${String(error)}`,
-        );
-      });
-      await this.indexReel(reelId).catch((error) => {
-        this.logger.warn(`Reel ${reelId} embedding failed: ${String(error)}`);
-      });
-    })();
+    void this.enrich(reelId);
+  }
+
+  // Title first (tags use it as one of the sources), then tags,
+  // then the search embedding (it uses both). Individual failures are
+  // swallowed so one flaky step doesn't block the rest.
+  private async enrich(reelId: number): Promise<void> {
+    await this.generateTitle(reelId).catch((error) => {
+      this.logger.warn(
+        `Reel ${reelId} title generation failed: ${String(error)}`,
+      );
+    });
+    await this.generateTags(reelId).catch((error) => {
+      this.logger.warn(
+        `Reel ${reelId} tags generation failed: ${String(error)}`,
+      );
+    });
+    await this.indexReel(reelId).catch((error) => {
+      this.logger.warn(`Reel ${reelId} embedding failed: ${String(error)}`);
+    });
   }
 
   // Concatenate everything we know about the reel and store its embedding

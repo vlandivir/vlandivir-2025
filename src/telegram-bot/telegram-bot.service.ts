@@ -794,15 +794,18 @@ export class TelegramBotService {
             where: { id: existing.id },
             data: { status: 'pending', error: null },
           });
-          this.reelsService.processInBackground(existing.id);
+          this.reelsService.processInBackground(existing.id, (id) =>
+            this.notifyReelProcessed(chatId, id),
+          );
           await this.bot.telegram.sendMessage(
             chatId,
             'Перезапускаю обработку этого рилса в записной книжке 🎬',
           );
         } else {
+          const url = this.buildReelPageUrl(existing.id);
           await this.bot.telegram.sendMessage(
             chatId,
-            'Этот рилс уже есть в записной книжке 🎬',
+            `Этот рилс уже есть в записной книжке 🎬${url ? `\n${url}` : ''}`,
           );
         }
         return true;
@@ -811,7 +814,9 @@ export class TelegramBotService {
       const reel = await this.prisma.reel.create({
         data: { instagramUrl, shortcode, source: 'notebook' },
       });
-      this.reelsService.processInBackground(reel.id);
+      this.reelsService.processInBackground(reel.id, (id) =>
+        this.notifyReelProcessed(chatId, id),
+      );
       await this.bot.telegram.sendMessage(
         chatId,
         'Ссылка на рилс сохранена в записную книжку, обрабатываю 🎬',
@@ -834,6 +839,94 @@ export class TelegramBotService {
   private extractInstagramUrl(text: string): string | null {
     const match = /https?:\/\/[^\s]*instagram\.com\/[^\s]+/i.exec(text);
     return match ? match[0] : null;
+  }
+
+  // Called once background processing has settled: tell the user the result
+  // with a share link to the reel page plus a bit of the extracted metadata.
+  public async notifyReelProcessed(
+    chatId: number,
+    reelId: number,
+  ): Promise<void> {
+    try {
+      const reel = await this.prisma.reel.findUnique({ where: { id: reelId } });
+      if (!reel) return;
+
+      if (reel.status === 'error') {
+        await this.bot.telegram.sendMessage(
+          chatId,
+          `Не удалось обработать рилс${reel.error ? `: ${reel.error}` : ''} 😕`,
+        );
+        return;
+      }
+
+      await this.bot.telegram.sendMessage(
+        chatId,
+        this.buildReelReadyMessage(reel),
+      );
+    } catch (error) {
+      console.error('Error notifying about processed reel:', error);
+      this.debugLogService.warn(
+        'reel-link',
+        'Failed to notify processed reel',
+        {
+          chatId,
+          reelId,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        },
+      );
+    }
+  }
+
+  private buildReelReadyMessage(reel: {
+    id: number;
+    shortcode: string;
+    title: string | null;
+    author: string | null;
+    duration: number | null;
+    tags: string[];
+  }): string {
+    const lines: string[] = [`🎬 ${reel.title || reel.shortcode}`];
+
+    const facts: string[] = [];
+    if (reel.author) facts.push(`Автор: ${reel.author}`);
+    if (typeof reel.duration === 'number' && reel.duration > 0) {
+      facts.push(`Длительность: ${this.formatDuration(reel.duration)}`);
+    }
+    if (facts.length) lines.push(facts.join(' · '));
+
+    if (reel.tags?.length) {
+      lines.push(
+        reel.tags.map((tag) => `#${tag.replace(/\s+/g, '_')}`).join(' '),
+      );
+    }
+
+    const url = this.buildReelPageUrl(reel.id);
+    if (url) lines.push(url);
+
+    return lines.join('\n');
+  }
+
+  private formatDuration(seconds: number): string {
+    const total = Math.round(seconds);
+    const minutes = Math.floor(total / 60);
+    const secs = total % 60;
+    return `${minutes}:${secs.toString().padStart(2, '0')}`;
+  }
+
+  // Share link to a single reel in the unlisted notebook:
+  // <origin>/reels/<REELS_PAGE_KEY>/<id>
+  private buildReelPageUrl(reelId: number): string | null {
+    const pageKey = this.configService.get<string>('REELS_PAGE_KEY');
+    const webhookUrl = this.configService.get<string>(
+      'VLANDIVIR_2025_WEBHOOK_URL',
+    );
+    if (!pageKey || !webhookUrl) return null;
+    try {
+      const baseUrl = new URL(webhookUrl).origin;
+      return `${baseUrl}/reels/${pageKey}/${reelId}`;
+    } catch {
+      return null;
+    }
   }
 
   private extractMessageText(update: TelegramUpdate): string {
