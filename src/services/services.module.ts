@@ -9,6 +9,7 @@ import { ReelsService } from './reels.service';
 import { EmbeddingsService } from './embeddings.service';
 import { DiarySearchService } from './diary-search.service';
 import { ReelsQaService } from './reels-qa.service';
+import { DiaryQaService } from './diary-qa.service';
 
 @Module({
   providers: [
@@ -22,6 +23,7 @@ import { ReelsQaService } from './reels-qa.service';
     EmbeddingsService,
     DiarySearchService,
     ReelsQaService,
+    DiaryQaService,
   ],
   exports: [
     DateParserService,
@@ -34,6 +36,7 @@ import { ReelsQaService } from './reels-qa.service';
     EmbeddingsService,
     DiarySearchService,
     ReelsQaService,
+    DiaryQaService,
   ],
 })
 export class ServicesModule {}
