@@ -22,6 +22,10 @@ Supported date formats:
 
 If you omit the date, the note is saved with today's date.
 
+### Saving an Instagram reel
+
+In a private chat with the bot, send a message containing an Instagram reel or post link (e.g. `https://www.instagram.com/reel/…`). Instead of a diary note, the link is added to the reels notebook: the bot downloads and analyzes the video in the background (transcript, on-screen description, tags, title) so it shows up in the `/reels` archive. Sending the same link again won't create a duplicate; re-sending a link that previously failed retries it.
+
 ### `/d` or `/dairy`
 
 Retrieves diary entries for a specific date.

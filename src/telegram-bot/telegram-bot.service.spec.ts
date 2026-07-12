@@ -13,6 +13,7 @@ import { HistoryCommandsService } from './history-commands.service';
 import { CollageCommandsService } from './collage-commands.service';
 import { Context } from 'telegraf';
 import { DebugLogService } from '../services/debug-log.service';
+import { ReelsService } from '../services/reels.service';
 
 describe('TelegramBotService', () => {
   let service: TelegramBotService;
@@ -95,6 +96,11 @@ describe('TelegramBotService', () => {
             },
             botResponse: {
               create: jest.fn(),
+            },
+            reel: {
+              findUnique: jest.fn().mockResolvedValue(null),
+              create: jest.fn().mockResolvedValue({ id: 7, shortcode: 'abc' }),
+              update: jest.fn().mockResolvedValue({ id: 7, shortcode: 'abc' }),
             },
           },
         },
@@ -181,6 +187,20 @@ describe('TelegramBotService', () => {
             error: jest.fn(),
           },
         },
+        {
+          provide: ReelsService,
+          useValue: {
+            extractShortcode: jest
+              .fn()
+              .mockImplementation(
+                (url: string) =>
+                  /instagram\.com\/(?:[^/]+\/)?(?:reel|reels|p|tv)\/([A-Za-z0-9_-]+)/.exec(
+                    url,
+                  )?.[1] ?? null,
+              ),
+            processInBackground: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -215,6 +235,77 @@ describe('TelegramBotService', () => {
   it('should handle video messages', async () => {
     await service.handleIncomingVideo(mockVideoContext);
     expect(mockReply).toHaveBeenCalled();
+  });
+
+  it('saves a reel link to the reels notebook', async () => {
+    const prisma = (
+      service as unknown as {
+        prisma: {
+          reel: { create: jest.Mock; findUnique: jest.Mock };
+        };
+      }
+    ).prisma;
+    const reels = (
+      service as unknown as {
+        reelsService: { processInBackground: jest.Mock };
+      }
+    ).reelsService;
+    const sendMessage = jest.fn();
+    (
+      service as unknown as { bot: { telegram: { sendMessage: jest.Mock } } }
+    ).bot.telegram.sendMessage = sendMessage;
+
+    const handled = await service.handleReelLink(
+      123456,
+      'https://www.instagram.com/reel/CxYz123_ab/',
+    );
+
+    expect(handled).toBe(true);
+    expect(prisma.reel.findUnique).toHaveBeenCalledWith({
+      where: { shortcode: 'CxYz123_ab' },
+    });
+    expect(prisma.reel.create).toHaveBeenCalledWith({
+      data: {
+        instagramUrl: 'https://www.instagram.com/reel/CxYz123_ab/',
+        shortcode: 'CxYz123_ab',
+        source: 'notebook',
+      },
+    });
+    expect(reels.processInBackground).toHaveBeenCalledWith(7);
+    expect(sendMessage).toHaveBeenCalled();
+  });
+
+  it('does not create a duplicate reel for an already saved link', async () => {
+    const prisma = (
+      service as unknown as {
+        prisma: {
+          reel: { create: jest.Mock; findUnique: jest.Mock };
+        };
+      }
+    ).prisma;
+    prisma.reel.findUnique.mockResolvedValueOnce({
+      id: 5,
+      shortcode: 'CxYz123_ab',
+      status: 'ready',
+    });
+    const sendMessage = jest.fn();
+    (
+      service as unknown as { bot: { telegram: { sendMessage: jest.Mock } } }
+    ).bot.telegram.sendMessage = sendMessage;
+
+    const handled = await service.handleReelLink(
+      123456,
+      'https://www.instagram.com/reel/CxYz123_ab/',
+    );
+
+    expect(handled).toBe(true);
+    expect(prisma.reel.create).not.toHaveBeenCalled();
+    expect(sendMessage).toHaveBeenCalled();
+  });
+
+  it('ignores messages without a reel link', async () => {
+    const handled = await service.handleReelLink(123456, 'just a note');
+    expect(handled).toBe(false);
   });
 
   it('should return sorted help message', () => {
