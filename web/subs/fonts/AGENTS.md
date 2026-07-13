@@ -6,7 +6,7 @@
 
 - TTF-файлы отдаются JASSUB (`buildJassubFontConfig()` в `web/subs/app.js`) и браузеру (`fonts.css`).
 - Список семейств — единый источник правды: массив `SUBTITLE_FONTS` в `web/subs/fonts-shared.js`.
-- Все шрифты из списка ниже — **бесплатные (OFL)**. Основной каталог проверен на кириллицу; явное исключение: **Bebas Neue** — латинский display-шрифт без кириллицы.
+- Основной каталог — **бесплатные (OFL)** шрифты, проверенные на кириллицу; явное исключение: **Bebas Neue** — латинский display-шрифт без кириллицы. Отдельная партия display-шрифтов 2026-07-12 (см. ниже) — freeware не под OFL, лицензии описаны по каждому.
 
 ## Рекомендации для Reels / Shorts (кириллица)
 
@@ -68,6 +68,22 @@ for w in (400, 700):
 
 Источник файлов: [google/fonts](https://github.com/google/fonts) → `ofl/<slug>/`.
 
+## Display-подборка для Reels (2026-07-12)
+
+Партия трендовых display-шрифтов с кириллицей (не OFL — freeware с разных каталогов). Внутренние name-таблицы нормализованы fontTools (family приведён к имени в `SUBTITLE_FONTS`, иначе libass не сматчит шрифт после загрузки).
+
+| Семейство | Файлы | Источник | Лицензия |
+|-----------|-------|----------|----------|
+| Adventure Indiana Jones | `adventure-indiana-jones-400.ttf` | [ofont.ru](https://ofont.ru/view/5898), кириллизация Amir Islamov | Free (оригинал Pixel Sagas — free personal+commercial). ⚠️ Стиль — производная от лого Indiana Jones (Lucasfilm): ок для субтитров, не для брендинга |
+| Headliner No. 45 | `headliner-no-45-400.ttf` | [ffont.ru](https://ffont.ru/en/font/headliner-no-45rus-by-lyajka_1), кириллизация «RUS BY LYAJKA» | ⚠️ **Только personal use** (© Kevin Christopher / KC Fonts; коммерция — лицензия у kcfonts@gmail.com) |
+| KULAG | `kulag-400.otf` | [Fontesk](https://fontesk.com/kulag-font/), Pavels Lavrinovics | Free personal + commercial. Только заглавные |
+| KULAG Outline | `kulag-outline-400.otf` | там же | там же |
+| Rimma Sans | `rimma-sans-400.ttf` | [Fontesk](https://fontesk.com/rimma-sans-font/), Lesha Pushkarev & Vlad Boyko | Free personal + commercial. Одно начертание (bold) |
+| Tablon | `tablon-400.ttf`, `tablon-700.ttf` | [uprock](https://www.fonts.uprock.ru/fonts/tablon), Cristian Tournier + кириллизация | Free personal + commercial. 700 = начертание Black; в архиве есть ещё Medium и Round Black |
+| Ustroke | `ustroke-400.ttf` | [Fontstorage](https://fontstorage.com/font/tikhon-reztcov/ustroke), Тихон Резцов | Freeware, коммерция разрешена. Только заглавные, гранж |
+
+Не добавлены из той же подборки: **Surfbars** (в бесплатной demo с dafont кириллицы нет — 0 глифов, кириллица только в платной версии [LeoSupply](https://leosupply.co/shop/product/surfbars-font)), **Resident Evil 7 RUS** (non-commercial + права Capcom на начертание), **FE Hero** (коммерческая лицензия 299 ₽ у автора — можно добавить после покупки).
+
 ## Подборка videoinfographica.com (vol.1)
 
 Статья: [57+ трендовых шрифтов](https://videoinfographica.com/best-free-fonts-vol1/) (в основном латиница). В бандл добавляем только если: **OFL (или эквивалент для встраивания)**, **кириллица в конкретном файле**, источник с явной лицензией.
@@ -128,13 +144,14 @@ for w in (400, 700):
 | Нет стабильного OFL-зеркала | Wremena (13), Soyuz Grotesk (20), Bluu Next (14) |
 | Латиница / ограничения лицензии | Coolvetica (26) |
 
-## Текущий каталог (50 семейств)
+## Текущий каталог (57 семейств)
 
 Полный список — массив `SUBTITLE_FONTS` в `web/subs/fonts-shared.js`. Ниже — справочник с ссылками.
 
 | Семейство | Файлы в папке | Скачать / источник | Для Reels |
 |-----------|---------------|-------------------|-----------|
 | Advent Pro | `advent-pro-400.ttf`, `advent-pro-700.ttf` | [Advent Pro](https://fonts.google.com/specimen/Advent+Pro) · [ofl/adventpro](https://github.com/google/fonts/tree/main/ofl/adventpro) | Узкий техно-гротеск; variable инстанцирован в 400/700 |
+| Adventure Indiana Jones | `adventure-indiana-jones-400.ttf` (400=700) | [ofont.ru](https://ofont.ru/view/5898) · кириллизация Amir Islamov | «Приключенческий» лого-стиль, только субтитры/заголовки |
 | Alegreya Sans | `alegreya-sans-400.ttf`, `alegreya-sans-700.ttf` | [Alegreya Sans](https://fonts.google.com/specimen/Alegreya+Sans) · [ofl/alegreyasans](https://github.com/google/fonts/tree/main/ofl/alegreyasans) | Кирилл. vol.1 |
 | Alumni Sans | `alumni-sans-400.ttf`, `alumni-sans-700.ttf` | [Alumni Sans](https://fonts.google.com/specimen/Alumni+Sans) · [ofl/alumnisans](https://github.com/google/fonts/tree/main/ofl/alumnisans) | Высокий афишный/спортивный гротеск |
 | Arsenal | `arsenal-400.ttf`, `arsenal-700.ttf` | [Arsenal](https://fonts.google.com/specimen/Arsenal) · [ofl/arsenal](https://github.com/google/fonts/tree/main/ofl/arsenal) | Кирилл. vol.1 |
@@ -152,10 +169,13 @@ for w in (400, 700):
 | Geologica | `geologica-400.ttf`, `geologica-700.ttf` | [Geologica](https://fonts.google.com/specimen/Geologica) · [ofl/geologica](https://github.com/google/fonts/tree/main/ofl/geologica) | Современный гротеск |
 | Golos Text | `golos-text-400.ttf`, `golos-text-700.ttf` | [Golos Text](https://fonts.google.com/specimen/Golos+Text) · [ofl/golostext](https://github.com/google/fonts/tree/main/ofl/golostext) | Русский UI-текст |
 | Great Vibes | `great-vibes-400.ttf` (400=700) | [Great Vibes](https://fonts.google.com/specimen/Great+Vibes) · [ofl/greatvibes](https://github.com/google/fonts/tree/main/ofl/greatvibes) · `great-vibes-OFL.txt` | Каллиграфия / script, кириллица с v1.100 |
+| Headliner No. 45 | `headliner-no-45-400.ttf` (400=700) | [ffont.ru](https://ffont.ru/en/font/headliner-no-45rus-by-lyajka_1) · RUS BY LYAJKA | ⚠️ personal use only; плакатный брусковый капс |
 | IBM Plex Sans | `ibm-plex-sans-400.ttf`, `ibm-plex-sans-700.ttf` | [IBM Plex Sans](https://fonts.google.com/specimen/IBM+Plex+Sans) · [ofl/ibmplexsans](https://github.com/google/fonts/tree/main/ofl/ibmplexsans) | Кирилл. vol.1 №08 |
 | IBM Plex Serif | `ibm-plex-serif-400.ttf`, `ibm-plex-serif-700.ttf` | [IBM Plex Serif](https://fonts.google.com/specimen/IBM+Plex+Serif) · [ofl/ibmplexserif](https://github.com/google/fonts/tree/main/ofl/ibmplexserif) | Кирилл. vol.1 №08 |
 | Inter | `inter-400.ttf`, `inter-700.ttf` | [Inter](https://fonts.google.com/specimen/Inter) · [ofl/inter](https://github.com/google/fonts/tree/main/ofl/inter) | Кирилл. vol.1 №06 |
 | Jost | `jost-400.ttf`, `jost-700.ttf` | [Jost](https://fonts.google.com/specimen/Jost) · [ofl/jost](https://github.com/google/fonts/tree/main/ofl/jost) | Статья VI №38 |
+| KULAG | `kulag-400.otf` (400=700) | [Fontesk](https://fontesk.com/kulag-font/) | Советский плакатный капс |
+| KULAG Outline | `kulag-outline-400.otf` (400=700) | [Fontesk](https://fontesk.com/kulag-font/) | Контурная версия KULAG |
 | Lack | `lack-400.otf`, `lack-700.otf` | [FontsArena Lack](https://fontsarena.com/lack-by-adrien-midzic/) · `lack-OFL.txt` | Кирилл. vol.1 №02 |
 | Literata | `literata-400.ttf`, `literata-700.ttf` | [Literata](https://fonts.google.com/specimen/Literata) · [ofl/literata](https://github.com/google/fonts/tree/main/ofl/literata) | Кирилл. vol.1, книжный текст |
 | Manrope | `manrope-400.ttf`, `manrope-700.ttf` | [Manrope](https://fonts.google.com/specimen/Manrope) · [ofl/manrope](https://github.com/google/fonts/tree/main/ofl/manrope) | Популярен в рилс |
@@ -171,6 +191,7 @@ for w in (400, 700):
 | PT Sans | `pt-sans-400.ttf`, `pt-sans-700.ttf` | [PT Sans](https://fonts.google.com/specimen/PT+Sans) · [ofl/ptsans](https://github.com/google/fonts/tree/main/ofl/ptsans) | Кирилл. vol.1 №09 |
 | PT Sans Narrow | `pt-sans-narrow-400.ttf`, `pt-sans-narrow-700.ttf` | [PT Sans Narrow](https://fonts.google.com/specimen/PT+Sans+Narrow) · [ofl/ptsansnarrow](https://github.com/google/fonts/tree/main/ofl/ptsansnarrow) | Узкая кириллическая рабочая лошадка |
 | PT Serif | `pt-serif-400.ttf`, `pt-serif-700.ttf` | [PT Serif](https://fonts.google.com/specimen/PT+Serif) · [ofl/ptserif](https://github.com/google/fonts/tree/main/ofl/ptserif) | Кирилл. vol.1 №09 |
+| Rimma Sans | `rimma-sans-400.ttf` (400=700) | [Fontesk](https://fontesk.com/rimma-sans-font/) | Жирный дисплейный гротеск, сов. архитектура |
 | Roboto | `roboto-400.ttf`, `roboto-700.ttf` | [Roboto](https://fonts.google.com/specimen/Roboto) · [ofl/roboto](https://github.com/google/fonts/tree/main/ofl/roboto) | YouTube-стиль |
 | Roboto Condensed | `roboto-condensed-400.ttf`, `roboto-condensed-700.ttf` | [Roboto Condensed](https://fonts.google.com/specimen/Roboto+Condensed) · [ofl/robotocondensed](https://github.com/google/fonts/tree/main/ofl/robotocondensed) | Две строки |
 | Roboto Slab | `roboto-slab-400.ttf`, `roboto-slab-700.ttf` | [Roboto Slab](https://fonts.google.com/specimen/Roboto+Slab) · [apache/robotoslab](https://github.com/google/fonts/tree/main/apache/robotoslab) | Кирилл. vol.1 №10 |
@@ -179,10 +200,12 @@ for w in (400, 700):
 | Sofia Sans Extra Condensed | `sofia-sans-extra-condensed-400.ttf`, `sofia-sans-extra-condensed-700.ttf` | [Sofia Sans Extra Condensed](https://fonts.google.com/specimen/Sofia+Sans+Extra+Condensed) · [ofl/sofiasansextracondensed](https://github.com/google/fonts/tree/main/ofl/sofiasansextracondensed) | Очень узкий системный гротеск |
 | Spectral | `spectral-400.ttf`, `spectral-700.ttf` | [Spectral](https://fonts.google.com/specimen/Spectral) · [ofl/spectral](https://github.com/google/fonts/tree/main/ofl/spectral) | Статья VI №33, serif |
 | Source Sans 3 | `source-sans-3-400.ttf`, `source-sans-3-700.ttf` | [Source Sans 3](https://fonts.google.com/specimen/Source+Sans+3) · [ofl/sourcesans3](https://github.com/google/fonts/tree/main/ofl/sourcesans3) | Редакторский текст |
+| Tablon | `tablon-400.ttf`, `tablon-700.ttf` (700=Black) | [uprock](https://www.fonts.uprock.ru/fonts/tablon) | Плакатный display, кириллизация |
 | Tektur | `tektur-400.ttf`, `tektur-700.ttf` | [Tektur](https://fonts.google.com/specimen/Tektur) · [ofl/tektur](https://github.com/google/fonts/tree/main/ofl/tektur) | Кирилл. vol.1 №27, конструктив |
 | Ubuntu | `ubuntu-400.ttf`, `ubuntu-700.ttf` | [Ubuntu](https://fonts.google.com/specimen/Ubuntu) · [ufl/ubuntu](https://github.com/google/fonts/tree/main/ufl/ubuntu) | Кирилл. vol.1 |
 | Ubuntu Condensed | `ubuntu-condensed-400.ttf` (400=700) | [Ubuntu Condensed](https://fonts.google.com/specimen/Ubuntu+Condensed) · [ufl/ubuntucondensed](https://github.com/google/fonts/tree/main/ufl/ubuntucondensed) | Округлый узкий гротеск |
 | Unbounded | `unbounded-400.ttf`, `unbounded-700.ttf` | [Unbounded](https://fonts.google.com/specimen/Unbounded) · [ofl/unbounded](https://github.com/google/fonts/tree/main/ofl/unbounded) | Яркий display |
+| Ustroke | `ustroke-400.ttf` (400=700) | [Fontstorage](https://fontstorage.com/font/tikhon-reztcov/ustroke) | Рукописный гранж-капс |
 | Yanone Kaffeesatz | `yanone-kaffeesatz-400.ttf`, `yanone-kaffeesatz-700.ttf` | [Yanone Kaffeesatz](https://fonts.google.com/specimen/Yanone+Kaffeesatz) · [ofl/yanonekaffeesatz](https://github.com/google/fonts/tree/main/ofl/yanonekaffeesatz) | Дисплейный вывесочный гротеск |
 
 ## Файлы в папке, не входящие в `SUBTITLE_FONTS`

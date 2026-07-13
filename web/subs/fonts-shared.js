@@ -41,6 +41,11 @@
       bold: 'advent-pro-700.ttf',
     },
     {
+      family: 'Adventure Indiana Jones',
+      regular: 'adventure-indiana-jones-400.ttf',
+      bold: 'adventure-indiana-jones-400.ttf',
+    },
+    {
       family: 'Alegreya Sans',
       regular: 'alegreya-sans-400.ttf',
       bold: 'alegreya-sans-700.ttf',
@@ -114,6 +119,11 @@
       bold: 'great-vibes-400.ttf',
     },
     {
+      family: 'Headliner No. 45',
+      regular: 'headliner-no-45-400.ttf',
+      bold: 'headliner-no-45-400.ttf',
+    },
+    {
       family: 'IBM Plex Sans',
       regular: 'ibm-plex-sans-400.ttf',
       bold: 'ibm-plex-sans-700.ttf',
@@ -125,6 +135,12 @@
     },
     { family: 'Inter', regular: 'inter-400.ttf', bold: 'inter-700.ttf' },
     { family: 'Jost', regular: 'jost-400.ttf', bold: 'jost-700.ttf' },
+    { family: 'KULAG', regular: 'kulag-400.otf', bold: 'kulag-400.otf' },
+    {
+      family: 'KULAG Outline',
+      regular: 'kulag-outline-400.otf',
+      bold: 'kulag-outline-400.otf',
+    },
     { family: 'Lack', regular: 'lack-400.otf', bold: 'lack-700.otf' },
     {
       family: 'Literata',
@@ -176,6 +192,11 @@
       regular: 'pt-serif-400.ttf',
       bold: 'pt-serif-700.ttf',
     },
+    {
+      family: 'Rimma Sans',
+      regular: 'rimma-sans-400.ttf',
+      bold: 'rimma-sans-400.ttf',
+    },
     { family: 'Roboto', regular: 'roboto-400.ttf', bold: 'roboto-700.ttf' },
     {
       family: 'Roboto Condensed',
@@ -208,6 +229,7 @@
       regular: 'source-sans-3-400.ttf',
       bold: 'source-sans-3-700.ttf',
     },
+    { family: 'Tablon', regular: 'tablon-400.ttf', bold: 'tablon-700.ttf' },
     { family: 'Tektur', regular: 'tektur-400.ttf', bold: 'tektur-700.ttf' },
     { family: 'Ubuntu', regular: 'ubuntu-400.ttf', bold: 'ubuntu-700.ttf' },
     {
@@ -219,6 +241,11 @@
       family: 'Unbounded',
       regular: 'unbounded-400.ttf',
       bold: 'unbounded-700.ttf',
+    },
+    {
+      family: 'Ustroke',
+      regular: 'ustroke-400.ttf',
+      bold: 'ustroke-400.ttf',
     },
     {
       family: 'Yanone Kaffeesatz',
