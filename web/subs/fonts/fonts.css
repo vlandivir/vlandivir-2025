@@ -17,6 +17,14 @@
 }
 
 @font-face {
+  font-family: 'Adventure Indiana Jones';
+  src: url('adventure-indiana-jones-400.ttf') format('truetype');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
   font-family: 'Alegreya Sans';
   src: url('alegreya-sans-400.ttf') format('truetype');
   font-weight: 400;
@@ -265,6 +273,14 @@
 }
 
 @font-face {
+  font-family: 'Headliner No. 45';
+  src: url('headliner-no-45-400.ttf') format('truetype');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
   font-family: 'IBM Plex Sans';
   src: url('ibm-plex-sans-400.ttf') format('truetype');
   font-weight: 400;
@@ -324,6 +340,22 @@
   font-family: 'Jost';
   src: url('jost-700.ttf') format('truetype');
   font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'KULAG';
+  src: url('kulag-400.otf') format('opentype');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'KULAG Outline';
+  src: url('kulag-outline-400.otf') format('opentype');
+  font-weight: 400 700;
   font-style: normal;
   font-display: swap;
 }
@@ -561,6 +593,14 @@
 }
 
 @font-face {
+  font-family: 'Rimma Sans';
+  src: url('rimma-sans-400.ttf') format('truetype');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
   font-family: 'Roboto';
   src: url('roboto-400.ttf') format('truetype');
   font-weight: 400;
@@ -681,6 +721,22 @@
 }
 
 @font-face {
+  font-family: 'Tablon';
+  src: url('tablon-400.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Tablon';
+  src: url('tablon-700.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
   font-family: 'Tektur';
   src: url('tektur-400.ttf') format('truetype');
   font-weight: 400;
@@ -732,6 +788,14 @@
   font-family: 'Unbounded';
   src: url('unbounded-700.ttf') format('truetype');
   font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Ustroke';
+  src: url('ustroke-400.ttf') format('truetype');
+  font-weight: 400 700;
   font-style: normal;
   font-display: swap;
 }
