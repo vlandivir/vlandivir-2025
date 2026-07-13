@@ -14,7 +14,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/shared/site-header.css?v=20260706-1" />
     <link rel="stylesheet" href="/shared/color-picker.css?v=20260605-1" />
-    <link rel="stylesheet" href="/subs/styles.css?v=20260712-1" />
+    <link rel="stylesheet" href="/subs/styles.css?v=20260713-1" />
     <link rel="stylesheet" href="/shared/video-upload-block.css?v=20260706-1" />
     <link rel="stylesheet" href="/shared/site-theme.css?v=20260711-1" />
     <script src="/files/registry.js?v=20260527-1"></script>
@@ -22,7 +22,7 @@
     <script src="/shared/site-header.js?v=20260527-1" defer></script>
     <script src="/shared/color-picker.js?v=20260605-2" defer></script>
     <script src="/shared/video-upload-block.js?v=20260603-1" defer></script>
-    <script src="/subs/app.js?v=20260712-1" defer></script>
+    <script src="/subs/app.js?v=20260713-1" defer></script>
   </head>
   <body class="subs-page">
     <header
@@ -178,12 +178,36 @@
                 <p class="transcription-status" id="transcriptionStatus">
                   Распознавание ещё не запускалось.
                 </p>
-                <textarea
-                  class="transcription-output"
-                  id="transcriptionOutput"
-                  spellcheck="false"
+                <div
+                  class="transcription-outputs"
+                  id="transcriptionOutputsGrid"
                   hidden
-                ></textarea>
+                >
+                  <div class="transcription-outputs__col">
+                    <p class="transcription-outputs__label">Слова</p>
+                    <textarea
+                      class="transcription-output"
+                      id="transcriptionOutput"
+                      spellcheck="false"
+                      hidden
+                    ></textarea>
+                  </div>
+                  <div class="transcription-outputs__col">
+                    <p class="transcription-outputs__label">Предложения</p>
+                    <textarea
+                      class="transcription-output"
+                      id="transcriptionSentencesOutput"
+                      spellcheck="false"
+                    ></textarea>
+                    <button
+                      class="secondary-link transcription-timings-button"
+                      id="setSentenceTimingsButton"
+                      type="button"
+                    >
+                      Расставить тайминги
+                    </button>
+                  </div>
+                </div>
                 <button
                   class="secondary-link transcription-save-button"
                   id="saveTranscriptionButton"
