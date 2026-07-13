@@ -957,9 +957,11 @@ export class ReelsService {
   }
 
   private async downloadVideo(url: string, tempDir: string): Promise<string> {
+    // Instagram's muxed mp4 URLs often fail with 429/500; DASH video+audio
+    // (merged by ffmpeg) is reliable, so prefer it with muxed as fallback
     await this.runYtDlp([
       '-f',
-      'best[ext=mp4]/best',
+      'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[ext=mp4]/best',
       '--no-playlist',
       '--no-warnings',
       '-o',
