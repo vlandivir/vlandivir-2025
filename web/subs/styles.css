@@ -1769,6 +1769,37 @@ pre {
   display: none;
 }
 
+.transcription-outputs {
+  display: grid;
+  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.transcription-outputs[hidden] {
+  display: none;
+}
+
+.transcription-outputs__col {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.transcription-outputs__label {
+  margin: 0;
+  color: var(--muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+}
+
+.transcription-timings-button {
+  justify-self: start;
+  min-height: 44px;
+  border-color: var(--line);
+  cursor: pointer;
+}
+
 @media (max-width: 860px) {
   .site-header {
     width: min(100% - 28px, 620px);
@@ -1855,6 +1886,7 @@ pre {
   .transcription-controls,
   .transcription-translation,
   .transcription-to-cues,
+  .transcription-outputs,
   .cue-item {
     grid-template-columns: 1fr;
   }

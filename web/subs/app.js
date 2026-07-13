@@ -77,6 +77,8 @@ const TEXT = IS_EN
       saved: 'Saved',
       chooseCueStyle: 'Choose a cue style.',
       noWordLines: 'No lines in “00.00 word” format.',
+      noSentenceLines: 'No sentence lines.',
+      timingsSet: 'Timings set',
       cuesCreated: 'Cues created',
       rendering: 'Burning subtitles on backend...',
       renderFailed: 'Failed to burn subtitles',
@@ -172,6 +174,8 @@ const TEXT = IS_EN
       saved: 'Сохранено',
       chooseCueStyle: 'Выберите стиль для реплик.',
       noWordLines: 'Не нашёл строки в формате “00.00 слово”.',
+      noSentenceLines: 'Нет строк с предложениями.',
+      timingsSet: 'Тайминги расставлены',
       cuesCreated: 'Создано реплик',
       rendering: 'Накладываю субтитры на backend...',
       renderFailed: 'Не удалось наложить субтитры',
@@ -546,6 +550,15 @@ const transcriptionLanguageInput = document.querySelector(
 const transcribeAudioButton = document.querySelector('#transcribeAudioButton');
 const transcriptionStatus = document.querySelector('#transcriptionStatus');
 const transcriptionOutput = document.querySelector('#transcriptionOutput');
+const transcriptionOutputsGrid = document.querySelector(
+  '#transcriptionOutputsGrid',
+);
+const transcriptionSentencesOutput = document.querySelector(
+  '#transcriptionSentencesOutput',
+);
+const setSentenceTimingsButton = document.querySelector(
+  '#setSentenceTimingsButton',
+);
 const saveTranscriptionButton = document.querySelector(
   '#saveTranscriptionButton',
 );
@@ -1472,6 +1485,74 @@ function getTranscriptTranslationOutputKey(
   return `translationOutput_${targetLanguage}`;
 }
 
+function getTranscriptSentencesKey(outputKey) {
+  return `sentences_${outputKey}`;
+}
+
+function stripLineTiming(line) {
+  return line.replace(/^\s*\d+\.\d{1,3}\s+/, '').trim();
+}
+
+function buildSentencesText(outputText) {
+  const plain = (outputText || '')
+    .split('\n')
+    .map((line) => stripLineTiming(line))
+    .filter(Boolean)
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!plain) return '';
+
+  const sentences = plain.match(/[^.!?…]+(?:[.!?…]+["»)\]]*|$)/g) || [plain];
+  return sentences
+    .map((sentence) => sentence.trim())
+    .filter(Boolean)
+    .join('\n');
+}
+
+function normalizeWordToken(word) {
+  return String(word || '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, '');
+}
+
+function setSentenceTimings() {
+  const words = parseTranscriptionWords(transcriptionOutput.value);
+  if (words.length === 0) {
+    transcriptionStatus.textContent = TEXT.noWordLines;
+    return;
+  }
+
+  const lines = transcriptionSentencesOutput.value
+    .split('\n')
+    .map((line) => stripLineTiming(line))
+    .filter(Boolean);
+  if (lines.length === 0) {
+    transcriptionStatus.textContent = TEXT.noSentenceLines;
+    return;
+  }
+
+  let pointer = 0;
+  const timedLines = lines.map((text) => {
+    const tokens = text.split(/\s+/).map(normalizeWordToken).filter(Boolean);
+    let anchor = -1;
+    if (tokens[0]) {
+      for (let index = pointer; index < words.length; index += 1) {
+        if (normalizeWordToken(words[index].word) === tokens[0]) {
+          anchor = index;
+          break;
+        }
+      }
+    }
+    if (anchor === -1) anchor = Math.min(pointer, words.length - 1);
+    pointer = anchor + tokens.length;
+    return `${formatTranscriptTime(words[anchor].start, 0)} ${text}`;
+  });
+
+  transcriptionSentencesOutput.value = timedLines.join('\n');
+  transcriptionStatus.textContent = TEXT.timingsSet;
+}
+
 function formatTranscriptTime(value, width = 5) {
   if (!Number.isFinite(value)) return '0.00';
   return value.toFixed(2).padStart(width, ' ');
@@ -1504,6 +1585,11 @@ function formatTranscript(transcript) {
   return transcript?.text || '';
 }
 
+function setTranscriptionOutputsVisible(visible) {
+  transcriptionOutput.hidden = !visible;
+  if (transcriptionOutputsGrid) transcriptionOutputsGrid.hidden = !visible;
+}
+
 function renderTranscription(video = null) {
   if (!transcriptionPanel) return;
 
@@ -1513,7 +1599,8 @@ function renderTranscription(video = null) {
     activeTranscriptOutputKey = null;
     activeTranscriptOutputLanguage = null;
     transcriptionOutput.value = '';
-    transcriptionOutput.hidden = true;
+    transcriptionSentencesOutput.value = '';
+    setTranscriptionOutputsVisible(false);
     saveTranscriptionButton.hidden = true;
     transcriptionTranslationPanel.hidden = true;
     translateTranscriptionButton.disabled = true;
@@ -1539,7 +1626,10 @@ function renderTranscription(video = null) {
       : language;
     transcriptionOutput.value =
       transcript[activeTranscriptOutputKey] || formatTranscript(transcript);
-    transcriptionOutput.hidden = false;
+    transcriptionSentencesOutput.value =
+      transcript[getTranscriptSentencesKey(activeTranscriptOutputKey)] ||
+      buildSentencesText(transcriptionOutput.value);
+    setTranscriptionOutputsVisible(true);
     saveTranscriptionButton.hidden = false;
     translateTranscriptionButton.disabled = false;
     transcriptionToCuesPanel.hidden = false;
@@ -1555,7 +1645,8 @@ function renderTranscription(video = null) {
     activeTranscriptOutputKey = null;
     activeTranscriptOutputLanguage = null;
     transcriptionOutput.value = '';
-    transcriptionOutput.hidden = true;
+    transcriptionSentencesOutput.value = '';
+    setTranscriptionOutputsVisible(false);
     saveTranscriptionButton.hidden = true;
     transcriptionToCuesPanel.hidden = true;
     transcriptionStatus.textContent = TEXT.transcriptNotRun;
@@ -3841,6 +3932,8 @@ async function saveEditedTranscription() {
     [language]: {
       ...transcript,
       [outputKey]: transcriptionOutput.value,
+      [getTranscriptSentencesKey(outputKey)]:
+        transcriptionSentencesOutput.value,
       editedAt: new Date().toISOString(),
     },
   };
@@ -3910,7 +4003,8 @@ async function translateTranscription() {
       updatedAt: new Date().toISOString(),
     });
     transcriptionOutput.value = payload.text;
-    transcriptionOutput.hidden = false;
+    transcriptionSentencesOutput.value = buildSentencesText(payload.text);
+    setTranscriptionOutputsVisible(true);
     saveTranscriptionButton.hidden = false;
     transcriptionTranslationPanel.hidden = false;
     transcriptionToCuesPanel.hidden = false;
@@ -3957,13 +4051,22 @@ async function createCuesFromTranscription() {
     return;
   }
 
-  const words = parseTranscriptionWords(transcriptionOutput.value);
+  const sentenceLines = parseTranscriptionWords(
+    transcriptionSentencesOutput.value,
+  );
+  const wordLines = parseTranscriptionWords(transcriptionOutput.value);
+  const words = sentenceLines.length > 0 ? sentenceLines : wordLines;
   if (words.length === 0) {
     transcriptionStatus.textContent = TEXT.noWordLines;
     return;
   }
 
   const cueDrafts = buildCuesFromWords(words);
+  if (sentenceLines.length > 0 && wordLines.length > 0) {
+    const lastWord = wordLines[wordLines.length - 1];
+    const lastCue = cueDrafts[cueDrafts.length - 1];
+    lastCue.end = Math.max(lastCue.end, lastWord.start + 0.8);
+  }
   const createdAt = Date.now();
   for (const [index, cue] of cueDrafts.entries()) {
     await saveCue({
@@ -4256,6 +4359,8 @@ extractAudioButton.addEventListener('click', () => {
 transcribeAudioButton.addEventListener('click', () => {
   void transcribeAudio();
 });
+setSentenceTimingsButton.addEventListener('click', setSentenceTimings);
+
 saveTranscriptionButton.addEventListener('click', () => {
   void saveEditedTranscription();
 });
