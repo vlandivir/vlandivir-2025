@@ -250,6 +250,7 @@ body {
 .details-tags {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--v-control-gap);
   margin-bottom: var(--v-space-3);
 }
@@ -268,6 +269,41 @@ body {
 
 .details-tag:hover {
   background: hsl(var(--shadcn-accent));
+}
+
+/* Edit mode: toggleable dictionary chips, same look as the map's form */
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border: 1px solid hsl(var(--shadcn-border));
+  border-radius: 999px;
+  background: hsl(var(--background));
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.tag-chip input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tag-chip:has(input:checked) {
+  background: hsl(var(--primary));
+  border-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+.tag-new-input {
+  width: 130px;
+  padding: 6px 12px;
+  border: 1px solid hsl(var(--shadcn-border));
+  border-radius: 999px;
+  background: hsl(var(--background));
+  font-family: inherit;
+  font-size: 13px;
 }
 
 .details-meta {

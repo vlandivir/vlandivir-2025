@@ -188,7 +188,7 @@ model Reel {
   visionDescription String?   @db.Text // LLM description of what happens on screen
   visionStatus      String    @default("none") // none | pending | ready | error
   visionError       String?   @db.Text
-  tags              String[]  @default([])
+  tags              String[]  @default([]) // set by hand, shared MapTag dictionary
   meta              Json?     @db.JsonB // raw yt-dlp info
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
