@@ -998,10 +998,23 @@ export class ReelsService {
     }
   }
 
-  private runYtDlp(args: string[]): Promise<string> {
-    const binary = this.configService.get<string>('YTDLP_PATH') || 'yt-dlp';
+  private async runYtDlp(args: string[]): Promise<string> {
     const cookiesFile = this.configService.get<string>('YTDLP_COOKIES_FILE');
-    const fullArgs = cookiesFile ? ['--cookies', cookiesFile, ...args] : args;
+    if (!cookiesFile) return this.execYtDlp(args);
+    try {
+      return await this.execYtDlp(['--cookies', cookiesFile, ...args]);
+    } catch (error) {
+      // Instagram sometimes rejects the authenticated session (HTTP 400)
+      // while anonymous requests still work — retry without cookies
+      this.logger.warn(
+        `yt-dlp with cookies failed (${error instanceof Error ? error.message : error}), retrying anonymously`,
+      );
+      return this.execYtDlp(args);
+    }
+  }
+
+  private execYtDlp(fullArgs: string[]): Promise<string> {
+    const binary = this.configService.get<string>('YTDLP_PATH') || 'yt-dlp';
 
     return new Promise<string>((resolve, reject) => {
       const child = spawn(binary, fullArgs, {
