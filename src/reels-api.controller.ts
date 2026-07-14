@@ -19,6 +19,10 @@ import { PrismaService } from './prisma/prisma.service';
 import { ReelsService } from './services/reels.service';
 import { ReelsQaService } from './services/reels-qa.service';
 
+// Same limits as the map API — the tag dictionary is shared
+const MAX_TAGS = 10;
+const MAX_TAG_LENGTH = 50;
+
 @Controller('reels-api')
 export class ReelsApiController {
   constructor(
@@ -126,6 +130,63 @@ export class ReelsApiController {
     return restarted;
   }
 
+  // Tags are set by hand; unknown names are added to the shared MapTag
+  // dictionary (emoji can be picked later in the 🏷 editor on /places)
+  @Post('reels/:id/tags')
+  async updateReelTags(
+    @Headers('x-reels-api-key') apiKey: string | undefined,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { tags?: unknown },
+  ) {
+    this.assertEditKey(apiKey);
+    const reel = await this.prisma.reel.findUnique({ where: { id } });
+    if (!reel) throw new NotFoundException('Reel not found');
+
+    const tags = this.parseTags(body.tags);
+    for (const name of tags) {
+      await this.prisma.mapTag.upsert({
+        where: { name },
+        create: { name },
+        update: {},
+      });
+    }
+    const updated = await this.prisma.reel.update({
+      where: { id },
+      data: { tags },
+    });
+    // Tags are part of the search embedding text
+    void this.reelsService.indexReel(id).catch(() => undefined);
+    return updated;
+  }
+
+  private parseTags(tags: unknown): string[] {
+    if (tags === undefined || tags === null) return [];
+    if (!Array.isArray(tags)) {
+      throw new BadRequestException('Tags must be an array of strings');
+    }
+    const parsed = [
+      ...new Set(
+        tags.map((tag) => {
+          if (typeof tag !== 'string' || !tag.trim()) {
+            throw new BadRequestException(
+              'Each tag must be a non-empty string',
+            );
+          }
+          if (tag.length > MAX_TAG_LENGTH) {
+            throw new BadRequestException(
+              `Tags must be at most ${MAX_TAG_LENGTH} characters`,
+            );
+          }
+          return tag.trim().toLowerCase();
+        }),
+      ),
+    ];
+    if (parsed.length > MAX_TAGS) {
+      throw new BadRequestException(`At most ${MAX_TAGS} tags are allowed`);
+    }
+    return parsed;
+  }
+
   // Re-run transcription for every downloaded reel (sequential, background)
   @Post('transcribe-all')
   async transcribeAll(@Headers('x-reels-api-key') apiKey: string | undefined) {
@@ -156,25 +217,6 @@ export class ReelsApiController {
     });
     this.reelsService.transcribeInBackground(id);
     return updated;
-  }
-
-  // Assign tags for every analyzed reel (sequential, background). Sequential
-  // matters: the dictionary grows as we go, so later reels reuse tags
-  // created for earlier ones instead of inventing near-duplicates.
-  @Post('generate-tags')
-  async generateTags(@Headers('x-reels-api-key') apiKey: string | undefined) {
-    this.assertEditKey(apiKey);
-    const reels = await this.prisma.reel.findMany({
-      where: { status: 'ready' },
-      select: { id: true },
-      orderBy: { id: 'asc' },
-    });
-    void (async () => {
-      for (const { id } of reels) {
-        await this.reelsService.generateTags(id).catch(() => undefined);
-      }
-    })();
-    return { queued: reels.length };
   }
 
   // Regenerate titles for every analyzed reel (sequential, background)

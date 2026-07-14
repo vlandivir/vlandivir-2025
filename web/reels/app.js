@@ -216,7 +216,9 @@
     title.textContent = reel.title || reel.shortcode;
     details.appendChild(title);
 
-    if (reel.tags?.length) {
+    if (state.editMode) {
+      details.appendChild(buildTagsEditor(reel));
+    } else if (reel.tags?.length) {
       const tagsRow = document.createElement('div');
       tagsRow.className = 'details-tags';
       reel.tags.forEach((tag) => {
@@ -359,6 +361,90 @@
     }
 
     details.appendChild(actions);
+  }
+
+  // --- Manual tag editing (edit mode) ---
+
+  // Checkbox chips for every dictionary tag; a toggle saves immediately.
+  // A hand-typed new tag is added to the shared dictionary by the server.
+  function buildTagsEditor(reel) {
+    const wrap = document.createElement('div');
+    wrap.className = 'details-tags';
+
+    const names = [
+      ...new Set([...state.tags.map((tag) => tag.name), ...(reel.tags || [])]),
+    ].sort((a, b) => a.localeCompare(b));
+
+    names.forEach((name) => {
+      const chip = document.createElement('label');
+      chip.className = 'tag-chip';
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.value = name;
+      input.checked = (reel.tags || []).includes(name);
+      input.addEventListener('change', () => {
+        const checked = [...wrap.querySelectorAll('input:checked')].map(
+          (box) => box.value,
+        );
+        saveReelTags(reel, checked);
+      });
+      chip.appendChild(input);
+      chip.appendChild(document.createTextNode(tagLabel(name)));
+      wrap.appendChild(chip);
+    });
+
+    const newInput = document.createElement('input');
+    newInput.className = 'tag-new-input';
+    newInput.type = 'text';
+    newInput.placeholder = 'новый тег…';
+    const addNewTag = () => {
+      const name = newInput.value.trim().toLowerCase();
+      if (!name) return;
+      newInput.value = '';
+      const checked = [...wrap.querySelectorAll('input:checked')].map(
+        (box) => box.value,
+      );
+      saveReelTags(reel, [...new Set([...checked, name])]);
+    };
+    newInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        addNewTag();
+      }
+    });
+    wrap.appendChild(newInput);
+
+    const addButton = document.createElement('button');
+    addButton.className = 'mini-btn';
+    addButton.textContent = '+ Добавить';
+    addButton.addEventListener('click', addNewTag);
+    wrap.appendChild(addButton);
+
+    return wrap;
+  }
+
+  async function saveReelTags(reel, tags) {
+    const response = await fetch(`${API_BASE}/reels/${reel.id}/tags`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-reels-api-key': getApiKey(),
+      },
+      body: JSON.stringify({ tags }),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => null);
+      alert(error?.message || 'Не получилось сохранить теги');
+      renderDetails();
+      return;
+    }
+    const updated = await response.json();
+    reel.tags = updated.tags;
+    // A hand-typed tag may be new — refresh the shared dictionary
+    const tagsResponse = await fetch('/map-api/tags');
+    if (tagsResponse.ok) state.tags = await tagsResponse.json();
+    renderDetails();
+    renderList();
   }
 
   // --- Transcript block ---

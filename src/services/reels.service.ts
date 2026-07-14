@@ -32,8 +32,6 @@ type YtDlpInfo = {
 const YTDLP_TIMEOUT_MS = 3 * 60 * 1000;
 // 1 fps cap: 2 minutes of frames ≈ 130k input tokens — safely within limits
 const MAX_VISION_FRAMES = 120;
-const MAX_TAGS_PER_REEL = 7;
-const MAX_NEW_TAGS_PER_REEL = 3;
 
 @Injectable()
 export class ReelsService {
@@ -341,18 +339,12 @@ export class ReelsService {
     });
   }
 
-  // Title first (tags use it as one of the sources), then tags,
-  // then the search embedding (it uses both)
+  // Title first, then the search embedding (it uses the title)
   private enrichInBackground(reelId: number): void {
     void (async () => {
       await this.generateTitle(reelId).catch((error) => {
         this.logger.warn(
           `Reel ${reelId} title generation failed: ${String(error)}`,
-        );
-      });
-      await this.generateTags(reelId).catch((error) => {
-        this.logger.warn(
-          `Reel ${reelId} tags generation failed: ${String(error)}`,
         );
       });
       await this.indexReel(reelId).catch((error) => {
@@ -417,140 +409,6 @@ export class ReelsService {
     })();
 
     return reels.length;
-  }
-
-  // Assign up to MAX_TAGS_PER_REEL tags based on the analyzed content.
-  // The LLM must prefer the existing dictionary and may add at most
-  // MAX_NEW_TAGS_PER_REEL new tags (picking an emoji for each).
-  async generateTags(reelId: number): Promise<void> {
-    const reel = await this.prisma.reel.findUnique({ where: { id: reelId } });
-    if (!reel) return;
-
-    const sources = [
-      reel.title ? `Название: ${reel.title}` : null,
-      reel.description
-        ? `Описание под видео:\n${reel.description.slice(0, 800)}`
-        : null,
-      reel.transcriptClean || reel.transcript
-        ? `Расшифровка речи:\n${(reel.transcriptClean || reel.transcript || '').slice(0, 1500)}`
-        : null,
-      reel.visionDescription
-        ? `Что происходит в ролике:\n${reel.visionDescription.slice(0, 1500)}`
-        : null,
-    ].filter(Boolean);
-    if (!sources.length) return;
-
-    const apiKey = this.configService.get<string>('OPENAI_API_KEY');
-    if (!apiKey) return;
-    const model =
-      this.configService.get<string>('REELS_LLM_MODEL') || 'gpt-5-mini';
-
-    const existingTags = await this.prisma.mapTag.findMany({
-      orderBy: { name: 'asc' },
-    });
-    const existingList = existingTags.length
-      ? existingTags.map((tag) => tag.name).join(', ')
-      : '(словарь пока пуст)';
-
-    const prompt = [
-      'Подбери теги для записи о коротком видео (Instagram reel) в личной записной книжке.',
-      `Существующие теги словаря: ${existingList}`,
-      [
-        'Правила:',
-        `- всего не больше ${MAX_TAGS_PER_REEL} тегов;`,
-        '- в первую очередь используй подходящие существующие теги (isNew=false);',
-        `- новые теги (isNew=true) создавай только если ничего из словаря не подходит, не больше ${MAX_NEW_TAGS_PER_REEL} штук;`,
-        '- имя тега: русский язык, нижний регистр, 1–2 слова, обобщающая категория (например «рецепты», «путешествия», «сербия», «монтаж»), а не пересказ ролика;',
-        '- для каждого нового тега подбери ровно один подходящий эмодзи.',
-      ].join('\n'),
-      ...sources,
-    ].join('\n\n');
-
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: 'user', content: prompt }],
-        max_completion_tokens: 1000,
-        reasoning_effort: 'minimal',
-        response_format: {
-          type: 'json_schema',
-          json_schema: {
-            name: 'reel_tags',
-            strict: true,
-            schema: {
-              type: 'object',
-              additionalProperties: false,
-              properties: {
-                tags: {
-                  type: 'array',
-                  items: {
-                    type: 'object',
-                    additionalProperties: false,
-                    properties: {
-                      name: { type: 'string' },
-                      emoji: { type: ['string', 'null'] },
-                      isNew: { type: 'boolean' },
-                    },
-                    required: ['name', 'emoji', 'isNew'],
-                  },
-                },
-              },
-              required: ['tags'],
-            },
-          },
-        },
-      }),
-      signal: AbortSignal.timeout(60 * 1000),
-    });
-    if (!response.ok) {
-      throw new Error(`Tags LLM error: ${response.status}`);
-    }
-
-    const data = (await response.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    const parsed = JSON.parse(data.choices?.[0]?.message?.content || '{}') as {
-      tags?: { name?: string; emoji?: string | null; isNew?: boolean }[];
-    };
-    if (!Array.isArray(parsed.tags)) return;
-
-    // The model is told the limits, but we enforce them anyway
-    const known = new Map(existingTags.map((tag) => [tag.name, tag]));
-    const result: string[] = [];
-    let created = 0;
-    for (const raw of parsed.tags) {
-      if (result.length >= MAX_TAGS_PER_REEL) break;
-      const name = (raw.name || '').trim().toLowerCase().slice(0, 50);
-      if (!name || result.includes(name)) continue;
-
-      if (known.has(name)) {
-        result.push(name);
-        continue;
-      }
-      if (created >= MAX_NEW_TAGS_PER_REEL) continue;
-      const emoji =
-        typeof raw.emoji === 'string' && raw.emoji.trim()
-          ? [...raw.emoji.trim()].slice(0, 2).join('')
-          : null;
-      const tag = await this.prisma.mapTag.upsert({
-        where: { name },
-        create: { name, emoji },
-        update: {},
-      });
-      known.set(name, tag);
-      created += 1;
-      result.push(name);
-    }
-
-    await this.prisma.reel.update({
-      where: { id: reelId },
-      data: { tags: result },
-    });
   }
 
   // Force (re-)extraction of frames + LLM description for a downloaded reel
