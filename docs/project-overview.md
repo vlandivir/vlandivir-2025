@@ -30,6 +30,7 @@ Root module: [src/app.module.ts](../src/app.module.ts) — ConfigModule (global)
 | [map-pages.controller.ts](../src/map-pages.controller.ts) | `/places/point/:id`, `/places/track/:id` | Server-side Open Graph tags for shareable map links (injected into `web/places/index.html`) |
 | [reels-api.controller.ts](../src/reels-api.controller.ts) | `/reels-api` | Instagram reels archive: create/retry/delete, transcribe (Whisper), vision (frame extraction + LLM), tag/title generation, semantic search (`GET /search`), Q&A (`GET /ask`) + embeddings backfill (`POST /embed-all`). Reads: `x-reels-page-key`, writes: `x-reels-api-key` |
 | [reels-pages.controller.ts](../src/reels-pages.controller.ts) | `/reels/:secret`, `/reels/:secret/:id` | Unlisted reels catalog (secret = `REELS_PAGE_KEY`); per-reel OG tags |
+| [mcp/mcp.controller.ts](../src/mcp/mcp.controller.ts) | `/mcp` | Stateless MCP server (Streamable HTTP). Public tools: map search/get/tags. `Authorization: Bearer <MCP_API_KEY>` adds reels tools (search/get/ask); plus `X-Chat-Id` adds diary tools (search/get note/get day/ask) scoped to that chat. Tools live in [mcp/mcp-tools.service.ts](../src/mcp/mcp-tools.service.ts) |
 | [subs.controller.ts](../src/subs.controller.ts) | `/subs-api` | Subtitle pipeline: upload vertical video → extract MP3 + waveform manifest → Whisper transcript → LLM translation → ffmpeg render with ASS subtitles → download. Everything cached in Spaces under `subs/*` by video hash |
 | [mini-app/mini-app.controller.ts](../src/mini-app/mini-app.controller.ts) | `/mini-app-api` | Telegram Mini App backend: verifies signed initData, returns user profile/note count/avatar |
 
@@ -96,7 +97,7 @@ Root module: [src/app.module.ts](../src/app.module.ts) — ConfigModule (global)
 
 ## Environment variables
 
-`TELEGRAM_BOT_TOKEN`, `VLANDIVIR_2025_WEBHOOK_URL`, `POSTGRES_CONNECTION_STRING`, `DO_SPACES_ACCESS_KEY`/`DO_SPACES_SECRET_KEY`, `OPENAI_API_KEY`, `NOTE_API_KEY`, `MAP_API_KEY`, `REELS_API_KEY`, `REELS_PAGE_KEY`, `ENVIRONMENT` (DEV/PROD), `PORT`. New vars must be added in four places: local `.env`, `Dockerfile` ARG/ENV, `deploy-production.yml` build-args, GitHub secret (see AGENTS.md → Deployment).
+`TELEGRAM_BOT_TOKEN`, `VLANDIVIR_2025_WEBHOOK_URL`, `POSTGRES_CONNECTION_STRING`, `DO_SPACES_ACCESS_KEY`/`DO_SPACES_SECRET_KEY`, `OPENAI_API_KEY`, `NOTE_API_KEY`, `MAP_API_KEY`, `REELS_API_KEY`, `REELS_PAGE_KEY`, `MCP_API_KEY`, `ENVIRONMENT` (DEV/PROD), `PORT`. New vars must be added in four places: local `.env`, `Dockerfile` ARG/ENV, `deploy-production.yml` build-args, GitHub secret (see AGENTS.md → Deployment).
 
 ## Development
 
