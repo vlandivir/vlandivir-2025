@@ -857,17 +857,18 @@ export class ReelsService {
   }
 
   private async runYtDlp(args: string[]): Promise<string> {
+    // Anonymous first: public reels don't need the account session, and every
+    // authenticated request risks getting the account flagged. Cookies are the
+    // fallback for login-walled posts.
     const cookiesFile = this.configService.get<string>('YTDLP_COOKIES_FILE');
-    if (!cookiesFile) return this.execYtDlp(args);
     try {
-      return await this.execYtDlp(['--cookies', cookiesFile, ...args]);
+      return await this.execYtDlp(args);
     } catch (error) {
-      // Instagram sometimes rejects the authenticated session (HTTP 400)
-      // while anonymous requests still work — retry without cookies
+      if (!cookiesFile) throw error;
       this.logger.warn(
-        `yt-dlp with cookies failed (${error instanceof Error ? error.message : error}), retrying anonymously`,
+        `anonymous yt-dlp failed (${error instanceof Error ? error.message : error}), retrying with cookies`,
       );
-      return this.execYtDlp(args);
+      return this.execYtDlp(['--cookies', cookiesFile, ...args]);
     }
   }
 
