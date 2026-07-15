@@ -13,16 +13,16 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/shared/site-header.css?v=20260706-1" />
-    <link rel="stylesheet" href="/shared/color-picker.css?v=20260605-1" />
-    <link rel="stylesheet" href="/subs/styles.css?v=20260713-1" />
+    <link rel="stylesheet" href="/shared/color-picker.css?v=20260715-1" />
+    <link rel="stylesheet" href="/subs/styles.css?v=20260715-1" />
     <link rel="stylesheet" href="/shared/video-upload-block.css?v=20260706-1" />
     <link rel="stylesheet" href="/shared/site-theme.css?v=20260711-1" />
     <script src="/files/registry.js?v=20260527-1"></script>
     <script src="/subs/fonts-shared.js?v=20260712-1"></script>
     <script src="/shared/site-header.js?v=20260527-1" defer></script>
-    <script src="/shared/color-picker.js?v=20260605-2" defer></script>
+    <script src="/shared/color-picker.js?v=20260715-1" defer></script>
     <script src="/shared/video-upload-block.js?v=20260603-1" defer></script>
-    <script src="/subs/app.js?v=20260713-1" defer></script>
+    <script src="/subs/app.js?v=20260715-1" defer></script>
   </head>
   <body class="subs-page">
     <header
@@ -423,20 +423,31 @@
                   />
                 </label>
                 <div class="style-stretch-controls">
-                  <label class="editor-checkbox">
-                    <input id="styleStretchToWidthInput" type="checkbox" />
-                    <span>Растянуть по ширине</span>
-                  </label>
                   <label class="editor-field">
-                    <span>Поля слева и справа, ASS</span>
+                    <span>Поле слева, ASS</span>
                     <input
-                      id="styleStretchMarginInput"
+                      id="styleMarginLeftInput"
                       type="number"
                       min="0"
                       max="520"
                       step="1"
-                      value="80"
+                      placeholder="—"
                     />
+                  </label>
+                  <label class="editor-field">
+                    <span>Поле справа, ASS</span>
+                    <input
+                      id="styleMarginRightInput"
+                      type="number"
+                      min="0"
+                      max="520"
+                      step="1"
+                      placeholder="—"
+                    />
+                  </label>
+                  <label class="editor-checkbox">
+                    <input id="styleStretchToWidthInput" type="checkbox" disabled />
+                    <span>Растянуть по контейнеру</span>
                   </label>
                 </div>
                 <div class="color-field-list">
@@ -739,24 +750,19 @@
                     <span>Стиль</span>
                     <select id="cueStyleInput" required></select>
                   </label>
-                  <div class="editor-field-grid">
+                  <p class="cue-form__hint">
+                    Пустые поля и «Из стиля» — значение берётся из стиля
+                    реплики.
+                  </p>
+                  <div class="editor-field-grid editor-field-grid--style-type">
                     <label class="editor-field">
-                      <span>Шрифт только этой реплики</span>
+                      <span>Шрифт</span>
                       <select id="cueFontInput" data-default-label="Из стиля">
                         <option value="">Из стиля</option>
                       </select>
                     </label>
                     <label class="editor-field">
-                      <span>Цвет только этой реплики</span>
-                      <input id="cueColorInput" type="hidden" value="none" />
-                      <div
-                        class="color-picker"
-                        data-color-picker="cueColorInput"
-                        data-allow-none="true"
-                      ></div>
-                    </label>
-                    <label class="editor-field">
-                      <span>Размер ASS только этой реплики</span>
+                      <span>Размер ASS</span>
                       <input
                         id="cueFontSizeInput"
                         type="number"
@@ -767,26 +773,29 @@
                       />
                     </label>
                     <label class="editor-field">
-                      <span>Межстрочный интервал этой реплики, ±px</span>
-                      <input
-                        id="cueLineSpacingInput"
-                        type="number"
-                        step="1"
-                        placeholder="0"
-                      />
-                    </label>
-                    <label class="editor-field">
-                      <span>Растянуть по ширине</span>
-                      <select id="cueStretchToWidthInput">
+                      <span>Начертание</span>
+                      <select id="cueFontVariantInput">
                         <option value="">Из стиля</option>
-                        <option value="on">Да</option>
-                        <option value="off">Нет</option>
+                        <option value="regular">Regular</option>
+                        <option value="bold">Bold</option>
+                        <option value="italic">Italic</option>
                       </select>
                     </label>
+                  </div>
+                  <label class="editor-field">
+                    <span>Межстрочный интервал, ±px</span>
+                    <input
+                      id="cueLineSpacingInput"
+                      type="number"
+                      step="1"
+                      placeholder="Из стиля"
+                    />
+                  </label>
+                  <div class="style-stretch-controls">
                     <label class="editor-field">
-                      <span>Поля слева и справа, ASS</span>
+                      <span>Поле слева, ASS</span>
                       <input
-                        id="cueStretchMarginInput"
+                        id="cueMarginLeftInput"
                         type="number"
                         min="0"
                         max="520"
@@ -794,7 +803,124 @@
                         placeholder="Из стиля"
                       />
                     </label>
+                    <label class="editor-field">
+                      <span>Поле справа, ASS</span>
+                      <input
+                        id="cueMarginRightInput"
+                        type="number"
+                        min="0"
+                        max="520"
+                        step="1"
+                        placeholder="Из стиля"
+                      />
+                    </label>
+                    <label class="editor-field">
+                      <span>Растянуть по контейнеру</span>
+                      <select id="cueStretchToWidthInput">
+                        <option value="">Из стиля</option>
+                        <option value="on">Да</option>
+                        <option value="off">Нет</option>
+                      </select>
+                    </label>
                   </div>
+                  <div class="color-field-list">
+                    <label class="editor-field">
+                      <span>PrimaryColour</span>
+                      <input id="cueColorInput" type="hidden" value="" />
+                      <div
+                        class="color-picker"
+                        data-color-picker="cueColorInput"
+                        data-allow-none="false"
+                        data-inherit="true"
+                      ></div>
+                    </label>
+                    <label class="editor-field">
+                      <span>SecondaryColour</span>
+                      <input
+                        id="cueSecondaryColorInput"
+                        type="hidden"
+                        value=""
+                      />
+                      <div
+                        class="color-picker"
+                        data-color-picker="cueSecondaryColorInput"
+                        data-allow-none="true"
+                        data-inherit="true"
+                      ></div>
+                    </label>
+                    <label class="editor-field">
+                      <span>OutlineColour</span>
+                      <input id="cueOutlineColorInput" type="hidden" value="" />
+                      <div
+                        class="color-picker"
+                        data-color-picker="cueOutlineColorInput"
+                        data-allow-none="true"
+                        data-inherit="true"
+                      ></div>
+                    </label>
+                    <label class="editor-field">
+                      <span>BackColour</span>
+                      <input id="cueBackColorInput" type="hidden" value="" />
+                      <div
+                        class="color-picker"
+                        data-color-picker="cueBackColorInput"
+                        data-allow-none="true"
+                        data-inherit="true"
+                      ></div>
+                    </label>
+                  </div>
+                  <div class="style-badge-controls">
+                    <p class="style-badge-controls__title">Плашка под текстом</p>
+                    <label class="editor-field">
+                      <span>Цвет плашки, поддерживает rgba</span>
+                      <input id="cueBadgeColorInput" type="hidden" value="" />
+                      <div
+                        class="color-picker"
+                        data-color-picker="cueBadgeColorInput"
+                        data-allow-none="true"
+                        data-inherit="true"
+                      ></div>
+                    </label>
+                    <div class="editor-field-grid editor-field-grid--badge">
+                      <label class="editor-field">
+                        <span>Отступ X, ASS</span>
+                        <input
+                          id="cueBadgePaddingXInput"
+                          type="number"
+                          min="0"
+                          max="240"
+                          step="1"
+                          placeholder="Из стиля"
+                        />
+                      </label>
+                      <label class="editor-field">
+                        <span>Отступ Y, ASS</span>
+                        <input
+                          id="cueBadgePaddingYInput"
+                          type="number"
+                          min="0"
+                          max="240"
+                          step="1"
+                          placeholder="Из стиля"
+                        />
+                      </label>
+                      <label class="editor-field">
+                        <span>Скругление, ASS</span>
+                        <input
+                          id="cueBadgeRadiusInput"
+                          type="number"
+                          min="0"
+                          max="240"
+                          step="1"
+                          placeholder="Из стиля"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                  <label class="editor-field">
+                    <span>Базовое положение</span>
+                    <select id="cuePositionInput"></select>
+                  </label>
                   <div class="cue-motion">
                     <p class="cue-motion__title">
                       Сдвиг позиции <code>{\move}</code>
