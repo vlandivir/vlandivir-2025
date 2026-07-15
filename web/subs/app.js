@@ -100,12 +100,22 @@ const TEXT = IS_EN
       cueFontOverride: 'font',
       cueColorOverride: 'color',
       cueSizeOverride: 'ASS size',
+      cueVariantOverride: 'variant',
       cueLineSpacingOverride: 'line spacing',
       cueStretchOverride: 'stretch',
       cueStretchOn: 'yes',
       cueStretchOff: 'no',
       cueStretchMargin: 'margins',
-      stretchMeta: 'stretch, margins',
+      cueSecondaryColorOverride: 'secondary',
+      cueOutlineColorOverride: 'outline',
+      cueBackColorOverride: 'back',
+      cueBadgeColorOverride: 'badge',
+      cueBadgePaddingOverride: 'badge padding',
+      cueBadgeRadiusOverride: 'radius',
+      cuePositionOverride: 'position',
+      stretchMeta: 'stretch',
+      fromStyle: 'From style',
+      colorNone: 'none',
       pause: 'Pause',
       play: 'Play',
       unmute: 'Unmute',
@@ -197,12 +207,22 @@ const TEXT = IS_EN
       cueFontOverride: 'шрифт',
       cueColorOverride: 'цвет',
       cueSizeOverride: 'ASS размер',
+      cueVariantOverride: 'начертание',
       cueLineSpacingOverride: 'интервал',
       cueStretchOverride: 'растянуть',
       cueStretchOn: 'да',
       cueStretchOff: 'нет',
       cueStretchMargin: 'поля',
-      stretchMeta: 'растянуть, поля',
+      cueSecondaryColorOverride: 'secondary',
+      cueOutlineColorOverride: 'обводка',
+      cueBackColorOverride: 'тень',
+      cueBadgeColorOverride: 'плашка',
+      cueBadgePaddingOverride: 'отступы плашки',
+      cueBadgeRadiusOverride: 'скругление',
+      cuePositionOverride: 'позиция',
+      stretchMeta: 'растянуть',
+      fromStyle: 'Из стиля',
+      colorNone: 'нет',
       pause: 'Пауза',
       play: 'Воспроизвести',
       unmute: 'Включить звук',
@@ -482,9 +502,8 @@ const styleBadgeRadiusInput = document.querySelector('#styleBadgeRadiusInput');
 const styleStretchToWidthInput = document.querySelector(
   '#styleStretchToWidthInput',
 );
-const styleStretchMarginInput = document.querySelector(
-  '#styleStretchMarginInput',
-);
+const styleMarginLeftInput = document.querySelector('#styleMarginLeftInput');
+const styleMarginRightInput = document.querySelector('#styleMarginRightInput');
 const stylePositionInput = document.querySelector('#stylePositionInput');
 const styleSubmitButton = document.querySelector('#styleSubmitButton');
 const newStyleButton = document.querySelector('#newStyleButton');
@@ -514,11 +533,23 @@ const cueStyleInput = document.querySelector('#cueStyleInput');
 const cueFontInput = document.querySelector('#cueFontInput');
 const cueColorInput = document.querySelector('#cueColorInput');
 const cueFontSizeInput = document.querySelector('#cueFontSizeInput');
+const cueFontVariantInput = document.querySelector('#cueFontVariantInput');
 const cueLineSpacingInput = document.querySelector('#cueLineSpacingInput');
 const cueStretchToWidthInput = document.querySelector(
   '#cueStretchToWidthInput',
 );
-const cueStretchMarginInput = document.querySelector('#cueStretchMarginInput');
+const cueMarginLeftInput = document.querySelector('#cueMarginLeftInput');
+const cueMarginRightInput = document.querySelector('#cueMarginRightInput');
+const cueSecondaryColorInput = document.querySelector(
+  '#cueSecondaryColorInput',
+);
+const cueOutlineColorInput = document.querySelector('#cueOutlineColorInput');
+const cueBackColorInput = document.querySelector('#cueBackColorInput');
+const cueBadgeColorInput = document.querySelector('#cueBadgeColorInput');
+const cueBadgePaddingXInput = document.querySelector('#cueBadgePaddingXInput');
+const cueBadgePaddingYInput = document.querySelector('#cueBadgePaddingYInput');
+const cueBadgeRadiusInput = document.querySelector('#cueBadgeRadiusInput');
+const cuePositionInput = document.querySelector('#cuePositionInput');
 const cueMotionDxInput = document.querySelector('#cueMotionDxInput');
 const cueMotionDyInput = document.querySelector('#cueMotionDyInput');
 const cueMotionStartMsInput = document.querySelector('#cueMotionStartMsInput');
@@ -2010,6 +2041,7 @@ function initializeColorPickers() {
       chooseColor: TEXT.chooseColor,
       shade: TEXT.shade,
       whiteAndBlack: TEXT.whiteAndBlack,
+      inherit: TEXT.fromStyle,
     },
   });
 }
@@ -2098,9 +2130,12 @@ function normalizeCueOverrides(cue) {
   const font = String(cue?.fontOverride || '').trim();
   const fontSize = Math.round(Number(cue?.fontSizeOverride));
   const lineSpacing = normalizeLineSpacingValue(cue?.lineSpacingOverride);
-  const stretchMargin = normalizeOptionalStretchMarginValue(
-    cue?.stretchMarginOverride,
-  );
+  // Legacy cues kept a single symmetric stretchMarginOverride.
+  const legacyMargin =
+    cue?.marginLeftOverride === undefined &&
+    cue?.marginRightOverride === undefined
+      ? normalizeOptionalStretchMarginValue(cue?.stretchMarginOverride)
+      : null;
   return {
     fontOverride: BUNDLED_FONT_FAMILIES.has(font) ? font : '',
     colorOverride: normalizeSubtitleColor(color, ''),
@@ -2108,11 +2143,33 @@ function normalizeCueOverrides(cue) {
       Number.isFinite(fontSize) && fontSize >= 12 && fontSize <= 260
         ? fontSize
         : 0,
+    fontVariantOverride: normalizeCueFontVariantOverride(
+      cue?.fontVariantOverride,
+    ),
     lineSpacingOverride: Number.isFinite(lineSpacing) ? lineSpacing : 0,
     stretchToWidthOverride: normalizeCueStretchOverride(
       cue?.stretchToWidthOverride,
     ),
-    stretchMarginOverride: stretchMargin,
+    marginLeftOverride:
+      normalizeOptionalStretchMarginValue(cue?.marginLeftOverride) ??
+      legacyMargin,
+    marginRightOverride:
+      normalizeOptionalStretchMarginValue(cue?.marginRightOverride) ??
+      legacyMargin,
+    secondaryColorOverride: normalizeCueColorOverride(
+      cue?.secondaryColorOverride,
+    ),
+    outlineColorOverride: normalizeCueColorOverride(cue?.outlineColorOverride),
+    backColorOverride: normalizeCueColorOverride(cue?.backColorOverride),
+    badgeColorOverride: normalizeCueColorOverride(cue?.badgeColorOverride),
+    badgePaddingXOverride: normalizeOptionalBadgeNumber(
+      cue?.badgePaddingXOverride,
+    ),
+    badgePaddingYOverride: normalizeOptionalBadgeNumber(
+      cue?.badgePaddingYOverride,
+    ),
+    badgeRadiusOverride: normalizeOptionalBadgeNumber(cue?.badgeRadiusOverride),
+    positionIdOverride: String(cue?.positionIdOverride || ''),
   };
 }
 
@@ -2121,9 +2178,19 @@ function readCueOverridesFromForm() {
     fontOverride: cueFontInput?.value,
     colorOverride: cueColorInput?.value,
     fontSizeOverride: cueFontSizeInput?.value,
+    fontVariantOverride: cueFontVariantInput?.value,
     lineSpacingOverride: cueLineSpacingInput?.value,
     stretchToWidthOverride: cueStretchToWidthInput?.value,
-    stretchMarginOverride: cueStretchMarginInput?.value,
+    marginLeftOverride: cueMarginLeftInput?.value,
+    marginRightOverride: cueMarginRightInput?.value,
+    secondaryColorOverride: cueSecondaryColorInput?.value,
+    outlineColorOverride: cueOutlineColorInput?.value,
+    backColorOverride: cueBackColorInput?.value,
+    badgeColorOverride: cueBadgeColorInput?.value,
+    badgePaddingXOverride: cueBadgePaddingXInput?.value,
+    badgePaddingYOverride: cueBadgePaddingYInput?.value,
+    badgeRadiusOverride: cueBadgeRadiusInput?.value,
+    positionIdOverride: cuePositionInput?.value,
   });
 }
 
@@ -2132,22 +2199,48 @@ function cueStyleWithOverrides(style, cue) {
   const overrides = normalizeCueOverrides(cue);
   const lineSpacingOverride =
     overrides.lineSpacingOverride || normalizedStyle.lineSpacingOverride;
+  const marginLeft =
+    overrides.marginLeftOverride ?? normalizedStyle.marginLeft;
+  const marginRight =
+    overrides.marginRightOverride ?? normalizedStyle.marginRight;
+  const hasMargins = marginLeft !== null || marginRight !== null;
   const stretchToWidth =
     overrides.stretchToWidthOverride === 'on'
-      ? true
+      ? hasMargins
       : overrides.stretchToWidthOverride === 'off'
         ? false
-        : normalizedStyle.stretchToWidth;
+        : normalizedStyle.stretchToWidth && hasMargins;
+  const position =
+    getPositionById(overrides.positionIdOverride) || normalizedStyle.position;
   return {
     ...normalizedStyle,
     font: overrides.fontOverride || normalizedStyle.font,
     primaryColor: overrides.colorOverride || normalizedStyle.primaryColor,
     fontSize: overrides.fontSizeOverride || normalizedStyle.fontSize,
+    fontVariant:
+      overrides.fontVariantOverride || normalizedStyle.fontVariant,
     lineSpacingOverride,
+    marginLeft,
+    marginRight,
     stretchToWidth,
-    stretchMargin:
-      overrides.stretchMarginOverride ?? normalizedStyle.stretchMargin,
+    secondaryColor:
+      overrides.secondaryColorOverride || normalizedStyle.secondaryColor,
+    outlineColor:
+      overrides.outlineColorOverride || normalizedStyle.outlineColor,
+    backColor: overrides.backColorOverride || normalizedStyle.backColor,
+    badgeColor: overrides.badgeColorOverride || normalizedStyle.badgeColor,
+    badgePaddingX:
+      overrides.badgePaddingXOverride ?? normalizedStyle.badgePaddingX,
+    badgePaddingY:
+      overrides.badgePaddingYOverride ?? normalizedStyle.badgePaddingY,
+    badgeRadius: overrides.badgeRadiusOverride ?? normalizedStyle.badgeRadius,
+    positionId: position.id,
+    position,
   };
+}
+
+function formatOptionalColorLabel(color) {
+  return isNoneColor(color) ? TEXT.colorNone : formatSubtitleColor(color);
 }
 
 function formatCueOverrideLabel(cue) {
@@ -2164,6 +2257,11 @@ function formatCueOverrideLabel(cue) {
   if (overrides.fontSizeOverride) {
     parts.push(`${TEXT.cueSizeOverride} ${overrides.fontSizeOverride}`);
   }
+  if (overrides.fontVariantOverride) {
+    parts.push(
+      `${TEXT.cueVariantOverride} ${fontVariantLabel(overrides.fontVariantOverride)}`,
+    );
+  }
   if (overrides.lineSpacingOverride) {
     const sign = overrides.lineSpacingOverride > 0 ? '+' : '';
     parts.push(
@@ -2175,10 +2273,66 @@ function formatCueOverrideLabel(cue) {
       `${TEXT.cueStretchOverride} ${overrides.stretchToWidthOverride === 'on' ? TEXT.cueStretchOn : TEXT.cueStretchOff}`,
     );
   }
-  if (overrides.stretchMarginOverride !== null) {
-    parts.push(`${TEXT.cueStretchMargin} ${overrides.stretchMarginOverride}`);
+  if (
+    overrides.marginLeftOverride !== null ||
+    overrides.marginRightOverride !== null
+  ) {
+    parts.push(
+      `${TEXT.cueStretchMargin} ${overrides.marginLeftOverride ?? '—'}/${overrides.marginRightOverride ?? '—'}`,
+    );
+  }
+  if (overrides.secondaryColorOverride) {
+    parts.push(
+      `${TEXT.cueSecondaryColorOverride} ${formatOptionalColorLabel(overrides.secondaryColorOverride)}`,
+    );
+  }
+  if (overrides.outlineColorOverride) {
+    parts.push(
+      `${TEXT.cueOutlineColorOverride} ${formatOptionalColorLabel(overrides.outlineColorOverride)}`,
+    );
+  }
+  if (overrides.backColorOverride) {
+    parts.push(
+      `${TEXT.cueBackColorOverride} ${formatOptionalColorLabel(overrides.backColorOverride)}`,
+    );
+  }
+  if (overrides.badgeColorOverride) {
+    parts.push(
+      `${TEXT.cueBadgeColorOverride} ${formatOptionalColorLabel(overrides.badgeColorOverride)}`,
+    );
+  }
+  if (
+    overrides.badgePaddingXOverride !== null ||
+    overrides.badgePaddingYOverride !== null
+  ) {
+    parts.push(
+      `${TEXT.cueBadgePaddingOverride} ${overrides.badgePaddingXOverride ?? '—'}/${overrides.badgePaddingYOverride ?? '—'}`,
+    );
+  }
+  if (overrides.badgeRadiusOverride !== null) {
+    parts.push(
+      `${TEXT.cueBadgeRadiusOverride} ${overrides.badgeRadiusOverride}`,
+    );
+  }
+  if (overrides.positionIdOverride) {
+    const position = getPositionById(overrides.positionIdOverride);
+    if (position) {
+      parts.push(`${TEXT.cuePositionOverride} ${position.name}`);
+    }
   }
   return parts.length ? ` · ${TEXT.cueOverrides}: ${parts.join(', ')}` : '';
+}
+
+function colorToAssChannelOverrideTags(color, channel) {
+  if (isNoneColor(color)) return [`\\${channel}a&HFF&`];
+
+  const parsed = parseSubtitleColor(color) || parseSubtitleColor('#ffffff');
+  const red = colorToHexByte(parsed.red);
+  const green = colorToHexByte(parsed.green);
+  const blue = colorToHexByte(parsed.blue);
+  const alpha = assAlphaFromCss(parsed.alpha).toUpperCase();
+  const bgr = `${blue}${green}${red}`.toUpperCase();
+  return [`\\${channel}c&H${bgr}&`, `\\${channel}a&H${alpha}&`];
 }
 
 function buildCueOverridePrefix(cue, baseStyle, resolvedStyle) {
@@ -2187,8 +2341,44 @@ function buildCueOverridePrefix(cue, baseStyle, resolvedStyle) {
   if (resolvedStyle.fontSize !== baseStyle.fontSize) {
     tags.push(`\\fs${resolvedStyle.fontSize}`);
   }
+  if (resolvedStyle.fontVariant !== baseStyle.fontVariant) {
+    const resolvedBold = resolvedStyle.fontVariant === 'bold';
+    const resolvedItalic = resolvedStyle.fontVariant === 'italic';
+    if (resolvedBold !== (baseStyle.fontVariant === 'bold')) {
+      tags.push(`\\b${resolvedBold ? 1 : 0}`);
+    }
+    if (resolvedItalic !== (baseStyle.fontVariant === 'italic')) {
+      tags.push(`\\i${resolvedItalic ? 1 : 0}`);
+    }
+  }
   if (resolvedStyle.primaryColor !== baseStyle.primaryColor) {
     tags.push(...colorToAssPrimaryOverrideTags(resolvedStyle.primaryColor));
+  }
+  if (resolvedStyle.secondaryColor !== baseStyle.secondaryColor) {
+    tags.push(...colorToAssChannelOverrideTags(resolvedStyle.secondaryColor, 2));
+  }
+  if (resolvedStyle.outlineColor !== baseStyle.outlineColor) {
+    if (isNoneColor(resolvedStyle.outlineColor)) {
+      tags.push('\\bord0');
+    } else {
+      tags.push(
+        '\\bord4',
+        ...colorToAssChannelOverrideTags(resolvedStyle.outlineColor, 3),
+      );
+    }
+  }
+  if (resolvedStyle.backColor !== baseStyle.backColor) {
+    if (isNoneColor(resolvedStyle.backColor)) {
+      tags.push('\\shad0');
+    } else {
+      tags.push(
+        '\\shad2',
+        ...colorToAssChannelOverrideTags(resolvedStyle.backColor, 4),
+      );
+    }
+  }
+  if (resolvedStyle.position.alignment !== baseStyle.position.alignment) {
+    tags.push(`\\an${resolvedStyle.position.alignment}`);
   }
   return tags.length ? `{${tags.join('')}}` : '';
 }
@@ -2258,8 +2448,10 @@ function calculateStretchedFontSize(style, text) {
   if (!style.stretchToWidth) return Math.round(Number(style.fontSize) || 72);
 
   const baseFontSize = Math.max(1, Number(style.fontSize) || 72);
-  const margin = normalizeStretchMarginValue(style.stretchMargin);
-  const targetWidth = Math.max(1, ASS_PLAY_RES_X - margin * 2);
+  const marginLeft = normalizeOptionalStretchMarginValue(style.marginLeft) ?? 0;
+  const marginRight =
+    normalizeOptionalStretchMarginValue(style.marginRight) ?? 0;
+  const targetWidth = Math.max(1, ASS_PLAY_RES_X - marginLeft - marginRight);
   const lines = (stripAssMarkup(text) || ' ')
     .split('\n')
     .map((line) => line.trim())
@@ -2435,6 +2627,25 @@ function normalizeCueStretchOverride(value) {
   return '';
 }
 
+function normalizeCueFontVariantOverride(value) {
+  if (value === 'regular' || value === 'bold' || value === 'italic') {
+    return value;
+  }
+  return '';
+}
+
+function normalizeCueColorOverride(value) {
+  const color = String(value || '').trim();
+  if (!color) return '';
+  if (isNoneColor(color)) return 'none';
+  return normalizeSubtitleColor(color, '');
+}
+
+function normalizeOptionalBadgeNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  return normalizeStyleBadgeNumber(value, null);
+}
+
 function fontVariantLabel(value) {
   return {
     regular: 'Regular',
@@ -2456,6 +2667,19 @@ function normalizeStyle(style) {
     getPositionById(style.positionId) ||
     getPositionByLegacy(style.position) ||
     defaultPosition();
+  // Legacy styles kept a single symmetric stretchMargin; carry it over as
+  // left/right margins only when stretch was actually enabled.
+  const legacyMargin =
+    style.marginLeft === undefined &&
+    style.marginRight === undefined &&
+    style.stretchToWidth
+      ? normalizeStretchMarginValue(style.stretchMargin)
+      : null;
+  const marginLeft =
+    normalizeOptionalStretchMarginValue(style.marginLeft) ?? legacyMargin;
+  const marginRight =
+    normalizeOptionalStretchMarginValue(style.marginRight) ?? legacyMargin;
+  const hasMargins = marginLeft !== null || marginRight !== null;
 
   return {
     ...style,
@@ -2486,8 +2710,9 @@ function normalizeStyle(style) {
     badgePaddingY: normalizeStyleBadgeNumber(style.badgePaddingY, 12),
     badgeRadius: normalizeStyleBadgeNumber(style.badgeRadius, 20),
     lineSpacingOverride: normalizeLineSpacingValue(style.lineSpacingOverride),
-    stretchToWidth: Boolean(style.stretchToWidth),
-    stretchMargin: normalizeStretchMarginValue(style.stretchMargin),
+    marginLeft,
+    marginRight,
+    stretchToWidth: Boolean(style.stretchToWidth) && hasMargins,
     positionId: resolvedPosition.id,
     position: resolvedPosition,
   };
@@ -2562,9 +2787,25 @@ function readStyleFormDraft() {
     badgePaddingY: styleBadgePaddingYInput.value,
     badgeRadius: styleBadgeRadiusInput.value,
     stretchToWidth: styleStretchToWidthInput.checked,
-    stretchMargin: styleStretchMarginInput.value,
+    marginLeft: styleMarginLeftInput.value,
+    marginRight: styleMarginRightInput.value,
     positionId: stylePositionInput.value || defaultPosition().id,
   });
+}
+
+function formatStyleMarginsLabel(style) {
+  if (style.marginLeft === null && style.marginRight === null) return '';
+  const margins = `${style.marginLeft ?? 0}/${style.marginRight ?? 0}`;
+  const stretchLabel = style.stretchToWidth ? ` · ${TEXT.stretchMeta}` : '';
+  return ` · ${TEXT.cueStretchMargin} ${margins}${stretchLabel}`;
+}
+
+function syncStyleStretchControls() {
+  const hasMargins =
+    styleMarginLeftInput.value.trim() !== '' ||
+    styleMarginRightInput.value.trim() !== '';
+  styleStretchToWidthInput.disabled = !hasMargins;
+  if (!hasMargins) styleStretchToWidthInput.checked = false;
 }
 
 function createStylePreviewColor(label, value) {
@@ -2598,10 +2839,7 @@ function renderStyleLivePreview() {
       }
     : style;
   applySubtitlePreviewStyle(styleLivePreviewText, previewStyle, 0.42);
-  const stretchLabel = style.stretchToWidth
-    ? ` · ${TEXT.stretchMeta} ${style.stretchMargin}`
-    : '';
-  styleLivePreviewMeta.textContent = `${style.font} · ${fontVariantLabel(style.fontVariant)} · ${style.fontSize} ASS · ${formatLineSpacingLabel(style.lineSpacingOverride)}${stretchLabel}`;
+  styleLivePreviewMeta.textContent = `${style.font} · ${fontVariantLabel(style.fontVariant)} · ${style.fontSize} ASS · ${formatLineSpacingLabel(style.lineSpacingOverride)}${formatStyleMarginsLabel(style)}`;
   styleLivePreviewColors.replaceChildren(
     createStylePreviewColor('Primary', style.primaryColor),
     createStylePreviewColor('Secondary', style.secondaryColor),
@@ -2661,7 +2899,8 @@ function generateAss() {
           badgeRadius: 20,
           lineSpacingOverride: 0,
           stretchToWidth: false,
-          stretchMargin: DEFAULT_STRETCH_MARGIN,
+          marginLeft: null,
+          marginRight: null,
           positionId: defaultPosition().id,
         },
       ];
@@ -2704,7 +2943,7 @@ function generateAss() {
     yOffset = 0,
     layer = 0,
   ) {
-    const positionPrefix = buildCuePositionPrefix(baseStyle, cue, yOffset);
+    const positionPrefix = buildCuePositionPrefix(resolvedStyle, cue, yOffset);
     const overridePrefix = buildCueOverridePrefix(
       cue,
       baseStyle,
@@ -2846,6 +3085,29 @@ function renderPositionOptions() {
     stylePositionInput.value = currentValue;
   } else if (cachedPositions[0]) {
     stylePositionInput.value = defaultPosition().id;
+  }
+
+  if (cuePositionInput) {
+    const currentCueValue = cuePositionInput.value;
+    cuePositionInput.replaceChildren();
+
+    const fromStyleOption = document.createElement('option');
+    fromStyleOption.value = '';
+    fromStyleOption.textContent = TEXT.fromStyle;
+    cuePositionInput.append(fromStyleOption);
+
+    for (const position of cachedPositions) {
+      const option = document.createElement('option');
+      option.value = position.id;
+      option.textContent = `${position.name} (${position.x}, ${position.y})`;
+      cuePositionInput.append(option);
+    }
+
+    cuePositionInput.value = cachedPositions.some(
+      (position) => position.id === currentCueValue,
+    )
+      ? currentCueValue
+      : '';
   }
   renderStyleLivePreview();
 }
@@ -3021,10 +3283,7 @@ function renderStyles() {
     const title = document.createElement('h4');
     title.textContent = style.name;
     const meta = document.createElement('p');
-    const stretchLabel = style.stretchToWidth
-      ? ` · ${TEXT.stretchMeta} ${style.stretchMargin}`
-      : '';
-    meta.textContent = `${style.font} · ${fontVariantLabel(style.fontVariant)} · ${style.fontSize} ASS · ${formatLineSpacingLabel(style.lineSpacingOverride)}${stretchLabel} · ${positionLabel(style.position)}`;
+    meta.textContent = `${style.font} · ${fontVariantLabel(style.fontVariant)} · ${style.fontSize} ASS · ${formatLineSpacingLabel(style.lineSpacingOverride)}${formatStyleMarginsLabel(style)} · ${positionLabel(style.position)}`;
 
     const preview = document.createElement('p');
     preview.className = 'style-item__preview';
@@ -3190,7 +3449,9 @@ function resetStyleForm() {
   styleBadgePaddingYInput.value = '12';
   styleBadgeRadiusInput.value = '20';
   styleStretchToWidthInput.checked = false;
-  styleStretchMarginInput.value = String(DEFAULT_STRETCH_MARGIN);
+  styleMarginLeftInput.value = '';
+  styleMarginRightInput.value = '';
+  syncStyleStretchControls();
   stylePositionInput.value = defaultPosition().id;
   styleSubmitButton.textContent = TEXT.addStyle;
   if (newStyleButton) newStyleButton.hidden = true;
@@ -3205,12 +3466,22 @@ function resetCueForm() {
   editingCueId = undefined;
   cueEditorOpen = true;
   cueForm.reset();
-  if (cueColorInput) setColorInputValue(cueColorInput, 'none');
+  if (cueColorInput) setColorInputValue(cueColorInput, '');
   if (cueFontInput) cueFontInput.value = '';
   if (cueFontSizeInput) cueFontSizeInput.value = '';
+  if (cueFontVariantInput) cueFontVariantInput.value = '';
   if (cueLineSpacingInput) cueLineSpacingInput.value = '';
   if (cueStretchToWidthInput) cueStretchToWidthInput.value = '';
-  if (cueStretchMarginInput) cueStretchMarginInput.value = '';
+  if (cueMarginLeftInput) cueMarginLeftInput.value = '';
+  if (cueMarginRightInput) cueMarginRightInput.value = '';
+  if (cueSecondaryColorInput) setColorInputValue(cueSecondaryColorInput, '');
+  if (cueOutlineColorInput) setColorInputValue(cueOutlineColorInput, '');
+  if (cueBackColorInput) setColorInputValue(cueBackColorInput, '');
+  if (cueBadgeColorInput) setColorInputValue(cueBadgeColorInput, '');
+  if (cueBadgePaddingXInput) cueBadgePaddingXInput.value = '';
+  if (cueBadgePaddingYInput) cueBadgePaddingYInput.value = '';
+  if (cueBadgeRadiusInput) cueBadgeRadiusInput.value = '';
+  if (cuePositionInput) cuePositionInput.value = '';
   if (cueMotionDxInput) cueMotionDxInput.value = '';
   if (cueMotionDyInput) cueMotionDyInput.value = '';
   if (cueMotionStartMsInput) cueMotionStartMsInput.value = '';
@@ -3257,8 +3528,14 @@ function startStyleEdit(style, options = {}) {
   styleBadgePaddingXInput.value = String(normalizedStyle.badgePaddingX);
   styleBadgePaddingYInput.value = String(normalizedStyle.badgePaddingY);
   styleBadgeRadiusInput.value = String(normalizedStyle.badgeRadius);
+  styleMarginLeftInput.value =
+    normalizedStyle.marginLeft === null ? '' : String(normalizedStyle.marginLeft);
+  styleMarginRightInput.value =
+    normalizedStyle.marginRight === null
+      ? ''
+      : String(normalizedStyle.marginRight);
+  syncStyleStretchControls();
   styleStretchToWidthInput.checked = normalizedStyle.stretchToWidth;
-  styleStretchMarginInput.value = String(normalizedStyle.stretchMargin);
   stylePositionInput.value = normalizedStyle.positionId;
   styleSubmitButton.textContent = TEXT.saveStyle;
   if (newStyleButton) newStyleButton.hidden = false;
@@ -3281,12 +3558,15 @@ function startCueEdit(cue, options = {}) {
     cueFontInput.value = overrides.fontOverride;
   }
   if (cueColorInput) {
-    setColorInputValue(cueColorInput, overrides.colorOverride || 'none');
+    setColorInputValue(cueColorInput, overrides.colorOverride || '');
   }
   if (cueFontSizeInput) {
     cueFontSizeInput.value = overrides.fontSizeOverride
       ? String(overrides.fontSizeOverride)
       : '';
+  }
+  if (cueFontVariantInput) {
+    cueFontVariantInput.value = overrides.fontVariantOverride;
   }
   if (cueLineSpacingInput) {
     cueLineSpacingInput.value = overrides.lineSpacingOverride
@@ -3296,11 +3576,52 @@ function startCueEdit(cue, options = {}) {
   if (cueStretchToWidthInput) {
     cueStretchToWidthInput.value = overrides.stretchToWidthOverride;
   }
-  if (cueStretchMarginInput) {
-    cueStretchMarginInput.value =
-      overrides.stretchMarginOverride === null
+  if (cueMarginLeftInput) {
+    cueMarginLeftInput.value =
+      overrides.marginLeftOverride === null
         ? ''
-        : String(overrides.stretchMarginOverride);
+        : String(overrides.marginLeftOverride);
+  }
+  if (cueMarginRightInput) {
+    cueMarginRightInput.value =
+      overrides.marginRightOverride === null
+        ? ''
+        : String(overrides.marginRightOverride);
+  }
+  if (cueSecondaryColorInput) {
+    setColorInputValue(cueSecondaryColorInput, overrides.secondaryColorOverride);
+  }
+  if (cueOutlineColorInput) {
+    setColorInputValue(cueOutlineColorInput, overrides.outlineColorOverride);
+  }
+  if (cueBackColorInput) {
+    setColorInputValue(cueBackColorInput, overrides.backColorOverride);
+  }
+  if (cueBadgeColorInput) {
+    setColorInputValue(cueBadgeColorInput, overrides.badgeColorOverride);
+  }
+  if (cueBadgePaddingXInput) {
+    cueBadgePaddingXInput.value =
+      overrides.badgePaddingXOverride === null
+        ? ''
+        : String(overrides.badgePaddingXOverride);
+  }
+  if (cueBadgePaddingYInput) {
+    cueBadgePaddingYInput.value =
+      overrides.badgePaddingYOverride === null
+        ? ''
+        : String(overrides.badgePaddingYOverride);
+  }
+  if (cueBadgeRadiusInput) {
+    cueBadgeRadiusInput.value =
+      overrides.badgeRadiusOverride === null
+        ? ''
+        : String(overrides.badgeRadiusOverride);
+  }
+  if (cuePositionInput) {
+    cuePositionInput.value = getPositionById(overrides.positionIdOverride)
+      ? overrides.positionIdOverride
+      : '';
   }
   const motion = normalizeCueMotion(cue);
   if (cueMotionDxInput)
@@ -3501,7 +3822,7 @@ function renderVideoSubtitleOverlay(cue, style) {
     cue,
   );
   videoSubtitleOverlay.className = `video-subtitle-overlay video-subtitle-overlay--${
-    normalizedStyle.position.legacy || 'bottom-center'
+    cuePreviewStyle.position.legacy || 'bottom-center'
   }`;
   videoSubtitleOverlay.textContent = stripAssMarkup(cue.text) || cue.text;
   applySubtitlePreviewStyle(videoSubtitleOverlay, cuePreviewStyle, 0.5);
@@ -3735,7 +4056,8 @@ async function ensureDefaultStyle() {
     badgeRadius: 20,
     lineSpacingOverride: 0,
     stretchToWidth: false,
-    stretchMargin: DEFAULT_STRETCH_MARGIN,
+    marginLeft: null,
+    marginRight: null,
     positionId: defaultPosition().id,
     createdAt: new Date().toISOString(),
   });
@@ -4419,11 +4741,17 @@ window.addEventListener('resize', resyncEditorLayouts);
   styleBadgePaddingYInput,
   styleBadgeRadiusInput,
   styleStretchToWidthInput,
-  styleStretchMarginInput,
+  styleMarginLeftInput,
+  styleMarginRightInput,
   stylePositionInput,
 ].forEach((inputElement) => {
   inputElement.addEventListener('input', renderStyleLivePreview);
   inputElement.addEventListener('change', renderStyleLivePreview);
+});
+
+[styleMarginLeftInput, styleMarginRightInput].forEach((inputElement) => {
+  inputElement.addEventListener('input', syncStyleStretchControls);
+  inputElement.addEventListener('change', syncStyleStretchControls);
 });
 
 styleForm.addEventListener('submit', async (event) => {
@@ -4450,7 +4778,10 @@ styleForm.addEventListener('submit', async (event) => {
     badgePaddingY: styleBadgePaddingYInput.value,
     badgeRadius: styleBadgeRadiusInput.value,
     stretchToWidth: styleStretchToWidthInput.checked,
-    stretchMargin: styleStretchMarginInput.value,
+    marginLeft: normalizeOptionalStretchMarginValue(styleMarginLeftInput.value),
+    marginRight: normalizeOptionalStretchMarginValue(
+      styleMarginRightInput.value,
+    ),
     positionId: stylePositionInput.value,
     createdAt: existingStyle?.createdAt || new Date().toISOString(),
   });
@@ -4491,9 +4822,19 @@ cueForm.addEventListener('submit', async (event) => {
     fontOverride: overrides.fontOverride,
     colorOverride: overrides.colorOverride,
     fontSizeOverride: overrides.fontSizeOverride,
+    fontVariantOverride: overrides.fontVariantOverride,
     lineSpacingOverride: overrides.lineSpacingOverride,
     stretchToWidthOverride: overrides.stretchToWidthOverride,
-    stretchMarginOverride: overrides.stretchMarginOverride,
+    marginLeftOverride: overrides.marginLeftOverride,
+    marginRightOverride: overrides.marginRightOverride,
+    secondaryColorOverride: overrides.secondaryColorOverride,
+    outlineColorOverride: overrides.outlineColorOverride,
+    backColorOverride: overrides.backColorOverride,
+    badgeColorOverride: overrides.badgeColorOverride,
+    badgePaddingXOverride: overrides.badgePaddingXOverride,
+    badgePaddingYOverride: overrides.badgePaddingYOverride,
+    badgeRadiusOverride: overrides.badgeRadiusOverride,
+    positionIdOverride: overrides.positionIdOverride,
     motionDx: motion.motionDx,
     motionDy: motion.motionDy,
     motionStartMs: motion.motionStartMs,

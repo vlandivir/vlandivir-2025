@@ -11,6 +11,7 @@
       applyCustomColor: 'Apply color',
       invalidColor: 'Use rgba(255, 255, 255, 0.6)',
       whiteAndBlack: 'white and black',
+      inherit: 'Inherit',
     },
     ru: {
       doNotDraw: 'Не рисовать',
@@ -21,6 +22,7 @@
       applyCustomColor: 'Применить цвет',
       invalidColor: 'Введите rgba(255, 255, 255, 0.6)',
       whiteAndBlack: 'белый и черный',
+      inherit: 'Наследовать',
     },
   };
 
@@ -273,7 +275,8 @@
   }
 
   function setColorInputValue(input, value) {
-    input.value = value === 'none' ? 'none' : normalizeColor(value);
+    input.value =
+      value === 'none' || value === '' ? value : normalizeColor(value);
     input.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
@@ -321,6 +324,8 @@
       pickerElement.dataset.colorPickerInitialized = 'true';
 
       const allowNone = pickerElement.dataset.allowNone === 'true';
+      const allowInherit = pickerElement.dataset.inherit === 'true';
+      const inheritLabel = pickerElement.dataset.inheritLabel || text.inherit;
       let selectedBase = findClosestBaseColor(input.value, baseColors);
       let keepSelectedBaseOnNextChange = false;
 
@@ -382,11 +387,30 @@
         renderPicker();
       });
 
+      const inheritButton = document.createElement('button');
+      inheritButton.className = 'color-picker__reset color-picker__inherit';
+      inheritButton.type = 'button';
+      inheritButton.title = inheritLabel;
+      inheritButton.setAttribute('aria-label', inheritLabel);
+      inheritButton.innerHTML = `
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M9 14 4 9l5-5" />
+          <path d="M4 9h10a6 6 0 0 1 0 12h-3" />
+        </svg>
+      `;
+      inheritButton.addEventListener('click', (event) => {
+        event.stopPropagation();
+        setColorInputValue(input, '');
+        renderPicker();
+      });
+
       panel.append(baseGrid, shadeGrid, customForm);
-      if (allowNone) {
+      if (allowNone || allowInherit) {
         const pickerRow = document.createElement('div');
         pickerRow.className = 'color-picker__row';
-        pickerRow.append(triggerButton, resetButton);
+        pickerRow.append(triggerButton);
+        if (allowInherit) pickerRow.append(inheritButton);
+        if (allowNone) pickerRow.append(resetButton);
         pickerElement.append(pickerRow, panel);
       } else {
         pickerElement.append(triggerButton, panel);
@@ -434,6 +458,13 @@
 
       function applyCustomColor() {
         const rawValue = customInput.value.trim();
+        if (allowInherit && rawValue === '') {
+          setColorInputValue(input, '');
+          customInput.setCustomValidity('');
+          customInput.classList.remove('is-invalid');
+          renderPicker();
+          return;
+        }
         if (allowNone && rawValue.toLowerCase() === 'none') {
           setColorInputValue(input, 'none');
           customInput.setCustomValidity('');
@@ -468,27 +499,35 @@
       });
 
       function renderPicker() {
-        const value = input.value === 'none' ? 'none' : normalizeColor(input.value);
+        const isInherit = allowInherit && input.value === '';
+        const value =
+          input.value === 'none' || isInherit
+            ? input.value
+            : normalizeColor(input.value);
         const isNone = isNoneColor(value);
         const shades = getShades(selectedBase.value);
 
         selectedSwatch.classList.toggle('is-none', isNone);
-        if (!isNone) {
+        selectedSwatch.classList.toggle('is-inherit', isInherit);
+        if (!isNone && !isInherit) {
           paintSwatch(selectedSwatch, value);
         } else {
           selectedSwatch.style.background = '';
           selectedSwatch.style.removeProperty('--color-picker-swatch-color');
           selectedSwatch.classList.remove('has-alpha');
         }
-        selectedLabel.textContent = isNone
-          ? text.doNotDraw.toLowerCase()
-          : formatColorLabel(value);
-        customInput.value = isNone ? '' : value;
+        selectedLabel.textContent = isInherit
+          ? inheritLabel
+          : isNone
+            ? text.doNotDraw.toLowerCase()
+            : formatColorLabel(value);
+        customInput.value = isNone || isInherit ? '' : value;
         triggerButton.setAttribute(
           'aria-label',
           `${text.chooseColor}: ${selectedLabel.textContent}`,
         );
         resetButton.classList.toggle('is-active', isNone);
+        inheritButton.classList.toggle('is-active', isInherit);
 
         baseGrid.replaceChildren(
           ...baseColors.map((baseColor) =>

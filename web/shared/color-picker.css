@@ -63,6 +63,26 @@
     16px 16px;
 }
 
+.color-picker__selected-swatch.is-inherit {
+  border-style: dashed;
+  background:
+    linear-gradient(45deg, #eef1f0 25%, transparent 25%),
+    linear-gradient(-45deg, #eef1f0 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #eef1f0 75%),
+    linear-gradient(-45deg, transparent 75%, #eef1f0 75%);
+  background-color: #fff;
+  background-position:
+    0 0,
+    0 8px,
+    8px -8px,
+    -8px 0;
+  background-size:
+    16px 16px,
+    16px 16px,
+    16px 16px,
+    16px 16px;
+}
+
 .color-picker__panel {
   position: absolute;
   z-index: 20;

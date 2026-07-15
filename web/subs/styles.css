@@ -2347,13 +2347,24 @@ pre {
 
 .style-stretch-controls {
   display: grid;
-  grid-template-columns: minmax(180px, 0.65fr) minmax(0, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   align-items: end;
   padding: 14px;
   border: 1px dashed var(--line);
   border-radius: 8px;
   background: hsl(var(--shadcn-muted));
+}
+
+.style-stretch-controls .editor-checkbox,
+.style-stretch-controls .editor-field:nth-child(3) {
+  grid-column: 1 / -1;
+}
+
+.cue-form__hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .editor-checkbox {
