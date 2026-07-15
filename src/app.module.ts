@@ -13,6 +13,8 @@ import { MapApiController } from './map-api.controller';
 import { MapPagesController } from './map-pages.controller';
 import { ReelsApiController } from './reels-api.controller';
 import { ReelsPagesController } from './reels-pages.controller';
+import { McpController } from './mcp/mcp.controller';
+import { McpToolsService } from './mcp/mcp-tools.service';
 
 @Module({
   imports: [
@@ -33,7 +35,8 @@ import { ReelsPagesController } from './reels-pages.controller';
     MapPagesController,
     ReelsApiController,
     ReelsPagesController,
+    McpController,
   ],
-  providers: [AppService],
+  providers: [AppService, McpToolsService],
 })
 export class AppModule {}
