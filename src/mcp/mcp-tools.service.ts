@@ -455,6 +455,72 @@ export class McpToolsService {
     );
 
     server.registerTool(
+      'diary_history',
+      {
+        title: 'В этот день в прошлые годы',
+        description:
+          'Все заметки дневника за указанный день (месяц и число) по всем годам сразу, ' +
+          'сгруппированные по годам — «что было в этот день». По умолчанию — сегодня.',
+        inputSchema: {
+          date: z
+            .string()
+            .regex(/^\d{2}-\d{2}$/)
+            .optional()
+            .describe(
+              'День в формате MM-DD (например 07-15); по умолчанию сегодня',
+            ),
+        },
+        annotations: { readOnlyHint: true },
+      },
+      async ({ date }) => {
+        const now = new Date();
+        const [month, day] = date
+          ? date.split('-').map(Number)
+          : [now.getMonth() + 1, now.getDate()];
+        if (month < 1 || month > 12 || day < 1 || day > 31) {
+          return this.errorResult(`Некорректная дата: ${date}`);
+        }
+
+        const rows = await this.prisma.$queryRaw<{ id: number }[]>`
+          SELECT "id" FROM "Note"
+          WHERE "chatId" = ${chatId}
+            AND EXTRACT(MONTH FROM "noteDate") = ${month}
+            AND EXTRACT(DAY FROM "noteDate") = ${day}
+        `;
+        const notes = rows.length
+          ? await this.prisma.note.findMany({
+              where: { id: { in: rows.map((row) => row.id) } },
+              include: { images: true, videos: true },
+              orderBy: { noteDate: 'asc' },
+            })
+          : [];
+
+        const byYear = new Map<
+          number,
+          ReturnType<McpToolsService['serializeNote']>[]
+        >();
+        for (const note of notes) {
+          const year = note.noteDate.getFullYear();
+          const bucket = byYear.get(year) ?? [];
+          bucket.push(this.serializeNote(note));
+          byYear.set(year, bucket);
+        }
+
+        const pad = (value: number) => String(value).padStart(2, '0');
+        return this.jsonResult({
+          date: `${pad(month)}-${pad(day)}`,
+          years: [...byYear.entries()]
+            .sort((a, b) => b[0] - a[0])
+            .map(([year, yearNotes]) => ({
+              year,
+              count: yearNotes.length,
+              notes: yearNotes,
+            })),
+        });
+      },
+    );
+
+    server.registerTool(
       'diary_ask',
       {
         title: 'Вопрос к дневнику',
