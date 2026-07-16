@@ -112,6 +112,8 @@ const TEXT = IS_EN
       cueBadgeColorOverride: 'badge',
       cueBadgePaddingOverride: 'badge padding',
       cueBadgeRadiusOverride: 'radius',
+      cueBoxColorOverride: 'box',
+      cueBoxPaddingOverride: 'box padding',
       cuePositionOverride: 'position',
       stretchMeta: 'stretch',
       fromStyle: 'From style',
@@ -219,6 +221,8 @@ const TEXT = IS_EN
       cueBadgeColorOverride: 'плашка',
       cueBadgePaddingOverride: 'отступы плашки',
       cueBadgeRadiusOverride: 'скругление',
+      cueBoxColorOverride: 'подложка',
+      cueBoxPaddingOverride: 'отступ подложки',
       cuePositionOverride: 'позиция',
       stretchMeta: 'растянуть',
       fromStyle: 'Из стиля',
@@ -499,6 +503,8 @@ const styleBadgePaddingYInput = document.querySelector(
   '#styleBadgePaddingYInput',
 );
 const styleBadgeRadiusInput = document.querySelector('#styleBadgeRadiusInput');
+const styleBoxColorInput = document.querySelector('#styleBoxColorInput');
+const styleBoxPaddingInput = document.querySelector('#styleBoxPaddingInput');
 const styleStretchToWidthInput = document.querySelector(
   '#styleStretchToWidthInput',
 );
@@ -549,6 +555,8 @@ const cueBadgeColorInput = document.querySelector('#cueBadgeColorInput');
 const cueBadgePaddingXInput = document.querySelector('#cueBadgePaddingXInput');
 const cueBadgePaddingYInput = document.querySelector('#cueBadgePaddingYInput');
 const cueBadgeRadiusInput = document.querySelector('#cueBadgeRadiusInput');
+const cueBoxColorInput = document.querySelector('#cueBoxColorInput');
+const cueBoxPaddingInput = document.querySelector('#cueBoxPaddingInput');
 const cuePositionInput = document.querySelector('#cuePositionInput');
 const cueMotionDxInput = document.querySelector('#cueMotionDxInput');
 const cueMotionDyInput = document.querySelector('#cueMotionDyInput');
@@ -2169,6 +2177,8 @@ function normalizeCueOverrides(cue) {
       cue?.badgePaddingYOverride,
     ),
     badgeRadiusOverride: normalizeOptionalBadgeNumber(cue?.badgeRadiusOverride),
+    boxColorOverride: normalizeCueColorOverride(cue?.boxColorOverride),
+    boxPaddingOverride: normalizeOptionalBadgeNumber(cue?.boxPaddingOverride),
     positionIdOverride: String(cue?.positionIdOverride || ''),
   };
 }
@@ -2190,6 +2200,8 @@ function readCueOverridesFromForm() {
     badgePaddingXOverride: cueBadgePaddingXInput?.value,
     badgePaddingYOverride: cueBadgePaddingYInput?.value,
     badgeRadiusOverride: cueBadgeRadiusInput?.value,
+    boxColorOverride: cueBoxColorInput?.value,
+    boxPaddingOverride: cueBoxPaddingInput?.value,
     positionIdOverride: cuePositionInput?.value,
   });
 }
@@ -2234,6 +2246,8 @@ function cueStyleWithOverrides(style, cue) {
     badgePaddingY:
       overrides.badgePaddingYOverride ?? normalizedStyle.badgePaddingY,
     badgeRadius: overrides.badgeRadiusOverride ?? normalizedStyle.badgeRadius,
+    boxColor: overrides.boxColorOverride || normalizedStyle.boxColor,
+    boxPadding: overrides.boxPaddingOverride ?? normalizedStyle.boxPadding,
     positionId: position.id,
     position,
   };
@@ -2314,6 +2328,14 @@ function formatCueOverrideLabel(cue) {
       `${TEXT.cueBadgeRadiusOverride} ${overrides.badgeRadiusOverride}`,
     );
   }
+  if (overrides.boxColorOverride) {
+    parts.push(
+      `${TEXT.cueBoxColorOverride} ${formatOptionalColorLabel(overrides.boxColorOverride)}`,
+    );
+  }
+  if (overrides.boxPaddingOverride !== null) {
+    parts.push(`${TEXT.cueBoxPaddingOverride} ${overrides.boxPaddingOverride}`);
+  }
   if (overrides.positionIdOverride) {
     const position = getPositionById(overrides.positionIdOverride);
     if (position) {
@@ -2357,7 +2379,17 @@ function buildCueOverridePrefix(cue, baseStyle, resolvedStyle) {
   if (resolvedStyle.secondaryColor !== baseStyle.secondaryColor) {
     tags.push(...colorToAssChannelOverrideTags(resolvedStyle.secondaryColor, 2));
   }
-  if (resolvedStyle.outlineColor !== baseStyle.outlineColor) {
+  if (!isNoneColor(baseStyle.boxColor)) {
+    // BorderStyle=3 opaque box: channel 3 is the box fill and \bord its padding.
+    // The mode itself cannot be toggled inline, so overrides only recolor/resize
+    // the box of a style that is already a box.
+    if (resolvedStyle.boxColor !== baseStyle.boxColor) {
+      tags.push(...colorToAssChannelOverrideTags(resolvedStyle.boxColor, 3));
+    }
+    if (resolvedStyle.boxPadding !== baseStyle.boxPadding) {
+      tags.push(`\\bord${resolvedStyle.boxPadding}`);
+    }
+  } else if (resolvedStyle.outlineColor !== baseStyle.outlineColor) {
     if (isNoneColor(resolvedStyle.outlineColor)) {
       tags.push('\\bord0');
     } else {
@@ -2709,6 +2741,8 @@ function normalizeStyle(style) {
     badgePaddingX: normalizeStyleBadgeNumber(style.badgePaddingX, 24),
     badgePaddingY: normalizeStyleBadgeNumber(style.badgePaddingY, 12),
     badgeRadius: normalizeStyleBadgeNumber(style.badgeRadius, 20),
+    boxColor: normalizeOptionalSubtitleColor(style.boxColor ?? 'none', 'none'),
+    boxPadding: normalizeStyleBadgeNumber(style.boxPadding, 8),
     lineSpacingOverride: normalizeLineSpacingValue(style.lineSpacingOverride),
     marginLeft,
     marginRight,
@@ -2722,9 +2756,13 @@ function applySubtitlePreviewStyle(element, style, scale = 1) {
   const normalizedStyle = normalizeStyle(style || {});
   const fontSize = Math.max(14, Math.round(normalizedStyle.fontSize * scale));
   const hasBadge = !isNoneColor(normalizedStyle.badgeColor);
+  const boxOn = !isNoneColor(normalizedStyle.boxColor);
+  const hasBox = !hasBadge && boxOn;
   const backgroundColor = hasBadge
     ? normalizedStyle.badgeColor
-    : normalizedStyle.backColor;
+    : hasBox
+      ? normalizedStyle.boxColor
+      : normalizedStyle.backColor;
   const shadows = [];
 
   element.style.color = normalizedStyle.primaryColor;
@@ -2742,16 +2780,20 @@ function applySubtitlePreviewStyle(element, style, scale = 1) {
     : backgroundColor;
   element.style.padding = hasBadge
     ? `${Math.round(normalizedStyle.badgePaddingY * scale)}px ${Math.round(normalizedStyle.badgePaddingX * scale)}px`
-    : isNoneColor(normalizedStyle.backColor)
-      ? '0'
-      : '0.08em 0.18em';
+    : hasBox
+      ? `${Math.round(normalizedStyle.boxPadding * scale)}px`
+      : isNoneColor(normalizedStyle.backColor)
+        ? '0'
+        : '0.08em 0.18em';
   element.style.borderRadius = hasBadge
     ? `${Math.round(normalizedStyle.badgeRadius * scale)}px`
-    : isNoneColor(normalizedStyle.backColor)
+    : hasBox
       ? '0'
-      : '4px';
+      : isNoneColor(normalizedStyle.backColor)
+        ? '0'
+        : '4px';
 
-  if (!isNoneColor(normalizedStyle.outlineColor)) {
+  if (!boxOn && !isNoneColor(normalizedStyle.outlineColor)) {
     const outlineSize = Math.max(1, Math.round(fontSize / 18));
     shadows.push(
       `${outlineSize}px 0 0 ${normalizedStyle.outlineColor}`,
@@ -2786,6 +2828,8 @@ function readStyleFormDraft() {
     badgePaddingX: styleBadgePaddingXInput.value,
     badgePaddingY: styleBadgePaddingYInput.value,
     badgeRadius: styleBadgeRadiusInput.value,
+    boxColor: styleBoxColorInput.value,
+    boxPadding: styleBoxPaddingInput.value,
     stretchToWidth: styleStretchToWidthInput.checked,
     marginLeft: styleMarginLeftInput.value,
     marginRight: styleMarginRightInput.value,
@@ -2846,6 +2890,7 @@ function renderStyleLivePreview() {
     createStylePreviewColor('Outline', style.outlineColor),
     createStylePreviewColor('Back', style.backColor),
     createStylePreviewColor('Плашка', style.badgeColor),
+    createStylePreviewColor('Подложка', style.boxColor),
   );
 }
 
@@ -2897,6 +2942,8 @@ function generateAss() {
           badgePaddingX: 24,
           badgePaddingY: 12,
           badgeRadius: 20,
+          boxColor: 'none',
+          boxPadding: 8,
           lineSpacingOverride: 0,
           stretchToWidth: false,
           marginLeft: null,
@@ -2908,13 +2955,17 @@ function generateAss() {
   const styleLines = styles.map((rawStyle) => {
     const style = normalizeStyle(rawStyle);
     const name = sanitizeAssName(style.name);
+    // BorderStyle=3 paints an opaque box (OutlineColour) behind the text, with
+    // Outline acting as its padding. It reuses the OutlineColour field, so an
+    // active box replaces the regular outline for that style.
+    const boxOn = !isNoneColor(style.boxColor);
     return [
       `Style: ${name}`,
       style.font,
       style.fontSize,
       colorToAss(style.primaryColor),
       colorToAss(style.secondaryColor),
-      colorToAss(style.outlineColor),
+      boxOn ? colorToAss(style.boxColor) : colorToAss(style.outlineColor),
       colorToAss(style.backColor),
       style.fontVariant === 'bold' ? -1 : 0,
       style.fontVariant === 'italic' ? -1 : 0,
@@ -2924,8 +2975,8 @@ function generateAss() {
       100,
       0,
       0,
-      1,
-      isNoneColor(style.outlineColor) ? 0 : 4,
+      boxOn ? 3 : 1,
+      boxOn ? style.boxPadding : isNoneColor(style.outlineColor) ? 0 : 4,
       isNoneColor(style.backColor) ? 0 : 2,
       24,
       24,
@@ -3448,6 +3499,8 @@ function resetStyleForm() {
   styleBadgePaddingXInput.value = '24';
   styleBadgePaddingYInput.value = '12';
   styleBadgeRadiusInput.value = '20';
+  setColorInputValue(styleBoxColorInput, 'none');
+  styleBoxPaddingInput.value = '8';
   styleStretchToWidthInput.checked = false;
   styleMarginLeftInput.value = '';
   styleMarginRightInput.value = '';
@@ -3481,6 +3534,8 @@ function resetCueForm() {
   if (cueBadgePaddingXInput) cueBadgePaddingXInput.value = '';
   if (cueBadgePaddingYInput) cueBadgePaddingYInput.value = '';
   if (cueBadgeRadiusInput) cueBadgeRadiusInput.value = '';
+  if (cueBoxColorInput) setColorInputValue(cueBoxColorInput, '');
+  if (cueBoxPaddingInput) cueBoxPaddingInput.value = '';
   if (cuePositionInput) cuePositionInput.value = '';
   if (cueMotionDxInput) cueMotionDxInput.value = '';
   if (cueMotionDyInput) cueMotionDyInput.value = '';
@@ -3528,6 +3583,8 @@ function startStyleEdit(style, options = {}) {
   styleBadgePaddingXInput.value = String(normalizedStyle.badgePaddingX);
   styleBadgePaddingYInput.value = String(normalizedStyle.badgePaddingY);
   styleBadgeRadiusInput.value = String(normalizedStyle.badgeRadius);
+  setColorInputValue(styleBoxColorInput, normalizedStyle.boxColor);
+  styleBoxPaddingInput.value = String(normalizedStyle.boxPadding);
   styleMarginLeftInput.value =
     normalizedStyle.marginLeft === null ? '' : String(normalizedStyle.marginLeft);
   styleMarginRightInput.value =
@@ -3617,6 +3674,15 @@ function startCueEdit(cue, options = {}) {
       overrides.badgeRadiusOverride === null
         ? ''
         : String(overrides.badgeRadiusOverride);
+  }
+  if (cueBoxColorInput) {
+    setColorInputValue(cueBoxColorInput, overrides.boxColorOverride);
+  }
+  if (cueBoxPaddingInput) {
+    cueBoxPaddingInput.value =
+      overrides.boxPaddingOverride === null
+        ? ''
+        : String(overrides.boxPaddingOverride);
   }
   if (cuePositionInput) {
     cuePositionInput.value = getPositionById(overrides.positionIdOverride)
@@ -4054,6 +4120,8 @@ async function ensureDefaultStyle() {
     badgePaddingX: 24,
     badgePaddingY: 12,
     badgeRadius: 20,
+    boxColor: 'none',
+    boxPadding: 8,
     lineSpacingOverride: 0,
     stretchToWidth: false,
     marginLeft: null,
@@ -4740,6 +4808,8 @@ window.addEventListener('resize', resyncEditorLayouts);
   styleBadgePaddingXInput,
   styleBadgePaddingYInput,
   styleBadgeRadiusInput,
+  styleBoxColorInput,
+  styleBoxPaddingInput,
   styleStretchToWidthInput,
   styleMarginLeftInput,
   styleMarginRightInput,
@@ -4777,6 +4847,8 @@ styleForm.addEventListener('submit', async (event) => {
     badgePaddingX: styleBadgePaddingXInput.value,
     badgePaddingY: styleBadgePaddingYInput.value,
     badgeRadius: styleBadgeRadiusInput.value,
+    boxColor: styleBoxColorInput.value,
+    boxPadding: styleBoxPaddingInput.value,
     stretchToWidth: styleStretchToWidthInput.checked,
     marginLeft: normalizeOptionalStretchMarginValue(styleMarginLeftInput.value),
     marginRight: normalizeOptionalStretchMarginValue(
@@ -4834,6 +4906,8 @@ cueForm.addEventListener('submit', async (event) => {
     badgePaddingXOverride: overrides.badgePaddingXOverride,
     badgePaddingYOverride: overrides.badgePaddingYOverride,
     badgeRadiusOverride: overrides.badgeRadiusOverride,
+    boxColorOverride: overrides.boxColorOverride,
+    boxPaddingOverride: overrides.boxPaddingOverride,
     positionIdOverride: overrides.positionIdOverride,
     motionDx: motion.motionDx,
     motionDy: motion.motionDy,

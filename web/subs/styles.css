@@ -1009,6 +1009,12 @@ pre {
   font-weight: 800;
 }
 
+.style-badge-controls__hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--v-muted);
+}
+
 .editor-field-grid--badge {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }

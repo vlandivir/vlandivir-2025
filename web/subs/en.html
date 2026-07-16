@@ -14,7 +14,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/shared/site-header.css?v=20260706-1" />
     <link rel="stylesheet" href="/shared/color-picker.css?v=20260715-1" />
-    <link rel="stylesheet" href="/subs/styles.css?v=20260715-1" />
+    <link rel="stylesheet" href="/subs/styles.css?v=20260716-1" />
     <link rel="stylesheet" href="/shared/video-upload-block.css?v=20260706-1" />
     <link rel="stylesheet" href="/shared/site-theme.css?v=20260711-1" />
     <script src="/files/registry.js?v=20260527-1"></script>
@@ -22,7 +22,7 @@
     <script src="/shared/site-header.js?v=20260527-1" defer></script>
     <script src="/shared/color-picker.js?v=20260715-1" defer></script>
     <script src="/shared/video-upload-block.js?v=20260603-1" defer></script>
-    <script src="/subs/app.js?v=20260715-1" defer></script>
+    <script src="/subs/app.js?v=20260716-1" defer></script>
   </head>
   <body class="subs-page">
     <header
@@ -555,6 +555,35 @@
                     </label>
                   </div>
                 </div>
+                <div class="style-badge-controls">
+                  <p class="style-badge-controls__title">
+                    Подложка строки (BorderStyle=3)
+                  </p>
+                  <p class="style-badge-controls__hint">
+                    Нативная плашка libass: обтягивает каждую строку без
+                    скругления и заменяет обводку этого стиля.
+                  </p>
+                  <label class="editor-field">
+                    <span>Цвет подложки, поддерживает rgba</span>
+                    <input id="styleBoxColorInput" type="hidden" value="none" />
+                    <div
+                      class="color-picker"
+                      data-color-picker="styleBoxColorInput"
+                      data-allow-none="true"
+                    ></div>
+                  </label>
+                  <label class="editor-field">
+                    <span>Отступ (Outline), ASS</span>
+                    <input
+                      id="styleBoxPaddingInput"
+                      type="number"
+                      min="0"
+                      max="240"
+                      step="1"
+                      value="8"
+                    />
+                  </label>
+                </div>
                 <label class="editor-field">
                   <span>Базовое положение</span>
                   <select id="stylePositionInput"></select>
@@ -916,6 +945,32 @@
                         />
                       </label>
                     </div>
+                  </div>
+                  <div class="style-badge-controls">
+                    <p class="style-badge-controls__title">
+                      Подложка строки (BorderStyle=3)
+                    </p>
+                    <label class="editor-field">
+                      <span>Цвет подложки, поддерживает rgba</span>
+                      <input id="cueBoxColorInput" type="hidden" value="" />
+                      <div
+                        class="color-picker"
+                        data-color-picker="cueBoxColorInput"
+                        data-allow-none="true"
+                        data-inherit="true"
+                      ></div>
+                    </label>
+                    <label class="editor-field">
+                      <span>Отступ (Outline), ASS</span>
+                      <input
+                        id="cueBoxPaddingInput"
+                        type="number"
+                        min="0"
+                        max="240"
+                        step="1"
+                        placeholder="Из стиля"
+                      />
+                    </label>
                   </div>
                   <label class="editor-field">
                     <span>Базовое положение</span>
