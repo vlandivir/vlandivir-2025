@@ -849,6 +849,12 @@ export class TelegramBotService {
   ): Promise<void> {
     try {
       const reel = await this.prisma.reel.findUnique({ where: { id: reelId } });
+      this.debugLogService.info('reel-link', 'Reel processing settled', {
+        chatId,
+        reelId,
+        found: !!reel,
+        status: reel?.status,
+      });
       if (!reel) return;
 
       if (reel.status === 'error') {
