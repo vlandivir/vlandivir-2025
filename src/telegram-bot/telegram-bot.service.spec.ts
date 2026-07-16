@@ -81,7 +81,13 @@ describe('TelegramBotService', () => {
         {
           provide: ConfigService,
           useValue: {
-            get: jest.fn().mockReturnValue('mock_token'),
+            get: jest.fn().mockImplementation((key: string) => {
+              if (key === 'VLANDIVIR_2025_WEBHOOK_URL') {
+                return 'https://example.com/telegram-bot';
+              }
+              if (key === 'REELS_PAGE_KEY') return 'secretpagekey';
+              return 'mock_token';
+            }),
           },
         },
         {
@@ -271,8 +277,69 @@ describe('TelegramBotService', () => {
         source: 'notebook',
       },
     });
-    expect(reels.processInBackground).toHaveBeenCalledWith(7);
+    expect(reels.processInBackground).toHaveBeenCalledWith(
+      7,
+      expect.any(Function),
+    );
     expect(sendMessage).toHaveBeenCalled();
+  });
+
+  it('notifies with a share link and info once a reel is processed', async () => {
+    const prisma = (
+      service as unknown as { prisma: { reel: { findUnique: jest.Mock } } }
+    ).prisma;
+    prisma.reel.findUnique.mockResolvedValueOnce({
+      id: 7,
+      shortcode: 'CxYz123_ab',
+      status: 'ready',
+      title: 'Крутой рецепт пасты',
+      author: 'chef_mario',
+      duration: 65,
+      tags: ['рецепты', 'быстрая еда'],
+      error: null,
+    });
+    const sendMessage = jest.fn();
+    (
+      service as unknown as { bot: { telegram: { sendMessage: jest.Mock } } }
+    ).bot.telegram.sendMessage = sendMessage;
+
+    await service.notifyReelProcessed(123456, 7);
+
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    const message = sendMessage.mock.calls[0][1] as string;
+    expect(message).toContain('Крутой рецепт пасты');
+    expect(message).toContain('chef_mario');
+    expect(message).toContain('1:05');
+    expect(message).toContain('#рецепты');
+    expect(message).toContain('#быстрая_еда');
+    expect(message).toContain('https://example.com/reels/secretpagekey/7');
+  });
+
+  it('reports a processing failure to the user', async () => {
+    const prisma = (
+      service as unknown as { prisma: { reel: { findUnique: jest.Mock } } }
+    ).prisma;
+    prisma.reel.findUnique.mockResolvedValueOnce({
+      id: 8,
+      shortcode: 'CxYz123_ab',
+      status: 'error',
+      error: 'yt-dlp is not installed on the server',
+      title: null,
+      author: null,
+      duration: null,
+      tags: [],
+    });
+    const sendMessage = jest.fn();
+    (
+      service as unknown as { bot: { telegram: { sendMessage: jest.Mock } } }
+    ).bot.telegram.sendMessage = sendMessage;
+
+    await service.notifyReelProcessed(123456, 8);
+
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    const message = sendMessage.mock.calls[0][1] as string;
+    expect(message).toContain('Не удалось обработать рилс');
+    expect(message).toContain('yt-dlp is not installed');
   });
 
   it('does not create a duplicate reel for an already saved link', async () => {
