@@ -329,6 +329,38 @@ export class StorageService implements OnModuleInit {
     return this.getPublicUrl(key);
   }
 
+  // Private object (no public-read ACL) — for emails and other sensitive
+  // content. Returns the key; read it back via downloadByKey().
+  async uploadPrivateFileWithKey(
+    buffer: Buffer,
+    mimeType: string,
+    key: string,
+  ): Promise<string> {
+    const upload = new Upload({
+      client: this.s3,
+      params: {
+        Bucket: this.bucket,
+        Key: key,
+        Body: buffer,
+        ContentType: mimeType,
+        ACL: 'private',
+      },
+    });
+    await upload.done();
+    return key;
+  }
+
+  async downloadByKey(key: string): Promise<Buffer> {
+    const response = await this.s3.getObject({
+      Bucket: this.bucket,
+      Key: key,
+    });
+    if (!response.Body) {
+      throw new Error(`No body in response for key: ${key}`);
+    }
+    return this.readStreamToBuffer(response.Body as NodeJS.ReadableStream);
+  }
+
   async uploadFileWithKey(
     buffer: Buffer,
     mimeType: string,

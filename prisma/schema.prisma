@@ -218,3 +218,86 @@ model ChatSettings {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+// --- Email ingest (IMAP) ---
+// Accounts are configured via the EMAIL_ACCOUNTS env var; `account` columns
+// hold the short account name from that config (e.g. "personal").
+
+// Per-mailbox IMAP cursor: only messages with UID > lastUid are fetched.
+// If uidValidity reported by the server changes, the cursor resets.
+model EmailSyncState {
+  id          Int      @id @default(autoincrement())
+  account     String
+  mailbox     String   @default("INBOX")
+  uidValidity BigInt
+  lastUid     BigInt   @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([account, mailbox])
+}
+
+// Gmail conversation (X-GM-THRID). The agent reasons per-thread.
+model EmailThread {
+  id            Int            @id @default(autoincrement())
+  account       String
+  gmThreadId    String
+  subject       String?
+  lastMessageAt DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  messages      EmailMessage[]
+
+  @@unique([account, gmThreadId])
+}
+
+model EmailMessage {
+  id             Int               @id @default(autoincrement())
+  account        String
+  gmMsgId        String // X-GM-MSGID, stable Gmail message id
+  thread         EmailThread       @relation(fields: [threadId], references: [id])
+  threadId       Int
+  uid            BigInt
+  mailbox        String            @default("INBOX")
+  messageId      String? // RFC 5322 Message-ID
+  fromAddress    String?
+  fromName       String?
+  toAddresses    String[]          @default([])
+  ccAddresses    String[]          @default([])
+  subject        String?
+  date           DateTime?
+  snippet        String?           @db.Text
+  bodyText       String?           @db.Text
+  labels         String[]          @default([])
+  seen           Boolean           @default(false)
+  hasAttachments Boolean           @default(false)
+  sizeBytes      Int?
+  rawKey         String? // DO Spaces key of the raw .eml (private object)
+  status         String            @default("new") // new | later: classified | error
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  attachments    EmailAttachment[]
+
+  @@unique([account, gmMsgId])
+  @@index([status])
+  @@index([threadId])
+  @@index([date])
+}
+
+// Attachment metadata only; the bytes live inside the raw .eml in Spaces.
+// storageKey is filled later when a rule decides to save the file separately.
+model EmailAttachment {
+  id         Int          @id @default(autoincrement())
+  message    EmailMessage @relation(fields: [messageId], references: [id])
+  messageId  Int
+  filename   String?
+  mimeType   String?
+  sizeBytes  Int?
+  sha256     String?
+  inline     Boolean      @default(false)
+  storageKey String?
+  createdAt  DateTime     @default(now())
+
+  @@index([messageId])
+  @@index([sha256])
+}
