@@ -2503,11 +2503,46 @@ function resolveCueStretchFontSize(style, cue) {
 }
 
 function styleWithResolvedCueFontSize(style, cue) {
-  if (!style.stretchToWidth) return style;
+  const stretched = style.stretchToWidth
+    ? { ...style, fontSize: resolveCueStretchFontSize(style, cue) }
+    : style;
+
+  return applyMarginBoundsToStyle(stretched, cue);
+}
+
+// Every dialogue line is placed with an absolute `\pos`, which makes libass
+// ignore the style/event MarginL/MarginR. So the left/right margins would never
+// constrain the text on their own. Here we treat them as a real bounding box:
+// the text is shrunk to fit the box width (when it is too wide) and its `\pos`
+// anchor is shifted so it never crosses either boundary.
+function applyMarginBoundsToStyle(style, cue) {
+  const marginLeft = normalizeOptionalStretchMarginValue(style.marginLeft);
+  const marginRight = normalizeOptionalStretchMarginValue(style.marginRight);
+  if (marginLeft === null && marginRight === null) return style;
+
+  const left = marginLeft ?? 0;
+  const right = ASS_PLAY_RES_X - (marginRight ?? 0);
+  const boxWidth = right - left;
+  if (boxWidth <= 0) return style;
+
+  let fontSize = Number(style.fontSize) || 72;
+  let extent = measureCueTextForBadge(style, cue);
+  const textWidth = Math.max(1, extent.right - extent.left);
+
+  if (textWidth > boxWidth) {
+    // Shrink to fit the box; floor keeps the re-measured text within the box.
+    fontSize = Math.max(1, Math.floor(fontSize * (boxWidth / textWidth)));
+    extent = measureCueTextForBadge({ ...style, fontSize }, cue);
+  }
+
+  let x = Number(style.position?.x) || 0;
+  if (x + extent.right > right) x = right - extent.right;
+  if (x + extent.left < left) x = left - extent.left;
 
   return {
     ...style,
-    fontSize: resolveCueStretchFontSize(style, cue),
+    fontSize,
+    position: { ...style.position, x: Math.round(x) },
   };
 }
 
