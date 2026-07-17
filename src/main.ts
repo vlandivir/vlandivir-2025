@@ -7,10 +7,12 @@ import { AppModule } from './app.module';
 import { HttpsOptions } from '@nestjs/common/interfaces/external/https-options.interface';
 
 async function bootstrap() {
-  console.log(process.env);
-
   const environment = process.env.ENVIRONMENT || 'DEV';
   const port = process.env.PORT || 3000;
+
+  console.log(
+    `Starting: environment=${environment} port=${port} tag=${process.env.TAG_NAME || 'local'}`,
+  );
 
   if (environment === 'PROD') {
     let httpsOptions: HttpsOptions;
