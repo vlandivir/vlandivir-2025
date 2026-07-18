@@ -4,10 +4,16 @@
   const POLL_INTERVAL_MS = 4000;
   const LIST_PAGE_SIZE = 10;
 
-  // The page is unlisted: /reels/<secret>[/<reelId>]. The same secret is the
-  // read key for the API.
-  const PAGE_KEY = decodeURIComponent(location.pathname.split('/')[2] || '');
-  const BASE_PATH = `/reels/${encodeURIComponent(PAGE_KEY)}`;
+  // The page lives at /reels behind Google sign-in (the session cookie is the
+  // read key). Legacy unlisted URLs /reels/<secret>[/<reelId>] still work: the
+  // secret from the URL doubles as the API read key.
+  const PAGE_KEY = (() => {
+    const segment = location.pathname.split('/')[2] || '';
+    return /^\d*$/.test(segment) ? '' : decodeURIComponent(segment);
+  })();
+  const BASE_PATH = PAGE_KEY
+    ? `/reels/${encodeURIComponent(PAGE_KEY)}`
+    : '/reels';
 
   const state = {
     reels: [],
@@ -29,7 +35,7 @@
   const drawerOverlay = el('drawer-overlay');
   const player = el('player');
 
-  const pageHeaders = { 'x-reels-page-key': PAGE_KEY };
+  const pageHeaders = PAGE_KEY ? { 'x-reels-page-key': PAGE_KEY } : {};
 
   const isMobile = () => window.matchMedia('(max-width: 899px)').matches;
 
@@ -98,7 +104,7 @@
   }
 
   function openReelFromUrl() {
-    const match = /^\/reels\/[^/]+\/(\d+)\/?$/.exec(location.pathname);
+    const match = /^\/reels\/(?:[^/]+\/)?(\d+)\/?$/.exec(location.pathname);
     if (!match) return false;
     const reel = state.reels.find((r) => r.id === Number(match[1]));
     if (reel) selectReel(reel, { fromUrl: true });
@@ -959,7 +965,7 @@
     schedulePolling();
   }
 
-  // --- Edit mode (same key flow as the places page) ---
+  // --- Edit mode (Google session; a machine API key still works) ---
 
   function getApiKey() {
     return localStorage.getItem(KEY_STORAGE) || '';
@@ -968,22 +974,18 @@
   async function verifyKey(key) {
     const response = await fetch(`${API_BASE}/key-check`, {
       method: 'POST',
-      headers: { 'x-reels-api-key': key },
+      headers: key ? { 'x-reels-api-key': key } : {},
     });
     return response.ok;
   }
 
   async function ensureKey() {
-    let key = getApiKey();
-    if (key && (await verifyKey(key))) return true;
-    key = window.prompt('Введите ключ редактирования:') || '';
-    if (!key) return false;
-    if (!(await verifyKey(key))) {
-      alert('Неверный ключ');
-      return false;
-    }
-    localStorage.setItem(KEY_STORAGE, key);
-    return true;
+    // Passes with the session cookie alone, or with a stored legacy key
+    if (await verifyKey(getApiKey())) return true;
+    location.href = `/auth/google?redirect=${encodeURIComponent(
+      location.pathname + location.search,
+    )}`;
+    return false;
   }
 
   editToggle.addEventListener('click', async () => {
