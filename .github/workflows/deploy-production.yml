@@ -49,6 +49,10 @@ jobs:
           REELS_PAGE_KEY=${{ secrets.REELS_PAGE_KEY }}
           MCP_API_KEY=${{ secrets.MCP_API_KEY }}
           EMAIL_ACCOUNTS=${{ secrets.EMAIL_ACCOUNTS }}
+          GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
+          SESSION_SECRET=${{ secrets.SESSION_SECRET }}
+          ALLOWED_GOOGLE_EMAILS=${{ secrets.ALLOWED_GOOGLE_EMAILS }}
     
     - name: Clean up old Docker images
       uses: appleboy/ssh-action@v1.0.3

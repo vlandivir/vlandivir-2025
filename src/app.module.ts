@@ -4,6 +4,7 @@ import { AppService } from './app.service';
 import { TelegramBotModule } from './telegram-bot/telegram-bot.module';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
+import { AuthModule } from './auth/auth.module';
 import { ServicesModule } from './services/services.module';
 import { MiniAppController } from './mini-app/mini-app.controller';
 import { SubsController } from './subs.controller';
@@ -22,6 +23,7 @@ import { McpToolsService } from './mcp/mcp-tools.service';
       isGlobal: true,
     }),
     PrismaModule,
+    AuthModule,
     ServicesModule,
     TelegramBotModule,
   ],
