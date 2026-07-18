@@ -23,18 +23,26 @@
     return dateFormat.format(new Date(value));
   }
 
-  // Stable pastel accent per account: the hue is derived from the account
-  // name, so colors survive reloads and new accounts don't reshuffle old ones.
-  function accountHue(name) {
-    let hash = 0;
-    for (const char of name) {
-      hash = (hash * 31 + char.codePointAt(0)) % 997;
+  // Per-account accent: pick from a fixed, well-spaced palette by the account's
+  // alphabetical index (a hash of the name gave near-identical hues for some
+  // accounts). Hues are far apart so up to 7 mailboxes stay distinguishable.
+  // The color is data, not theme — set inline from here, not in CSS.
+  const ACCOUNT_HUES = [145, 212, 32, 275, 175, 330, 95];
+
+  function hueFor(name) {
+    const names = state.stats.map((account) => account.account).sort();
+    const index = names.indexOf(name);
+    // Fall back to a stable per-name hue if stats haven't loaded yet
+    if (index === -1) {
+      let hash = 0;
+      for (const char of name) hash = (hash * 31 + char.codePointAt(0)) % 997;
+      return (hash * 137) % 360;
     }
-    return (hash * 137) % 360;
+    return ACCOUNT_HUES[index % ACCOUNT_HUES.length];
   }
 
   function accountColor(name, alpha) {
-    return `hsl(${accountHue(name)} 65% 55% / ${alpha})`;
+    return `hsl(${hueFor(name)} 62% 48% / ${alpha})`;
   }
 
   function formatSize(bytes) {
@@ -57,6 +65,8 @@
     state.stats = data.accounts;
     renderStats();
     renderAccountFilter();
+    // Palette depends on the account list; refresh list colors once known
+    if (state.messages.length) renderList();
   }
 
   function renderStats() {
@@ -70,7 +80,10 @@
 
         const name = document.createElement('div');
         name.className = 'stat-account';
-        name.textContent = account.account;
+        const dot = document.createElement('span');
+        dot.className = 'account-dot';
+        dot.style.background = accountColor(account.account, 1);
+        name.append(dot, document.createTextNode(account.account));
 
         const line = document.createElement('div');
         line.className = 'stat-line';
@@ -143,7 +156,7 @@
       ...messages.map((message) => {
         const item = document.createElement('li');
         item.classList.toggle('selected', message.id === state.selectedId);
-        item.style.borderLeftColor = accountColor(message.account, 0.85);
+        item.style.borderLeftColor = accountColor(message.account, 1);
 
         const top = document.createElement('div');
         top.className = 'message-row-top';
@@ -161,12 +174,24 @@
 
         const from = document.createElement('div');
         from.className = 'message-from';
-        const pieces = [
-          message.fromName || message.fromAddress || '—',
-          message.hasAttachments ? '📎' : '',
-          state.filters.account ? '' : `· ${message.account}`,
-        ].filter(Boolean);
-        from.textContent = pieces.join(' ');
+
+        const sender = document.createElement('span');
+        sender.className = 'message-sender';
+        sender.textContent =
+          (message.fromName || message.fromAddress || '—') +
+          (message.hasAttachments ? ' 📎' : '');
+
+        // Colored pill naming the mailbox — the primary per-account cue
+        const account = document.createElement('span');
+        account.className = 'account-pill';
+        account.style.color = accountColor(message.account, 1);
+        account.style.background = accountColor(message.account, 0.12);
+        const dot = document.createElement('span');
+        dot.className = 'account-dot';
+        dot.style.background = accountColor(message.account, 1);
+        account.append(dot, document.createTextNode(message.account));
+
+        from.append(sender, account);
 
         item.append(top, from);
         item.addEventListener('click', () => selectMessage(message.id));
