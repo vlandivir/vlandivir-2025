@@ -307,19 +307,27 @@ main > .hero:first-child h1,
   font-size: 13px;
 }
 
-.workflow-step + .workflow-step,
 .archive-section + .archive-section {
   margin-top: 0;
 }
 
+/* Steps are plain titled sections, not nested cards: the numbered heading and
+   the inner panels/cards provide the framing, so the outer box only adds a
+   separator + vertical rhythm. This removes a whole level of concentric
+   borders/padding that used to waste space around already-carded content. */
 .workflow-step {
-  margin: 0 0 var(--v-section-gap);
-  border-bottom: 1px solid hsl(var(--shadcn-border));
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
-.workflow-step:last-child {
-  margin-bottom: 0;
-  border-bottom: 1px solid hsl(var(--shadcn-border));
+.workflow-step + .workflow-step {
+  margin-top: var(--v-section-gap);
+  padding-top: var(--v-section-gap);
+  border-top: 1px solid hsl(var(--shadcn-border));
 }
 
 .workflow-step[open]:has(> :not(summary):not([hidden])) > .workflow-step-head {
@@ -340,12 +348,15 @@ main > .hero:first-child h1,
   margin-bottom: 0;
 }
 
+/* Editor sub-sections are flat groupings inside a step: only their inner
+   .editor-card children keep a frame, so there is a single card level instead
+   of card-inside-card-inside-card. */
 .editor-section {
-  border: 1px solid hsl(var(--shadcn-border));
-  border-radius: var(--radius);
-  background: hsl(var(--card));
-  color: hsl(var(--card-foreground));
-  box-shadow: var(--v-shadow);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  box-shadow: none;
 }
 
 .editor-section__summary,
@@ -360,7 +371,7 @@ main > .hero:first-child h1,
   align-items: center;
   justify-content: space-between;
   gap: var(--v-group-gap);
-  padding: var(--v-space-4) var(--v-panel-padding);
+  padding: 0 0 var(--v-group-gap);
 }
 
 .workflow-step-head {
@@ -430,7 +441,7 @@ main > .hero:first-child h1,
 .editor-section__body {
   display: grid;
   gap: var(--v-group-gap);
-  padding: 0 var(--v-panel-padding) var(--v-panel-padding);
+  padding: 0;
 }
 
 .editor-section__body.editor-grid {
