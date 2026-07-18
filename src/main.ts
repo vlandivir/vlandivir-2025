@@ -59,6 +59,13 @@ async function bootstrap() {
       index: false,
       redirect: false,
     });
+    // Assets only; the page is served by EmailPagesController behind sign-in
+    const emailPage = path.join(process.cwd(), 'web', 'email');
+    app.useStaticAssets(emailPage, {
+      prefix: '/email',
+      index: false,
+      redirect: false,
+    });
     const subsPage = path.join(process.cwd(), 'web', 'subs');
     const fontPage = path.join(subsPage, 'font');
     const archivePage = path.join(subsPage, 'archive');
@@ -138,6 +145,13 @@ async function bootstrap() {
     const reelsPage = path.join(process.cwd(), 'web', 'reels');
     app.useStaticAssets(reelsPage, {
       prefix: '/reels',
+      index: false,
+      redirect: false,
+    });
+    // Assets only; the page is served by EmailPagesController behind sign-in
+    const emailPage = path.join(process.cwd(), 'web', 'email');
+    app.useStaticAssets(emailPage, {
+      prefix: '/email',
       index: false,
       redirect: false,
     });

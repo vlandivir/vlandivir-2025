@@ -1,0 +1,233 @@
+/* Layout-only styles; tokens and components come from /shared/site-theme.css */
+
+.email-page {
+  padding-bottom: var(--v-space-6);
+}
+
+.email-top {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--v-space-3);
+  margin: var(--v-space-4) 0 var(--v-space-3);
+}
+
+.page-title {
+  margin: 4px 0 0;
+  font-size: 26px;
+}
+
+/* --- Account stats --- */
+
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--v-space-2);
+  margin-bottom: var(--v-space-3);
+}
+
+.stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.stat-card .stat-account {
+  font-weight: 700;
+}
+
+.stat-card .stat-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.stat-card .stat-sync {
+  font-size: 12px;
+}
+
+/* --- Two columns: list + detail --- */
+
+.email-columns {
+  display: grid;
+  grid-template-columns: minmax(320px, 5fr) 7fr;
+  gap: var(--v-space-2);
+  align-items: start;
+}
+
+/* Grid children must be allowed to shrink below their content width,
+   otherwise a long unbroken subject stretches the page */
+.email-columns > * {
+  min-width: 0;
+}
+
+.list-filters {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-bottom: var(--v-space-2);
+}
+
+.message-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.message-list li {
+  padding: 10px 8px;
+  border-top: 1px solid hsl(var(--shadcn-border));
+  cursor: pointer;
+  border-radius: calc(var(--radius) - 2px);
+}
+
+.message-list li:hover,
+.message-list li.selected {
+  background: hsl(var(--shadcn-muted));
+}
+
+.message-row-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.message-subject {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.message-subject.unseen::before {
+  content: '•';
+  margin-right: 6px;
+  color: hsl(var(--primary));
+}
+
+.message-date {
+  flex: none;
+  font-size: 12px;
+  color: var(--v-muted);
+}
+
+.message-from {
+  display: flex;
+  gap: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--v-muted);
+}
+
+/* --- Detail --- */
+
+.detail-card {
+  max-height: 82vh;
+  overflow-y: auto;
+}
+
+.detail-subject {
+  margin: 0 0 var(--v-space-2);
+  font-size: 20px;
+}
+
+.detail-meta {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 0 0 var(--v-space-2);
+  font-size: 13px;
+}
+
+.detail-meta dt {
+  color: var(--v-muted);
+}
+
+.detail-meta dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.detail-labels,
+.detail-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: var(--v-space-2);
+}
+
+.detail-body {
+  margin: 0 0 var(--v-space-3);
+  padding: var(--v-space-2);
+  border: 1px solid hsl(var(--shadcn-border));
+  border-radius: calc(var(--radius) - 2px);
+  background: hsl(var(--shadcn-muted));
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 45vh;
+  overflow-y: auto;
+}
+
+.detail-thread h3 {
+  margin: 0 0 var(--v-space-1);
+  font-size: 14px;
+}
+
+.detail-thread ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.detail-thread li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-top: 1px solid hsl(var(--shadcn-border));
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: calc(var(--radius) - 2px);
+}
+
+.detail-thread li:hover {
+  background: hsl(var(--shadcn-muted));
+}
+
+.detail-thread li.current {
+  background: hsl(var(--primary) / 0.1);
+  cursor: default;
+}
+
+.muted {
+  color: var(--v-muted);
+}
+
+.hidden {
+  display: none !important;
+}
+
+@media (max-width: 900px) {
+  .email-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .email-top {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .message-list {
+    max-height: 45vh;
+  }
+}
