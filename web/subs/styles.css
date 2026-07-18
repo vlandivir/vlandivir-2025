@@ -360,7 +360,7 @@ pre {
 .workflow-step > .editor-section,
 .workflow-step > .saved-links,
 .workflow-step > .video-bound-panel {
-  margin-left: 56px;
+  margin-left: 0;
 }
 
 .workflow-step > .upload-panel {
@@ -1610,7 +1610,21 @@ pre {
 }
 
 .audio-panel {
-  margin: 24px 0 28px;
+  margin: 0;
+}
+
+/* audio-panel is an editor-section, but its content is not wrapped in
+   .editor-card, so keep it as a single framed card instead of flat. */
+.subs-page .audio-panel {
+  border: 1px solid hsl(var(--shadcn-border));
+  border-radius: var(--radius);
+  padding: var(--v-panel-padding);
+  background: hsl(var(--card));
+  box-shadow: var(--v-shadow);
+}
+
+.subs-page .audio-panel__summary {
+  padding: 0 0 var(--v-group-gap);
 }
 
 .audio-panel[hidden] {
