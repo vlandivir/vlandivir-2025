@@ -341,6 +341,7 @@ export class EmailIngestService
   // classification. Proper cleaning happens later in the pipeline.
   private stripHtml(html: string): string {
     return html
+      .replace(/<!--[\s\S]*?-->/g, ' ')
       .replace(/<(style|script)[\s\S]*?<\/\1>/gi, ' ')
       .replace(/<br\s*\/?>/gi, '\n')
       .replace(/<\/(p|div|tr|li|h[1-6])>/gi, '\n')

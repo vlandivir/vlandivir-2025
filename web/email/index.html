@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Почта — конвейер</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/shared/site-theme.css?v=20260711-1" />
+  <link rel="stylesheet" href="/shared/site-header.css?v=20260718-1" />
+  <link rel="stylesheet" href="/email/styles.css?v=20260718-1" />
+  <script src="/shared/site-header.js?v=20260718-1" defer></script>
+  <script src="/email/app.js?v=20260718-1" defer></script>
+</head>
+<body>
+  <header data-site-header data-active="" data-lang-none data-lang-ru="/email" data-lang-en="/email"></header>
+
+  <main class="page-shell email-page">
+    <section class="email-top">
+      <div>
+        <p class="eyebrow">Почтовый агент</p>
+        <h1 class="page-title">Что происходит с почтой</h1>
+      </div>
+      <div class="email-actions">
+        <button id="sync-button" class="primary-btn">Синхронизировать</button>
+      </div>
+    </section>
+
+    <section id="stats-row" class="stats-row" aria-label="Аккаунты"></section>
+
+    <section class="email-columns">
+      <div class="editor-card list-card">
+        <div class="list-filters">
+          <input id="filter-query" type="search" placeholder="Поиск: тема, отправитель…" autocomplete="off" />
+          <select id="filter-account" aria-label="Аккаунт"><option value="">Все аккаунты</option></select>
+          <select id="filter-flag" aria-label="Фильтр">
+            <option value="">Все письма</option>
+            <option value="unseen">Непрочитанные</option>
+            <option value="attachments">С вложениями</option>
+          </select>
+        </div>
+        <ul id="message-list" class="message-list"></ul>
+        <p id="list-empty" class="muted hidden">Ничего не найдено</p>
+      </div>
+
+      <div class="editor-card detail-card">
+        <div id="detail-empty" class="muted">Выберите письмо в списке</div>
+        <article id="detail" class="hidden">
+          <h2 id="detail-subject" class="detail-subject"></h2>
+          <dl id="detail-meta" class="detail-meta"></dl>
+          <div id="detail-labels" class="detail-labels"></div>
+          <div id="detail-attachments" class="detail-attachments"></div>
+          <pre id="detail-body" class="detail-body"></pre>
+          <div id="detail-thread" class="detail-thread"></div>
+        </article>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
