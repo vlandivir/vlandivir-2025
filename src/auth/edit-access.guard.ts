@@ -9,8 +9,9 @@ import { timingSafeEqual } from 'crypto';
 import type { Request } from 'express';
 import { AuthService } from './auth.service';
 
-// Editing endpoints: a logged-in Google session (browser) OR a machine API
-// key in x-map-api-key / x-reels-api-key (scripts, MCP, integrations).
+// Protected map/reels endpoints (mutations and reels reads): a logged-in
+// Google session (browser) OR a machine API key in x-map-api-key /
+// x-reels-api-key (scripts, integrations). No URL-based secrets.
 @Injectable()
 export class EditAccessGuard implements CanActivate {
   constructor(
@@ -44,35 +45,6 @@ export class EditAccessGuard implements CanActivate {
   private header(request: Request, name: string): string | undefined {
     const value = request.headers[name];
     return typeof value === 'string' && value ? value : undefined;
-  }
-}
-
-// Reels read endpoints: a Google session OR the legacy page key that old
-// share links still carry.
-@Injectable()
-export class ReelsReadGuard implements CanActivate {
-  constructor(
-    private readonly authService: AuthService,
-    private readonly configService: ConfigService,
-  ) {}
-
-  canActivate(context: ExecutionContext): boolean {
-    const request = context.switchToHttp().getRequest<Request>();
-
-    if (this.authService.getSessionFromRequest(request)) return true;
-
-    const received = request.headers['x-reels-page-key'];
-    const expected = this.configService.get<string>('REELS_PAGE_KEY');
-    if (
-      typeof received === 'string' &&
-      received &&
-      expected &&
-      sameSecret(received, expected)
-    ) {
-      return true;
-    }
-
-    throw new UnauthorizedException('Sign in or provide the page key');
   }
 }
 

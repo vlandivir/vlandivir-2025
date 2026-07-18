@@ -919,17 +919,16 @@ export class TelegramBotService {
     return `${minutes}:${secs.toString().padStart(2, '0')}`;
   }
 
-  // Share link to a single reel in the unlisted notebook:
-  // <origin>/reels/<REELS_PAGE_KEY>/<id>
+  // Link to a single reel in the notebook (behind Google sign-in):
+  // <origin>/reels/<id>
   private buildReelPageUrl(reelId: number): string | null {
-    const pageKey = this.configService.get<string>('REELS_PAGE_KEY');
     const webhookUrl = this.configService.get<string>(
       'VLANDIVIR_2025_WEBHOOK_URL',
     );
-    if (!pageKey || !webhookUrl) return null;
+    if (!webhookUrl) return null;
     try {
       const baseUrl = new URL(webhookUrl).origin;
-      return `${baseUrl}/reels/${pageKey}/${reelId}`;
+      return `${baseUrl}/reels/${reelId}`;
     } catch {
       return null;
     }

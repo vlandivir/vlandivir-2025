@@ -11,7 +11,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { EditAccessGuard, ReelsReadGuard } from './auth/edit-access.guard';
+import { EditAccessGuard } from './auth/edit-access.guard';
 import { PrismaService } from './prisma/prisma.service';
 import { ReelsService } from './services/reels.service';
 import { ReelsQaService } from './services/reels-qa.service';
@@ -28,7 +28,7 @@ export class ReelsApiController {
     private readonly reelsQaService: ReelsQaService,
   ) {}
 
-  @UseGuards(ReelsReadGuard)
+  @UseGuards(EditAccessGuard)
   @Get('reels')
   async listReels() {
     return this.prisma.reel.findMany({ orderBy: { createdAt: 'desc' } });
@@ -36,7 +36,7 @@ export class ReelsApiController {
 
   // Semantic search over indexed reels: [{id, similarity}], best first.
   // The client merges these with its own substring filtering.
-  @UseGuards(ReelsReadGuard)
+  @UseGuards(EditAccessGuard)
   @Get('search')
   async searchReels(@Query('q') q: string | undefined) {
     const query = (q || '').trim();
@@ -45,7 +45,7 @@ export class ReelsApiController {
   }
 
   // RAG Q&A over the notebook: answer + source reels ([#id] refs in text)
-  @UseGuards(ReelsReadGuard)
+  @UseGuards(EditAccessGuard)
   @Get('ask')
   async askReels(@Query('q') q: string | undefined) {
     const question = (q || '').trim();
@@ -54,7 +54,7 @@ export class ReelsApiController {
     return result ?? { answer: null, sources: [] };
   }
 
-  @UseGuards(ReelsReadGuard)
+  @UseGuards(EditAccessGuard)
   @Get('reels/:id')
   async getReel(@Param('id', ParseIntPipe) id: number) {
     const reel = await this.prisma.reel.findUnique({ where: { id } });

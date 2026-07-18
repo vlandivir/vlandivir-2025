@@ -4,16 +4,9 @@
   const POLL_INTERVAL_MS = 4000;
   const LIST_PAGE_SIZE = 10;
 
-  // The page lives at /reels behind Google sign-in (the session cookie is the
-  // read key). Legacy unlisted URLs /reels/<secret>[/<reelId>] still work: the
-  // secret from the URL doubles as the API read key.
-  const PAGE_KEY = (() => {
-    const segment = location.pathname.split('/')[2] || '';
-    return /^\d*$/.test(segment) ? '' : decodeURIComponent(segment);
-  })();
-  const BASE_PATH = PAGE_KEY
-    ? `/reels/${encodeURIComponent(PAGE_KEY)}`
-    : '/reels';
+  // The page lives at /reels behind Google sign-in; the session cookie is
+  // the API read key.
+  const BASE_PATH = '/reels';
 
   const state = {
     reels: [],
@@ -35,7 +28,7 @@
   const drawerOverlay = el('drawer-overlay');
   const player = el('player');
 
-  const pageHeaders = PAGE_KEY ? { 'x-reels-page-key': PAGE_KEY } : {};
+  const pageHeaders = {};
 
   const isMobile = () => window.matchMedia('(max-width: 899px)').matches;
 
@@ -104,7 +97,7 @@
   }
 
   function openReelFromUrl() {
-    const match = /^\/reels\/(?:[^/]+\/)?(\d+)\/?$/.exec(location.pathname);
+    const match = /^\/reels\/(\d+)\/?$/.exec(location.pathname);
     if (!match) return false;
     const reel = state.reels.find((r) => r.id === Number(match[1]));
     if (reel) selectReel(reel, { fromUrl: true });
