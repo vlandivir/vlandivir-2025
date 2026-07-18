@@ -23,6 +23,20 @@
     return dateFormat.format(new Date(value));
   }
 
+  // Stable pastel accent per account: the hue is derived from the account
+  // name, so colors survive reloads and new accounts don't reshuffle old ones.
+  function accountHue(name) {
+    let hash = 0;
+    for (const char of name) {
+      hash = (hash * 31 + char.codePointAt(0)) % 997;
+    }
+    return (hash * 137) % 360;
+  }
+
+  function accountColor(name, alpha) {
+    return `hsl(${accountHue(name)} 65% 55% / ${alpha})`;
+  }
+
   function formatSize(bytes) {
     if (bytes == null) return '';
     if (bytes < 1024) return `${bytes} Б`;
@@ -51,6 +65,8 @@
       ...state.stats.map((account) => {
         const card = document.createElement('div');
         card.className = 'editor-card stat-card';
+        card.style.borderLeftColor = accountColor(account.account, 0.85);
+        card.style.background = accountColor(account.account, 0.07);
 
         const name = document.createElement('div');
         name.className = 'stat-account';
@@ -127,6 +143,7 @@
       ...messages.map((message) => {
         const item = document.createElement('li');
         item.classList.toggle('selected', message.id === state.selectedId);
+        item.style.borderLeftColor = accountColor(message.account, 0.85);
 
         const top = document.createElement('div');
         top.className = 'message-row-top';
