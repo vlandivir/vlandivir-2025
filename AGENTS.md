@@ -2,6 +2,8 @@
 
 New to the project? Start with [docs/project-overview.md](docs/project-overview.md) — architecture, controllers, bot commands, data model, web apps.
 
+Access control (who can reach which routes, guards, machine keys) is documented in [docs/authorization.md](docs/authorization.md) — keep it updated when touching guards or keys.
+
 - Do not run Puppeteer in this repository. For frontend checks, use simpler static/HTTP verification unless the user explicitly asks otherwise.
 
 ## Design system (web pages)

@@ -46,7 +46,6 @@ jobs:
           VLANDIVIR_2025_WEBHOOK_URL=${{ secrets.VLANDIVIR_2025_WEBHOOK_URL }}
           NOTE_API_KEY=${{ secrets.NOTE_API_KEY }}
           MAP_API_KEY=${{ secrets.MAP_API_KEY }}
-          REELS_PAGE_KEY=${{ secrets.REELS_PAGE_KEY }}
           MCP_API_KEY=${{ secrets.MCP_API_KEY }}
           EMAIL_ACCOUNTS=${{ secrets.EMAIL_ACCOUNTS }}
           GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}

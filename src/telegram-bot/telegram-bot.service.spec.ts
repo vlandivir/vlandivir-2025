@@ -85,7 +85,6 @@ describe('TelegramBotService', () => {
               if (key === 'VLANDIVIR_2025_WEBHOOK_URL') {
                 return 'https://example.com/telegram-bot';
               }
-              if (key === 'REELS_PAGE_KEY') return 'secretpagekey';
               return 'mock_token';
             }),
           },
@@ -312,7 +311,7 @@ describe('TelegramBotService', () => {
     expect(message).toContain('1:05');
     expect(message).toContain('#рецепты');
     expect(message).toContain('#быстрая_еда');
-    expect(message).toContain('https://example.com/reels/secretpagekey/7');
+    expect(message).toContain('https://example.com/reels/7');
   });
 
   it('reports a processing failure to the user', async () => {
