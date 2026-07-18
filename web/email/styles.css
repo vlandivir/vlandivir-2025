@@ -35,7 +35,17 @@
 }
 
 .stat-card .stat-account {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-weight: 700;
+}
+
+.account-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
 }
 
 .stat-card .stat-line {
@@ -99,10 +109,10 @@
 }
 
 .message-list li {
-  padding: 10px 8px 10px 12px;
+  padding: 10px 8px 10px 14px;
   border-top: 1px solid hsl(var(--shadcn-border));
-  /* Per-account pastel accent; the color itself is data set from app.js */
-  border-left: 3px solid transparent;
+  /* Per-account accent stripe; the color itself is data set from app.js */
+  border-left: 5px solid transparent;
   cursor: pointer;
   border-radius: calc(var(--radius) - 2px);
 }
@@ -142,12 +152,29 @@
 
 .message-from {
   display: flex;
-  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--v-muted);
+}
+
+.message-sender {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
-  color: var(--v-muted);
+}
+
+.account-pill {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 /* --- Detail --- */
