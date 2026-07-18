@@ -4,17 +4,14 @@ import {
   Controller,
   Delete,
   Get,
-  Headers,
-  InternalServerErrorException,
   NotFoundException,
   Param,
   ParseIntPipe,
   Post,
   Query,
-  UnauthorizedException,
+  UseGuards,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { timingSafeEqual } from 'crypto';
+import { EditAccessGuard, ReelsReadGuard } from './auth/edit-access.guard';
 import { PrismaService } from './prisma/prisma.service';
 import { ReelsService } from './services/reels.service';
 import { ReelsQaService } from './services/reels-qa.service';
@@ -27,61 +24,47 @@ const MAX_TAG_LENGTH = 50;
 export class ReelsApiController {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly configService: ConfigService,
     private readonly reelsService: ReelsService,
     private readonly reelsQaService: ReelsQaService,
   ) {}
 
+  @UseGuards(ReelsReadGuard)
   @Get('reels')
-  async listReels(@Headers('x-reels-page-key') pageKey: string | undefined) {
-    this.assertPageKey(pageKey);
+  async listReels() {
     return this.prisma.reel.findMany({ orderBy: { createdAt: 'desc' } });
   }
 
   // Semantic search over indexed reels: [{id, similarity}], best first.
   // The client merges these with its own substring filtering.
+  @UseGuards(ReelsReadGuard)
   @Get('search')
-  async searchReels(
-    @Headers('x-reels-page-key') pageKey: string | undefined,
-    @Query('q') q: string | undefined,
-  ) {
-    this.assertPageKey(pageKey);
+  async searchReels(@Query('q') q: string | undefined) {
     const query = (q || '').trim();
     if (!query) return [];
     return this.reelsService.searchReels(query);
   }
 
   // RAG Q&A over the notebook: answer + source reels ([#id] refs in text)
+  @UseGuards(ReelsReadGuard)
   @Get('ask')
-  async askReels(
-    @Headers('x-reels-page-key') pageKey: string | undefined,
-    @Query('q') q: string | undefined,
-  ) {
-    this.assertPageKey(pageKey);
+  async askReels(@Query('q') q: string | undefined) {
     const question = (q || '').trim();
     if (!question) throw new BadRequestException('Нужен вопрос (?q=…)');
     const result = await this.reelsQaService.ask(question);
     return result ?? { answer: null, sources: [] };
   }
 
+  @UseGuards(ReelsReadGuard)
   @Get('reels/:id')
-  async getReel(
-    @Headers('x-reels-page-key') pageKey: string | undefined,
-    @Param('id', ParseIntPipe) id: number,
-  ) {
-    this.assertPageKey(pageKey);
+  async getReel(@Param('id', ParseIntPipe) id: number) {
     const reel = await this.prisma.reel.findUnique({ where: { id } });
     if (!reel) throw new NotFoundException('Reel not found');
     return reel;
   }
 
+  @UseGuards(EditAccessGuard)
   @Post('reels')
-  async createReel(
-    @Headers('x-reels-api-key') apiKey: string | undefined,
-    @Body() body: { instagramUrl?: string },
-  ) {
-    this.assertEditKey(apiKey);
-
+  async createReel(@Body() body: { instagramUrl?: string }) {
     const instagramUrl = (body.instagramUrl || '').trim();
     const shortcode = this.reelsService.extractShortcode(instagramUrl);
     if (!shortcode) {
@@ -113,12 +96,9 @@ export class ReelsApiController {
     return reel;
   }
 
+  @UseGuards(EditAccessGuard)
   @Post('reels/:id/retry')
-  async retryReel(
-    @Headers('x-reels-api-key') apiKey: string | undefined,
-    @Param('id', ParseIntPipe) id: number,
-  ) {
-    this.assertEditKey(apiKey);
+  async retryReel(@Param('id', ParseIntPipe) id: number) {
     const reel = await this.prisma.reel.findUnique({ where: { id } });
     if (!reel) throw new NotFoundException('Reel not found');
 
@@ -132,13 +112,12 @@ export class ReelsApiController {
 
   // Tags are set by hand; unknown names are added to the shared MapTag
   // dictionary (emoji can be picked later in the 🏷 editor on /places)
+  @UseGuards(EditAccessGuard)
   @Post('reels/:id/tags')
   async updateReelTags(
-    @Headers('x-reels-api-key') apiKey: string | undefined,
     @Param('id', ParseIntPipe) id: number,
     @Body() body: { tags?: unknown },
   ) {
-    this.assertEditKey(apiKey);
     const reel = await this.prisma.reel.findUnique({ where: { id } });
     if (!reel) throw new NotFoundException('Reel not found');
 
@@ -188,21 +167,18 @@ export class ReelsApiController {
   }
 
   // Re-run transcription for every downloaded reel (sequential, background)
+  @UseGuards(EditAccessGuard)
   @Post('transcribe-all')
-  async transcribeAll(@Headers('x-reels-api-key') apiKey: string | undefined) {
-    this.assertEditKey(apiKey);
+  async transcribeAll() {
     const queued = await this.reelsService.transcribeAllInBackground();
     return { queued };
   }
 
   // Force audio extraction + Whisper transcription for an already
   // downloaded reel
+  @UseGuards(EditAccessGuard)
   @Post('reels/:id/transcribe')
-  async transcribeReel(
-    @Headers('x-reels-api-key') apiKey: string | undefined,
-    @Param('id', ParseIntPipe) id: number,
-  ) {
-    this.assertEditKey(apiKey);
+  async transcribeReel(@Param('id', ParseIntPipe) id: number) {
     const reel = await this.prisma.reel.findUnique({ where: { id } });
     if (!reel) throw new NotFoundException('Reel not found');
     if (reel.status !== 'ready' || !reel.videoUrl) {
@@ -220,9 +196,9 @@ export class ReelsApiController {
   }
 
   // Regenerate titles for every analyzed reel (sequential, background)
+  @UseGuards(EditAccessGuard)
   @Post('generate-titles')
-  async generateTitles(@Headers('x-reels-api-key') apiKey: string | undefined) {
-    this.assertEditKey(apiKey);
+  async generateTitles() {
     const reels = await this.prisma.reel.findMany({
       where: { status: 'ready' },
       select: { id: true },
@@ -237,20 +213,17 @@ export class ReelsApiController {
   }
 
   // (Re)compute search embeddings for every analyzed reel (background)
+  @UseGuards(EditAccessGuard)
   @Post('embed-all')
-  async embedAll(@Headers('x-reels-api-key') apiKey: string | undefined) {
-    this.assertEditKey(apiKey);
+  async embedAll() {
     const queued = await this.reelsService.embedAllInBackground();
     return { queued };
   }
 
   // Force frame extraction + LLM description for an already downloaded reel
+  @UseGuards(EditAccessGuard)
   @Post('reels/:id/vision')
-  async visionReel(
-    @Headers('x-reels-api-key') apiKey: string | undefined,
-    @Param('id', ParseIntPipe) id: number,
-  ) {
-    this.assertEditKey(apiKey);
+  async visionReel(@Param('id', ParseIntPipe) id: number) {
     const reel = await this.prisma.reel.findUnique({ where: { id } });
     if (!reel) throw new NotFoundException('Reel not found');
     if (reel.status !== 'ready' || !reel.videoUrl) {
@@ -267,12 +240,9 @@ export class ReelsApiController {
     return updated;
   }
 
+  @UseGuards(EditAccessGuard)
   @Delete('reels/:id')
-  async deleteReel(
-    @Headers('x-reels-api-key') apiKey: string | undefined,
-    @Param('id', ParseIntPipe) id: number,
-  ) {
-    this.assertEditKey(apiKey);
+  async deleteReel(@Param('id', ParseIntPipe) id: number) {
     const reel = await this.prisma.reel.findUnique({ where: { id } });
     if (!reel) throw new NotFoundException('Reel not found');
 
@@ -281,43 +251,9 @@ export class ReelsApiController {
     return { deleted: true };
   }
 
+  @UseGuards(EditAccessGuard)
   @Post('key-check')
-  checkKey(@Headers('x-reels-api-key') apiKey: string | undefined) {
-    this.assertEditKey(apiKey);
+  checkKey() {
     return { ok: true };
-  }
-
-  // The page itself is unlisted: reading the catalog requires the secret
-  // from the page URL
-  private assertPageKey(receivedKey?: string): void {
-    const expectedKey = this.configService.get<string>('REELS_PAGE_KEY');
-    if (!expectedKey) {
-      throw new InternalServerErrorException(
-        'REELS_PAGE_KEY is not configured',
-      );
-    }
-    if (!receivedKey || !this.isSameSecret(receivedKey, expectedKey)) {
-      throw new UnauthorizedException('Invalid page key');
-    }
-  }
-
-  private assertEditKey(receivedKey?: string): void {
-    const expectedKey =
-      this.configService.get<string>('REELS_API_KEY') ||
-      this.configService.get<string>('MAP_API_KEY') ||
-      this.configService.get<string>('NOTE_API_KEY');
-    if (!expectedKey) {
-      throw new InternalServerErrorException('REELS_API_KEY is not configured');
-    }
-    if (!receivedKey || !this.isSameSecret(receivedKey, expectedKey)) {
-      throw new UnauthorizedException('Invalid API key');
-    }
-  }
-
-  private isSameSecret(receivedKey: string, expectedKey: string): boolean {
-    const received = Buffer.from(receivedKey);
-    const expected = Buffer.from(expectedKey);
-    if (received.length !== expected.length) return false;
-    return timingSafeEqual(received, expected);
   }
 }

@@ -766,22 +766,18 @@
   async function verifyKey(key) {
     const response = await fetch(`${API_BASE}/key-check`, {
       method: 'POST',
-      headers: { 'x-map-api-key': key },
+      headers: key ? { 'x-map-api-key': key } : {},
     });
     return response.ok;
   }
 
   async function ensureKey() {
-    let key = getApiKey();
-    if (key && (await verifyKey(key))) return true;
-    key = window.prompt('Введите ключ редактирования:') || '';
-    if (!key) return false;
-    if (!(await verifyKey(key))) {
-      alert('Неверный ключ');
-      return false;
-    }
-    localStorage.setItem(KEY_STORAGE, key);
-    return true;
+    // Passes with the Google session cookie alone, or with a stored legacy key
+    if (await verifyKey(getApiKey())) return true;
+    location.href = `/auth/google?redirect=${encodeURIComponent(
+      location.pathname + location.search,
+    )}`;
+    return false;
   }
 
   editToggle.addEventListener('click', async () => {

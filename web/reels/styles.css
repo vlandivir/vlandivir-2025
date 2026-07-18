@@ -8,13 +8,20 @@ body {
   overflow: hidden;
 }
 
+/* Site header on top, the app fills the rest of the viewport */
+body {
+  display: flex;
+  flex-direction: column;
+}
+
 .hidden {
   display: none !important;
 }
 
 .app {
   display: flex;
-  height: 100dvh;
+  flex: 1;
+  min-height: 0;
 }
 
 /* --- Player pane (left) --- */

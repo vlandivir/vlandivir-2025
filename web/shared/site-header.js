@@ -12,6 +12,8 @@
       files: 'Ваши файлы',
       instagram: 'Instagram',
       instagramLabel: 'Открыть Instagram @vlandivir',
+      login: 'Войти',
+      logout: 'Выйти',
     },
     en: {
       brand: 'vlandivir',
@@ -23,8 +25,21 @@
       files: 'Files',
       instagram: 'Instagram',
       instagramLabel: 'Open Instagram @vlandivir',
+      login: 'Sign in',
+      logout: 'Sign out',
     },
   };
+
+  // Google session info, fetched once and shared by every header on the page
+  let mePromise = null;
+  function fetchMe() {
+    if (!mePromise) {
+      mePromise = fetch('/auth/me')
+        .then((response) => (response.ok ? response.json() : null))
+        .catch(() => null);
+    }
+    return mePromise;
+  }
 
   function currentLanguage() {
     return document.documentElement.lang?.toLowerCase().startsWith('en')
@@ -119,7 +134,34 @@
       }),
     );
 
-    right.append(nav, langNav);
+    right.append(nav);
+    // App-like single-language pages set data-lang-none to hide the switcher
+    if (!('langNone' in mount.dataset)) right.append(langNav);
+
+    const account = document.createElement('div');
+    account.className = 'v-site-header__account';
+    right.append(account);
+    void fetchMe().then((me) => {
+      if (me && me.authenticated) {
+        const email = document.createElement('span');
+        email.className = 'v-site-header__email';
+        email.textContent = me.email;
+        email.title = me.name || me.email;
+        const logout = makeLink({ href: '/auth/logout', text: copy.logout });
+        account.append(email, logout);
+      } else {
+        const redirect = encodeURIComponent(
+          location.pathname + location.search,
+        );
+        account.append(
+          makeLink({
+            href: `/auth/google?redirect=${redirect}`,
+            text: copy.login,
+          }),
+        );
+      }
+    });
+
     mount.replaceChildren(left, right);
   }
 

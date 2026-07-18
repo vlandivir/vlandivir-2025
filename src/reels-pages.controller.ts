@@ -1,30 +1,57 @@
-import { Controller, Get, NotFoundException, Param, Res } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { timingSafeEqual } from 'crypto';
 import { readFile } from 'fs/promises';
 import * as path from 'path';
+import { AuthService } from './auth/auth.service';
+import { GoogleSessionGuard } from './auth/google-session.guard';
 import { PrismaService } from './prisma/prisma.service';
 
-// The reels notebook is unlisted: the page lives at /reels/<REELS_PAGE_KEY>
-// (optionally /reels/<key>/<reelId> for share links) and any other path under
-// /reels/ is a 404. The frontend reads the secret from its own URL and passes
-// it to /reels-api as the read key.
+// The reels notebook lives at /reels behind Google sign-in (the SPA reads the
+// catalog with the session cookie). Legacy unlisted URLs with the page secret
+// (/reels/<REELS_PAGE_KEY>[/<reelId>]) keep working so old share links don't
+// break; any other path under /reels/ is a 404.
 @Controller('reels')
 export class ReelsPagesController {
   constructor(
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
+    private readonly authService: AuthService,
   ) {}
 
-  @Get(':secret')
-  async page(@Param('secret') secret: string, @Res() res: Response) {
-    this.assertSecret(secret);
+  @UseGuards(GoogleSessionGuard)
+  @Get()
+  async page(@Res() res: Response) {
     res.type('html').send(await this.loadHtml());
   }
 
-  // Share link for a single reel — same SPA with Open Graph tags injected so
-  // messengers show the reel title and cover.
+  // /reels/<id> — deep link for the owner; /reels/<secret> — legacy page.
+  @Get(':idOrSecret')
+  async pageOrReel(
+    @Param('idOrSecret') idOrSecret: string,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    if (/^\d+$/.test(idOrSecret)) {
+      if (!this.requireSession(req, res)) return;
+      res.type('html').send(await this.reelHtml(Number(idOrSecret)));
+      return;
+    }
+    this.assertSecret(idOrSecret);
+    res.type('html').send(await this.loadHtml());
+  }
+
+  // Legacy share link for a single reel — same SPA with Open Graph tags
+  // injected so messengers show the reel title and cover.
   @Get(':secret/:id')
   async reelPage(
     @Param('secret') secret: string,
@@ -32,9 +59,21 @@ export class ReelsPagesController {
     @Res() res: Response,
   ) {
     this.assertSecret(secret);
+    res.type('html').send(await this.reelHtml(Number(id)));
+  }
+
+  private requireSession(req: Request, res: Response): boolean {
+    if (this.authService.getSessionFromRequest(req)) return true;
+    const redirect = encodeURIComponent(
+      this.authService.safeRedirectPath(req.originalUrl),
+    );
+    res.redirect(`/auth/google?redirect=${redirect}`);
+    return false;
+  }
+
+  private async reelHtml(reelId: number): Promise<string> {
     let html = await this.loadHtml();
 
-    const reelId = Number(id);
     const reel = Number.isInteger(reelId)
       ? await this.prisma.reel.findUnique({ where: { id: reelId } })
       : null;
@@ -65,7 +104,7 @@ export class ReelsPagesController {
         .replace('</head>', `  ${tags}\n</head>`);
     }
 
-    res.type('html').send(html);
+    return html;
   }
 
   private loadHtml(): Promise<string> {

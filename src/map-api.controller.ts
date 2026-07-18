@@ -4,19 +4,22 @@ import {
   Controller,
   Delete,
   Get,
-  Headers,
-  InternalServerErrorException,
   NotFoundException,
   Param,
   ParseIntPipe,
   Patch,
   Post,
   Query,
+  Req,
   UnauthorizedException,
+  UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { timingSafeEqual } from 'crypto';
+import type { Request } from 'express';
 import { Prisma } from './generated/prisma-client';
+import { AuthService } from './auth/auth.service';
+import { EditAccessGuard } from './auth/edit-access.guard';
 import { PrismaService } from './prisma/prisma.service';
 import { InstagramMetaService } from './services/instagram-meta.service';
 import { ReelsService } from './services/reels.service';
@@ -53,6 +56,7 @@ export class MapApiController {
     private readonly instagramMetaService: InstagramMetaService,
     private readonly storageService: StorageService,
     private readonly reelsService: ReelsService,
+    private readonly authService: AuthService,
   ) {}
 
   @Get('points')
@@ -62,13 +66,9 @@ export class MapApiController {
     });
   }
 
+  @UseGuards(EditAccessGuard)
   @Post('points')
-  async createPoint(
-    @Headers('x-map-api-key') apiKey: string | undefined,
-    @Body() body: MapPointBody,
-  ) {
-    this.assertApiKey(apiKey);
-
+  async createPoint(@Body() body: MapPointBody) {
     const name = this.parseName(body.name);
     const { latitude, longitude } = this.parseCoordinates(
       body.latitude,
@@ -89,13 +89,12 @@ export class MapApiController {
     });
   }
 
+  @UseGuards(EditAccessGuard)
   @Patch('points/:id')
   async updatePoint(
-    @Headers('x-map-api-key') apiKey: string | undefined,
     @Param('id', ParseIntPipe) id: number,
     @Body() body: MapPointBody,
   ) {
-    this.assertApiKey(apiKey);
     await this.assertPointExists(id);
 
     const data: Record<string, unknown> = {};
@@ -127,12 +126,9 @@ export class MapApiController {
     return this.prisma.mapPoint.update({ where: { id }, data });
   }
 
+  @UseGuards(EditAccessGuard)
   @Delete('points/:id')
-  async deletePoint(
-    @Headers('x-map-api-key') apiKey: string | undefined,
-    @Param('id', ParseIntPipe) id: number,
-  ) {
-    this.assertApiKey(apiKey);
+  async deletePoint(@Param('id', ParseIntPipe) id: number) {
     await this.assertPointExists(id);
 
     await this.prisma.mapPoint.delete({ where: { id } });
@@ -146,13 +142,9 @@ export class MapApiController {
     });
   }
 
+  @UseGuards(EditAccessGuard)
   @Post('tracks')
-  async createTrack(
-    @Headers('x-map-api-key') apiKey: string | undefined,
-    @Body() body: MapTrackBody,
-  ) {
-    this.assertApiKey(apiKey);
-
+  async createTrack(@Body() body: MapTrackBody) {
     const instagramUrl = this.parseInstagramUrl(body.instagramUrl);
     this.archiveReel(instagramUrl, true);
 
@@ -167,13 +159,12 @@ export class MapApiController {
     });
   }
 
+  @UseGuards(EditAccessGuard)
   @Patch('tracks/:id')
   async updateTrack(
-    @Headers('x-map-api-key') apiKey: string | undefined,
     @Param('id', ParseIntPipe) id: number,
     @Body() body: MapTrackBody,
   ) {
-    this.assertApiKey(apiKey);
     const track = await this.prisma.mapTrack.findUnique({ where: { id } });
     if (!track) {
       throw new NotFoundException('Track not found');
@@ -203,12 +194,9 @@ export class MapApiController {
     return this.prisma.mapTrack.update({ where: { id }, data });
   }
 
+  @UseGuards(EditAccessGuard)
   @Delete('tracks/:id')
-  async deleteTrack(
-    @Headers('x-map-api-key') apiKey: string | undefined,
-    @Param('id', ParseIntPipe) id: number,
-  ) {
-    this.assertApiKey(apiKey);
+  async deleteTrack(@Param('id', ParseIntPipe) id: number) {
     const track = await this.prisma.mapTrack.findUnique({ where: { id } });
     if (!track) {
       throw new NotFoundException('Track not found');
@@ -281,12 +269,9 @@ export class MapApiController {
     return this.prisma.mapTag.findMany({ orderBy: { name: 'asc' } });
   }
 
+  @UseGuards(EditAccessGuard)
   @Post('tags')
-  async createTag(
-    @Headers('x-map-api-key') apiKey: string | undefined,
-    @Body() body: { name?: string; emoji?: string },
-  ) {
-    this.assertApiKey(apiKey);
+  async createTag(@Body() body: { name?: string; emoji?: string }) {
     const name = this.parseTagName(body.name);
     const existing = await this.prisma.mapTag.findUnique({ where: { name } });
     if (existing) {
@@ -297,13 +282,12 @@ export class MapApiController {
     });
   }
 
+  @UseGuards(EditAccessGuard)
   @Patch('tags/:id')
   async updateTag(
-    @Headers('x-map-api-key') apiKey: string | undefined,
     @Param('id', ParseIntPipe) id: number,
     @Body() body: { name?: string; emoji?: string },
   ) {
-    this.assertApiKey(apiKey);
     const tag = await this.prisma.mapTag.findUnique({ where: { id } });
     if (!tag) {
       throw new NotFoundException('Tag not found');
@@ -337,12 +321,9 @@ export class MapApiController {
     return this.prisma.mapTag.update({ where: { id }, data });
   }
 
+  @UseGuards(EditAccessGuard)
   @Delete('tags/:id')
-  async deleteTag(
-    @Headers('x-map-api-key') apiKey: string | undefined,
-    @Param('id', ParseIntPipe) id: number,
-  ) {
-    this.assertApiKey(apiKey);
+  async deleteTag(@Param('id', ParseIntPipe) id: number) {
     const tag = await this.prisma.mapTag.findUnique({ where: { id } });
     if (!tag) {
       throw new NotFoundException('Tag not found');
@@ -379,12 +360,12 @@ export class MapApiController {
   async refreshPointInstagramMeta(
     @Param('id', ParseIntPipe) id: number,
     @Query('force') force: string | undefined,
-    @Headers('x-map-api-key') apiKey: string | undefined,
+    @Req() request: Request,
   ) {
     return this.refreshInstagramMeta(
       'point',
       id,
-      this.parseForce(force, apiKey),
+      this.parseForce(force, request),
     );
   }
 
@@ -392,19 +373,37 @@ export class MapApiController {
   async refreshTrackInstagramMeta(
     @Param('id', ParseIntPipe) id: number,
     @Query('force') force: string | undefined,
-    @Headers('x-map-api-key') apiKey: string | undefined,
+    @Req() request: Request,
   ) {
     return this.refreshInstagramMeta(
       'track',
       id,
-      this.parseForce(force, apiKey),
+      this.parseForce(force, request),
     );
   }
 
-  private parseForce(force: string | undefined, apiKey: string | undefined) {
+  private parseForce(force: string | undefined, request: Request) {
     if (!force) return false;
-    this.assertApiKey(apiKey);
+    if (!this.canEdit(request)) {
+      throw new UnauthorizedException('Sign in or provide a valid API key');
+    }
     return true;
+  }
+
+  // Editor check for endpoints that are public without editor privileges:
+  // Google session or the machine API key.
+  private canEdit(request: Request): boolean {
+    if (this.authService.getSessionFromRequest(request)) return true;
+    const received = request.headers['x-map-api-key'];
+    const expected =
+      this.configService.get<string>('MAP_API_KEY') ||
+      this.configService.get<string>('NOTE_API_KEY');
+    return Boolean(
+      typeof received === 'string' &&
+        received &&
+        expected &&
+        this.isSameSecret(received, expected),
+    );
   }
 
   private async refreshInstagramMeta(
@@ -527,9 +526,9 @@ export class MapApiController {
     this.reelsService.ensureInBackground(instagramUrl, 'map', retryErrors);
   }
 
+  @UseGuards(EditAccessGuard)
   @Post('key-check')
-  checkKey(@Headers('x-map-api-key') apiKey: string | undefined) {
-    this.assertApiKey(apiKey);
+  checkKey() {
     return { ok: true };
   }
 
@@ -638,19 +637,6 @@ export class MapApiController {
     }
 
     return { latitude, longitude };
-  }
-
-  private assertApiKey(receivedKey?: string): void {
-    const expectedKey =
-      this.configService.get<string>('MAP_API_KEY') ||
-      this.configService.get<string>('NOTE_API_KEY');
-    if (!expectedKey) {
-      throw new InternalServerErrorException('MAP_API_KEY is not configured');
-    }
-
-    if (!receivedKey || !this.isSameSecret(receivedKey, expectedKey)) {
-      throw new UnauthorizedException('Invalid API key');
-    }
   }
 
   private isSameSecret(receivedKey: string, expectedKey: string): boolean {

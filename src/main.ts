@@ -51,9 +51,14 @@ async function bootstrap() {
     const placesPage = path.join(process.cwd(), 'web', 'places');
     app.useStaticAssets(placesPage, { prefix: '/places' });
     // Assets only (app.js/styles.css); the page itself is served by
-    // ReelsPagesController after checking the secret in the URL
+    // ReelsPagesController behind Google sign-in (redirect: false keeps
+    // serve-static from 301-ing /reels to /reels/ past the controller)
     const reelsPage = path.join(process.cwd(), 'web', 'reels');
-    app.useStaticAssets(reelsPage, { prefix: '/reels', index: false });
+    app.useStaticAssets(reelsPage, {
+      prefix: '/reels',
+      index: false,
+      redirect: false,
+    });
     const subsPage = path.join(process.cwd(), 'web', 'subs');
     const fontPage = path.join(subsPage, 'font');
     const archivePage = path.join(subsPage, 'archive');
@@ -128,9 +133,14 @@ async function bootstrap() {
     const placesPage = path.join(process.cwd(), 'web', 'places');
     app.useStaticAssets(placesPage, { prefix: '/places' });
     // Assets only (app.js/styles.css); the page itself is served by
-    // ReelsPagesController after checking the secret in the URL
+    // ReelsPagesController behind Google sign-in (redirect: false keeps
+    // serve-static from 301-ing /reels to /reels/ past the controller)
     const reelsPage = path.join(process.cwd(), 'web', 'reels');
-    app.useStaticAssets(reelsPage, { prefix: '/reels', index: false });
+    app.useStaticAssets(reelsPage, {
+      prefix: '/reels',
+      index: false,
+      redirect: false,
+    });
     const subsPage = path.join(process.cwd(), 'web', 'subs');
     const fontPage = path.join(subsPage, 'font');
     const archivePage = path.join(subsPage, 'archive');
