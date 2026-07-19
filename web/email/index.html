@@ -10,9 +10,9 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/shared/site-theme.css?v=20260718-1" />
   <link rel="stylesheet" href="/shared/site-header.css?v=20260718-1" />
-  <link rel="stylesheet" href="/email/styles.css?v=20260719-1" />
+  <link rel="stylesheet" href="/email/styles.css?v=20260719-2" />
   <script src="/shared/site-header.js?v=20260718-1" defer></script>
-  <script src="/email/app.js?v=20260719-1" defer></script>
+  <script src="/email/app.js?v=20260719-2" defer></script>
 </head>
 <body>
   <header data-site-header data-active="" data-lang-none data-lang-ru="/email" data-lang-en="/email"></header>
@@ -24,11 +24,22 @@
         <h1 class="page-title">Что происходит с почтой</h1>
       </div>
       <div class="email-actions">
+        <button id="rules-toggle" class="ghost-btn">⚙️ Правила</button>
         <button id="sync-button" class="primary-btn">Синхронизировать</button>
       </div>
     </section>
 
     <section id="stats-row" class="stats-row" aria-label="Аккаунты"></section>
+
+    <section id="rules-panel" class="editor-card rules-panel hidden" aria-label="Правила">
+      <div class="rules-head">
+        <h2 class="rules-title">Правила обработки</h2>
+        <button id="rule-add" class="primary-btn">＋ Правило</button>
+      </div>
+      <form id="rule-form" class="rule-form hidden"></form>
+      <div id="rules-list" class="rules-list"></div>
+      <p id="rules-empty" class="muted hidden">Правил пока нет</p>
+    </section>
 
     <section class="email-columns">
       <div class="editor-card list-card">
@@ -52,6 +63,7 @@
         <article id="detail" class="hidden">
           <h2 id="detail-subject" class="detail-subject"></h2>
           <div id="detail-actions" class="detail-actions-bar"></div>
+          <div id="detail-apply-rule" class="detail-apply-rule"></div>
           <dl id="detail-meta" class="detail-meta"></dl>
           <div id="detail-labels" class="detail-labels"></div>
           <div id="detail-attachments" class="detail-attachments"></div>

@@ -353,6 +353,7 @@
     toolbar.replaceChildren(
       ...ACTIONS.map((def) => actionButton(message, def)),
     );
+    renderApplyRule();
 
     const meta = el('detail-meta');
     const rows = [
@@ -561,7 +562,223 @@
     }
   }
 
+  // --- Rules catalog ---
+
+  const EFFECT_LABELS = {
+    markRead: '✓ прочитано',
+    archive: '📥 архив',
+    hide: '🙈 скрыть',
+  };
+
+  function effectChips(effects) {
+    const chips = [];
+    for (const key of ['markRead', 'archive', 'hide']) {
+      if (effects[key]) chips.push(EFFECT_LABELS[key]);
+    }
+    if (effects.label) chips.push(`🏷 ${effects.label}`);
+    return chips;
+  }
+
+  async function loadRules() {
+    const data = await fetchJson(`${API_BASE}/rules`);
+    state.rules = data.rules;
+    renderRules();
+  }
+
+  function renderRules() {
+    const list = el('rules-list');
+    el('rules-empty').classList.toggle('hidden', state.rules.length > 0);
+    list.replaceChildren(
+      ...state.rules.map((rule) => {
+        const row = document.createElement('div');
+        row.className = 'rule-row';
+        if (!rule.enabled) row.classList.add('disabled');
+
+        const main = document.createElement('div');
+        main.className = 'rule-main';
+        const name = document.createElement('div');
+        name.className = 'rule-name';
+        name.textContent = rule.name;
+        const cond = document.createElement('div');
+        cond.className = 'rule-condition muted';
+        cond.textContent = rule.condition;
+        const chips = document.createElement('div');
+        chips.className = 'rule-chips';
+        chips.replaceChildren(
+          ...effectChips(rule.effects).map((text) => {
+            const chip = document.createElement('span');
+            chip.className = 'meta-chip';
+            chip.textContent = text;
+            return chip;
+          }),
+        );
+        main.append(name, cond, chips);
+
+        const controls = document.createElement('div');
+        controls.className = 'rule-controls';
+
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'icon-btn';
+        toggle.textContent = rule.enabled ? '⏸' : '▶';
+        toggle.title = rule.enabled ? 'Выключить' : 'Включить';
+        toggle.addEventListener('click', () => toggleRule(rule));
+
+        const edit = document.createElement('button');
+        edit.type = 'button';
+        edit.className = 'icon-btn';
+        edit.textContent = '✏️';
+        edit.title = 'Редактировать';
+        edit.addEventListener('click', () => openRuleForm(rule));
+
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'icon-btn';
+        del.textContent = '🗑';
+        del.title = 'Удалить';
+        del.addEventListener('click', () => deleteRule(rule));
+
+        controls.append(toggle, edit, del);
+        row.append(main, controls);
+        return row;
+      }),
+    );
+  }
+
+  function openRuleForm(rule) {
+    const form = el('rule-form');
+    const editing = Boolean(rule);
+    const e = rule?.effects || {};
+    form.innerHTML = `
+      <input name="name" type="text" placeholder="Название правила" required />
+      <textarea name="condition" rows="2" placeholder="Условие: какие письма, своими словами"></textarea>
+      <div class="rule-effects">
+        <label><input type="checkbox" name="markRead" /> ✓ прочитано</label>
+        <label><input type="checkbox" name="archive" /> 📥 архив</label>
+        <label><input type="checkbox" name="hide" /> 🙈 скрыть</label>
+        <input name="label" type="text" placeholder="🏷 ярлык (необязательно)" />
+        <input name="priority" type="number" title="Приоритет" value="0" />
+      </div>
+      <div class="rule-form-actions">
+        <button type="button" class="ghost-btn" data-cancel>Отмена</button>
+        <button type="submit" class="primary-btn">${editing ? 'Сохранить' : 'Создать'}</button>
+      </div>`;
+    form.name.value = rule?.name || '';
+    form.condition.value = rule?.condition || '';
+    form.markRead.checked = Boolean(e.markRead);
+    form.archive.checked = Boolean(e.archive);
+    form.hide.checked = Boolean(e.hide);
+    form.label.value = e.label || '';
+    form.priority.value = String(rule?.priority ?? 0);
+    form.dataset.ruleId = editing ? String(rule.id) : '';
+    form.classList.remove('hidden');
+    form.querySelector('[data-cancel]').addEventListener('click', () => {
+      form.classList.add('hidden');
+    });
+    form.name.focus();
+  }
+
+  async function saveRule(event) {
+    event.preventDefault();
+    const form = el('rule-form');
+    const payload = {
+      name: form.name.value.trim(),
+      condition: form.condition.value.trim(),
+      effects: {
+        markRead: form.markRead.checked,
+        archive: form.archive.checked,
+        hide: form.hide.checked,
+        label: form.label.value.trim() || undefined,
+      },
+      priority: Number(form.priority.value) || 0,
+    };
+    if (!payload.name || !payload.condition) {
+      alert('Нужны название и условие');
+      return;
+    }
+    const id = form.dataset.ruleId;
+    const url = id ? `${API_BASE}/rules/${id}` : `${API_BASE}/rules`;
+    try {
+      await fetchJson(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      form.classList.add('hidden');
+      await loadRules();
+    } catch (error) {
+      console.error(error);
+      alert('Не удалось сохранить правило');
+    }
+  }
+
+  async function toggleRule(rule) {
+    await fetchJson(`${API_BASE}/rules/${rule.id}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ enabled: !rule.enabled }),
+    });
+    await loadRules();
+    if (state.detail) renderDetail();
+  }
+
+  async function deleteRule(rule) {
+    if (!confirm(`Удалить правило «${rule.name}»?`)) return;
+    await fetchJson(`${API_BASE}/rules/${rule.id}`, { method: 'DELETE' });
+    await loadRules();
+    if (state.detail) renderDetail();
+  }
+
+  // Detail-pane control to apply a rule's effects to the open message by hand
+  function renderApplyRule() {
+    const container = el('detail-apply-rule');
+    const enabled = state.rules.filter((rule) => rule.enabled);
+    if (!state.detail || enabled.length === 0) {
+      container.replaceChildren();
+      return;
+    }
+    const select = document.createElement('select');
+    select.append(new Option('Применить правило…', ''));
+    for (const rule of enabled) {
+      select.append(new Option(rule.name, String(rule.id)));
+    }
+    const apply = document.createElement('button');
+    apply.type = 'button';
+    apply.className = 'mini-btn';
+    apply.textContent = 'Применить';
+    apply.addEventListener('click', async () => {
+      const ruleId = Number(select.value);
+      if (!ruleId) return;
+      try {
+        const res = await fetchJson(
+          `${API_BASE}/messages/${state.detail.id}/apply-rule`,
+          {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ ruleId }),
+          },
+        );
+        patchLocal(state.detail.id, {
+          seen: res.seen,
+          archived: res.archived,
+          hidden: res.hidden,
+          labels: res.labels,
+        });
+      } catch (error) {
+        console.error(error);
+        alert('Не удалось применить правило');
+      }
+    });
+    container.replaceChildren(select, apply);
+  }
+
   // --- Wiring ---
+
+  el('rules-toggle').addEventListener('click', () => {
+    el('rules-panel').classList.toggle('hidden');
+  });
+  el('rule-add').addEventListener('click', () => openRuleForm(null));
+  el('rule-form').addEventListener('submit', (event) => void saveRule(event));
 
   el('filter-query').addEventListener('input', (event) => {
     state.filters.query = event.target.value;
@@ -582,7 +799,12 @@
     state.labels = data.labels;
   }
 
-  Promise.all([loadStats(), loadMessages(), loadLabels()]).catch((error) => {
+  Promise.all([
+    loadStats(),
+    loadMessages(),
+    loadLabels(),
+    loadRules(),
+  ]).catch((error) => {
     console.error(error);
     el('list-empty').textContent = 'Не удалось загрузить данные';
     el('list-empty').classList.remove('hidden');

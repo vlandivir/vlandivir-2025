@@ -24,6 +24,15 @@ export type EmailAction =
 
 const GMAIL_INBOX = '\\Inbox';
 
+// Structured effects a rule can carry. Chosen explicitly by the owner, not
+// inferred — the executor only ever runs this whitelisted set.
+export type EmailRuleEffects = {
+  markRead?: boolean;
+  archive?: boolean;
+  hide?: boolean;
+  label?: string;
+};
+
 @Injectable()
 export class EmailExecutorService {
   private readonly logger = new Logger(EmailExecutorService.name);
@@ -180,6 +189,27 @@ export class EmailExecutorService {
       );
       throw error;
     }
+  }
+
+  // Runs a rule's effects on a message as a sequence of whitelisted actions.
+  // `archive` already marks read, so mark_read is only issued on its own.
+  async applyEffects(
+    messageId: number,
+    effects: EmailRuleEffects,
+    ruleId?: number,
+  ) {
+    if (effects.archive) {
+      await this.apply(messageId, 'archive', undefined, 'rule', ruleId);
+    } else if (effects.markRead) {
+      await this.apply(messageId, 'mark_read', undefined, 'rule', ruleId);
+    }
+    if (effects.hide) {
+      await this.apply(messageId, 'hide', undefined, 'rule', ruleId);
+    }
+    if (effects.label?.trim()) {
+      await this.apply(messageId, 'label', effects.label, 'rule', ruleId);
+    }
+    return this.prisma.emailMessage.findUnique({ where: { id: messageId } });
   }
 
   private async imap<T>(
