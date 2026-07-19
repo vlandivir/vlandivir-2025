@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   NotFoundException,
   Param,
@@ -16,7 +17,17 @@ import { EmailIngestService } from './services/email-ingest.service';
 import {
   EmailAction,
   EmailExecutorService,
+  EmailRuleEffects,
 } from './services/email-executor.service';
+
+type RuleBody = {
+  name?: string;
+  condition?: string;
+  effects?: EmailRuleEffects;
+  accounts?: string[];
+  enabled?: boolean;
+  priority?: number;
+};
 
 const LIST_LIMIT = 500;
 
@@ -203,6 +214,112 @@ export class EmailApiController {
     });
     if (!message) throw new NotFoundException('Message not found');
     return message;
+  }
+
+  // --- Rules catalog ---
+
+  @Get('rules')
+  async rules() {
+    const rules = await this.prisma.emailRule.findMany({
+      orderBy: [{ priority: 'desc' }, { id: 'asc' }],
+    });
+    return { rules };
+  }
+
+  @Post('rules')
+  async createRule(@Body() body: RuleBody) {
+    const name = body.name?.trim();
+    const condition = body.condition?.trim();
+    if (!name || !condition) {
+      throw new BadRequestException('name and condition are required');
+    }
+    const rule = await this.prisma.emailRule.create({
+      data: {
+        name,
+        condition,
+        effects: this.normalizeEffects(body.effects),
+        accounts: Array.isArray(body.accounts) ? body.accounts : [],
+        enabled: body.enabled ?? true,
+        priority: Number.isInteger(body.priority) ? body.priority! : 0,
+      },
+    });
+    return rule;
+  }
+
+  @Post('rules/:id')
+  async updateRule(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: RuleBody,
+  ) {
+    const existing = await this.prisma.emailRule.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Rule not found');
+
+    const data: Record<string, unknown> = {};
+    if (body.name !== undefined) data.name = body.name.trim();
+    if (body.condition !== undefined) data.condition = body.condition.trim();
+    if (body.effects !== undefined) {
+      data.effects = this.normalizeEffects(body.effects);
+    }
+    if (body.accounts !== undefined) {
+      data.accounts = Array.isArray(body.accounts) ? body.accounts : [];
+    }
+    if (body.enabled !== undefined) data.enabled = body.enabled;
+    if (body.priority !== undefined) data.priority = body.priority;
+
+    return this.prisma.emailRule.update({ where: { id }, data });
+  }
+
+  @Delete('rules/:id')
+  async deleteRule(@Param('id', ParseIntPipe) id: number) {
+    await this.prisma.emailRule.delete({ where: { id } }).catch(() => {
+      throw new NotFoundException('Rule not found');
+    });
+    return { deleted: true };
+  }
+
+  // Apply a rule's effects to a message by hand (bridge before the LLM
+  // classifier drives this automatically).
+  @Post('messages/:id/apply-rule')
+  async applyRule(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { ruleId?: number },
+  ) {
+    if (!Number.isInteger(body.ruleId)) {
+      throw new BadRequestException('ruleId is required');
+    }
+    const rule = await this.prisma.emailRule.findUnique({
+      where: { id: body.ruleId },
+    });
+    if (!rule) throw new NotFoundException('Rule not found');
+
+    const updated = await this.emailExecutorService.applyEffects(
+      id,
+      rule.effects as EmailRuleEffects,
+      rule.id,
+    );
+    await this.prisma.emailRule.update({
+      where: { id: rule.id },
+      data: { matchCount: { increment: 1 }, lastMatchedAt: new Date() },
+    });
+    return {
+      id: updated?.id,
+      seen: updated?.seen,
+      archived: updated?.archived,
+      hidden: updated?.hidden,
+      labels: updated?.labels,
+    };
+  }
+
+  private normalizeEffects(effects?: EmailRuleEffects): EmailRuleEffects {
+    if (!effects || typeof effects !== 'object') return {};
+    const normalized: EmailRuleEffects = {};
+    if (effects.markRead) normalized.markRead = true;
+    if (effects.archive) normalized.archive = true;
+    if (effects.hide) normalized.hide = true;
+    if (typeof effects.label === 'string' && effects.label.trim()) {
+      normalized.label = effects.label.trim();
+    }
+    return normalized;
   }
 
   // Manual sync round for all configured accounts; the poller keeps running
