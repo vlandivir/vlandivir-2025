@@ -85,22 +85,32 @@ export class EmailExecutorService {
           const archived = action === 'archive';
           prevState.archived = message.archived;
           prevState.labels = message.labels;
-          // Archiving in Gmail = removing the \Inbox label
-          await this.imap(message.account, (client) =>
-            archived
-              ? client.messageFlagsRemove(String(message.uid), [GMAIL_INBOX], {
-                  uid: true,
-                  useLabels: true,
-                })
-              : client.messageFlagsAdd(String(message.uid), [GMAIL_INBOX], {
-                  uid: true,
-                  useLabels: true,
-                }),
-          );
+          // Archiving in Gmail = removing the \Inbox label. Archiving also
+          // marks the message read (an archived message shouldn't stay unread).
+          const alsoMarkRead = archived && !message.seen;
+          if (alsoMarkRead) prevState.seen = message.seen;
+          await this.imap(message.account, async (client) => {
+            const uid = String(message.uid);
+            if (archived) {
+              await client.messageFlagsRemove(uid, [GMAIL_INBOX], {
+                uid: true,
+                useLabels: true,
+              });
+              if (alsoMarkRead) {
+                await client.messageFlagsAdd(uid, ['\\Seen'], { uid: true });
+              }
+            } else {
+              await client.messageFlagsAdd(uid, [GMAIL_INBOX], {
+                uid: true,
+                useLabels: true,
+              });
+            }
+          });
           data.archived = archived;
           data.labels = archived
             ? message.labels.filter((l) => l !== GMAIL_INBOX)
             : [...new Set([...message.labels, GMAIL_INBOX])];
+          if (alsoMarkRead) data.seen = true;
           break;
         }
         case 'label':
