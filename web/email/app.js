@@ -353,7 +353,8 @@
     toolbar.replaceChildren(
       ...ACTIONS.map((def) => actionButton(message, def)),
     );
-    renderApplyRule();
+    // Reset any previous test result when switching messages
+    el('test-rules-result').textContent = '';
 
     const meta = el('detail-meta');
     const rows = [
@@ -596,11 +597,9 @@
 
         const main = document.createElement('div');
         main.className = 'rule-main';
-        const name = document.createElement('div');
-        name.className = 'rule-name';
-        name.textContent = rule.name;
+        // The condition text is the rule's identity (no separate name)
         const cond = document.createElement('div');
-        cond.className = 'rule-condition muted';
+        cond.className = 'rule-name';
         cond.textContent = rule.condition;
         const chips = document.createElement('div');
         chips.className = 'rule-chips';
@@ -612,7 +611,7 @@
             return chip;
           }),
         );
-        main.append(name, cond, chips);
+        main.append(cond, chips);
 
         const controls = document.createElement('div');
         controls.className = 'rule-controls';
@@ -650,8 +649,7 @@
     const editing = Boolean(rule);
     const e = rule?.effects || {};
     form.innerHTML = `
-      <input name="name" type="text" placeholder="Название правила" required />
-      <textarea name="condition" rows="2" placeholder="Условие: какие письма, своими словами"></textarea>
+      <textarea name="condition" rows="2" placeholder="Опишите правило своими словами: какие письма и что с ними делать"></textarea>
       <div class="rule-effects">
         <label><input type="checkbox" name="markRead" /> ✓ прочитано</label>
         <label><input type="checkbox" name="archive" /> 📥 архив</label>
@@ -663,7 +661,6 @@
         <button type="button" class="ghost-btn" data-cancel>Отмена</button>
         <button type="submit" class="primary-btn">${editing ? 'Сохранить' : 'Создать'}</button>
       </div>`;
-    form.name.value = rule?.name || '';
     form.condition.value = rule?.condition || '';
     form.markRead.checked = Boolean(e.markRead);
     form.archive.checked = Boolean(e.archive);
@@ -682,7 +679,6 @@
     event.preventDefault();
     const form = el('rule-form');
     const payload = {
-      name: form.name.value.trim(),
       condition: form.condition.value.trim(),
       effects: {
         markRead: form.markRead.checked,
@@ -692,8 +688,8 @@
       },
       priority: Number(form.priority.value) || 0,
     };
-    if (!payload.name || !payload.condition) {
-      alert('Нужны название и условие');
+    if (!payload.condition) {
+      alert('Опишите правило');
       return;
     }
     const id = form.dataset.ruleId;
@@ -723,53 +719,82 @@
   }
 
   async function deleteRule(rule) {
-    if (!confirm(`Удалить правило «${rule.name}»?`)) return;
+    if (!confirm(`Удалить правило «${rule.condition}»?`)) return;
     await fetchJson(`${API_BASE}/rules/${rule.id}`, { method: 'DELETE' });
     await loadRules();
     if (state.detail) renderDetail();
   }
 
-  // Detail-pane control to apply a rule's effects to the open message by hand
-  function renderApplyRule() {
-    const container = el('detail-apply-rule');
-    const enabled = state.rules.filter((rule) => rule.enabled);
-    if (!state.detail || enabled.length === 0) {
-      container.replaceChildren();
-      return;
-    }
-    const select = document.createElement('select');
-    select.append(new Option('Применить правило…', ''));
-    for (const rule of enabled) {
-      select.append(new Option(rule.name, String(rule.id)));
-    }
-    const apply = document.createElement('button');
-    apply.type = 'button';
-    apply.className = 'mini-btn';
-    apply.textContent = 'Применить';
-    apply.addEventListener('click', async () => {
-      const ruleId = Number(select.value);
-      if (!ruleId) return;
-      try {
-        const res = await fetchJson(
-          `${API_BASE}/messages/${state.detail.id}/apply-rule`,
-          {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ ruleId }),
-          },
-        );
-        patchLocal(state.detail.id, {
-          seen: res.seen,
-          archived: res.archived,
-          hidden: res.hidden,
-          labels: res.labels,
-        });
-      } catch (error) {
-        console.error(error);
-        alert('Не удалось применить правило');
+  // Detail-pane: run the classifier against the open message (dry-run) and
+  // report which rule would match, without applying anything.
+  async function testRules() {
+    if (!state.detail) return;
+    const result = el('test-rules-result');
+    result.textContent = 'Проверяю…';
+    result.className = 'test-rules-result muted';
+    try {
+      const data = await fetchJson(
+        `${API_BASE}/messages/${state.detail.id}/test-rules`,
+        { method: 'POST' },
+      );
+      if (data.rulesTested === 0) {
+        result.textContent = 'Нет активных правил';
+        return;
       }
-    });
-    container.replaceChildren(select, apply);
+      if (data.matchedRuleId) {
+        const pct = Math.round((data.confidence || 0) * 100);
+        result.className = 'test-rules-result matched';
+        result.textContent = `✓ «${data.matchedRuleCondition}» (${pct}%) — ${data.reasoning}`;
+      } else {
+        result.className = 'test-rules-result';
+        result.textContent = `Ни одно правило не подошло${data.reasoning ? ` — ${data.reasoning}` : ''}`;
+      }
+    } catch (error) {
+      console.error(error);
+      result.className = 'test-rules-result';
+      result.textContent = 'Ошибка проверки';
+    }
+  }
+
+  // --- Journal ---
+
+  async function loadLog() {
+    const data = await fetchJson(`${API_BASE}/log`);
+    const list = el('log-list');
+    el('log-empty').classList.toggle('hidden', data.entries.length > 0);
+    list.replaceChildren(
+      ...data.entries.map((entry) => {
+        const row = document.createElement('div');
+        row.className = 'log-row';
+        if (entry.result !== 'ok') row.classList.add('log-error');
+
+        const when = document.createElement('span');
+        when.className = 'log-when muted';
+        when.textContent = formatDate(entry.createdAt);
+
+        const action = document.createElement('span');
+        action.className = 'log-action';
+        action.textContent =
+          entry.action + (entry.param ? ` ${entry.param}` : '');
+
+        const src = document.createElement('span');
+        src.className = 'meta-chip';
+        src.textContent = entry.source === 'rule' ? '⚙️ правило' : '👆 вручную';
+
+        const subj = document.createElement('span');
+        subj.className = 'log-subject muted';
+        subj.textContent = entry.message?.subject || '(без темы)';
+
+        row.append(when, action, src, subj);
+        if (entry.result !== 'ok') {
+          const err = document.createElement('span');
+          err.className = 'log-err';
+          err.textContent = entry.error || 'ошибка';
+          row.append(err);
+        }
+        return row;
+      }),
+    );
   }
 
   // --- Wiring ---
@@ -777,6 +802,12 @@
   el('rules-toggle').addEventListener('click', () => {
     el('rules-panel').classList.toggle('hidden');
   });
+  el('log-toggle').addEventListener('click', () => {
+    const panel = el('log-panel');
+    panel.classList.toggle('hidden');
+    if (!panel.classList.contains('hidden')) void loadLog();
+  });
+  el('test-rules-btn').addEventListener('click', () => void testRules());
   el('rule-add').addEventListener('click', () => openRuleForm(null));
   el('rule-form').addEventListener('submit', (event) => void saveRule(event));
 

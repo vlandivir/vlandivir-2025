@@ -177,27 +177,64 @@
   gap: 2px;
 }
 
-.detail-apply-rule {
+.detail-test-rules {
   display: flex;
-  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-bottom: var(--v-space-2);
 }
 
-.detail-apply-rule:empty {
-  display: none;
+.test-rules-result {
+  font-size: 13px;
 }
 
-.detail-apply-rule select {
-  flex: 1;
-  min-width: 0;
-  min-height: 34px;
-  padding: 0 8px;
-  border: 1px solid hsl(var(--shadcn-input));
-  border-radius: var(--radius);
-  background: hsl(var(--background));
-  color: var(--v-text);
-  font-family: inherit;
+.test-rules-result.matched {
+  color: hsl(var(--primary));
+}
+
+/* Journal */
+.log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.log-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 8px;
+  border-top: 1px solid hsl(var(--shadcn-border));
   font-size: 13px;
+}
+
+.log-when {
+  flex: none;
+  width: 100px;
+  font-size: 12px;
+}
+
+.log-action {
+  flex: none;
+  font-weight: 600;
+}
+
+.log-subject {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.log-row.log-error .log-action {
+  color: hsl(var(--destructive));
+}
+
+.log-err {
+  color: hsl(var(--destructive));
+  font-size: 12px;
 }
 
 /* --- Two columns: list + detail --- */
