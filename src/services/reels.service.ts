@@ -52,6 +52,24 @@ export class ReelsService {
     return match ? match[1] : null;
   }
 
+  // My own Instagram handle(s), for auto-flagging reels I authored as `isOwn`.
+  // Configurable via REELS_OWN_USERNAMES (comma-separated), defaults to the one
+  // account this notebook belongs to.
+  private ownUsernames(): string[] {
+    const raw =
+      this.configService.get<string>('REELS_OWN_USERNAMES') || 'vlandivir';
+    return raw
+      .split(',')
+      .map((name) => name.trim().replace(/^@/, '').toLowerCase())
+      .filter(Boolean);
+  }
+
+  isOwnAuthor(author: string | null | undefined): boolean {
+    if (!author) return false;
+    const normalized = author.trim().replace(/^@/, '').toLowerCase();
+    return this.ownUsernames().includes(normalized);
+  }
+
   // Fire-and-forget entry point for reels referenced outside the notebook
   // (e.g. map features): make sure a shared Reel record exists and kick off
   // meta/video processing without delaying the caller's request.
@@ -160,6 +178,9 @@ export class ReelsService {
         (await this.persistCover(reel.shortcode, info.thumbnail)) ||
         (await this.persistCoverFromVideo(reel.shortcode, videoPath, tempDir));
 
+      // For Instagram yt-dlp puts the username in `channel` and the
+      // display name in `uploader`
+      const author = info.channel || info.uploader || null;
       await this.prisma.reel.update({
         where: { id: reelId },
         data: {
@@ -167,14 +188,16 @@ export class ReelsService {
           error: null,
           title: info.title || null,
           description: info.description || null,
-          // For Instagram yt-dlp puts the username in `channel` and the
-          // display name in `uploader`
-          author: info.channel || info.uploader || null,
+          author,
           publishedAt: this.parsePublishedAt(info),
           duration: typeof info.duration === 'number' ? info.duration : null,
           videoUrl,
           coverUrl,
           meta: this.trimInfo(info) as Prisma.InputJsonValue,
+          // Reels I authored are "mine" no matter how the link arrived (Telegram,
+          // map, manual). Only ever set the flag on — never clear a flag set by
+          // the import or by hand for a reel whose author yt-dlp couldn't read.
+          ...(this.isOwnAuthor(author) ? { isOwn: true } : {}),
         },
       });
 

@@ -81,3 +81,36 @@ describe('ReelsService.processInBackground', () => {
     await flushPromises();
   });
 });
+
+describe('ReelsService.isOwnAuthor', () => {
+  const build = async (configured?: string) => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        ReelsService,
+        { provide: PrismaService, useValue: { reel: {} } },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn().mockReturnValue(configured) },
+        },
+        { provide: StorageService, useValue: {} },
+        { provide: EmbeddingsService, useValue: {} },
+      ],
+    }).compile();
+    return module.get<ReelsService>(ReelsService);
+  };
+
+  it('matches the default handle case-insensitively, ignoring @', async () => {
+    const service = await build(undefined);
+    expect(service.isOwnAuthor('vlandivir')).toBe(true);
+    expect(service.isOwnAuthor('@Vlandivir')).toBe(true);
+    expect(service.isOwnAuthor('someone_else')).toBe(false);
+    expect(service.isOwnAuthor(null)).toBe(false);
+  });
+
+  it('honours a configured comma-separated list', async () => {
+    const service = await build('alpha, @Beta ');
+    expect(service.isOwnAuthor('alpha')).toBe(true);
+    expect(service.isOwnAuthor('beta')).toBe(true);
+    expect(service.isOwnAuthor('vlandivir')).toBe(false);
+  });
+});

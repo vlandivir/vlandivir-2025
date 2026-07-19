@@ -27,6 +27,7 @@
     "telegram-app:build": "npm run build --prefix telegram-app",
     "telegram-app:preview": "npm run preview --prefix telegram-app",
     "email-ingest": "ts-node src/scripts/email-ingest-once.ts",
+    "import-own-reels": "ts-node src/scripts/import-own-reels.ts",
     "generate-history-pdf": "ts-node src/scripts/generate-history-pdf.ts",
     "generate-history-pdf:html": "ts-node src/scripts/generate-history-html.ts",
     "generate-history-md": "ts-node src/scripts/generate-history-md.ts"

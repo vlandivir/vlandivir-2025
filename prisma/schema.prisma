@@ -168,7 +168,8 @@ model Reel {
   id                Int       @id @default(autoincrement())
   instagramUrl      String
   shortcode         String    @unique
-  source            String    @default("notebook") // notebook | map
+  source            String    @default("notebook") // notebook | map | own
+  isOwn             Boolean   @default(false) // authored by me; hideable on the reels page
   status            String    @default("pending") // pending | ready | error
   error             String?   @db.Text
   title             String?

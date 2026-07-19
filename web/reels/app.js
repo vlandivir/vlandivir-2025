@@ -13,7 +13,7 @@
     tags: [], // [{id, name, emoji}] — dictionary shared with the map
     selected: null, // reel object
     editMode: false,
-    filters: { author: '', status: '', tag: '', query: '' },
+    filters: { author: '', status: '', tag: '', query: '', own: '' },
     semantic: null, // Map<reelId, similarity> for the current query, or null
     listLimit: LIST_PAGE_SIZE,
     pollTimer: null,
@@ -630,6 +630,8 @@
     if (state.filters.tag && !(reel.tags || []).includes(state.filters.tag)) {
       return false;
     }
+    if (state.filters.own === 'others' && reel.isOwn) return false;
+    if (state.filters.own === 'own' && !reel.isOwn) return false;
     if (state.filters.query) {
       const haystack = [
         reel.title,
@@ -902,6 +904,12 @@
 
   el('filter-status').addEventListener('change', (event) => {
     state.filters.status = event.target.value;
+    state.listLimit = LIST_PAGE_SIZE;
+    renderList();
+  });
+
+  el('filter-own').addEventListener('change', (event) => {
+    state.filters.own = event.target.value;
     state.listLimit = LIST_PAGE_SIZE;
     renderList();
   });
