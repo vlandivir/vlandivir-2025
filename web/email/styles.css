@@ -124,7 +124,7 @@
 
 .message-row-top {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
 }
@@ -150,19 +150,11 @@
   color: var(--v-muted);
 }
 
-/* Quick actions: hidden until the row is hovered, sit where the date is */
+/* Quick actions: always visible (reachable on touch), sit after the date */
 .row-actions {
   flex: none;
-  display: none;
-  gap: 2px;
-}
-
-.message-list li:hover .row-actions {
   display: inline-flex;
-}
-
-.message-list li:hover .message-date {
-  display: none;
+  gap: 2px;
 }
 
 .action-btn {
@@ -317,6 +309,11 @@
   overflow-wrap: anywhere;
   max-height: 45vh;
   overflow-y: auto;
+}
+
+.detail-body a {
+  color: hsl(var(--primary));
+  text-decoration: underline;
 }
 
 .detail-thread h3 {

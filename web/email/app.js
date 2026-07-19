@@ -237,7 +237,8 @@
       case 'mark_unread':
         return { seen: false };
       case 'archive':
-        return { archived: true };
+        // Archiving also marks read (mirrors the executor)
+        return { archived: true, seen: true };
       case 'unarchive':
         return { archived: false };
       case 'hide':
@@ -406,9 +407,33 @@
       }),
     );
 
-    el('detail-body').textContent = message.bodyText || '(пустое тело письма)';
+    const body = el('detail-body');
+    if (message.bodyText) {
+      body.innerHTML = linkify(message.bodyText);
+    } else {
+      body.textContent = '(пустое тело письма)';
+    }
 
     renderThread(message);
+  }
+
+  function escapeHtml(text) {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // Turn bare URLs in the (untrusted, plain-text) body into links. Escape
+  // first, so the only markup we ever inject is our own anchor tags.
+  function linkify(text) {
+    return escapeHtml(text).replace(/(https?:\/\/[^\s<]+)/g, (match) => {
+      const tail = match.match(/(&(amp|quot|gt|lt);|[.,;:!?)\]]+)$/);
+      const suffix = tail ? tail[0] : '';
+      const href = suffix ? match.slice(0, match.length - suffix.length) : match;
+      return `<a href="${href}" target="_blank" rel="noopener noreferrer">${href}</a>${suffix}`;
+    });
   }
 
   // --- Label picker ---
