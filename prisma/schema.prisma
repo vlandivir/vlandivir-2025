@@ -312,8 +312,7 @@ model EmailAttachment {
 // executor only ever runs a known, whitelisted set.
 model EmailRule {
   id            Int       @id @default(autoincrement())
-  name          String
-  condition     String    @db.Text // NL condition, e.g. "приглашения в календаре"
+  condition     String    @db.Text // NL rule text — also its display title
   effects       Json      @default("{}") // { markRead?, archive?, hide?, label? }
   accounts      String[]  @default([]) // empty = all accounts
   enabled       Boolean   @default(true)

@@ -19,9 +19,9 @@ import {
   EmailExecutorService,
   EmailRuleEffects,
 } from './services/email-executor.service';
+import { EmailClassifierService } from './services/email-classifier.service';
 
 type RuleBody = {
-  name?: string;
   condition?: string;
   effects?: EmailRuleEffects;
   accounts?: string[];
@@ -51,6 +51,7 @@ export class EmailApiController {
     private readonly prisma: PrismaService,
     private readonly emailIngestService: EmailIngestService,
     private readonly emailExecutorService: EmailExecutorService,
+    private readonly emailClassifierService: EmailClassifierService,
   ) {}
 
   // Per-account counters + cursor state for the stats cards
@@ -228,14 +229,12 @@ export class EmailApiController {
 
   @Post('rules')
   async createRule(@Body() body: RuleBody) {
-    const name = body.name?.trim();
     const condition = body.condition?.trim();
-    if (!name || !condition) {
-      throw new BadRequestException('name and condition are required');
+    if (!condition) {
+      throw new BadRequestException('condition is required');
     }
     const rule = await this.prisma.emailRule.create({
       data: {
-        name,
         condition,
         effects: this.normalizeEffects(body.effects),
         accounts: Array.isArray(body.accounts) ? body.accounts : [],
@@ -255,7 +254,6 @@ export class EmailApiController {
     if (!existing) throw new NotFoundException('Rule not found');
 
     const data: Record<string, unknown> = {};
-    if (body.name !== undefined) data.name = body.name.trim();
     if (body.condition !== undefined) data.condition = body.condition.trim();
     if (body.effects !== undefined) {
       data.effects = this.normalizeEffects(body.effects);
@@ -308,6 +306,56 @@ export class EmailApiController {
       hidden: updated?.hidden,
       labels: updated?.labels,
     };
+  }
+
+  // Dry-run: which enabled rule (if any) would match this message. Evaluates
+  // the LLM classifier without applying any effects.
+  @Post('messages/:id/test-rules')
+  async testRules(@Param('id', ParseIntPipe) id: number) {
+    const message = await this.prisma.emailMessage.findUnique({
+      where: { id },
+      select: {
+        fromName: true,
+        fromAddress: true,
+        subject: true,
+        bodyText: true,
+        labels: true,
+      },
+    });
+    if (!message) throw new NotFoundException('Message not found');
+
+    const rules = await this.prisma.emailRule.findMany({
+      where: { enabled: true },
+      orderBy: [{ priority: 'desc' }, { id: 'asc' }],
+      select: { id: true, condition: true, priority: true },
+    });
+
+    const result = await this.emailClassifierService.evaluate(message, rules);
+    const matched = result.matchedRuleId
+      ? rules.find((rule) => rule.id === result.matchedRuleId)
+      : null;
+
+    return {
+      matchedRuleId: result.matchedRuleId,
+      matchedRuleCondition: matched?.condition ?? null,
+      confidence: result.confidence,
+      reasoning: result.reasoning,
+      rulesTested: rules.length,
+    };
+  }
+
+  // Recent action journal (manual + rule), newest first, with the subject
+  @Get('log')
+  async log(@Query('limit') limit: string | undefined) {
+    const take = Math.min(Number(limit) || 100, 200);
+    const entries = await this.prisma.emailActionLog.findMany({
+      take,
+      orderBy: { id: 'desc' },
+      include: {
+        message: { select: { id: true, subject: true, account: true } },
+      },
+    });
+    return { entries };
   }
 
   private normalizeEffects(effects?: EmailRuleEffects): EmailRuleEffects {
