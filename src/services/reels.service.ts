@@ -299,6 +299,57 @@ export class ReelsService {
     return reels.length;
   }
 
+  // Download + process still-pending reels one at a time, sleeping `delayMs`
+  // between each. Deliberately slow: the yt-dlp downloads hit Instagram from the
+  // droplet's datacenter IP, which gets rate-limited (and the account blocked)
+  // if we burst. Fire-and-forget; returns how many reels were queued. Safe to
+  // re-run — reels that already went to ready/error are skipped, and each reel
+  // is re-checked as still pending right before it is processed.
+  async processPendingInBackground(
+    delayMs = 180_000,
+    limit?: number,
+  ): Promise<number> {
+    const reels = await this.prisma.reel.findMany({
+      where: { status: 'pending' },
+      select: { id: true },
+      orderBy: { id: 'asc' },
+      ...(limit ? { take: limit } : {}),
+    });
+
+    void (async () => {
+      for (let i = 0; i < reels.length; i++) {
+        const { id } = reels[i];
+        // It may have been processed by another trigger while we waited
+        const current = await this.prisma.reel.findUnique({
+          where: { id },
+          select: { status: true },
+        });
+        if (current?.status !== 'pending') continue;
+
+        try {
+          await this.process(id);
+        } catch (error) {
+          this.logger.error(
+            `Reel ${id} bulk processing failed: ${String(error)}`,
+          );
+          await this.prisma.reel
+            .update({
+              where: { id },
+              data: { status: 'error', error: this.userMessage(error) },
+            })
+            .catch(() => undefined);
+        }
+
+        if (i < reels.length - 1 && delayMs > 0) {
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+        }
+      }
+      this.logger.log(`Bulk processing finished (${reels.length} reels)`);
+    })();
+
+    return reels.length;
+  }
+
   private async transcribeFromSpaces(reelId: number): Promise<void> {
     const reel = await this.prisma.reel.findUnique({ where: { id: reelId } });
     if (!reel?.videoUrl) return;

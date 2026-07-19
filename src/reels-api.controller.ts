@@ -174,6 +174,29 @@ export class ReelsApiController {
     return { queued };
   }
 
+  // Download + process pending reels slowly (throttled), one at a time.
+  // Query: delayMs (default 180000 ≈ 3 min between reels), limit (optional).
+  @UseGuards(EditAccessGuard)
+  @Post('process-pending')
+  async processPending(
+    @Query('delayMs') delayMs?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const delay = delayMs ? Number(delayMs) : undefined;
+    const take = limit ? Number(limit) : undefined;
+    if (delay !== undefined && (!Number.isFinite(delay) || delay < 0)) {
+      throw new BadRequestException('delayMs must be a non-negative number');
+    }
+    if (take !== undefined && (!Number.isInteger(take) || take < 1)) {
+      throw new BadRequestException('limit must be a positive integer');
+    }
+    const queued = await this.reelsService.processPendingInBackground(
+      delay,
+      take,
+    );
+    return { queued };
+  }
+
   // Force audio extraction + Whisper transcription for an already
   // downloaded reel
   @UseGuards(EditAccessGuard)
