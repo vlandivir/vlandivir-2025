@@ -1,4 +1,6 @@
 import {
+  BadRequestException,
+  Body,
   Controller,
   Get,
   NotFoundException,
@@ -11,8 +13,23 @@ import {
 import { GoogleSessionGuard } from './auth/google-session.guard';
 import { PrismaService } from './prisma/prisma.service';
 import { EmailIngestService } from './services/email-ingest.service';
+import {
+  EmailAction,
+  EmailExecutorService,
+} from './services/email-executor.service';
 
 const LIST_LIMIT = 500;
+
+const ALLOWED_ACTIONS: EmailAction[] = [
+  'mark_read',
+  'mark_unread',
+  'archive',
+  'unarchive',
+  'hide',
+  'unhide',
+  'label',
+  'unlabel',
+];
 
 // Read-only dashboard API for the email pipeline (page: /email). Session
 // only — unlike map/reels there is no machine-key use case here yet.
@@ -22,6 +39,7 @@ export class EmailApiController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly emailIngestService: EmailIngestService,
+    private readonly emailExecutorService: EmailExecutorService,
   ) {}
 
   // Per-account counters + cursor state for the stats cards
@@ -88,11 +106,46 @@ export class EmailApiController {
         snippet: true,
         labels: true,
         seen: true,
+        archived: true,
+        hidden: true,
         hasAttachments: true,
         status: true,
       },
     });
     return { messages };
+  }
+
+  // Distinct Gmail labels seen across messages, for the label picker
+  @Get('labels')
+  async labels() {
+    const rows = await this.prisma.$queryRaw<{ label: string }[]>`
+      SELECT DISTINCT unnest(labels) AS label FROM "EmailMessage" ORDER BY label
+    `;
+    return { labels: rows.map((row) => row.label) };
+  }
+
+  // Apply a reversible action to a message (manual, from the dashboard)
+  @Post('messages/:id/action')
+  async action(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { action?: string; param?: string },
+  ) {
+    const action = body.action as EmailAction;
+    if (!ALLOWED_ACTIONS.includes(action)) {
+      throw new BadRequestException(`Unknown action: ${body.action}`);
+    }
+    const updated = await this.emailExecutorService.apply(
+      id,
+      action,
+      body.param,
+    );
+    return {
+      id: updated.id,
+      seen: updated.seen,
+      archived: updated.archived,
+      hidden: updated.hidden,
+      labels: updated.labels,
+    };
   }
 
   @Get('messages/:id')
@@ -114,6 +167,8 @@ export class EmailApiController {
         bodyText: true,
         labels: true,
         seen: true,
+        archived: true,
+        hidden: true,
         hasAttachments: true,
         sizeBytes: true,
         status: true,

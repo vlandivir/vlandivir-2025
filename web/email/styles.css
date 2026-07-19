@@ -150,6 +150,96 @@
   color: var(--v-muted);
 }
 
+/* Quick actions: hidden until the row is hovered, sit where the date is */
+.row-actions {
+  flex: none;
+  display: none;
+  gap: 2px;
+}
+
+.message-list li:hover .row-actions {
+  display: inline-flex;
+}
+
+.message-list li:hover .message-date {
+  display: none;
+}
+
+.action-btn {
+  min-height: 26px;
+  min-width: 26px;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1;
+  border-radius: calc(var(--radius) - 3px);
+  opacity: 0.55;
+}
+
+.action-btn:hover {
+  opacity: 1;
+  background: hsl(var(--secondary));
+}
+
+.action-btn.active {
+  opacity: 1;
+  background: hsl(var(--primary) / 0.14);
+}
+
+/* Detail action toolbar under the subject */
+.detail-actions-bar {
+  display: flex;
+  gap: 4px;
+  margin-bottom: var(--v-space-2);
+}
+
+.detail-actions-bar .action-btn {
+  min-height: 32px;
+  min-width: 32px;
+  font-size: 15px;
+  opacity: 0.7;
+}
+
+/* Floating label picker */
+.label-picker {
+  position: absolute;
+  z-index: 40;
+  width: 250px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: var(--v-space-2);
+  box-shadow: var(--shadcn-popover-shadow);
+}
+
+.label-option.active {
+  background: hsl(var(--primary) / 0.14);
+}
+
+.label-new {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.label-new input {
+  flex: 1;
+  min-width: 0;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid hsl(var(--shadcn-input));
+  border-radius: var(--radius);
+  background: hsl(var(--background));
+  color: var(--v-text);
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.label-new .primary-btn {
+  min-height: 34px;
+  padding: 0 12px;
+}
+
 .message-from {
   display: flex;
   align-items: center;
