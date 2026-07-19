@@ -15,7 +15,7 @@
  *   ts-node src/scripts/import-own-reels.ts [--file <path>] [--dry-run]
  */
 import { readFileSync } from 'fs';
-import path from 'path';
+import * as path from 'path';
 import { PrismaClient } from '../generated/prisma-client';
 
 interface RawReel {
