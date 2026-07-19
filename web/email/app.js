@@ -4,12 +4,51 @@
   const state = {
     messages: [],
     stats: [],
+    labels: [],
     selectedId: null,
+    detail: null, // full message currently open in the detail pane
     filters: { query: '', account: '', flag: '' },
   };
 
   const el = (id) => document.getElementById(id);
   const messageList = el('message-list');
+
+  // Compact action toolbar buttons: icon, tooltip, and how to resolve the
+  // action from the message's current state (toggles where it makes sense).
+  const ACTIONS = [
+    {
+      key: 'read',
+      icon: '✓',
+      title: (m) => (m.seen ? 'Пометить непрочитанным' : 'Пометить прочитанным'),
+      active: (m) => m.seen,
+      action: (m) => (m.seen ? 'mark_unread' : 'mark_read'),
+      quick: true,
+    },
+    {
+      key: 'archive',
+      icon: '📥',
+      title: (m) => (m.archived ? 'Вернуть во «Входящие»' : 'В архив'),
+      active: (m) => m.archived,
+      action: (m) => (m.archived ? 'unarchive' : 'archive'),
+      quick: true,
+    },
+    {
+      key: 'hide',
+      icon: '🙈',
+      title: (m) => (m.hidden ? 'Показывать' : 'Скрыть из вида'),
+      active: (m) => m.hidden,
+      action: (m) => (m.hidden ? 'unhide' : 'hide'),
+      quick: true,
+    },
+    {
+      key: 'label',
+      icon: '🏷',
+      title: () => 'Ярлык',
+      active: (m) => m.labels.some((l) => l.startsWith('agent/')),
+      action: () => null, // opens the label picker instead
+      quick: false,
+    },
+  ];
 
   const dateFormat = new Intl.DateTimeFormat('ru-RU', {
     day: '2-digit',
@@ -133,19 +172,100 @@
 
   function visibleMessages() {
     const query = state.filters.query.trim().toLowerCase();
+    const flag = state.filters.flag;
     return state.messages.filter((message) => {
       if (state.filters.account && message.account !== state.filters.account) {
         return false;
       }
-      if (state.filters.flag === 'unseen' && message.seen) return false;
-      if (state.filters.flag === 'attachments' && !message.hasAttachments) {
-        return false;
+      // Hidden and archived are out of the default view; dedicated flags show them
+      if (flag === 'hidden') {
+        if (!message.hidden) return false;
+      } else if (flag === 'archived') {
+        if (!message.archived) return false;
+      } else {
+        if (message.hidden || message.archived) return false;
+        if (flag === 'unseen' && message.seen) return false;
+        if (flag === 'attachments' && !message.hasAttachments) return false;
       }
       if (!query) return true;
       return [message.subject, message.fromAddress, message.fromName]
         .filter(Boolean)
         .some((value) => value.toLowerCase().includes(query));
     });
+  }
+
+  // --- Actions ---
+
+  function patchLocal(id, patch) {
+    const message = state.messages.find((m) => m.id === id);
+    if (message) Object.assign(message, patch);
+    if (state.detail && state.detail.id === id) {
+      Object.assign(state.detail, patch);
+    }
+    renderList();
+    if (state.detail && state.detail.id === id) renderDetail();
+  }
+
+  async function applyAction(id, action, param, optimistic) {
+    const current = state.messages.find((m) => m.id === id);
+    const snapshot = current ? { ...current } : null;
+    if (optimistic) patchLocal(id, optimistic);
+    try {
+      const res = await fetchJson(`${API_BASE}/messages/${id}/action`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action, param }),
+      });
+      patchLocal(id, {
+        seen: res.seen,
+        archived: res.archived,
+        hidden: res.hidden,
+        labels: res.labels,
+      });
+    } catch (error) {
+      if (snapshot) patchLocal(id, snapshot);
+      console.error(error);
+      alert('Не удалось применить действие');
+    }
+  }
+
+  // Optimistic patch for the boolean toggles (label waits for the server)
+  function optimisticPatch(message, action) {
+    switch (action) {
+      case 'mark_read':
+        return { seen: true };
+      case 'mark_unread':
+        return { seen: false };
+      case 'archive':
+        return { archived: true };
+      case 'unarchive':
+        return { archived: false };
+      case 'hide':
+        return { hidden: true };
+      case 'unhide':
+        return { hidden: false };
+      default:
+        return null;
+    }
+  }
+
+  function actionButton(message, def, extraClass) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `icon-btn action-btn${extraClass ? ` ${extraClass}` : ''}`;
+    button.classList.toggle('active', def.active(message));
+    button.textContent = def.icon;
+    button.title = def.title(message);
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (def.key === 'label') {
+        openLabelPicker(button, message);
+        return;
+      }
+      const action = def.action(message);
+      applyAction(message.id, action, undefined, optimisticPatch(message, action));
+    });
+    return button;
   }
 
   function renderList() {
@@ -170,7 +290,14 @@
         date.className = 'message-date';
         date.textContent = formatDate(message.date);
 
-        top.append(subject, date);
+        // Quick actions revealed on row hover (the common ones)
+        const rowActions = document.createElement('span');
+        rowActions.className = 'row-actions';
+        for (const def of ACTIONS.filter((a) => a.quick)) {
+          rowActions.append(actionButton(message, def, 'row-action'));
+        }
+
+        top.append(subject, date, rowActions);
 
         const from = document.createElement('div');
         from.className = 'message-from';
@@ -205,13 +332,26 @@
   async function selectMessage(id) {
     state.selectedId = id;
     renderList();
+    state.detail = await fetchJson(`${API_BASE}/messages/${id}`);
+    renderDetail();
+  }
 
-    const message = await fetchJson(`${API_BASE}/messages/${id}`);
+  // Redraws the detail pane from state.detail (called on open and after an
+  // action changes the open message).
+  function renderDetail() {
+    const message = state.detail;
+    if (!message) return;
 
     el('detail-empty').classList.add('hidden');
     el('detail').classList.remove('hidden');
 
     el('detail-subject').textContent = message.subject || '(без темы)';
+
+    // Compact action toolbar
+    const toolbar = el('detail-actions');
+    toolbar.replaceChildren(
+      ...ACTIONS.map((def) => actionButton(message, def)),
+    );
 
     const meta = el('detail-meta');
     const rows = [
@@ -222,7 +362,17 @@
         : []),
       ['Дата', formatDate(message.date)],
       ['Аккаунт', `${message.account} · ${message.mailbox}`],
-      ['Статус', `${message.status}${message.seen ? ' · прочитано' : ' · не прочитано'}`],
+      [
+        'Статус',
+        [
+          message.status,
+          message.seen ? 'прочитано' : 'не прочитано',
+          message.archived ? 'в архиве' : null,
+          message.hidden ? 'скрыто' : null,
+        ]
+          .filter(Boolean)
+          .join(' · '),
+      ],
       ...(message.sizeBytes ? [['Размер', formatSize(message.sizeBytes)]] : []),
     ];
     meta.replaceChildren(
@@ -259,6 +409,70 @@
     el('detail-body').textContent = message.bodyText || '(пустое тело письма)';
 
     renderThread(message);
+  }
+
+  // --- Label picker ---
+
+  let openPicker = null;
+
+  function closeLabelPicker() {
+    if (openPicker) {
+      openPicker.remove();
+      openPicker = null;
+      document.removeEventListener('click', closeLabelPicker);
+    }
+  }
+
+  function openLabelPicker(anchor, message) {
+    closeLabelPicker();
+    const picker = document.createElement('div');
+    picker.className = 'label-picker editor-card';
+    picker.addEventListener('click', (event) => event.stopPropagation());
+
+    // Existing labels as toggles
+    const known = [...new Set([...state.labels, ...message.labels])]
+      .filter((l) => !l.startsWith('\\'))
+      .sort();
+    for (const label of known) {
+      const on = message.labels.includes(label);
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = `mini-btn label-option${on ? ' active' : ''}`;
+      chip.textContent = `${on ? '✓ ' : ''}${label}`;
+      chip.addEventListener('click', () => {
+        closeLabelPicker();
+        applyAction(message.id, on ? 'unlabel' : 'label', label);
+      });
+      picker.append(chip);
+    }
+
+    // New label input
+    const form = document.createElement('form');
+    form.className = 'label-new';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.placeholder = 'новый ярлык, напр. agent/calendar';
+    const add = document.createElement('button');
+    add.type = 'submit';
+    add.className = 'primary-btn';
+    add.textContent = '＋';
+    form.append(input, add);
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const name = input.value.trim();
+      if (!name) return;
+      closeLabelPicker();
+      applyAction(message.id, 'label', name);
+    });
+    picker.append(form);
+
+    document.body.append(picker);
+    const rect = anchor.getBoundingClientRect();
+    picker.style.top = `${rect.bottom + window.scrollY + 4}px`;
+    picker.style.left = `${Math.min(rect.left + window.scrollX, window.innerWidth - 260)}px`;
+    openPicker = picker;
+    setTimeout(() => document.addEventListener('click', closeLabelPicker), 0);
+    input.focus();
   }
 
   function renderThread(message) {
@@ -338,7 +552,12 @@
   });
   el('sync-button').addEventListener('click', () => void syncNow());
 
-  Promise.all([loadStats(), loadMessages()]).catch((error) => {
+  async function loadLabels() {
+    const data = await fetchJson(`${API_BASE}/labels`);
+    state.labels = data.labels;
+  }
+
+  Promise.all([loadStats(), loadMessages(), loadLabels()]).catch((error) => {
     console.error(error);
     el('list-empty').textContent = 'Не удалось загрузить данные';
     el('list-empty').classList.remove('hidden');

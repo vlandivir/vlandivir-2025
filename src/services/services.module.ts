@@ -11,6 +11,7 @@ import { DiarySearchService } from './diary-search.service';
 import { ReelsQaService } from './reels-qa.service';
 import { DiaryQaService } from './diary-qa.service';
 import { EmailIngestService } from './email-ingest.service';
+import { EmailExecutorService } from './email-executor.service';
 
 @Module({
   providers: [
@@ -26,6 +27,7 @@ import { EmailIngestService } from './email-ingest.service';
     ReelsQaService,
     DiaryQaService,
     EmailIngestService,
+    EmailExecutorService,
   ],
   exports: [
     DateParserService,
@@ -40,6 +42,7 @@ import { EmailIngestService } from './email-ingest.service';
     ReelsQaService,
     DiaryQaService,
     EmailIngestService,
+    EmailExecutorService,
   ],
 })
 export class ServicesModule {}

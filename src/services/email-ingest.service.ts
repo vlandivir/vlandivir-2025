@@ -8,22 +8,16 @@ import { ConfigService } from '@nestjs/config';
 import { ImapFlow, FetchMessageObject, MailboxObject } from 'imapflow';
 import { simpleParser, ParsedMail } from 'mailparser';
 import { createHash } from 'crypto';
-import { z } from 'zod';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from './storage.service';
+import {
+  EMAIL_MAILBOX,
+  EmailAccountConfig,
+  parseEmailAccounts,
+  withMailbox,
+} from './email-accounts';
 
-// EMAIL_ACCOUNTS env var: JSON array of IMAP accounts, e.g.
-// [{"name":"personal","user":"me@gmail.com","password":"abcd efgh ijkl mnop"}]
-// `name` is the stable short id stored in the DB `account` columns.
-const emailAccountSchema = z.object({
-  name: z.string().regex(/^[a-z0-9._-]+$/i),
-  user: z.string().min(3),
-  password: z.string().min(1),
-  host: z.string().default('imap.gmail.com'),
-  port: z.number().int().default(993),
-});
-
-export type EmailAccountConfig = z.infer<typeof emailAccountSchema>;
+export type { EmailAccountConfig } from './email-accounts';
 
 export type AccountSyncResult = {
   account: string;
@@ -32,7 +26,7 @@ export type AccountSyncResult = {
   error?: string;
 };
 
-const MAILBOX = 'INBOX';
+const MAILBOX = EMAIL_MAILBOX;
 
 @Injectable()
 export class EmailIngestService
@@ -53,8 +47,9 @@ export class EmailIngestService
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
   ) {
-    this.accounts = this.parseAccounts(
+    this.accounts = parseEmailAccounts(
       this.configService.get<string>('EMAIL_ACCOUNTS'),
+      (message) => this.logger.error(message),
     );
     this.pollMinutes = Number(
       this.configService.get<string>('EMAIL_POLL_MINUTES') || 10,
@@ -120,25 +115,9 @@ export class EmailIngestService
   private async syncAccount(
     config: EmailAccountConfig,
   ): Promise<AccountSyncResult> {
-    const client = new ImapFlow({
-      host: config.host,
-      port: config.port,
-      secure: true,
-      auth: { user: config.user, pass: config.password },
-      logger: false,
-    });
-
-    await client.connect();
-    try {
-      const lock = await client.getMailboxLock(MAILBOX);
-      try {
-        return await this.syncMailbox(config, client);
-      } finally {
-        lock.release();
-      }
-    } finally {
-      await client.logout().catch(() => undefined);
-    }
+    return withMailbox(config, MAILBOX, (client) =>
+      this.syncMailbox(config, client),
+    );
   }
 
   private async syncMailbox(
@@ -366,21 +345,5 @@ export class EmailIngestService
 
   private safeKeySegment(value: string): string {
     return value.replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 120);
-  }
-
-  private parseAccounts(raw?: string): EmailAccountConfig[] {
-    if (!raw || !raw.trim()) return [];
-    try {
-      const parsed: unknown = JSON.parse(raw);
-      const accounts = z.array(emailAccountSchema).parse(parsed);
-      // Google shows app passwords with spaces; strip them.
-      return accounts.map((account) => ({
-        ...account,
-        password: account.password.replace(/\s+/g, ''),
-      }));
-    } catch (error) {
-      this.logger.error(`Invalid EMAIL_ACCOUNTS config: ${String(error)}`);
-      return [];
-    }
   }
 }
