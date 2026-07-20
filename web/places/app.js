@@ -1447,7 +1447,15 @@
         .map((t) => ({ kind: 'track', feature: t })),
     ];
 
-    let geoMatches = [];
+    const [geoMatches, semanticMatches] = await Promise.all([
+      searchNominatim(query),
+      searchSemantic(query),
+    ]);
+
+    renderSearchResults(localMatches, geoMatches, semanticMatches);
+  }
+
+  async function searchNominatim(query) {
     try {
       const params = new URLSearchParams({
         format: 'jsonv2',
@@ -1458,14 +1466,33 @@
         `https://nominatim.openstreetmap.org/search?${params}`,
         { headers: { Accept: 'application/json' } },
       );
-      if (response.ok) {
-        geoMatches = await response.json();
-      }
+      return response.ok ? await response.json() : [];
     } catch {
-      // network error — show only local matches
+      return [];
     }
+  }
 
-    renderSearchResults(localMatches, geoMatches);
+  // Semantic search over map features that have an attached Instagram reel.
+  // Resolves each hit back to the feature object already in state so it shares
+  // selection/rendering with the rest of the UI.
+  async function searchSemantic(query) {
+    try {
+      const response = await fetch(
+        `${API_BASE}/search?q=${encodeURIComponent(query)}`,
+      );
+      if (!response.ok) return [];
+      const data = await response.json();
+      return (data.results || []).flatMap((result) => {
+        const collection =
+          result.type === 'track' ? state.tracks : state.points;
+        const feature =
+          collection.find((f) => f.id === result.feature.id) || result.feature;
+        if (!feature) return [];
+        return [{ kind: result.type, feature, similarity: result.similarity }];
+      });
+    } catch {
+      return [];
+    }
   }
 
   function renderGoogleLinkResult(link) {
@@ -1493,14 +1520,16 @@
     searchResults.classList.remove('hidden');
   }
 
-  function renderSearchResults(localMatches, geoMatches) {
+  function renderSearchResults(localMatches, geoMatches, semanticMatches = []) {
     searchResults.innerHTML = '';
 
-    localMatches.slice(0, 5).forEach(({ kind, feature }) => {
+    const shown = new Set();
+
+    semanticMatches.slice(0, 6).forEach(({ kind, feature }) => {
+      shown.add(`${kind}:${feature.id}`);
       const item = document.createElement('button');
       item.className = 'search-result';
-      const tag = kind === 'track' ? '🚴' : '📍';
-      item.innerHTML = `<span class="result-tag">${tag}</span>`;
+      item.innerHTML = '<span class="result-tag">✨</span>';
       item.appendChild(document.createTextNode(feature.name));
       item.addEventListener('click', () => {
         hideSearchResults();
@@ -1508,6 +1537,22 @@
       });
       searchResults.appendChild(item);
     });
+
+    localMatches
+      .filter(({ kind, feature }) => !shown.has(`${kind}:${feature.id}`))
+      .slice(0, 5)
+      .forEach(({ kind, feature }) => {
+        const item = document.createElement('button');
+        item.className = 'search-result';
+        const tag = kind === 'track' ? '🚴' : '📍';
+        item.innerHTML = `<span class="result-tag">${tag}</span>`;
+        item.appendChild(document.createTextNode(feature.name));
+        item.addEventListener('click', () => {
+          hideSearchResults();
+          selectFeature(kind, feature, { fly: true });
+        });
+        searchResults.appendChild(item);
+      });
 
     geoMatches.forEach((place) => {
       const item = document.createElement('button');

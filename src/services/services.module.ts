@@ -7,6 +7,7 @@ import { DebugLogService } from './debug-log.service';
 import { InstagramMetaService } from './instagram-meta.service';
 import { ReelsService } from './reels.service';
 import { EmbeddingsService } from './embeddings.service';
+import { MapSearchService } from './map-search.service';
 import { DiarySearchService } from './diary-search.service';
 import { ReelsQaService } from './reels-qa.service';
 import { DiaryQaService } from './diary-qa.service';
@@ -24,6 +25,7 @@ import { EmailClassifierService } from './email-classifier.service';
     InstagramMetaService,
     ReelsService,
     EmbeddingsService,
+    MapSearchService,
     DiarySearchService,
     ReelsQaService,
     DiaryQaService,
@@ -40,6 +42,7 @@ import { EmailClassifierService } from './email-classifier.service';
     InstagramMetaService,
     ReelsService,
     EmbeddingsService,
+    MapSearchService,
     DiarySearchService,
     ReelsQaService,
     DiaryQaService,
