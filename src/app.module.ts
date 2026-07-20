@@ -18,6 +18,7 @@ import { EmailApiController } from './email-api.controller';
 import { EmailPagesController } from './email-pages.controller';
 import { McpController } from './mcp/mcp.controller';
 import { McpToolsService } from './mcp/mcp-tools.service';
+import { MapSearchThrottleGuard } from './common/rate-limit.guard';
 
 @Module({
   imports: [
@@ -43,6 +44,6 @@ import { McpToolsService } from './mcp/mcp-tools.service';
     EmailPagesController,
     McpController,
   ],
-  providers: [AppService, McpToolsService],
+  providers: [AppService, McpToolsService, MapSearchThrottleGuard],
 })
 export class AppModule {}

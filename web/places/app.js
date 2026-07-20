@@ -1488,7 +1488,14 @@
         const feature =
           collection.find((f) => f.id === result.feature.id) || result.feature;
         if (!feature) return [];
-        return [{ kind: result.type, feature, similarity: result.similarity }];
+        return [
+          {
+            kind: result.type,
+            feature,
+            similarity: result.similarity,
+            distanceKm: result.distanceKm,
+          },
+        ];
       });
     } catch {
       return [];
@@ -1525,12 +1532,16 @@
 
     const shown = new Set();
 
-    semanticMatches.slice(0, 6).forEach(({ kind, feature }) => {
+    semanticMatches.slice(0, 6).forEach(({ kind, feature, distanceKm }) => {
       shown.add(`${kind}:${feature.id}`);
       const item = document.createElement('button');
       item.className = 'search-result';
       item.innerHTML = '<span class="result-tag">✨</span>';
-      item.appendChild(document.createTextNode(feature.name));
+      const label =
+        typeof distanceKm === 'number'
+          ? `${feature.name} · ${distanceKm} км`
+          : feature.name;
+      item.appendChild(document.createTextNode(label));
       item.addEventListener('click', () => {
         hideSearchResults();
         selectFeature(kind, feature, { fly: true });

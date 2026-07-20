@@ -20,6 +20,7 @@ import type { Request } from 'express';
 import { Prisma } from './generated/prisma-client';
 import { AuthService } from './auth/auth.service';
 import { EditAccessGuard } from './auth/edit-access.guard';
+import { MapSearchThrottleGuard } from './common/rate-limit.guard';
 import { PrismaService } from './prisma/prisma.service';
 import { InstagramMetaService } from './services/instagram-meta.service';
 import { MapSearchService } from './services/map-search.service';
@@ -73,8 +74,11 @@ export class MapApiController {
 
   // Public semantic search over map features that have an attached Instagram
   // reel. Reuses the reel embeddings and returns the matching points/tracks
-  // ranked by similarity. Russian queries work best today (reel content is
-  // indexed as-is), but the embedding model is multilingual.
+  // ranked by similarity. A geographic constraint in the query ("in an hour's
+  // drive from Belgrade", "near X") filters results by distance. Russian
+  // queries work best today (reel content is indexed as-is), but the embedding
+  // model is multilingual. Rate-limited because it fans out to OpenAI/Nominatim.
+  @UseGuards(MapSearchThrottleGuard)
   @Get('search')
   async search(
     @Query('q') q: string | undefined,
@@ -82,7 +86,7 @@ export class MapApiController {
   ) {
     const query = typeof q === 'string' ? q.trim() : '';
     if (!query) {
-      return { query: '', count: 0, results: [] };
+      return { query: '', geo: null, count: 0, results: [] };
     }
 
     const parsedLimit = Number.parseInt(limit ?? '', 10);
@@ -90,9 +94,9 @@ export class MapApiController {
       ? SEARCH_DEFAULT_LIMIT
       : Math.min(Math.max(parsedLimit, 1), SEARCH_MAX_LIMIT);
 
-    const hits = await this.mapSearchService.search(query, take);
+    const { geo, hits } = await this.mapSearchService.search(query, take);
     if (!hits.length) {
-      return { query, count: 0, results: [] };
+      return { query, geo, count: 0, results: [] };
     }
 
     const pointIds = hits.filter((h) => h.type === 'point').map((h) => h.id);
@@ -116,10 +120,17 @@ export class MapApiController {
       const feature =
         hit.type === 'point' ? pointById.get(hit.id) : trackById.get(hit.id);
       if (!feature) return [];
-      return [{ type: hit.type, similarity: hit.similarity, feature }];
+      return [
+        {
+          type: hit.type,
+          similarity: hit.similarity,
+          distanceKm: hit.distanceKm ?? null,
+          feature,
+        },
+      ];
     });
 
-    return { query, count: results.length, results };
+    return { query, geo, count: results.length, results };
   }
 
   @UseGuards(EditAccessGuard)
