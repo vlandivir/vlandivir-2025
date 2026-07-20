@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Prisma } from '../generated/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
 
 export type EmbeddingKind = 'reel' | 'note' | 'image';
@@ -119,27 +120,40 @@ export class EmbeddingsService {
   /**
    * Cosine-similarity search within one kind. Returns refIds with a
    * similarity in [0..1], best first. chatId narrows the scope for
-   * private kinds (notes, images); for reels it is not used.
+   * private kinds (notes, images); for reels it is not used. refIds, when
+   * given, restricts the search to that allowlist of refIds (e.g. only the
+   * reels that are linked to a map feature) — an empty list short-circuits
+   * to no results without hitting the embeddings API.
    */
   async search(
     kind: EmbeddingKind,
     query: string,
-    options: { limit?: number; minSimilarity?: number; chatId?: bigint } = {},
+    options: {
+      limit?: number;
+      minSimilarity?: number;
+      chatId?: bigint;
+      refIds?: number[];
+    } = {},
   ): Promise<{ refId: number; similarity: number }[]> {
-    const { limit = 12, minSimilarity = 0.3, chatId } = options;
+    const { limit = 12, minSimilarity = 0.3, chatId, refIds } = options;
+    if (refIds && refIds.length === 0) return [];
     const embedding = await this.embedText(query);
     const vector = `[${embedding.join(',')}]`;
+    const refIdFilter = refIds
+      ? Prisma.sql`AND "refId" = ANY(${refIds})`
+      : Prisma.empty;
     const rows = await this.prisma.$queryRaw<
       { refId: number; similarity: number }[]
-    >`
+    >(Prisma.sql`
       SELECT "refId", 1 - ("embedding" <=> ${vector}::vector) AS "similarity"
       FROM "Embedding"
       WHERE "kind" = ${kind}
         AND (${chatId ?? null}::bigint IS NULL OR "chatId" = ${chatId ?? null}::bigint)
+        ${refIdFilter}
         AND 1 - ("embedding" <=> ${vector}::vector) >= ${minSimilarity}
       ORDER BY "embedding" <=> ${vector}::vector
       LIMIT ${limit}
-    `;
+    `);
     return rows;
   }
 }

@@ -22,6 +22,7 @@ import { AuthService } from './auth/auth.service';
 import { EditAccessGuard } from './auth/edit-access.guard';
 import { PrismaService } from './prisma/prisma.service';
 import { InstagramMetaService } from './services/instagram-meta.service';
+import { MapSearchService } from './services/map-search.service';
 import { ReelsService } from './services/reels.service';
 import { StorageService } from './services/storage.service';
 
@@ -48,6 +49,9 @@ const MAX_TAG_LENGTH = 50;
 const MAX_TRACK_POINTS = 5000;
 const INSTAGRAM_META_TTL_MS = 24 * 60 * 60 * 1000;
 
+const SEARCH_DEFAULT_LIMIT = 20;
+const SEARCH_MAX_LIMIT = 50;
+
 @Controller('map-api')
 export class MapApiController {
   constructor(
@@ -56,6 +60,7 @@ export class MapApiController {
     private readonly instagramMetaService: InstagramMetaService,
     private readonly storageService: StorageService,
     private readonly reelsService: ReelsService,
+    private readonly mapSearchService: MapSearchService,
     private readonly authService: AuthService,
   ) {}
 
@@ -64,6 +69,57 @@ export class MapApiController {
     return this.prisma.mapPoint.findMany({
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  // Public semantic search over map features that have an attached Instagram
+  // reel. Reuses the reel embeddings and returns the matching points/tracks
+  // ranked by similarity. Russian queries work best today (reel content is
+  // indexed as-is), but the embedding model is multilingual.
+  @Get('search')
+  async search(
+    @Query('q') q: string | undefined,
+    @Query('limit') limit: string | undefined,
+  ) {
+    const query = typeof q === 'string' ? q.trim() : '';
+    if (!query) {
+      return { query: '', count: 0, results: [] };
+    }
+
+    const parsedLimit = Number.parseInt(limit ?? '', 10);
+    const take = Number.isNaN(parsedLimit)
+      ? SEARCH_DEFAULT_LIMIT
+      : Math.min(Math.max(parsedLimit, 1), SEARCH_MAX_LIMIT);
+
+    const hits = await this.mapSearchService.search(query, take);
+    if (!hits.length) {
+      return { query, count: 0, results: [] };
+    }
+
+    const pointIds = hits.filter((h) => h.type === 'point').map((h) => h.id);
+    const trackIds = hits.filter((h) => h.type === 'track').map((h) => h.id);
+    const [points, tracks] = await Promise.all([
+      pointIds.length
+        ? this.prisma.mapPoint.findMany({ where: { id: { in: pointIds } } })
+        : [],
+      trackIds.length
+        ? this.prisma.mapTrack.findMany({ where: { id: { in: trackIds } } })
+        : [],
+    ]);
+    const pointById = new Map(
+      points.map((point) => [point.id, point] as const),
+    );
+    const trackById = new Map(
+      tracks.map((track) => [track.id, track] as const),
+    );
+
+    const results = hits.flatMap((hit) => {
+      const feature =
+        hit.type === 'point' ? pointById.get(hit.id) : trackById.get(hit.id);
+      if (!feature) return [];
+      return [{ type: hit.type, similarity: hit.similarity, feature }];
+    });
+
+    return { query, count: results.length, results };
   }
 
   @UseGuards(EditAccessGuard)

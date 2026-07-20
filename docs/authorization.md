@@ -34,6 +34,7 @@
 | Статические страницы | `/`, `/home`, `/subs`, `/gpx-route-png`, `/files`, `/places` (+ статика `/shared`, `/mini-app`) | `src/main.ts` (useStaticAssets) |
 | Share-страницы карты | `/places/point/:id`, `/places/track/:id` | `src/map-pages.controller.ts` |
 | Чтение карты | `GET /map-api/points`, `/tracks`, `/tags`, `/resolve-google-link` | `src/map-api.controller.ts` (без guard) |
+| Семантический поиск по карте | `GET /map-api/search?q=` | `src/map-api.controller.ts` (без guard); ищет по точкам/трекам с прикреплённым рилсом через эмбеддинги рилсов |
 | Обновление Instagram-меты (без force) | `POST /map-api/{points,tracks}/:id/instagram-meta` | там же; окно 24 ч защищает от злоупотребления |
 | Subs-инструменты | `/subs-api/*` (загрузка видео, транскрипция, рендер) | `src/subs.controller.ts` — **без авторизации, публичный инструмент** |
 | Вход/выход | `/auth/google`, `/auth/google/callback`, `/auth/logout`, `/auth/me` | `src/auth/auth.controller.ts` |
