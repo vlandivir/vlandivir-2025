@@ -12,6 +12,7 @@ body {
 body {
   display: flex;
   flex-direction: column;
+  gap: var(--v-space-3);
 }
 
 .hidden {
