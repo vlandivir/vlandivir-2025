@@ -316,19 +316,32 @@ export class ReelsService {
       ...(limit ? { take: limit } : {}),
     });
 
+    this.logger.log(
+      `Bulk processing started (${reels.length} reels, delay ${delayMs}ms)`,
+    );
     void (async () => {
+      let done = 0;
+      let failed = 0;
       for (let i = 0; i < reels.length; i++) {
         const { id } = reels[i];
-        // It may have been processed by another trigger while we waited
-        const current = await this.prisma.reel.findUnique({
-          where: { id },
-          select: { status: true },
-        });
-        if (current?.status !== 'pending') continue;
-
+        // Nothing in the per-reel work is allowed to escape: a transient DB
+        // blip on the status re-check, a process() throw, anything — must skip
+        // this one reel, never kill the whole (multi-hour) run.
         try {
+          // It may have been processed by another trigger while we waited
+          const current = await this.prisma.reel.findUnique({
+            where: { id },
+            select: { status: true },
+          });
+          if (current?.status !== 'pending') continue;
+
           await this.process(id);
+          done++;
+          this.logger.log(
+            `Bulk processing ${i + 1}/${reels.length}: reel ${id} ready`,
+          );
         } catch (error) {
+          failed++;
           this.logger.error(
             `Reel ${id} bulk processing failed: ${String(error)}`,
           );
@@ -344,8 +357,14 @@ export class ReelsService {
           await new Promise((resolve) => setTimeout(resolve, delayMs));
         }
       }
-      this.logger.log(`Bulk processing finished (${reels.length} reels)`);
-    })();
+      this.logger.log(
+        `Bulk processing finished (${reels.length} reels: ${done} ready, ${failed} failed)`,
+      );
+    })().catch((error) => {
+      // Last-resort guard so a bug in the loop scaffolding can never surface as
+      // an unhandled rejection that silently stops everything.
+      this.logger.error(`Bulk processing loop crashed: ${String(error)}`);
+    });
 
     return reels.length;
   }
