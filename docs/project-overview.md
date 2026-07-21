@@ -86,7 +86,7 @@ Root module: [src/app.module.ts](../src/app.module.ts) — ConfigModule (global)
 | `home/` | Landing page | Bilingual via single-file i18n (`index.html` + `i18n.js`); served at `/` and `/en` |
 | `places/` | Leaflet map of points/tracks | Vanilla JS SPA; split-panel desktop / drawer mobile; see AGENTS.md for detailed rules |
 | `reels/` | Unlisted reels catalog | Vanilla JS; served only via `/reels/<secret>` |
-| `subs/`, `subs-exp/` | Vertical-video subtitle editor (+ experimental variant) | Vanilla JS; dark "workbench" palette allowed; static chrome RU, dynamic strings localized in `app.js` |
+| `subs/`, `subs-exp/` | Vertical-video subtitle editor (+ experimental variant) | Vanilla JS; dark "workbench" palette allowed; bilingual (static chrome via `subs/i18n.js` + `data-i18n`, dynamic strings via `app.js` TEXT) |
 | `gpx-route-png/` | GPX → PNG route renderer | Fully client-side; bilingual via single-file i18n |
 | `files/` | Files page | Bilingual via single-file i18n |
 | `mini-app/` | Telegram Mini App | React + Vite; only `web/` dir with a build step (`npm run web:mini-app:build`) |
