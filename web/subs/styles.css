@@ -1821,19 +1821,6 @@ pre {
 }
 
 @media (max-width: 860px) {
-  .site-header {
-    width: min(100% - 28px, 620px);
-    align-items: flex-start;
-    flex-direction: column;
-    justify-content: center;
-    padding: 18px 0;
-  }
-
-  .header-nav {
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-
   main {
     width: min(100% - 28px, 620px);
     padding-top: 10px;
@@ -1978,8 +1965,11 @@ pre {
   }
 }
 
-.subs-page main,
-.subs-page .v-site-header {
+/* The subtitle editor holds a lot of side-by-side content (timeline, editor,
+   vertical video preview), so its page body is intentionally wider than the
+   shared 1160px content width. The header is deliberately NOT widened here — it
+   stays at the shared width so it looks identical to every other page. */
+.subs-page main {
   width: min(1480px, calc(100% - 40px));
 }
 
@@ -2308,11 +2298,6 @@ pre {
     --v-panel-padding: 12px;
     --v-card-padding: 12px;
     --v-group-gap: 12px;
-  }
-
-  .subs-page main,
-  .subs-page .v-site-header {
-    width: min(100% - 16px, 620px);
   }
 
   .subs-page main {

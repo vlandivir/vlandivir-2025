@@ -124,6 +124,15 @@ const TEXT = IS_EN
       mute: 'Mute',
       alignment: 'Alignment',
       cancel: 'Cancel',
+      timelineTitle: 'Horizontal timeline',
+      scaleLabel: 'Scale',
+      scaleAria: 'Timeline scale',
+      timelineAria: 'Cue timeline',
+      fitWidth: 'Fit width',
+      secondsSuffix: 's',
+      previewBadge: 'Badge',
+      previewBox: 'Box',
+      deleteCueConfirm: 'Delete this cue?',
     }
   : {
       bottomCenter: 'Снизу по центру',
@@ -233,6 +242,15 @@ const TEXT = IS_EN
       mute: 'Выключить звук',
       alignment: 'Выравнивание',
       cancel: 'Отменить',
+      timelineTitle: 'Горизонтальный таймлайн',
+      scaleLabel: 'Масштаб',
+      scaleAria: 'Масштаб таймлайна',
+      timelineAria: 'Таймлайн реплик',
+      fitWidth: 'По ширине',
+      secondsSuffix: 'с',
+      previewBadge: 'Плашка',
+      previewBox: 'Подложка',
+      deleteCueConfirm: 'Удалить эту реплику?',
     };
 const DEFAULT_POSITIONS = [
   {
@@ -680,18 +698,18 @@ function initExperimentalCueWorkbench() {
   const timelineCopy = document.createElement('div');
   timelineCopy.className = 'cue-timeline__copy';
   const title = document.createElement('h3');
-  title.textContent = 'Горизонтальный таймлайн';
+  title.textContent = TEXT.timelineTitle;
   const scaleControl = document.createElement('label');
   scaleControl.className = 'cue-timeline__scale-control';
   const scaleLabel = document.createElement('span');
-  scaleLabel.textContent = 'Масштаб';
+  scaleLabel.textContent = TEXT.scaleLabel;
   cueTimelineScaleInput = document.createElement('input');
   cueTimelineScaleInput.type = 'range';
   cueTimelineScaleInput.min = '0';
   cueTimelineScaleInput.max = '100';
   cueTimelineScaleInput.step = '1';
   cueTimelineScaleInput.value = String(cueTimelineZoom);
-  cueTimelineScaleInput.setAttribute('aria-label', 'Масштаб таймлайна');
+  cueTimelineScaleInput.setAttribute('aria-label', TEXT.scaleAria);
   cueTimelineScaleOutput = document.createElement('output');
   cueTimelineScaleOutput.className = 'cue-timeline__scale-output';
   cueTimelineScaleInput.addEventListener('input', () => {
@@ -722,7 +740,7 @@ function initExperimentalCueWorkbench() {
 
   const timelineScroll = document.createElement('div');
   timelineScroll.className = 'cue-timeline-scroll';
-  timelineScroll.setAttribute('aria-label', 'Таймлайн реплик');
+  timelineScroll.setAttribute('aria-label', TEXT.timelineAria);
   timelineScroll.append(cueList);
   cueList.classList.add('cue-timeline');
   cueTimelineCard.classList.add('cue-workbench__timeline');
@@ -910,8 +928,8 @@ function syncCueTimelineScaleControl() {
   if (!cueTimelineScaleOutput) return;
 
   cueTimelineScaleOutput.textContent = isCueTimelineFitMode()
-    ? 'По ширине'
-    : `${currentCueTimelinePxPerSecond()} px/с`;
+    ? TEXT.fitWidth
+    : `${currentCueTimelinePxPerSecond()} px/${TEXT.secondsSuffix}`;
 }
 
 function cueTimelinePointPosition(seconds, layout) {
@@ -944,7 +962,7 @@ function cueTimelineTickInterval(layout) {
 
 function formatCueTimelineTickLabel(seconds, step) {
   if (step < 1 && seconds < 60) {
-    return `${Number(seconds.toFixed(2)).toString()}с`;
+    return `${Number(seconds.toFixed(2)).toString()}${TEXT.secondsSuffix}`;
   }
 
   return formatVideoTime(seconds);
@@ -2924,8 +2942,8 @@ function renderStyleLivePreview() {
     createStylePreviewColor('Secondary', style.secondaryColor),
     createStylePreviewColor('Outline', style.outlineColor),
     createStylePreviewColor('Back', style.backColor),
-    createStylePreviewColor('Плашка', style.badgeColor),
-    createStylePreviewColor('Подложка', style.boxColor),
+    createStylePreviewColor(TEXT.previewBadge, style.badgeColor),
+    createStylePreviewColor(TEXT.previewBox, style.boxColor),
   );
 }
 
@@ -4969,7 +4987,7 @@ cancelStyleEditButton.addEventListener('click', resetStyleForm);
 cancelCueEditButton.addEventListener('click', resetCueForm);
 closeCueEditorButton.addEventListener('click', resetCueForm);
 deleteCueButton.addEventListener('click', async () => {
-  if (!editingCueId || !window.confirm('Удалить эту реплику?')) return;
+  if (!editingCueId || !window.confirm(TEXT.deleteCueConfirm)) return;
 
   const cueId = editingCueId;
   resetCueForm();

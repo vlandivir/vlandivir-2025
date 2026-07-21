@@ -84,12 +84,12 @@ async function bootstrap() {
       res.sendFile(path.join(gpxRoutePng, 'index.html'));
     });
     instance.get(/^\/gpx-route-png\/en\/?$/, (_req: unknown, res: Response) => {
-      res.sendFile(path.join(gpxRoutePng, 'en.html'));
+      res.sendFile(path.join(gpxRoutePng, 'index.html'));
     });
     instance.get(
       /^\/gpx-route-png\/en\/[^/]+\/?$/,
       (_req: unknown, res: Response) => {
-        res.sendFile(path.join(gpxRoutePng, 'en.html'));
+        res.sendFile(path.join(gpxRoutePng, 'index.html'));
       },
     );
     instance.get(
@@ -102,7 +102,7 @@ async function bootstrap() {
       res.sendFile(path.join(filesPage, 'index.html'));
     });
     instance.get(/^\/files\/en\/?$/, (_req: unknown, res: Response) => {
-      res.sendFile(path.join(filesPage, 'en.html'));
+      res.sendFile(path.join(filesPage, 'index.html'));
     });
     instance.get(
       /^\/subs(?:\/[a-f0-9]{24})?\/?$/,
@@ -113,7 +113,7 @@ async function bootstrap() {
     instance.get(
       /^\/subs\/en(?:\/[a-f0-9]{24})?\/?$/,
       (_req: unknown, res: Response) => {
-        res.sendFile(path.join(subsPage, 'en.html'));
+        res.sendFile(path.join(subsPage, 'index.html'));
       },
     );
     instance.get(/^\/font\/?$/, (_req: unknown, res: Response) => {
@@ -172,12 +172,12 @@ async function bootstrap() {
       res.sendFile(path.join(gpxRoutePng, 'index.html'));
     });
     instance.get(/^\/gpx-route-png\/en\/?$/, (_req: unknown, res: Response) => {
-      res.sendFile(path.join(gpxRoutePng, 'en.html'));
+      res.sendFile(path.join(gpxRoutePng, 'index.html'));
     });
     instance.get(
       /^\/gpx-route-png\/en\/[^/]+\/?$/,
       (_req: unknown, res: Response) => {
-        res.sendFile(path.join(gpxRoutePng, 'en.html'));
+        res.sendFile(path.join(gpxRoutePng, 'index.html'));
       },
     );
     instance.get(
@@ -190,7 +190,7 @@ async function bootstrap() {
       res.sendFile(path.join(filesPage, 'index.html'));
     });
     instance.get(/^\/files\/en\/?$/, (_req: unknown, res: Response) => {
-      res.sendFile(path.join(filesPage, 'en.html'));
+      res.sendFile(path.join(filesPage, 'index.html'));
     });
     instance.get(
       /^\/subs(?:\/[a-f0-9]{24})?\/?$/,
@@ -201,7 +201,7 @@ async function bootstrap() {
     instance.get(
       /^\/subs\/en(?:\/[a-f0-9]{24})?\/?$/,
       (_req: unknown, res: Response) => {
-        res.sendFile(path.join(subsPage, 'en.html'));
+        res.sendFile(path.join(subsPage, 'index.html'));
       },
     );
     instance.get(/^\/font\/?$/, (_req: unknown, res: Response) => {
