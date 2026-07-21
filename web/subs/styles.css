@@ -1965,6 +1965,14 @@ pre {
   }
 }
 
+/* The subtitle editor holds a lot of side-by-side content (timeline, editor,
+   vertical video preview), so its page body is intentionally wider than the
+   shared 1160px content width. The header is deliberately NOT widened here — it
+   stays at the shared width so it looks identical to every other page. */
+.subs-page main {
+  width: min(1480px, calc(100% - 40px));
+}
+
 .subs-page .video-bound-grid.cue-workbench {
   grid-template-columns: minmax(0, 1.2fr) minmax(360px, 0.8fr);
   grid-template-areas:

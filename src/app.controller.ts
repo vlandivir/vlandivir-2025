@@ -14,7 +14,9 @@ export class AppController {
 
   @Get('en')
   getHomeEn(@Res() res: Response): void {
-    res.sendFile(path.join(process.cwd(), 'web', 'home', 'en.html'));
+    // Single-file i18n: the same page serves both languages; /shared/i18n.js
+    // detects the language from the /en path segment.
+    res.sendFile(path.join(process.cwd(), 'web', 'home', 'index.html'));
   }
 
   @Get('health')
@@ -29,7 +31,7 @@ export class AppController {
 
   @Get('home/en')
   getHomeEnAlias(@Res() res: Response): void {
-    res.sendFile(path.join(process.cwd(), 'web', 'home', 'en.html'));
+    res.sendFile(path.join(process.cwd(), 'web', 'home', 'index.html'));
   }
 
   @Get('gpx-route-png')
@@ -41,12 +43,16 @@ export class AppController {
 
   @Get('gpx-route-png/en')
   getGpxRoutePngEn(@Res() res: Response): void {
-    res.sendFile(path.join(process.cwd(), 'web', 'gpx-route-png', 'en.html'));
+    res.sendFile(
+      path.join(process.cwd(), 'web', 'gpx-route-png', 'index.html'),
+    );
   }
 
   @Get('gpx-route-png/en/:videoId')
   getGpxRoutePngEnVideoPage(@Res() res: Response): void {
-    res.sendFile(path.join(process.cwd(), 'web', 'gpx-route-png', 'en.html'));
+    res.sendFile(
+      path.join(process.cwd(), 'web', 'gpx-route-png', 'index.html'),
+    );
   }
 
   @Get('gpx-route-png/:videoId')
@@ -63,12 +69,12 @@ export class AppController {
 
   @Get('subs/en')
   getSubsEn(@Res() res: Response): void {
-    res.sendFile(path.join(process.cwd(), 'web', 'subs', 'en.html'));
+    res.sendFile(path.join(process.cwd(), 'web', 'subs', 'index.html'));
   }
 
   @Get('subs/en/:hash')
   getSubsEnVideoPage(@Res() res: Response): void {
-    res.sendFile(path.join(process.cwd(), 'web', 'subs', 'en.html'));
+    res.sendFile(path.join(process.cwd(), 'web', 'subs', 'index.html'));
   }
 
   @Get('subs/:hash')
@@ -95,6 +101,6 @@ export class AppController {
 
   @Get('files/en')
   getFilesEn(@Res() res: Response): void {
-    res.sendFile(path.join(process.cwd(), 'web', 'files', 'en.html'));
+    res.sendFile(path.join(process.cwd(), 'web', 'files', 'index.html'));
   }
 }

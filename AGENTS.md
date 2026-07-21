@@ -33,9 +33,10 @@ All public pages under `web/` share one visual language, defined by `web/shared/
 
 ### Page anatomy
 
-- Content pages (home, files, gpx, subs): shared header `<header data-site-header data-active="..." data-lang-ru="..." data-lang-en="...">` + `/shared/site-header.css` + `/shared/site-header.js`; bilingual `index.html` (RU) / `en.html` (EN).
+- Content pages (home, files, gpx, subs): shared header `<header data-site-header data-active="..." data-lang-ru="..." data-lang-en="...">` + `/shared/site-header.css` + `/shared/site-header.js`.
+- **Localization is one file per page via `/shared/i18n.js` — do NOT create `en.html` duplicates.** The RU text stays inline as the default (page works without JS, no RU flash); the runtime swaps to EN when the language is EN. Language is detected from `?lang=`, the `/en` path segment, or `<html lang>` (see the header of `/shared/i18n.js`). Mark up strings with `data-i18n="key"` (text) and `data-i18n-attr="content:key; href:key; aria-label:key"` (attributes, incl. `data-*` consumed by other scripts). Ship the dictionary as a co-located `/<page>/i18n.js` that sets `window.PAGE_I18N = { ru: {...}, en: {...} }`. Load `/<page>/i18n.js` then `/shared/i18n.js` **before** any script that reads the language or translated DOM (site-header.js, page `app.js`, `video-upload-block.js`), **without** `defer` — first in `<head>`, or first among end-of-`<body>` scripts if the page keeps its scripts there. Page `app.js` reads `document.documentElement.lang` (or `window.SITE_LANG` / `window.SiteI18n.t`) for strings it generates dynamically. The server serves the same `index.html` for `/x` and `/x/en` (see `AppController`).
 - App-like pages (places — fullscreen map, reels — unlisted catalog) skip the big header and use a compact `.panel-brand` link to `/` instead.
-- **Page width is shared, don't override it per page.** Content pages get their max width from the theme wrapper (`.page-shell`/`main`/`.container`/`.shell` → `min(1160px, 100% − gutters)`) and the header from `/shared/site-header.css` (`.v-site-header` → `min(1180px, …)`). Never set a page-specific `width` on `main` or `.v-site-header` (e.g. a wider `min(1480px, …)`): the header must look identical on every page and the body must line up with it. If a tool genuinely needs more room, widen an inner workbench container, not the page shell or header.
+- **The header width is shared and must never be overridden per page.** It comes from `/shared/site-header.css` (`.v-site-header` → `min(1180px, …)`) so the header looks identical on every page. Do NOT add a page-specific `width` to `.v-site-header` (that is exactly what made the subs header look wrong). The page body defaults to the theme wrapper width (`.page-shell`/`main`/`.container`/`.shell` → `min(1160px, 100% − gutters)`). A content-heavy tool page MAY widen its own body when the standard width is too cramped — e.g. `subs` sets `.subs-page main { width: min(1480px, …) }` for its side-by-side editor — but only the body, never the header (the header intentionally stays narrower than the wide body there).
 - Stylesheet link order on existing legacy pages is `page styles → site-theme.css` (the theme intentionally loads **last** as an override layer). New pages should do the opposite, clean pattern: `site-theme.css → page styles`, where page styles only add layout. Either way the rule is the same: the theme owns all colors.
 - Every stylesheet link carries a cache-busting query `?v=YYYYMMDD-N` — bump it whenever you change that file.
 
@@ -45,7 +46,7 @@ All public pages under `web/` share one visual language, defined by `web/shared/
 2. No `:root` palette overrides, no `font-family` other than the tokens.
 3. Reused theme component classes before adding custom ones.
 4. Bumped `?v=` on changed CSS.
-5. No page-specific `width` on `main`/`.v-site-header` — use the shared wrapper/header widths so the header matches every other page.
+5. Never override `.v-site-header` width per page (the header must match every other page); only widen a page body (`main`) when a tool genuinely needs it.
 6. Screenshot the page (dev server + browser preview) and compare against home/places for consistency.
 
 ### My places map page (`web/places/`)

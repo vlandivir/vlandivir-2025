@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<meta name="description" content="Главная страница vlandivir: редактор субтитров ASS, GPX Track PNG и Instagram." />
+<meta name="description" data-i18n-attr="content:metaDescription" content="Главная страница vlandivir: редактор субтитров ASS, GPX Track PNG и Instagram." />
 <title>vlandivir</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -11,6 +11,8 @@
 <link rel="stylesheet" href="/shared/site-header.css?v=20260718-1" />
 <link rel="stylesheet" href="/home/styles.css?v=20260706-1" />
 <link rel="stylesheet" href="/shared/site-theme.css?v=20260718-1" />
+<script src="/home/i18n.js?v=20260721-1"></script>
+<script src="/shared/i18n.js?v=20260721-1"></script>
 <script src="/shared/site-header.js?v=20260718-1" defer></script>
 </head>
 <body>
@@ -18,11 +20,11 @@
 <main class="page-shell">
   <section class="tool-block" aria-labelledby="subs-title">
     <div>
-      <h2 id="subs-title">Субтитры ASS для видео</h2>
-      <p>Загрузите видео, настройте стиль субтитров, проверьте превью и экспортируйте ASS-файл или готовое видео с наложенными субтитрами.</p>
+      <h2 id="subs-title" data-i18n="subsTitle">Субтитры ASS для видео</h2>
+      <p data-i18n="subsText">Загрузите видео, настройте стиль субтитров, проверьте превью и экспортируйте ASS-файл или готовое видео с наложенными субтитрами.</p>
     </div>
-    <a class="tool-link" href="/subs/">
-      <span>Перейти к субтитрам</span>
+    <a class="tool-link" href="/subs/" data-i18n-attr="href:subsHref">
+      <span data-i18n="subsCta">Перейти к субтитрам</span>
       <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
         <path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
@@ -31,11 +33,11 @@
 
   <section class="tool-block" aria-labelledby="places-map-title">
     <div>
-      <h2 id="places-map-title">Карта моих мест</h2>
-      <p>Места, которые я посетил или планирую посетить: точки и треки на карте с привязанными reels из Instagram.</p>
+      <h2 id="places-map-title" data-i18n="placesTitle">Карта моих мест</h2>
+      <p data-i18n="placesText">Места, которые я посетил или планирую посетить: точки и треки на карте с привязанными reels из Instagram.</p>
     </div>
-    <a class="tool-link" href="/places/">
-      <span>Открыть карту</span>
+    <a class="tool-link" href="/places/" data-i18n-attr="href:placesHref">
+      <span data-i18n="placesCta">Открыть карту</span>
       <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
         <path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
@@ -44,11 +46,11 @@
 
   <section class="tool-block" aria-labelledby="gpx-title">
     <div>
-      <h2 id="gpx-title">GPX Track PNG</h2>
-      <p>Загрузите GPX-файл и получите вертикальную PNG-картинку 1080×1920 с линией маршрута, точками и подписями.</p>
+      <h2 id="gpx-title" data-i18n="gpxTitle">GPX Track PNG</h2>
+      <p data-i18n="gpxText">Загрузите GPX-файл и получите вертикальную PNG-картинку 1080×1920 с линией маршрута, точками и подписями.</p>
     </div>
-    <a class="tool-link" href="/gpx-route-png/">
-      <span>Перейти к генератору</span>
+    <a class="tool-link" href="/gpx-route-png/" data-i18n-attr="href:gpxHref">
+      <span data-i18n="gpxCta">Перейти к генератору</span>
       <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
         <path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
