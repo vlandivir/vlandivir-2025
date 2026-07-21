@@ -35,6 +35,7 @@ All public pages under `web/` share one visual language, defined by `web/shared/
 
 - Content pages (home, files, gpx, subs): shared header `<header data-site-header data-active="..." data-lang-ru="..." data-lang-en="...">` + `/shared/site-header.css` + `/shared/site-header.js`; bilingual `index.html` (RU) / `en.html` (EN).
 - App-like pages (places — fullscreen map, reels — unlisted catalog) skip the big header and use a compact `.panel-brand` link to `/` instead.
+- **Page width is shared, don't override it per page.** Content pages get their max width from the theme wrapper (`.page-shell`/`main`/`.container`/`.shell` → `min(1160px, 100% − gutters)`) and the header from `/shared/site-header.css` (`.v-site-header` → `min(1180px, …)`). Never set a page-specific `width` on `main` or `.v-site-header` (e.g. a wider `min(1480px, …)`): the header must look identical on every page and the body must line up with it. If a tool genuinely needs more room, widen an inner workbench container, not the page shell or header.
 - Stylesheet link order on existing legacy pages is `page styles → site-theme.css` (the theme intentionally loads **last** as an override layer). New pages should do the opposite, clean pattern: `site-theme.css → page styles`, where page styles only add layout. Either way the rule is the same: the theme owns all colors.
 - Every stylesheet link carries a cache-busting query `?v=YYYYMMDD-N` — bump it whenever you change that file.
 
@@ -44,7 +45,8 @@ All public pages under `web/` share one visual language, defined by `web/shared/
 2. No `:root` palette overrides, no `font-family` other than the tokens.
 3. Reused theme component classes before adding custom ones.
 4. Bumped `?v=` on changed CSS.
-5. Screenshot the page (dev server + browser preview) and compare against home/places for consistency.
+5. No page-specific `width` on `main`/`.v-site-header` — use the shared wrapper/header widths so the header matches every other page.
+6. Screenshot the page (dev server + browser preview) and compare against home/places for consistency.
 
 ### My places map page (`web/places/`)
 
