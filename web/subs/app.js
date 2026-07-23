@@ -133,6 +133,9 @@ const TEXT = IS_EN
       previewBadge: 'Badge',
       previewBox: 'Box',
       deleteCueConfirm: 'Delete this cue?',
+      assImportNoStyles: 'No “Style:” lines found.',
+      assImportDone: 'Styles added: {count}',
+      assImportUnknownFonts: 'unknown fonts replaced with Montserrat: {fonts}',
     }
   : {
       bottomCenter: 'Снизу по центру',
@@ -251,6 +254,10 @@ const TEXT = IS_EN
       previewBadge: 'Плашка',
       previewBox: 'Подложка',
       deleteCueConfirm: 'Удалить эту реплику?',
+      assImportNoStyles: 'Не нашёл строки «Style:».',
+      assImportDone: 'Добавлено стилей: {count}',
+      assImportUnknownFonts:
+        'неизвестные шрифты заменены на Montserrat: {fonts}',
     };
 const DEFAULT_POSITIONS = [
   {
@@ -534,6 +541,9 @@ const newStyleButton = document.querySelector('#newStyleButton');
 const cancelStyleEditButton = document.querySelector('#cancelStyleEditButton');
 const styleList = document.querySelector('#styleList');
 const stylesEmptyState = document.querySelector('#stylesEmptyState');
+const styleAssImportInput = document.querySelector('#styleAssImportInput');
+const importStyleAssButton = document.querySelector('#importStyleAssButton');
+const styleAssImportStatus = document.querySelector('#styleAssImportStatus');
 const positionForm = document.querySelector('#positionForm');
 const positionNameInput = document.querySelector('#positionNameInput');
 const positionXInput = document.querySelector('#positionXInput');
@@ -1854,6 +1864,14 @@ function defaultPosition() {
   );
 }
 
+function positionIdForAlignment(alignment) {
+  const target = Number(alignment);
+  const match = cachedPositions.find(
+    (position) => Number(position.alignment) === target,
+  );
+  return (match || defaultPosition()).id;
+}
+
 function parseTimeToSeconds(value) {
   const trimmed = value.trim().replace(',', '.');
   if (/^\d+(?:\.\d{1,3})?$/.test(trimmed)) {
@@ -2025,6 +2043,103 @@ function colorToAss(color) {
   const blue = colorToHexByte(parsed.blue);
   const alpha = assAlphaFromCss(parsed.alpha);
   return `&H${alpha}${blue}${green}${red}`.toUpperCase();
+}
+
+// Parse an ASS colour literal (&HAABBGGRR, &HBBGGRR, with optional trailing &,
+// or a bare hex/decimal number) back into an { red, green, blue, alpha } object.
+// ASS stores alpha inverted (00 = opaque, FF = transparent).
+function assColorToRgb(value) {
+  const text = String(value ?? '').trim();
+  const match = text.match(/^&?h?([0-9a-f]{1,8})&?$/i);
+  if (!match) return null;
+  const hex = match[1].toLowerCase().padStart(8, '0');
+  const alphaByte = Number.parseInt(hex.slice(0, 2), 16);
+  return {
+    blue: Number.parseInt(hex.slice(2, 4), 16),
+    green: Number.parseInt(hex.slice(4, 6), 16),
+    red: Number.parseInt(hex.slice(6, 8), 16),
+    alpha: clampColorNumber(1 - alphaByte / 255, 0, 1),
+  };
+}
+
+// Convert an ASS colour field to the editor's CSS colour string. When optional,
+// a fully transparent colour maps to the "none" sentinel (matches colorToAss).
+function assColorField(value, { optional = false } = {}) {
+  const parsed = assColorToRgb(value);
+  if (!parsed) return optional ? 'none' : null;
+  if (optional && parsed.alpha === 0) return 'none';
+  return formatRgbaSubtitleColor(parsed);
+}
+
+function parseAssBooleanFlag(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number !== 0;
+}
+
+// Match an ASS Fontname against a bundled family, case-insensitively.
+function matchBundledFontFamily(name) {
+  const trimmed = String(name ?? '').trim();
+  if (!trimmed) return null;
+  const lowered = trimmed.toLowerCase();
+  for (const family of SF.VALID_FAMILIES) {
+    if (family.toLowerCase() === lowered) return family;
+  }
+  return null;
+}
+
+// Parse a single ASS "Style:" line (standard V4+ Styles column order) into a
+// raw style draft the editor can store. Returns null for non-Style lines.
+function parseAssStyleLine(line) {
+  const match = String(line ?? '')
+    .trim()
+    .match(/^Style:\s*(.+)$/i);
+  if (!match) return null;
+
+  const parts = match[1].split(',').map((part) => part.trim());
+  if (parts.length < 18) return null;
+
+  const rawFont = parts[1] || '';
+  const matchedFont = matchBundledFontFamily(rawFont);
+  const fontSize = Math.round(Number(parts[2]));
+  const borderStyle = Number(parts[15]);
+  const outlineWidth = Number(parts[16]);
+  const shadow = Number(parts[17]);
+  const alignment = Number(parts[21]);
+  const boxOn = borderStyle === 3;
+
+  const fontVariant = parseAssBooleanFlag(parts[7])
+    ? 'bold'
+    : parseAssBooleanFlag(parts[8])
+      ? 'italic'
+      : 'regular';
+
+  return {
+    name: parts[0] || 'Style',
+    font: matchedFont || 'Montserrat',
+    fontMatched: Boolean(matchedFont),
+    rawFont,
+    fontSize: Number.isFinite(fontSize) && fontSize > 0 ? fontSize : 72,
+    fontVariant,
+    primaryColor:
+      assColorField(parts[3]) || 'rgba(255, 255, 255, 1)',
+    secondaryColor: assColorField(parts[4], { optional: true }),
+    outlineColor: boxOn
+      ? 'none'
+      : Number.isFinite(outlineWidth) && outlineWidth > 0
+        ? assColorField(parts[5], { optional: true })
+        : 'none',
+    backColor:
+      Number.isFinite(shadow) && shadow > 0
+        ? assColorField(parts[6], { optional: true })
+        : 'none',
+    boxColor: boxOn
+      ? assColorField(parts[5]) || 'rgba(0, 0, 0, 1)'
+      : 'none',
+    boxPadding: boxOn
+      ? normalizeStyleBadgeNumber(outlineWidth, 8)
+      : 8,
+    alignment: Number.isFinite(alignment) ? alignment : 2,
+  };
 }
 
 function colorToAssPrimaryOverrideTags(color) {
@@ -4877,6 +4992,97 @@ window.addEventListener('resize', resyncEditorLayouts);
   inputElement.addEventListener('change', syncStyleStretchControls);
 });
 
+async function enableFontFamilies(families) {
+  const toEnable = SF.sanitizeFamilies(families).filter(
+    (family) => !enabledFontFamilies.includes(family),
+  );
+  if (toEnable.length === 0) return;
+
+  await SF.writeEnabledFontFamilies([...enabledFontFamilies, ...toEnable]);
+  await loadEnabledFontFamilies();
+  populateStyleFontOptions();
+  populateCueFontOptions();
+}
+
+async function importStylesFromAss() {
+  if (!styleAssImportInput) return;
+
+  const drafts = styleAssImportInput.value
+    .split(/\r?\n/)
+    .map((line) => parseAssStyleLine(line))
+    .filter(Boolean);
+
+  if (drafts.length === 0) {
+    if (styleAssImportStatus) {
+      styleAssImportStatus.textContent = TEXT.assImportNoStyles;
+    }
+    return;
+  }
+
+  await enableFontFamilies(
+    drafts.filter((draft) => draft.fontMatched).map((draft) => draft.font),
+  );
+
+  const takenNames = new Set(
+    cachedStyles.map((style) => String(style.name || '').toLowerCase()),
+  );
+  const unknownFonts = new Set();
+  const now = new Date().toISOString();
+
+  for (const draft of drafts) {
+    if (!draft.fontMatched && draft.rawFont) unknownFonts.add(draft.rawFont);
+
+    let name = String(draft.name || 'Style').trim() || 'Style';
+    if (takenNames.has(name.toLowerCase())) {
+      let suffix = 2;
+      while (takenNames.has(`${name} ${suffix}`.toLowerCase())) suffix += 1;
+      name = `${name} ${suffix}`;
+    }
+    takenNames.add(name.toLowerCase());
+
+    await saveStyle({
+      id: createId('style'),
+      name,
+      font: draft.font,
+      fontSize: draft.fontSize,
+      fontVariant: draft.fontVariant,
+      lineSpacingOverride: 0,
+      primaryColor: draft.primaryColor,
+      secondaryColor: draft.secondaryColor,
+      outlineColor: draft.outlineColor,
+      backColor: draft.backColor,
+      badgeColor: 'none',
+      badgePaddingX: 24,
+      badgePaddingY: 12,
+      badgeRadius: 20,
+      boxColor: draft.boxColor,
+      boxPadding: draft.boxPadding,
+      stretchToWidth: false,
+      marginLeft: null,
+      marginRight: null,
+      positionId: positionIdForAlignment(draft.alignment),
+      createdAt: now,
+    });
+  }
+
+  await destroyJassubRenderer();
+  await refreshEditor();
+
+  styleAssImportInput.value = '';
+  if (styleAssImportStatus) {
+    const parts = [TEXT.assImportDone.replace('{count}', String(drafts.length))];
+    if (unknownFonts.size > 0) {
+      parts.push(
+        TEXT.assImportUnknownFonts.replace(
+          '{fonts}',
+          [...unknownFonts].join(', '),
+        ),
+      );
+    }
+    styleAssImportStatus.textContent = parts.join(' · ');
+  }
+}
+
 styleForm.addEventListener('submit', async (event) => {
   event.preventDefault();
 
@@ -5018,6 +5224,14 @@ cancelPositionEditButton.addEventListener('click', resetPositionForm);
 newStyleButton?.addEventListener('click', () => {
   resetStyleForm();
   focusEditorControl(styleNameInput);
+});
+importStyleAssButton?.addEventListener('click', async () => {
+  importStyleAssButton.disabled = true;
+  try {
+    await importStylesFromAss();
+  } finally {
+    importStyleAssButton.disabled = false;
+  }
 });
 newCueButton?.addEventListener('click', () => {
   openNewCueEditor();
