@@ -66,6 +66,12 @@ window.PAGE_I18N = {
     boxPadding: 'Отступ (Outline), ASS',
     basePosition: 'Базовое положение',
     emptyStyles: 'Пока нет стилей.',
+    assImportTitle: 'Добавить стиль из описания ASS',
+    assImportHint:
+      'Вставьте строки «Style: …» из ASS-файла — по одной на каждый стиль.',
+    assImportPlaceholder:
+      'Style: Default,Ubuntu Condensed,48,&H00FFFFFF,&HFF000000,&H99000000,&HFF000000,-1,0,0,0,100,100,0,0,3,4,0,24,24,120,1,1',
+    assImportButton: 'Добавить из ASS',
 
     secCues: 'Реплики',
     cueFormTitle: 'Реплика',
@@ -172,6 +178,11 @@ window.PAGE_I18N = {
     boxPadding: 'Padding (Outline), ASS',
     basePosition: 'Base position',
     emptyStyles: 'No styles yet.',
+    assImportTitle: 'Add a style from an ASS description',
+    assImportHint: 'Paste “Style: …” lines from an ASS file — one per style.',
+    assImportPlaceholder:
+      'Style: Default,Ubuntu Condensed,48,&H00FFFFFF,&HFF000000,&H99000000,&HFF000000,-1,0,0,0,100,100,0,0,3,4,0,24,24,120,1,1',
+    assImportButton: 'Add from ASS',
 
     secCues: 'Cues',
     cueFormTitle: 'Cue',

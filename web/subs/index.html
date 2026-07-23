@@ -15,17 +15,17 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/shared/site-header.css?v=20260718-1" />
     <link rel="stylesheet" href="/shared/color-picker.css?v=20260715-1" />
-    <link rel="stylesheet" href="/subs/styles.css?v=20260721-2" />
+    <link rel="stylesheet" href="/subs/styles.css?v=20260723-1" />
     <link rel="stylesheet" href="/shared/video-upload-block.css?v=20260706-1" />
     <link rel="stylesheet" href="/shared/site-theme.css?v=20260718-1" />
-    <script src="/subs/i18n.js?v=20260721-1" defer></script>
+    <script src="/subs/i18n.js?v=20260723-1" defer></script>
     <script src="/shared/i18n.js?v=20260721-1" defer></script>
     <script src="/files/registry.js?v=20260527-1"></script>
     <script src="/subs/fonts-shared.js?v=20260712-1"></script>
     <script src="/shared/site-header.js?v=20260718-1" defer></script>
     <script src="/shared/color-picker.js?v=20260715-1" defer></script>
     <script src="/shared/video-upload-block.js?v=20260603-1" defer></script>
-    <script src="/subs/app.js?v=20260721-1" defer></script>
+    <script src="/subs/app.js?v=20260723-1" defer></script>
   </head>
   <body class="subs-page">
     <header
@@ -638,6 +638,41 @@
                 <p class="empty-state" id="stylesEmptyState" data-i18n="emptyStyles">
                   Пока нет стилей.
                 </p>
+                <details class="ass-style-import">
+                  <summary
+                    class="ass-style-import__summary"
+                    data-i18n="assImportTitle"
+                  >
+                    Добавить стиль из описания ASS
+                  </summary>
+                  <p class="ass-style-import__hint" data-i18n="assImportHint">
+                    Вставьте строки «Style: …» из ASS-файла — по одной на
+                    каждый стиль.
+                  </p>
+                  <textarea
+                    class="ass-style-import__input"
+                    id="styleAssImportInput"
+                    rows="4"
+                    spellcheck="false"
+                    placeholder="Style: Default,Ubuntu Condensed,48,&amp;H00FFFFFF,&amp;HFF000000,&amp;H99000000,&amp;HFF000000,-1,0,0,0,100,100,0,0,3,4,0,24,24,120,1,1"
+                    data-i18n-attr="placeholder:assImportPlaceholder"
+                  ></textarea>
+                  <div class="ass-style-import__actions">
+                    <button
+                      class="secondary-link ass-style-import__button"
+                      id="importStyleAssButton"
+                      type="button"
+                      data-i18n="assImportButton"
+                    >
+                      Добавить из ASS
+                    </button>
+                    <p
+                      class="ass-style-import__status"
+                      id="styleAssImportStatus"
+                      role="status"
+                    ></p>
+                  </div>
+                </details>
               </div>
             </div>
           </details>
