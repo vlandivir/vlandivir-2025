@@ -33,6 +33,16 @@ function extractTextFromAssistantContent(content: unknown): {
 }
 
 const IMAGE_DESCRIPTION_MAX_COMPLETION_TOKENS = 1600;
+const TEXT_REFINE_MAX_COMPLETION_TOKENS = 1600;
+
+type ReasoningEffort = 'minimal' | 'low' | 'medium' | 'high';
+
+export interface DescribeImageOptions {
+  // Emphasise careful transcription of handwritten text (e.g. diary pages).
+  handwriting?: boolean;
+  // Higher effort recognises messy handwriting better, at the cost of latency.
+  reasoningEffort?: ReasoningEffort;
+}
 
 @Injectable()
 export class LlmService {
@@ -45,7 +55,11 @@ export class LlmService {
     imageBuffer: Buffer,
     comment?: string,
     noteContext?: string,
+    options?: DescribeImageOptions,
   ): Promise<string> {
+    const handwriting = options?.handwriting ?? false;
+    const reasoningEffort: ReasoningEffort =
+      options?.reasoningEffort ?? 'minimal';
     try {
       const apiKey = this.configService.get<string>('OPENAI_API_KEY');
       if (!apiKey) {
@@ -94,8 +108,21 @@ export class LlmService {
                       type: 'text',
                       text: [
                         'Опиши это изображение на русском языке — точно и подробно, так чтобы по описанию его можно было найти текстовым поиском.',
-                        'Сначала один абзац: что происходит, кто и что видно, обстановка, место, сезон и время суток, если их можно определить.',
-                        'Затем выпиши дословно весь видимый текст (вывески, этикетки, меню, экраны, документы) на языке оригинала.',
+                        handwriting
+                          ? 'На изображении, скорее всего, рукописный текст (например, страница дневника). Твоя главная задача — как можно точнее расшифровать этот текст.'
+                          : null,
+                        handwriting
+                          ? 'Внимательно, строка за строкой, разбери рукописный текст дословно, сохраняя порядок строк и абзацы. Учитывай особенности почерка и контекст соседних слов, чтобы правильно прочитать неразборчивые буквы.'
+                          : null,
+                        handwriting
+                          ? 'Если слово прочитать уверенно не удаётся, приведи наиболее вероятный вариант и пометь его вопросительным знаком в скобках, например: слово(?).'
+                          : null,
+                        handwriting
+                          ? 'Сначала выпиши полную расшифровку рукописного текста, затем отдельным абзацем кратко опиши, что ещё видно на изображении (обстановку, рисунки, схемы).'
+                          : 'Сначала один абзац: что происходит, кто и что видно, обстановка, место, сезон и время суток, если их можно определить.',
+                        handwriting
+                          ? null
+                          : 'Затем выпиши дословно весь видимый текст (вывески, этикетки, меню, экраны, документы) на языке оригинала.',
                         'Назови конкретные объекты, бренды, названия мест и блюд, породы животных и виды растений, если уверенно их узнаёшь.',
                         'Не используй слова "фотография" или "изображение" и вводных конструкций, сразу описывай что видишь.',
                         'Не выдумывай деталей, которых не видно, и не делай обобщений о настроении.',
@@ -117,7 +144,7 @@ export class LlmService {
                 },
               ],
               max_completion_tokens: IMAGE_DESCRIPTION_MAX_COMPLETION_TOKENS,
-              reasoning_effort: 'minimal',
+              reasoning_effort: reasoningEffort,
             }),
             signal: timeoutSignal,
           },
@@ -333,6 +360,88 @@ export class LlmService {
         }
       }
       return 'Не удалось описать изображение';
+    }
+  }
+
+  // Post-processing for a recognised (handwritten) transcription: fixes likely
+  // misreadings using linguistic context, normalises spacing/punctuation and
+  // keeps the original language. Returns the cleaned text, or the input
+  // unchanged if the model is unavailable or errors out.
+  async refineHandwrittenText(
+    rawText: string,
+    noteContext?: string,
+  ): Promise<string> {
+    const input = (rawText || '').trim();
+    if (!input) return input;
+
+    const apiKey = this.configService.get<string>('OPENAI_API_KEY');
+    if (!apiKey) return input;
+
+    let timeoutId: NodeJS.Timeout | undefined;
+    const timeoutSignal =
+      typeof AbortSignal.timeout === 'function'
+        ? AbortSignal.timeout(30000)
+        : (() => {
+            const controller = new AbortController();
+            timeoutId = setTimeout(() => controller.abort(), 30000);
+            return controller.signal;
+          })();
+
+    try {
+      const instructions = [
+        'Ниже — черновая расшифровка рукописного текста, полученная распознаванием. В ней могут быть ошибки: перепутанные буквы, неправильно прочитанные слова, лишние пометки вида слово(?).',
+        'Аккуратно исправь очевидные ошибки распознавания, опираясь на смысл и контекст, восстанови естественные слова, пунктуацию и разбивку на абзацы.',
+        'Сохрани исходный язык и смысл. Не добавляй ничего от себя и не убирай содержание. Если фрагмент действительно непонятен, оставь его как есть.',
+        'Верни только исправленный текст, без пояснений и заголовков.',
+        noteContext ? `Контекст заметки: ${noteContext}` : null,
+      ]
+        .filter(Boolean)
+        .join(' ');
+
+      const response = await fetch(
+        'https://api.openai.com/v1/chat/completions',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model: 'gpt-5',
+            messages: [
+              { role: 'system', content: instructions },
+              { role: 'user', content: input },
+            ],
+            max_completion_tokens: TEXT_REFINE_MAX_COMPLETION_TOKENS,
+            reasoning_effort: 'low',
+          }),
+          signal: timeoutSignal,
+        },
+      );
+      if (timeoutId) clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        this.debugLogService?.warn(
+          'llm.refineHandwrittenText',
+          'OpenAI HTTP error',
+          { status: response.status },
+        );
+        return input;
+      }
+
+      const data = (await response.json()) as {
+        choices?: { message?: { content?: unknown } }[];
+      };
+      const { text } = extractTextFromAssistantContent(
+        data?.choices?.[0]?.message?.content,
+      );
+      return text && text.trim().length > 0 ? text.trim() : input;
+    } catch (error) {
+      if (timeoutId) clearTimeout(timeoutId);
+      this.debugLogService?.warn('llm.refineHandwrittenText', 'Refine failed', {
+        error: error instanceof Error ? error.message : 'unknown',
+      });
+      return input;
     }
   }
 }

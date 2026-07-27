@@ -63,6 +63,22 @@
   gap: 4px;
 }
 
+.day-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-bottom: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--v-muted);
+}
+
+.day-cell.empty {
+  border: none;
+  background: transparent;
+  pointer-events: none;
+}
+
 .day-cell {
   display: flex;
   align-items: center;
@@ -131,9 +147,9 @@
   color: var(--v-muted);
 }
 
-.note-editor {
+.note-editor,
+.desc-editor {
   width: 100%;
-  min-height: 96px;
   padding: var(--v-space-2) var(--v-space-3);
   border: 1px solid hsl(var(--shadcn-input));
   border-radius: var(--radius);
@@ -145,24 +161,61 @@
   resize: vertical;
 }
 
-.note-editor:focus {
+/* The note text editor is narrower — it holds a short diary line, not prose. */
+.note-editor {
+  max-width: 640px;
+  min-height: 80px;
+}
+
+.desc-editor {
+  min-height: 120px;
+}
+
+.note-editor:focus,
+.desc-editor:focus {
   outline: none;
   border-color: hsl(var(--shadcn-ring));
 }
 
 .note-media {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--v-space-2);
-  margin-top: var(--v-space-2);
+  flex-direction: column;
+  gap: var(--v-space-4);
+  margin-top: var(--v-space-3);
 }
 
-.note-media img {
-  width: 96px;
-  height: 96px;
-  object-fit: cover;
+/* Image + its description editor side by side on wide screens. */
+.image-block {
+  display: grid;
+  grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
+  gap: var(--v-space-3);
+  align-items: start;
+}
+
+.image-photo {
+  width: 100%;
+  max-width: 420px;
+  height: auto;
   border-radius: calc(var(--radius) - 2px);
   border: 1px solid hsl(var(--shadcn-border));
+}
+
+.image-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-2);
+  min-width: 0;
+}
+
+.image-desc-label {
+  font-size: 13px;
+  color: var(--v-muted);
+}
+
+.note-videos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-2);
 }
 
 .note-media a.media-link {
@@ -195,6 +248,16 @@
 
 .note-status.error {
   color: hsl(var(--destructive));
+}
+
+@media (max-width: 760px) {
+  .image-block {
+    grid-template-columns: 1fr;
+  }
+
+  .image-photo {
+    max-width: 100%;
+  }
 }
 
 @media (max-width: 600px) {

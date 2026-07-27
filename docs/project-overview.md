@@ -34,7 +34,7 @@ Root module: [src/app.module.ts](../src/app.module.ts) — ConfigModule (global)
 | [subs.controller.ts](../src/subs.controller.ts) | `/subs-api` | Subtitle pipeline: upload vertical video → extract MP3 + waveform manifest → Whisper transcript → LLM translation → ffmpeg render with ASS subtitles → download. Everything cached in Spaces under `subs/*` by video hash |
 | [mini-app/mini-app.controller.ts](../src/mini-app/mini-app.controller.ts) | `/mini-app-api` | Telegram Mini App backend: verifies signed initData, returns user profile/note count/avatar |
 | [diary-pages.controller.ts](../src/diary-pages.controller.ts) | `/diary`, `/diary/:MM-DD` | Owner-only diary web app (Google session): calendar landing + one day-of-month across years; serves `web/diary/index.html` |
-| [diary-api.controller.ts](../src/diary-api.controller.ts) | `/diary-api` | Owner-only diary API (Google session): `GET /calendar` (which day-of-month cells have notes), `GET /day` (notes across years), `PATCH /notes/:id` (edit text; drops the note's search embedding for lazy re-index). Scoped to the owner's chat |
+| [diary-api.controller.ts](../src/diary-api.controller.ts) | `/diary-api` | Owner-only diary API (Google session): `GET /calendar` (which day-of-month cells have notes), `GET /day` (notes across years), `PATCH /notes/:id` (edit text), `PATCH /images/:id` (edit image description), `POST /images/:id/describe` (regenerate description — handwriting-aware vision pass + text refinement). Edits drop the matching search embedding for lazy re-index. Scoped to the owner's chat |
 
 ## Telegram bot (`src/telegram-bot/`)
 
@@ -88,7 +88,7 @@ Root module: [src/app.module.ts](../src/app.module.ts) — ConfigModule (global)
 | `home/` | Landing page | Bilingual via single-file i18n (`index.html` + `i18n.js`); served at `/` and `/en` |
 | `places/` | Leaflet map of points/tracks | Vanilla JS SPA; split-panel desktop / drawer mobile; see AGENTS.md for detailed rules |
 | `reels/` | Unlisted reels catalog | Vanilla JS; served only via `/reels/<secret>` |
-| `diary/` | Diary calendar + note editor | Vanilla JS SPA behind Google sign-in; year-agnostic calendar → `/diary/MM-DD` day view, inline text editing |
+| `diary/` | Diary calendar + note editor | Vanilla JS SPA behind Google sign-in; year-agnostic calendar → `/diary/MM-DD` day view, inline note-text editing, enlarged images with an editable/regenerable description |
 | `subs/`, `subs-exp/` | Vertical-video subtitle editor (+ experimental variant) | Vanilla JS; dark "workbench" palette allowed; bilingual (static chrome via `subs/i18n.js` + `data-i18n`, dynamic strings via `app.js` TEXT) |
 | `gpx-route-png/` | GPX → PNG route renderer | Fully client-side; bilingual via single-file i18n |
 | `files/` | Files page | Bilingual via single-file i18n |
