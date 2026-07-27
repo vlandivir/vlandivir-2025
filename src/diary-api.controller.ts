@@ -7,12 +7,16 @@ import {
   Param,
   ParseIntPipe,
   Patch,
+  Post,
   Query,
+  ServiceUnavailableException,
   UseGuards,
 } from '@nestjs/common';
 import { endOfDay, startOfDay } from 'date-fns';
 import { GoogleSessionGuard } from './auth/google-session.guard';
 import { PrismaService } from './prisma/prisma.service';
+import { LlmService } from './services/llm.service';
+import { StorageService } from './services/storage.service';
 
 // The diary web app (/diary) reads and edits the owner's notes. There is a
 // single diary chat — the owner's personal Telegram chat — so every query is
@@ -21,8 +25,25 @@ const DIARY_CHAT_ID = 150847737n;
 
 const FIRST_DIARY_YEAR = 1978;
 
+// LlmService.describeImage never throws — on failure it returns one of these
+// Russian sentinels. We must not persist those as a real description.
+const DESCRIBE_FAILURE_SENTINELS = [
+  'Не удалось описать изображение',
+  'Не удалось получить описание от OpenAI',
+  'Превышено время ожидания ответа от OpenAI',
+  'Ошибка конфигурации API ключа',
+  'Ошибка API OpenAI',
+  'Неожиданный формат ответа от OpenAI',
+  'Модель отказалась описать изображение',
+  'Ошибка при обработке ответа от OpenAI',
+];
+
 type UpdateNoteBody = {
   content?: string;
+};
+
+type UpdateImageBody = {
+  description?: string;
 };
 
 // Owner-only diary API (page: /diary). Session only, like the email
@@ -30,7 +51,11 @@ type UpdateNoteBody = {
 @UseGuards(GoogleSessionGuard)
 @Controller('diary-api')
 export class DiaryApiController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly llmService: LlmService,
+    private readonly storageService: StorageService,
+  ) {}
 
   // Which day-of-month cells have at least one note (any year), for the
   // year-agnostic calendar. Month/day are 1-indexed.
@@ -92,7 +117,7 @@ export class DiaryApiController {
             id: true,
             content: true,
             noteDate: true,
-            images: { select: { url: true, description: true } },
+            images: { select: { id: true, url: true, description: true } },
             videos: { select: { url: true, description: true } },
           },
         });
@@ -133,5 +158,81 @@ export class DiaryApiController {
     });
 
     return { id, content };
+  }
+
+  // Edit an image's description (e.g. correct a poor auto-transcription).
+  // Scoped to the diary chat via the image's parent note.
+  @Patch('images/:id')
+  async updateImage(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: UpdateImageBody,
+  ) {
+    if (typeof body?.description !== 'string') {
+      throw new BadRequestException('description is required');
+    }
+    const description = body.description;
+
+    const updated = await this.prisma.image.updateMany({
+      where: { id, note: { chatId: DIARY_CHAT_ID } },
+      data: { description },
+    });
+    if (updated.count === 0) {
+      throw new NotFoundException('Image not found');
+    }
+
+    await this.prisma.embedding.deleteMany({
+      where: { kind: 'image', refId: id },
+    });
+
+    return { id, description };
+  }
+
+  // Re-run the image description with handwriting-aware recognition plus a
+  // text post-processing pass, then persist and return it.
+  @Post('images/:id/describe')
+  async describeImage(@Param('id', ParseIntPipe) id: number) {
+    const image = await this.prisma.image.findFirst({
+      where: { id, note: { chatId: DIARY_CHAT_ID } },
+      select: { id: true, url: true, note: { select: { content: true } } },
+    });
+    if (!image) {
+      throw new NotFoundException('Image not found');
+    }
+
+    let buffer: Buffer;
+    try {
+      buffer = await this.storageService.downloadFile(image.url);
+    } catch {
+      throw new ServiceUnavailableException('Failed to download image');
+    }
+
+    const noteContext = image.note?.content?.trim() || undefined;
+    const raw = await this.llmService.describeImage(
+      buffer,
+      undefined,
+      noteContext,
+      {
+        handwriting: true,
+        reasoningEffort: 'medium',
+      },
+    );
+    if (DESCRIBE_FAILURE_SENTINELS.includes(raw.trim())) {
+      throw new ServiceUnavailableException(raw.trim());
+    }
+
+    const description = await this.llmService.refineHandwrittenText(
+      raw,
+      noteContext,
+    );
+
+    await this.prisma.image.update({
+      where: { id },
+      data: { description },
+    });
+    await this.prisma.embedding.deleteMany({
+      where: { kind: 'image', refId: id },
+    });
+
+    return { id, description };
   }
 }

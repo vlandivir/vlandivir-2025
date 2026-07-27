@@ -1,6 +1,12 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { DiaryApiController } from './diary-api.controller';
 import { PrismaService } from './prisma/prisma.service';
+import { LlmService } from './services/llm.service';
+import { StorageService } from './services/storage.service';
 
 const DIARY_CHAT_ID = 150847737n;
 
@@ -9,7 +15,19 @@ describe('DiaryApiController', () => {
   let prisma: {
     $queryRaw: jest.Mock;
     note: { findMany: jest.Mock; updateMany: jest.Mock };
+    image: {
+      findFirst: jest.Mock;
+      updateMany: jest.Mock;
+      update: jest.Mock;
+    };
     embedding: { deleteMany: jest.Mock };
+  };
+  let llmService: {
+    describeImage: jest.Mock;
+    refineHandwrittenText: jest.Mock;
+  };
+  let storageService: {
+    downloadFile: jest.Mock;
   };
 
   beforeEach(() => {
@@ -19,11 +37,27 @@ describe('DiaryApiController', () => {
         findMany: jest.fn(),
         updateMany: jest.fn(),
       },
+      image: {
+        findFirst: jest.fn(),
+        updateMany: jest.fn(),
+        update: jest.fn().mockResolvedValue({}),
+      },
       embedding: {
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
     };
-    controller = new DiaryApiController(prisma as unknown as PrismaService);
+    llmService = {
+      describeImage: jest.fn(),
+      refineHandwrittenText: jest.fn(),
+    };
+    storageService = {
+      downloadFile: jest.fn(),
+    };
+    controller = new DiaryApiController(
+      prisma as unknown as PrismaService,
+      llmService as unknown as LlmService,
+      storageService as unknown as StorageService,
+    );
   });
 
   describe('calendar', () => {
@@ -121,6 +155,103 @@ describe('DiaryApiController', () => {
         controller.updateNote(999, { content: 'x' }),
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(prisma.embedding.deleteMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('updateImage', () => {
+    it('requires a string description', async () => {
+      await expect(
+        controller.updateImage(1, {} as { description?: string }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.image.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('updates the image scoped via its note and drops the embedding', async () => {
+      prisma.image.updateMany.mockResolvedValue({ count: 1 });
+
+      const result = await controller.updateImage(7, { description: 'text' });
+
+      expect(prisma.image.updateMany).toHaveBeenCalledWith({
+        where: { id: 7, note: { chatId: DIARY_CHAT_ID } },
+        data: { description: 'text' },
+      });
+      expect(prisma.embedding.deleteMany).toHaveBeenCalledWith({
+        where: { kind: 'image', refId: 7 },
+      });
+      expect(result).toEqual({ id: 7, description: 'text' });
+    });
+
+    it('404s when no owned image matches', async () => {
+      prisma.image.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(
+        controller.updateImage(999, { description: 'x' }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.embedding.deleteMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('describeImage', () => {
+    it('404s when the image is not owned', async () => {
+      prisma.image.findFirst.mockResolvedValue(null);
+
+      await expect(controller.describeImage(1)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      expect(storageService.downloadFile).not.toHaveBeenCalled();
+    });
+
+    it('recognises, refines, persists and returns the description', async () => {
+      prisma.image.findFirst.mockResolvedValue({
+        id: 3,
+        url: 'https://spaces/x.jpg',
+        note: { content: 'дневник' },
+      });
+      storageService.downloadFile.mockResolvedValue(Buffer.from('img'));
+      llmService.describeImage.mockResolvedValue('сырой текст');
+      llmService.refineHandwrittenText.mockResolvedValue('чистый текст');
+
+      const result = await controller.describeImage(3);
+
+      expect(storageService.downloadFile).toHaveBeenCalledWith(
+        'https://spaces/x.jpg',
+      );
+      expect(llmService.describeImage).toHaveBeenCalledWith(
+        expect.any(Buffer),
+        undefined,
+        'дневник',
+        { handwriting: true, reasoningEffort: 'medium' },
+      );
+      expect(llmService.refineHandwrittenText).toHaveBeenCalledWith(
+        'сырой текст',
+        'дневник',
+      );
+      expect(prisma.image.update).toHaveBeenCalledWith({
+        where: { id: 3 },
+        data: { description: 'чистый текст' },
+      });
+      expect(prisma.embedding.deleteMany).toHaveBeenCalledWith({
+        where: { kind: 'image', refId: 3 },
+      });
+      expect(result).toEqual({ id: 3, description: 'чистый текст' });
+    });
+
+    it('does not persist an LLM failure sentinel', async () => {
+      prisma.image.findFirst.mockResolvedValue({
+        id: 4,
+        url: 'https://spaces/y.jpg',
+        note: { content: null },
+      });
+      storageService.downloadFile.mockResolvedValue(Buffer.from('img'));
+      llmService.describeImage.mockResolvedValue(
+        'Не удалось описать изображение',
+      );
+
+      await expect(controller.describeImage(4)).rejects.toBeInstanceOf(
+        ServiceUnavailableException,
+      );
+      expect(llmService.refineHandwrittenText).not.toHaveBeenCalled();
+      expect(prisma.image.update).not.toHaveBeenCalled();
     });
   });
 });

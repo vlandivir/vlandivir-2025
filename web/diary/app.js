@@ -255,25 +255,127 @@
 
     const box = document.createElement('div');
     box.className = 'note-media';
+
     for (const image of images) {
-      const img = document.createElement('img');
-      img.src = image.url;
-      img.loading = 'lazy';
-      img.alt = image.description || 'Фото';
-      if (image.description) img.title = image.description;
-      box.append(img);
+      box.append(renderImage(image));
     }
-    for (const video of videos) {
-      const link = document.createElement('a');
-      link.className = 'media-link';
-      link.href = video.url;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      link.textContent = '🎬 Видео';
-      if (video.description) link.title = video.description;
-      box.append(link);
+
+    if (videos.length > 0) {
+      const videoRow = document.createElement('div');
+      videoRow.className = 'note-videos';
+      for (const video of videos) {
+        const link = document.createElement('a');
+        link.className = 'media-link';
+        link.href = video.url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = '🎬 Видео';
+        if (video.description) link.title = video.description;
+        videoRow.append(link);
+      }
+      box.append(videoRow);
     }
+
     return box;
+  }
+
+  function renderImage(image) {
+    const card = document.createElement('div');
+    card.className = 'image-block';
+
+    const img = document.createElement('img');
+    img.className = 'image-photo';
+    img.src = image.url;
+    img.loading = 'lazy';
+    img.alt = image.description || 'Фото';
+    card.append(img);
+
+    const editorWrap = document.createElement('div');
+    editorWrap.className = 'image-editor';
+
+    const label = document.createElement('div');
+    label.className = 'image-desc-label';
+    label.textContent = 'Описание изображения';
+    editorWrap.append(label);
+
+    const desc = document.createElement('textarea');
+    desc.className = 'desc-editor';
+    desc.value = image.description || '';
+    desc.placeholder = 'Описание пока не задано';
+    editorWrap.append(desc);
+
+    const actions = document.createElement('div');
+    actions.className = 'note-actions';
+
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'primary-btn';
+    saveBtn.type = 'button';
+    saveBtn.textContent = 'Сохранить описание';
+
+    const regenBtn = document.createElement('button');
+    regenBtn.className = 'ghost-btn';
+    regenBtn.type = 'button';
+    regenBtn.textContent = 'Сгенерировать заново';
+
+    const status = document.createElement('span');
+    status.className = 'note-status';
+
+    saveBtn.addEventListener('click', () =>
+      saveImageDescription(image.id, desc, saveBtn, status),
+    );
+    regenBtn.addEventListener('click', () =>
+      regenerateImageDescription(image.id, desc, [saveBtn, regenBtn], status),
+    );
+    desc.addEventListener('input', () => {
+      status.textContent = '';
+      status.className = 'note-status';
+    });
+
+    actions.append(saveBtn, regenBtn, status);
+    editorWrap.append(actions);
+    card.append(editorWrap);
+    return card;
+  }
+
+  async function saveImageDescription(id, editor, saveBtn, status) {
+    saveBtn.disabled = true;
+    status.className = 'note-status';
+    status.textContent = 'Сохранение…';
+    try {
+      await api(`/images/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description: editor.value }),
+      });
+      status.className = 'note-status saved';
+      status.textContent = 'Сохранено';
+    } catch (err) {
+      if (err.message !== 'unauthorized') {
+        status.className = 'note-status error';
+        status.textContent = 'Ошибка сохранения';
+      }
+    } finally {
+      saveBtn.disabled = false;
+    }
+  }
+
+  async function regenerateImageDescription(id, editor, buttons, status) {
+    buttons.forEach((b) => (b.disabled = true));
+    status.className = 'note-status';
+    status.textContent = 'Распознаём текст…';
+    try {
+      const data = await api(`/images/${id}/describe`, { method: 'POST' });
+      editor.value = data.description || '';
+      status.className = 'note-status saved';
+      status.textContent = 'Описание обновлено';
+    } catch (err) {
+      if (err.message !== 'unauthorized') {
+        status.className = 'note-status error';
+        status.textContent = 'Не удалось распознать';
+      }
+    } finally {
+      buttons.forEach((b) => (b.disabled = false));
+    }
   }
 
   async function saveNote(id, editor, saveBtn, status) {
