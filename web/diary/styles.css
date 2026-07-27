@@ -1,0 +1,205 @@
+/* Layout-only styles; tokens and components come from /shared/site-theme.css */
+
+.diary-page {
+  padding-bottom: var(--v-space-6);
+}
+
+.diary-top {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--v-space-3);
+  margin: var(--v-space-4) 0 var(--v-space-3);
+}
+
+.page-title {
+  margin: 4px 0 0;
+  font-size: 26px;
+}
+
+#day-title {
+  margin-top: var(--v-space-2);
+}
+
+.hidden {
+  display: none !important;
+}
+
+.muted {
+  color: var(--v-muted);
+}
+
+.diary-error {
+  margin-top: var(--v-space-3);
+  padding: var(--v-space-3);
+  border: 1px solid hsl(var(--destructive));
+  border-radius: calc(var(--radius) - 2px);
+  color: hsl(var(--destructive));
+}
+
+/* --- Calendar --- */
+
+.months {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--v-space-3);
+  margin-top: var(--v-space-3);
+}
+
+.month-card {
+  padding: var(--v-card-padding);
+}
+
+.month-name {
+  margin: 0 0 var(--v-space-2);
+  font-size: 15px;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.day-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.day-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1 / 1;
+  min-height: 30px;
+  border: 1px solid hsl(var(--shadcn-border));
+  border-radius: calc(var(--radius) - 3px);
+  background: hsl(var(--background));
+  color: var(--v-text);
+  font-size: 13px;
+  text-decoration: none;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.day-cell:hover {
+  border-color: hsl(var(--shadcn-ring));
+  background: hsl(var(--shadcn-muted));
+}
+
+.day-cell.has-notes {
+  border-color: hsl(var(--primary));
+  background: hsl(var(--primary) / 0.1);
+  color: hsl(var(--primary));
+  font-weight: 700;
+}
+
+/* --- Day view (notes by year) --- */
+
+.years {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-4);
+  margin-top: var(--v-space-3);
+}
+
+.year-block {
+  padding: var(--v-card-padding);
+}
+
+.year-head {
+  margin: 0 0 var(--v-space-3);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.note-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-4);
+}
+
+.note-item {
+  padding-top: var(--v-space-3);
+  border-top: 1px solid hsl(var(--shadcn-border));
+}
+
+.note-item:first-child {
+  padding-top: 0;
+  border-top: none;
+}
+
+.note-date {
+  margin-bottom: var(--v-space-2);
+  font-size: 12px;
+  color: var(--v-muted);
+}
+
+.note-editor {
+  width: 100%;
+  min-height: 96px;
+  padding: var(--v-space-2) var(--v-space-3);
+  border: 1px solid hsl(var(--shadcn-input));
+  border-radius: var(--radius);
+  background: hsl(var(--background));
+  color: var(--v-text);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.note-editor:focus {
+  outline: none;
+  border-color: hsl(var(--shadcn-ring));
+}
+
+.note-media {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-2);
+  margin-top: var(--v-space-2);
+}
+
+.note-media img {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: calc(var(--radius) - 2px);
+  border: 1px solid hsl(var(--shadcn-border));
+}
+
+.note-media a.media-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 var(--v-space-3);
+  border: 1px solid hsl(var(--shadcn-border));
+  border-radius: var(--radius);
+  color: hsl(var(--primary));
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.note-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--v-space-2);
+  margin-top: var(--v-space-2);
+}
+
+.note-status {
+  font-size: 13px;
+  color: var(--v-muted);
+}
+
+.note-status.saved {
+  color: hsl(var(--primary));
+}
+
+.note-status.error {
+  color: hsl(var(--destructive));
+}
+
+@media (max-width: 600px) {
+  .diary-top {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

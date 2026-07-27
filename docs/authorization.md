@@ -46,6 +46,8 @@
 | Записная книжка рилсов (страницы) | `GET /reels`, `GET /reels/:id` | `src/reels-pages.controller.ts` (`GoogleSessionGuard` / `requireSession`) |
 | Дашборд почты (страница) | `GET /email` | `src/email-pages.controller.ts` |
 | API почты | `GET/POST /email-api/*` (stats, messages, sync) | `src/email-api.controller.ts` (guard на классе) |
+| Дневник (страницы) | `GET /diary`, `GET /diary/:MM-DD` | `src/diary-pages.controller.ts` (`GoogleSessionGuard` / `requireSession`); записи скоупятся к личному чату владельца |
+| API дневника | `GET /diary-api/calendar`, `GET /diary-api/day`, `PATCH /diary-api/notes/:id` | `src/diary-api.controller.ts` (guard на классе) |
 
 Старые секретные ссылки `/reels/<secret>[/<id>]` удалены: `/reels/<не-число>` →
 redirect `/reels`, `/reels/<secret>/<id>` → 301 на `/reels/<id>` (дальше вход).

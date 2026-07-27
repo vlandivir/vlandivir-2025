@@ -66,6 +66,13 @@ async function bootstrap() {
       index: false,
       redirect: false,
     });
+    // Assets only; the page is served by DiaryPagesController behind sign-in
+    const diaryPage = path.join(process.cwd(), 'web', 'diary');
+    app.useStaticAssets(diaryPage, {
+      prefix: '/diary',
+      index: false,
+      redirect: false,
+    });
     const subsPage = path.join(process.cwd(), 'web', 'subs');
     const fontPage = path.join(subsPage, 'font');
     const archivePage = path.join(subsPage, 'archive');
@@ -152,6 +159,13 @@ async function bootstrap() {
     const emailPage = path.join(process.cwd(), 'web', 'email');
     app.useStaticAssets(emailPage, {
       prefix: '/email',
+      index: false,
+      redirect: false,
+    });
+    // Assets only; the page is served by DiaryPagesController behind sign-in
+    const diaryPage = path.join(process.cwd(), 'web', 'diary');
+    app.useStaticAssets(diaryPage, {
+      prefix: '/diary',
       index: false,
       redirect: false,
     });
