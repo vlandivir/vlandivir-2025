@@ -63,6 +63,22 @@
   gap: 4px;
 }
 
+.day-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-bottom: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--v-muted);
+}
+
+.day-cell.empty {
+  border: none;
+  background: transparent;
+  pointer-events: none;
+}
+
 .day-cell {
   display: flex;
   align-items: center;

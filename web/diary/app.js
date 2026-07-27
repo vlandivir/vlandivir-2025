@@ -17,8 +17,22 @@
     'Декабрь',
   ];
 
-  // Year-agnostic, so February keeps its leap day (29).
-  const DAYS_IN_MONTH = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  // The calendar follows the current year's weekdays; February always keeps
+  // its leap day (29) as an exception, even when the current year is common.
+  const CALENDAR_YEAR = new Date().getFullYear();
+  const WEEKDAYS_RU = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+
+  function daysInMonth(month) {
+    // month is 1-indexed. February is forced to 29 (leap-day exception).
+    if (month === 2) return 29;
+    return new Date(CALENDAR_YEAR, month, 0).getDate();
+  }
+
+  // Monday-first weekday index (0 = Mon .. 6 = Sun) of the 1st of the month.
+  function firstWeekdayOffset(month) {
+    const jsWeekday = new Date(CALENDAR_YEAR, month - 1, 1).getDay(); // 0 = Sun
+    return (jsWeekday + 6) % 7;
+  }
 
   const dayTitleFormat = new Intl.DateTimeFormat('ru-RU', {
     day: 'numeric',
@@ -125,7 +139,22 @@
 
       const grid = document.createElement('div');
       grid.className = 'day-grid';
-      for (let day = 1; day <= DAYS_IN_MONTH[month - 1]; day += 1) {
+
+      for (const name of WEEKDAYS_RU) {
+        const head = document.createElement('div');
+        head.className = 'day-head';
+        head.textContent = name;
+        grid.append(head);
+      }
+
+      // Blank leading cells so day 1 sits under its weekday column.
+      for (let i = 0; i < firstWeekdayOffset(month); i += 1) {
+        const blank = document.createElement('div');
+        blank.className = 'day-cell empty';
+        grid.append(blank);
+      }
+
+      for (let day = 1; day <= daysInMonth(month); day += 1) {
         const cell = document.createElement('a');
         cell.className = 'day-cell';
         cell.textContent = String(day);
