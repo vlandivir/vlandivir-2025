@@ -23,7 +23,8 @@ export type ProcessPendingSummary = {
   errors: number;
 };
 
-const DEFAULT_CONFIDENCE = 0.7;
+// High bar: false archives are worse than leaving mail in the inbox.
+const DEFAULT_CONFIDENCE = 0.9;
 const PENDING_BATCH = 50;
 
 // Runs the LLM classifier against enabled rules and applies effects when the

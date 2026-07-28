@@ -350,19 +350,31 @@ export class EmailApiController {
     });
     if (!existing) throw new NotFoundException('Message not found');
     const result = await this.emailRulesRunnerService.processMessage(id);
-    const message = await this.prisma.emailMessage.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        seen: true,
-        archived: true,
-        hidden: true,
-        important: true,
-        labels: true,
-        status: true,
-      },
-    });
-    return { ...result, message };
+    const [message, matchedRule] = await Promise.all([
+      this.prisma.emailMessage.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          seen: true,
+          archived: true,
+          hidden: true,
+          important: true,
+          labels: true,
+          status: true,
+        },
+      }),
+      result.matchedRuleId
+        ? this.prisma.emailRule.findUnique({
+            where: { id: result.matchedRuleId },
+            select: { condition: true },
+          })
+        : Promise.resolve(null),
+    ]);
+    return {
+      ...result,
+      matchedRuleCondition: matchedRule?.condition ?? null,
+      message,
+    };
   }
 
   // Dry-run: which enabled rule (if any) would match this message. Evaluates
@@ -402,6 +414,7 @@ export class EmailApiController {
   }
 
   // Recent action journal (manual + rule), newest first, with the subject
+  // and the triggering rule's condition when source=rule.
   @Get('log')
   async log(@Query('limit') limit: string | undefined) {
     const take = Math.min(Number(limit) || 100, 200);
@@ -412,7 +425,27 @@ export class EmailApiController {
         message: { select: { id: true, subject: true, account: true } },
       },
     });
-    return { entries };
+    const ruleIds = [
+      ...new Set(
+        entries
+          .map((entry) => entry.ruleId)
+          .filter((id): id is number => typeof id === 'number'),
+      ),
+    ];
+    const rules =
+      ruleIds.length > 0
+        ? await this.prisma.emailRule.findMany({
+            where: { id: { in: ruleIds } },
+            select: { id: true, condition: true },
+          })
+        : [];
+    const ruleById = new Map(rules.map((rule) => [rule.id, rule]));
+    return {
+      entries: entries.map((entry) => ({
+        ...entry,
+        rule: entry.ruleId ? (ruleById.get(entry.ruleId) ?? null) : null,
+      })),
+    };
   }
 
   private normalizeEffects(effects?: EmailRuleEffects): EmailRuleEffects {

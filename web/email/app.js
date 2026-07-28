@@ -8,6 +8,10 @@
     selectedId: null,
     detail: null, // full message currently open in the detail pane
     filters: { query: '', account: '', flag: '' },
+    // Important sits in its own block (not a filter); remember collapse.
+    importantCollapsed: false,
+    // Thread keys (`account:threadId`) the user has expanded to see older mail.
+    expandedThreads: new Set(),
   };
 
   const el = (id) => document.getElementById(id);
@@ -178,21 +182,28 @@
     renderList();
   }
 
+  function matchesQuery(message, query) {
+    if (!query) return true;
+    return [message.subject, message.fromAddress, message.fromName]
+      .filter(Boolean)
+      .some((value) => value.toLowerCase().includes(query));
+  }
+
+  function matchesAccount(message) {
+    return !state.filters.account || message.account === state.filters.account;
+  }
+
+  // Inbox / flag views — important lives in its own block, so it stays out of
+  // the main list (same as hidden/archived) unless we're browsing those flags.
   function visibleMessages() {
     const query = state.filters.query.trim().toLowerCase();
     const flag = state.filters.flag;
     return state.messages.filter((message) => {
-      if (state.filters.account && message.account !== state.filters.account) {
-        return false;
-      }
-      // Hidden / archived / important leave the default view; dedicated flags
-      // show each section on its own.
+      if (!matchesAccount(message)) return false;
       if (flag === 'hidden') {
         if (!message.hidden) return false;
       } else if (flag === 'archived') {
         if (!message.archived) return false;
-      } else if (flag === 'important') {
-        if (!message.important) return false;
       } else {
         if (message.hidden || message.archived || message.important) {
           return false;
@@ -200,11 +211,20 @@
         if (flag === 'unseen' && message.seen) return false;
         if (flag === 'attachments' && !message.hasAttachments) return false;
       }
-      if (!query) return true;
-      return [message.subject, message.fromAddress, message.fromName]
-        .filter(Boolean)
-        .some((value) => value.toLowerCase().includes(query));
+      return matchesQuery(message, query);
     });
+  }
+
+  // Starred mail for the dedicated collapsible section above the inbox.
+  function importantMessages() {
+    const query = state.filters.query.trim().toLowerCase();
+    return state.messages.filter(
+      (message) =>
+        message.important &&
+        !message.hidden &&
+        matchesAccount(message) &&
+        matchesQuery(message, query),
+    );
   }
 
   // Group visible messages into threads (same account + threadId). Groups are
@@ -366,45 +386,117 @@
     return item;
   }
 
+  function threadKey(message) {
+    return `${message.account}:${message.threadId}`;
+  }
+
+  function isThreadExpanded(group) {
+    return state.expandedThreads.has(threadKey(group[0]));
+  }
+
+  function renderThreadGroup(group) {
+    if (group.length === 1) {
+      return renderMessageRow(group[0]);
+    }
+
+    const key = threadKey(group[0]);
+    const expanded = isThreadExpanded(group);
+    const wrap = document.createElement('li');
+    wrap.className = 'thread-group';
+    wrap.classList.toggle('collapsed', !expanded);
+    wrap.style.borderLeftColor = accountColor(group[0].account, 1);
+
+    const head = document.createElement('button');
+    head.type = 'button';
+    head.className = 'thread-group-head';
+    head.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    const title = document.createElement('span');
+    title.className = 'thread-group-title';
+    title.textContent = group[0].subject || '(без темы)';
+    const count = document.createElement('span');
+    count.className = 'meta-chip thread-count';
+    count.textContent = expanded
+      ? `▾ ${group.length} писем`
+      : `▸ ${group.length} писем`;
+    head.append(title, count);
+    head.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (expanded) state.expandedThreads.delete(key);
+      else state.expandedThreads.add(key);
+      renderList();
+    });
+
+    const nested = document.createElement('ul');
+    nested.className = 'thread-messages';
+    // Collapsed: still show the newest message so the thread is readable.
+    const shown = expanded ? group : group.slice(0, 1);
+    nested.replaceChildren(...shown.map((message) => renderMessageRow(message)));
+
+    if (!expanded && group.length > 1) {
+      const more = document.createElement('button');
+      more.type = 'button';
+      more.className = 'thread-more';
+      more.textContent = `Показать ещё ${group.length - 1}`;
+      more.addEventListener('click', (event) => {
+        event.stopPropagation();
+        state.expandedThreads.add(key);
+        renderList();
+      });
+      nested.append(more);
+    }
+
+    wrap.append(head, nested);
+    return wrap;
+  }
+
+  function renderListSection(groups) {
+    return groups.map((group) => renderThreadGroup(group));
+  }
+
   function renderList() {
-    const messages = visibleMessages();
-    const groups = threadGroups(messages);
-    el('list-empty').classList.toggle('hidden', groups.length > 0);
+    const inbox = visibleMessages();
+    const important = importantMessages();
+    const inboxGroups = threadGroups(inbox);
+    const importantGroups = threadGroups(important);
+    // Important has its own block on the inbox views; archived/hidden filters
+    // already surface those messages in the main list.
+    const showImportantBlock =
+      important.length > 0 &&
+      state.filters.flag !== 'hidden' &&
+      state.filters.flag !== 'archived';
 
-    messageList.replaceChildren(
-      ...groups.map((group) => {
-        if (group.length === 1) {
-          return renderMessageRow(group[0]);
-        }
+    const importantSection = el('important-section');
+    const importantList = el('important-list');
+    importantSection.classList.toggle('hidden', !showImportantBlock);
+    if (showImportantBlock) {
+      importantSection.classList.toggle('collapsed', state.importantCollapsed);
+      el('important-toggle').setAttribute(
+        'aria-expanded',
+        state.importantCollapsed ? 'false' : 'true',
+      );
+      el('important-count').textContent = String(important.length);
+      el('important-chevron').textContent = state.importantCollapsed
+        ? '▸'
+        : '▾';
+      importantList.replaceChildren(...renderListSection(importantGroups));
+    } else {
+      importantList.replaceChildren();
+    }
 
-        const wrap = document.createElement('li');
-        wrap.className = 'thread-group';
-        wrap.style.borderLeftColor = accountColor(group[0].account, 1);
-
-        const head = document.createElement('div');
-        head.className = 'thread-group-head';
-        const title = document.createElement('span');
-        title.className = 'thread-group-title';
-        title.textContent = group[0].subject || '(без темы)';
-        const count = document.createElement('span');
-        count.className = 'meta-chip thread-count';
-        count.textContent = `${group.length} писем`;
-        head.append(title, count);
-
-        const nested = document.createElement('ul');
-        nested.className = 'thread-messages';
-        nested.replaceChildren(...group.map((message) => renderMessageRow(message)));
-
-        wrap.append(head, nested);
-        return wrap;
-      }),
+    el('list-empty').classList.toggle(
+      'hidden',
+      inboxGroups.length > 0 || showImportantBlock,
     );
+
+    messageList.replaceChildren(...renderListSection(inboxGroups));
   }
 
   // --- Detail ---
 
   async function selectMessage(id) {
     state.selectedId = id;
+    const listed = state.messages.find((message) => message.id === id);
+    if (listed) state.expandedThreads.add(threadKey(listed));
     renderList();
     state.detail = await fetchJson(`${API_BASE}/messages/${id}`);
     renderDetail();
@@ -879,11 +971,17 @@
         text = `Ошибка: ${data.error || 'не удалось применить'}`;
       } else if (data.applied) {
         const pct = Math.round((data.confidence || 0) * 100);
+        const ruleLabel = data.matchedRuleCondition
+          ? `«${data.matchedRuleCondition}» `
+          : '';
         className = 'test-rules-result matched';
-        text = `Применено (${pct}%) — ${data.reasoning}`;
+        text = `Применено ${ruleLabel}(${pct}%) — ${data.reasoning}`;
       } else if (data.matchedRuleId) {
         const pct = Math.round((data.confidence || 0) * 100);
-        text = `Совпадение слабое (${pct}%), не применено — ${data.reasoning}`;
+        const ruleLabel = data.matchedRuleCondition
+          ? `«${data.matchedRuleCondition}» `
+          : '';
+        text = `Совпадение слабое ${ruleLabel}(${pct}%), не применено — ${data.reasoning}`;
       } else {
         text = `Ни одно правило не подошло${data.reasoning ? ` — ${data.reasoning}` : ''}`;
       }
@@ -922,8 +1020,18 @@
           entry.action + (entry.param ? ` ${entry.param}` : '');
 
         const src = document.createElement('span');
-        src.className = 'meta-chip';
-        src.textContent = entry.source === 'rule' ? '⚙️ правило' : '👆 вручную';
+        src.className = 'meta-chip log-source';
+        if (entry.source === 'rule') {
+          const condition = entry.rule?.condition?.trim();
+          src.textContent = condition
+            ? `⚙️ ${condition}`
+            : entry.ruleId
+              ? `⚙️ правило #${entry.ruleId}`
+              : '⚙️ правило';
+          if (condition) src.title = condition;
+        } else {
+          src.textContent = '👆 вручную';
+        }
 
         const subj = document.createElement('span');
         subj.className = 'log-subject muted';
@@ -966,6 +1074,10 @@
   });
   el('filter-flag').addEventListener('change', (event) => {
     state.filters.flag = event.target.value;
+    renderList();
+  });
+  el('important-toggle').addEventListener('click', () => {
+    state.importantCollapsed = !state.importantCollapsed;
     renderList();
   });
   el('sync-button').addEventListener('click', () => void syncNow());
