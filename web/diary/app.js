@@ -381,7 +381,7 @@
   async function regenerateImageDescription(id, editor, buttons, status) {
     buttons.forEach((b) => (b.disabled = true));
     status.className = 'note-status';
-    status.textContent = 'Распознаём текст…';
+    status.textContent = 'Распознаём текст (3 модели)…';
     try {
       const data = await api(`/images/${id}/describe`, { method: 'POST' });
       editor.value = data.description || '';

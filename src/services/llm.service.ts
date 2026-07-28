@@ -37,11 +37,48 @@ const TEXT_REFINE_MAX_COMPLETION_TOKENS = 1600;
 
 type ReasoningEffort = 'minimal' | 'low' | 'medium' | 'high';
 
+// Three OpenAI vision models with different error patterns — consensus beats
+// three identical gpt-5 draws. Override via HANDWRITING_LLM_MODELS=a,b,c.
+const DEFAULT_HANDWRITING_MODELS = ['gpt-5', 'gpt-5-mini', 'gpt-4o'] as const;
+
+function supportsReasoningEffort(model: string): boolean {
+  return /^(gpt-5|o[0-9])/i.test(model);
+}
+
 export interface DescribeImageOptions {
   // Emphasise careful transcription of handwritten text (e.g. diary pages).
   handwriting?: boolean;
   // Higher effort recognises messy handwriting better, at the cost of latency.
   reasoningEffort?: ReasoningEffort;
+  // Override the default 30s fetch abort (handwriting + medium effort needs more).
+  timeoutMs?: number;
+  // Chat-completions model id (default gpt-5).
+  model?: string;
+}
+
+export interface RecognizeHandwritingOptions {
+  // Vision models for independent passes (default: gpt-5, gpt-5-mini, gpt-4o).
+  models?: string[];
+  reasoningEffort?: ReasoningEffort;
+}
+
+// describeImage never throws — on failure it returns one of these Russian
+// sentinels. Callers must not persist them as a real description.
+export const DESCRIBE_FAILURE_SENTINELS = [
+  'Не удалось описать изображение',
+  'Не удалось получить описание от OpenAI',
+  'Превышено время ожидания ответа от OpenAI',
+  'Ошибка конфигурации API ключа',
+  'Ошибка API OpenAI',
+  'Неожиданный формат ответа от OpenAI',
+  'Модель отказалась описать изображение',
+  'Ошибка при обработке ответа от OpenAI',
+] as const;
+
+function isDescribeFailure(text: string): boolean {
+  return (DESCRIBE_FAILURE_SENTINELS as readonly string[]).includes(
+    text.trim(),
+  );
 }
 
 @Injectable()
@@ -60,6 +97,8 @@ export class LlmService {
     const handwriting = options?.handwriting ?? false;
     const reasoningEffort: ReasoningEffort =
       options?.reasoningEffort ?? 'minimal';
+    const timeoutMs = options?.timeoutMs ?? 30_000;
+    const model = options?.model?.trim() || 'gpt-5';
     try {
       const apiKey = this.configService.get<string>('OPENAI_API_KEY');
       if (!apiKey) {
@@ -72,6 +111,10 @@ export class LlmService {
         {
           imageBytes: imageBuffer.length,
           hasComment: Boolean(comment && comment.trim()),
+          handwriting,
+          reasoningEffort,
+          timeoutMs,
+          model,
         },
       );
 
@@ -82,10 +125,10 @@ export class LlmService {
       let timeoutId: NodeJS.Timeout | undefined;
       const timeoutSignal =
         typeof AbortSignal.timeout === 'function'
-          ? AbortSignal.timeout(30000)
+          ? AbortSignal.timeout(timeoutMs)
           : (() => {
               const controller = new AbortController();
-              timeoutId = setTimeout(() => controller.abort(), 30000);
+              timeoutId = setTimeout(() => controller.abort(), timeoutMs);
               return controller.signal;
             })();
 
@@ -99,7 +142,7 @@ export class LlmService {
               Authorization: `Bearer ${apiKey}`,
             },
             body: JSON.stringify({
-              model: 'gpt-5',
+              model,
               messages: [
                 {
                   role: 'user',
@@ -144,7 +187,9 @@ export class LlmService {
                 },
               ],
               max_completion_tokens: IMAGE_DESCRIPTION_MAX_COMPLETION_TOKENS,
-              reasoning_effort: reasoningEffort,
+              ...(supportsReasoningEffort(model)
+                ? { reasoning_effort: reasoningEffort }
+                : {}),
             }),
             signal: timeoutSignal,
           },
@@ -363,40 +408,121 @@ export class LlmService {
     }
   }
 
-  // Post-processing for a recognised (handwritten) transcription: fixes likely
-  // misreadings using linguistic context, normalises spacing/punctuation and
-  // keeps the original language. Returns the cleaned text, or the input
-  // unchanged if the model is unavailable or errors out.
+  /**
+   * Handwriting pipeline: independent vision passes on different models in
+   * parallel, then a text pass that reconciles disagreements / OCR-like errors.
+   */
+  async recognizeHandwriting(
+    imageBuffer: Buffer,
+    noteContext?: string,
+    options?: RecognizeHandwritingOptions,
+  ): Promise<string> {
+    const models = this.handwritingModels(options?.models);
+    const reasoningEffort = options?.reasoningEffort ?? 'medium';
+
+    const drafts = await Promise.all(
+      models.map(async (model) => {
+        const text = await this.describeImage(
+          imageBuffer,
+          undefined,
+          noteContext,
+          {
+            handwriting: true,
+            reasoningEffort,
+            model,
+            // Medium reasoning on a full diary page often exceeds 30s.
+            timeoutMs: 60_000,
+          },
+        );
+        return { model, text: text.trim() };
+      }),
+    );
+
+    const good = drafts.filter(
+      (draft) => draft.text.length > 0 && !isDescribeFailure(draft.text),
+    );
+
+    this.debugLogService?.info('llm.recognizeHandwriting', 'Passes finished', {
+      models,
+      good: good.map((draft) => draft.model),
+    });
+
+    if (good.length === 0) {
+      return drafts[0]?.text || 'Не удалось описать изображение';
+    }
+
+    // Label drafts with model names so the merger can weigh disagreements.
+    const labeled = good.map(
+      (draft) => `--- Вариант (${draft.model}) ---\n${draft.text}`,
+    );
+    return this.refineHandwrittenText(
+      good.length === 1 ? good[0].text : labeled,
+      noteContext,
+    );
+  }
+
+  private handwritingModels(override?: string[]): string[] {
+    if (override?.length) {
+      return override
+        .map((model) => model.trim())
+        .filter(Boolean)
+        .slice(0, 3);
+    }
+    const fromEnv = this.configService.get<string>('HANDWRITING_LLM_MODELS');
+    if (fromEnv?.trim()) {
+      const parsed = fromEnv
+        .split(',')
+        .map((model) => model.trim())
+        .filter(Boolean)
+        .slice(0, 3);
+      if (parsed.length > 0) return parsed;
+    }
+    return [...DEFAULT_HANDWRITING_MODELS];
+  }
+
+  // Post-processing for recognised handwriting: with one draft, fix likely
+  // misreadings; with several, reconcile disagreements first. Returns cleaned
+  // text, or the best input unchanged if the model is unavailable / errors.
   async refineHandwrittenText(
-    rawText: string,
+    rawText: string | string[],
     noteContext?: string,
   ): Promise<string> {
-    const input = (rawText || '').trim();
-    if (!input) return input;
+    const drafts = (Array.isArray(rawText) ? rawText : [rawText])
+      .map((text) => text.trim())
+      .filter((text) => text.length > 0);
+    if (drafts.length === 0) return '';
 
     const apiKey = this.configService.get<string>('OPENAI_API_KEY');
-    if (!apiKey) return input;
+    if (!apiKey) return drafts[0];
 
     let timeoutId: NodeJS.Timeout | undefined;
     const timeoutSignal =
       typeof AbortSignal.timeout === 'function'
-        ? AbortSignal.timeout(30000)
+        ? AbortSignal.timeout(45_000)
         : (() => {
             const controller = new AbortController();
-            timeoutId = setTimeout(() => controller.abort(), 30000);
+            timeoutId = setTimeout(() => controller.abort(), 45_000);
             return controller.signal;
           })();
 
     try {
+      const multi = drafts.length > 1;
       const instructions = [
-        'Ниже — черновая расшифровка рукописного текста, полученная распознаванием. В ней могут быть ошибки: перепутанные буквы, неправильно прочитанные слова, лишние пометки вида слово(?).',
-        'Аккуратно исправь очевидные ошибки распознавания, опираясь на смысл и контекст, восстанови естественные слова, пунктуацию и разбивку на абзацы.',
-        'Сохрани исходный язык и смысл. Не добавляй ничего от себя и не убирай содержание. Если фрагмент действительно непонятен, оставь его как есть.',
-        'Верни только исправленный текст, без пояснений и заголовков.',
+        multi
+          ? 'Ниже несколько независимых расшифровок одной и той же рукописной страницы от разных моделей (варианты подписаны именем модели).'
+          : 'Ниже — черновая расшифровка рукописного текста, полученная распознаванием. В ней могут быть ошибки: перепутанные буквы, неправильно прочитанные слова, лишние пометки вида слово(?).',
+        multi
+          ? 'Собери одну наиболее точную версию: где варианты совпадают — бери это; где расходятся — выбирай наиболее правдоподобный по смыслу, орфографии и контексту соседних слов; сомнительные слово(?) разрешай, если хотя бы в одном варианте чтение уверенное и согласуется с остальным текстом.'
+          : 'Аккуратно исправь очевидные ошибки распознавания, опираясь на смысл и контекст, восстанови естественные слова, пунктуацию и разбивку на абзацы.',
+        'Сохрани исходный язык, порядок абзацев и смысл. Не добавляй ничего от себя и не убирай содержание. Если фрагмент действительно непонятен во всех вариантах, оставь наиболее близкое чтение.',
+        'Если в черновиках после расшифровки есть краткое описание обстановки/рисунков — сохрани его отдельным абзацем в конце.',
+        'Верни только итоговый текст, без пояснений, сравнений вариантов и заголовков.',
         noteContext ? `Контекст заметки: ${noteContext}` : null,
       ]
         .filter(Boolean)
         .join(' ');
+
+      const userContent = multi ? drafts.join('\n\n') : drafts[0];
 
       const response = await fetch(
         'https://api.openai.com/v1/chat/completions',
@@ -410,10 +536,10 @@ export class LlmService {
             model: 'gpt-5',
             messages: [
               { role: 'system', content: instructions },
-              { role: 'user', content: input },
+              { role: 'user', content: userContent },
             ],
             max_completion_tokens: TEXT_REFINE_MAX_COMPLETION_TOKENS,
-            reasoning_effort: 'low',
+            reasoning_effort: multi ? 'medium' : 'low',
           }),
           signal: timeoutSignal,
         },
@@ -426,7 +552,7 @@ export class LlmService {
           'OpenAI HTTP error',
           { status: response.status },
         );
-        return input;
+        return drafts[0];
       }
 
       const data = (await response.json()) as {
@@ -435,13 +561,13 @@ export class LlmService {
       const { text } = extractTextFromAssistantContent(
         data?.choices?.[0]?.message?.content,
       );
-      return text && text.trim().length > 0 ? text.trim() : input;
+      return text && text.trim().length > 0 ? text.trim() : drafts[0];
     } catch (error) {
       if (timeoutId) clearTimeout(timeoutId);
       this.debugLogService?.warn('llm.refineHandwrittenText', 'Refine failed', {
         error: error instanceof Error ? error.message : 'unknown',
       });
-      return input;
+      return drafts[0];
     }
   }
 }

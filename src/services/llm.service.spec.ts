@@ -97,4 +97,53 @@ describe('LlmService', () => {
       expect(body.reasoning_effort).toBe('minimal');
     });
   });
+
+  describe('recognizeHandwriting', () => {
+    it('runs one vision pass per model and merges the drafts', async () => {
+      const describe = jest
+        .spyOn(service, 'describeImage')
+        .mockResolvedValueOnce('вариант один')
+        .mockResolvedValueOnce('вариант два')
+        .mockResolvedValueOnce('вариант три');
+      jest.spyOn(service, 'refineHandwrittenText').mockResolvedValue('итог');
+
+      const result = await service.recognizeHandwriting(
+        Buffer.from('img'),
+        'контекст',
+      );
+
+      expect(describe).toHaveBeenCalledTimes(3);
+      expect(describe.mock.calls.map((call) => call[3]?.model)).toEqual([
+        'gpt-5',
+        'gpt-5-mini',
+        'gpt-4o',
+      ]);
+      expect(service.refineHandwrittenText).toHaveBeenCalledWith(
+        [
+          '--- Вариант (gpt-5) ---\nвариант один',
+          '--- Вариант (gpt-5-mini) ---\nвариант два',
+          '--- Вариант (gpt-4o) ---\nвариант три',
+        ],
+        'контекст',
+      );
+      expect(result).toBe('итог');
+    });
+
+    it('skips failure sentinels when merging', async () => {
+      jest
+        .spyOn(service, 'describeImage')
+        .mockResolvedValueOnce('Не удалось описать изображение')
+        .mockResolvedValueOnce('хороший текст')
+        .mockResolvedValueOnce('Ошибка API OpenAI');
+      jest.spyOn(service, 'refineHandwrittenText').mockResolvedValue('очищено');
+
+      const result = await service.recognizeHandwriting(Buffer.from('img'));
+
+      expect(service.refineHandwrittenText).toHaveBeenCalledWith(
+        'хороший текст',
+        undefined,
+      );
+      expect(result).toBe('очищено');
+    });
+  });
 });

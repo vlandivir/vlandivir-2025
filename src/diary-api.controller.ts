@@ -16,23 +16,10 @@ import { endOfDay, startOfDay } from 'date-fns';
 import { GoogleSessionGuard } from './auth/google-session.guard';
 import { DIARY_CHAT_ID } from './diary.constants';
 import { PrismaService } from './prisma/prisma.service';
-import { LlmService } from './services/llm.service';
+import { LlmService, DESCRIBE_FAILURE_SENTINELS } from './services/llm.service';
 import { StorageService } from './services/storage.service';
 
 const FIRST_DIARY_YEAR = 1978;
-
-// LlmService.describeImage never throws — on failure it returns one of these
-// Russian sentinels. We must not persist those as a real description.
-const DESCRIBE_FAILURE_SENTINELS = [
-  'Не удалось описать изображение',
-  'Не удалось получить описание от OpenAI',
-  'Превышено время ожидания ответа от OpenAI',
-  'Ошибка конфигурации API ключа',
-  'Ошибка API OpenAI',
-  'Неожиданный формат ответа от OpenAI',
-  'Модель отказалась описать изображение',
-  'Ошибка при обработке ответа от OpenAI',
-];
 
 type UpdateNoteBody = {
   content?: string;
@@ -183,8 +170,8 @@ export class DiaryApiController {
     return { id, description };
   }
 
-  // Re-run the image description with handwriting-aware recognition plus a
-  // text post-processing pass, then persist and return it.
+  // Re-run handwriting recognition: several independent vision passes plus a
+  // merge/refine text pass, then persist and return the result.
   @Post('images/:id/describe')
   async describeImage(@Param('id', ParseIntPipe) id: number) {
     const image = await this.prisma.image.findFirst({
@@ -203,23 +190,18 @@ export class DiaryApiController {
     }
 
     const noteContext = image.note?.content?.trim() || undefined;
-    const raw = await this.llmService.describeImage(
+    const description = await this.llmService.recognizeHandwriting(
       buffer,
-      undefined,
       noteContext,
-      {
-        handwriting: true,
-        reasoningEffort: 'medium',
-      },
+      { reasoningEffort: 'medium' },
     );
-    if (DESCRIBE_FAILURE_SENTINELS.includes(raw.trim())) {
-      throw new ServiceUnavailableException(raw.trim());
+    if (
+      (DESCRIBE_FAILURE_SENTINELS as readonly string[]).includes(
+        description.trim(),
+      )
+    ) {
+      throw new ServiceUnavailableException(description.trim());
     }
-
-    const description = await this.llmService.refineHandwrittenText(
-      raw,
-      noteContext,
-    );
 
     await this.prisma.image.update({
       where: { id },

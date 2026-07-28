@@ -26,6 +26,7 @@ describe('DiaryApiController', () => {
   let llmService: {
     describeImage: jest.Mock;
     refineHandwrittenText: jest.Mock;
+    recognizeHandwriting: jest.Mock;
   };
   let storageService: {
     downloadFile: jest.Mock;
@@ -53,6 +54,7 @@ describe('DiaryApiController', () => {
     llmService = {
       describeImage: jest.fn(),
       refineHandwrittenText: jest.fn(),
+      recognizeHandwriting: jest.fn(),
     };
     storageService = {
       downloadFile: jest.fn(),
@@ -242,23 +244,17 @@ describe('DiaryApiController', () => {
         note: { content: 'дневник' },
       });
       storageService.downloadFile.mockResolvedValue(Buffer.from('img'));
-      llmService.describeImage.mockResolvedValue('сырой текст');
-      llmService.refineHandwrittenText.mockResolvedValue('чистый текст');
+      llmService.recognizeHandwriting.mockResolvedValue('чистый текст');
 
       const result = await controller.describeImage(3);
 
       expect(storageService.downloadFile).toHaveBeenCalledWith(
         'https://spaces/x.jpg',
       );
-      expect(llmService.describeImage).toHaveBeenCalledWith(
+      expect(llmService.recognizeHandwriting).toHaveBeenCalledWith(
         expect.any(Buffer),
-        undefined,
         'дневник',
-        { handwriting: true, reasoningEffort: 'medium' },
-      );
-      expect(llmService.refineHandwrittenText).toHaveBeenCalledWith(
-        'сырой текст',
-        'дневник',
+        { reasoningEffort: 'medium' },
       );
       expect(prisma.image.update).toHaveBeenCalledWith({
         where: { id: 3 },
@@ -277,14 +273,13 @@ describe('DiaryApiController', () => {
         note: { content: null },
       });
       storageService.downloadFile.mockResolvedValue(Buffer.from('img'));
-      llmService.describeImage.mockResolvedValue(
+      llmService.recognizeHandwriting.mockResolvedValue(
         'Не удалось описать изображение',
       );
 
       await expect(controller.describeImage(4)).rejects.toBeInstanceOf(
         ServiceUnavailableException,
       );
-      expect(llmService.refineHandwrittenText).not.toHaveBeenCalled();
       expect(prisma.image.update).not.toHaveBeenCalled();
     });
   });
