@@ -238,9 +238,10 @@ export class EmailApiController {
     const gmailUrl = accountEmail
       ? gmailOpenUrl(accountEmail, message.thread.gmThreadId || message.gmMsgId)
       : null;
-    const payload = { ...message, gmailUrl };
-    delete payload.gmMsgId;
-    return payload;
+    // Strip gmMsgId from the API response (used only for gmailUrl above).
+    const { gmMsgId, ...rest } = message;
+    void gmMsgId;
+    return { ...rest, gmailUrl };
   }
 
   // --- Rules catalog ---
