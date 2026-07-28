@@ -212,23 +212,6 @@
   color: var(--v-muted);
 }
 
-.note-videos {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--v-space-2);
-}
-
-.note-media a.media-link {
-  display: inline-flex;
-  align-items: center;
-  min-height: 40px;
-  padding: 0 var(--v-space-3);
-  border: 1px solid hsl(var(--shadcn-border));
-  border-radius: var(--radius);
-  color: hsl(var(--primary));
-  text-decoration: none;
-  font-size: 13px;
-}
 
 .note-actions {
   display: flex;
