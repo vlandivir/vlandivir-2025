@@ -273,10 +273,11 @@ model EmailMessage {
   seen           Boolean           @default(false)
   archived       Boolean           @default(false) // \Inbox removed (kept in All Mail)
   hidden         Boolean           @default(false) // hidden from the dashboard default view (local only)
+  important      Boolean           @default(false) // pinned into the «Важное» section (local only)
   hasAttachments Boolean           @default(false)
   sizeBytes      Int?
   rawKey         String? // DO Spaces key of the raw .eml (private object)
-  status         String            @default("new") // new | later: classified | error
+  status         String            @default("new") // new | classified | error
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
   attachments    EmailAttachment[]
@@ -325,7 +326,7 @@ model EmailRule {
   @@index([enabled])
 }
 
-// Audit trail of actions applied to a message (manual or, later, by a rule).
+// Audit trail of actions applied to a message (manual or by a rule).
 // `prevState` stores what to restore for an undo (e.g. {"seen": false}).
 model EmailActionLog {
   id        Int          @id @default(autoincrement())
@@ -334,7 +335,7 @@ model EmailActionLog {
   action    String // mark_read | archive | label | hide | notify | ...
   param     String? // e.g. the label name
   source    String       @default("manual") // manual | rule
-  ruleId    Int? // set when a rule triggered the action (future)
+  ruleId    Int? // set when a rule triggered the action
   prevState Json? // state before the action, for undo
   result    String       @default("ok") // ok | error
   error     String?

@@ -16,6 +16,17 @@ export type EmailAccountConfig = z.infer<typeof emailAccountSchema>;
 
 export const EMAIL_MAILBOX = 'INBOX';
 
+// Deep-link into Gmail web for a message/thread. gmId must be the decimal
+// X-GM-MSGID or X-GM-THRID; Gmail's hash uses the lowercase hex form.
+export function gmailOpenUrl(
+  userEmail: string,
+  gmId: string | null | undefined,
+): string | null {
+  if (!userEmail || !gmId || !/^\d+$/.test(gmId)) return null;
+  const hex = BigInt(gmId).toString(16);
+  return `https://mail.google.com/mail/?authuser=${encodeURIComponent(userEmail)}#all/${hex}`;
+}
+
 // Parses EMAIL_ACCOUNTS; returns [] and reports via onError on invalid input.
 export function parseEmailAccounts(
   raw: string | undefined,

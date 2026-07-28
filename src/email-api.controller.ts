@@ -11,6 +11,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { GoogleSessionGuard } from './auth/google-session.guard';
 import { PrismaService } from './prisma/prisma.service';
 import { EmailIngestService } from './services/email-ingest.service';
@@ -20,6 +21,8 @@ import {
   EmailRuleEffects,
 } from './services/email-executor.service';
 import { EmailClassifierService } from './services/email-classifier.service';
+import { EmailRulesRunnerService } from './services/email-rules-runner.service';
+import { gmailOpenUrl, parseEmailAccounts } from './services/email-accounts';
 
 type RuleBody = {
   condition?: string;
@@ -38,6 +41,8 @@ const ALLOWED_ACTIONS: EmailAction[] = [
   'unarchive',
   'hide',
   'unhide',
+  'mark_important',
+  'unmark_important',
   'label',
   'unlabel',
 ];
@@ -47,12 +52,22 @@ const ALLOWED_ACTIONS: EmailAction[] = [
 @UseGuards(GoogleSessionGuard)
 @Controller('email-api')
 export class EmailApiController {
+  private readonly accountEmails: Map<string, string>;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly emailIngestService: EmailIngestService,
     private readonly emailExecutorService: EmailExecutorService,
     private readonly emailClassifierService: EmailClassifierService,
-  ) {}
+    private readonly emailRulesRunnerService: EmailRulesRunnerService,
+    configService: ConfigService,
+  ) {
+    this.accountEmails = new Map(
+      parseEmailAccounts(configService.get<string>('EMAIL_ACCOUNTS')).map(
+        (account) => [account.name, account.user],
+      ),
+    );
+  }
 
   // Per-account counters + cursor state for the stats cards
   @Get('stats')
@@ -120,6 +135,7 @@ export class EmailApiController {
         seen: true,
         archived: true,
         hidden: true,
+        important: true,
         hasAttachments: true,
         status: true,
       },
@@ -156,6 +172,7 @@ export class EmailApiController {
       seen: updated.seen,
       archived: updated.archived,
       hidden: updated.hidden,
+      important: updated.important,
       labels: updated.labels,
     };
   }
@@ -167,6 +184,7 @@ export class EmailApiController {
       select: {
         id: true,
         account: true,
+        gmMsgId: true,
         threadId: true,
         mailbox: true,
         messageId: true,
@@ -181,6 +199,7 @@ export class EmailApiController {
         seen: true,
         archived: true,
         hidden: true,
+        important: true,
         hasAttachments: true,
         sizeBytes: true,
         status: true,
@@ -214,7 +233,14 @@ export class EmailApiController {
       },
     });
     if (!message) throw new NotFoundException('Message not found');
-    return message;
+    const accountEmail = this.accountEmails.get(message.account);
+    // Prefer the conversation id — Gmail's #all/<hex> opens the thread.
+    const gmailUrl = accountEmail
+      ? gmailOpenUrl(accountEmail, message.thread.gmThreadId || message.gmMsgId)
+      : null;
+    const payload = { ...message, gmailUrl };
+    delete payload.gmMsgId;
+    return payload;
   }
 
   // --- Rules catalog ---
@@ -275,8 +301,8 @@ export class EmailApiController {
     return { deleted: true };
   }
 
-  // Apply a rule's effects to a message by hand (bridge before the LLM
-  // classifier drives this automatically).
+  // Force-apply a rule's effects (bypasses the classifier). Auto-apply on
+  // sync goes through EmailRulesRunnerService instead.
   @Post('messages/:id/apply-rule')
   async applyRule(
     @Param('id', ParseIntPipe) id: number,
@@ -299,13 +325,43 @@ export class EmailApiController {
       where: { id: rule.id },
       data: { matchCount: { increment: 1 }, lastMatchedAt: new Date() },
     });
+    await this.prisma.emailMessage.update({
+      where: { id },
+      data: { status: 'classified' },
+    });
     return {
       id: updated?.id,
       seen: updated?.seen,
       archived: updated?.archived,
       hidden: updated?.hidden,
+      important: updated?.important,
       labels: updated?.labels,
+      status: 'classified',
     };
+  }
+
+  // Classify + auto-apply for one message (same path as the post-sync runner).
+  @Post('messages/:id/process-rules')
+  async processRules(@Param('id', ParseIntPipe) id: number) {
+    const existing = await this.prisma.emailMessage.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    if (!existing) throw new NotFoundException('Message not found');
+    const result = await this.emailRulesRunnerService.processMessage(id);
+    const message = await this.prisma.emailMessage.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        seen: true,
+        archived: true,
+        hidden: true,
+        important: true,
+        labels: true,
+        status: true,
+      },
+    });
+    return { ...result, message };
   }
 
   // Dry-run: which enabled rule (if any) would match this message. Evaluates
@@ -371,10 +427,9 @@ export class EmailApiController {
   }
 
   // Manual sync round for all configured accounts; the poller keeps running
-  // on its own schedule regardless.
+  // on its own schedule regardless. Also classifies status=new messages.
   @Post('sync')
   async sync() {
-    const results = await this.emailIngestService.syncAll();
-    return { results };
+    return this.emailIngestService.syncAll();
   }
 }

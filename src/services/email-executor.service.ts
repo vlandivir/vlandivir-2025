@@ -10,8 +10,8 @@ import {
 } from './email-accounts';
 
 // Reversible actions on a message. mark_read/archive/label touch the mailbox
-// over IMAP; hide is dashboard-local. Every action is logged with the prior
-// state so it can be undone. No destructive actions by design.
+// over IMAP; hide/important are dashboard-local. Every action is logged with
+// the prior state so it can be undone. No destructive actions by design.
 export type EmailAction =
   | 'mark_read'
   | 'mark_unread'
@@ -19,6 +19,8 @@ export type EmailAction =
   | 'unarchive'
   | 'hide'
   | 'unhide'
+  | 'mark_important'
+  | 'unmark_important'
   | 'label'
   | 'unlabel';
 
@@ -147,6 +149,13 @@ export class EmailExecutorService {
           // Dashboard-local; no IMAP write
           prevState.hidden = message.hidden;
           data.hidden = action === 'hide';
+          break;
+        }
+        case 'mark_important':
+        case 'unmark_important': {
+          // Dashboard-local section; no IMAP write
+          prevState.important = message.important;
+          data.important = action === 'mark_important';
           break;
         }
       }

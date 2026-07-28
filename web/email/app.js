@@ -25,6 +25,14 @@
       quick: true,
     },
     {
+      key: 'important',
+      icon: '⭐',
+      title: (m) => (m.important ? 'Убрать из «Важное»' : 'В «Важное»'),
+      active: (m) => m.important,
+      action: (m) => (m.important ? 'unmark_important' : 'mark_important'),
+      quick: true,
+    },
+    {
       key: 'archive',
       icon: '📥',
       title: (m) => (m.archived ? 'Вернуть во «Входящие»' : 'В архив'),
@@ -177,13 +185,18 @@
       if (state.filters.account && message.account !== state.filters.account) {
         return false;
       }
-      // Hidden and archived are out of the default view; dedicated flags show them
+      // Hidden / archived / important leave the default view; dedicated flags
+      // show each section on its own.
       if (flag === 'hidden') {
         if (!message.hidden) return false;
       } else if (flag === 'archived') {
         if (!message.archived) return false;
+      } else if (flag === 'important') {
+        if (!message.important) return false;
       } else {
-        if (message.hidden || message.archived) return false;
+        if (message.hidden || message.archived || message.important) {
+          return false;
+        }
         if (flag === 'unseen' && message.seen) return false;
         if (flag === 'attachments' && !message.hasAttachments) return false;
       }
@@ -192,6 +205,34 @@
         .filter(Boolean)
         .some((value) => value.toLowerCase().includes(query));
     });
+  }
+
+  // Group visible messages into threads (same account + threadId). Groups are
+  // ordered by the newest message; messages inside a group newest-first.
+  function threadGroups(messages) {
+    const groups = new Map();
+    for (const message of messages) {
+      const key = `${message.account}:${message.threadId}`;
+      let group = groups.get(key);
+      if (!group) {
+        group = [];
+        groups.set(key, group);
+      }
+      group.push(message);
+    }
+    const sorted = [...groups.values()].map((group) =>
+      group.slice().sort((a, b) => {
+        const da = a.date ? new Date(a.date).getTime() : 0;
+        const db = b.date ? new Date(b.date).getTime() : 0;
+        return db - da || b.id - a.id;
+      }),
+    );
+    sorted.sort((a, b) => {
+      const da = a[0].date ? new Date(a[0].date).getTime() : 0;
+      const db = b[0].date ? new Date(b[0].date).getTime() : 0;
+      return db - da || b[0].id - a[0].id;
+    });
+    return sorted;
   }
 
   // --- Actions ---
@@ -220,6 +261,7 @@
         seen: res.seen,
         archived: res.archived,
         hidden: res.hidden,
+        important: res.important,
         labels: res.labels,
       });
     } catch (error) {
@@ -245,6 +287,10 @@
         return { hidden: true };
       case 'unhide':
         return { hidden: false };
+      case 'mark_important':
+        return { important: true };
+      case 'unmark_important':
+        return { important: false };
       default:
         return null;
     }
@@ -269,61 +315,88 @@
     return button;
   }
 
+  function renderMessageRow(message) {
+    const item = document.createElement('li');
+    item.className = 'message-row';
+    item.classList.toggle('selected', message.id === state.selectedId);
+    item.style.borderLeftColor = accountColor(message.account, 1);
+
+    const top = document.createElement('div');
+    top.className = 'message-row-top';
+
+    const subject = document.createElement('span');
+    subject.className = 'message-subject';
+    subject.classList.toggle('unseen', !message.seen);
+    subject.textContent = message.subject || '(без темы)';
+
+    const date = document.createElement('span');
+    date.className = 'message-date';
+    date.textContent = formatDate(message.date);
+
+    const rowActions = document.createElement('span');
+    rowActions.className = 'row-actions';
+    for (const def of ACTIONS.filter((a) => a.quick)) {
+      rowActions.append(actionButton(message, def, 'row-action'));
+    }
+
+    top.append(subject, date, rowActions);
+
+    const from = document.createElement('div');
+    from.className = 'message-from';
+
+    const sender = document.createElement('span');
+    sender.className = 'message-sender';
+    sender.textContent =
+      (message.fromName || message.fromAddress || '—') +
+      (message.hasAttachments ? ' 📎' : '');
+
+    const account = document.createElement('span');
+    account.className = 'account-pill';
+    account.style.color = accountColor(message.account, 1);
+    account.style.background = accountColor(message.account, 0.12);
+    const dot = document.createElement('span');
+    dot.className = 'account-dot';
+    dot.style.background = accountColor(message.account, 1);
+    account.append(dot, document.createTextNode(message.account));
+
+    from.append(sender, account);
+
+    item.append(top, from);
+    item.addEventListener('click', () => selectMessage(message.id));
+    return item;
+  }
+
   function renderList() {
     const messages = visibleMessages();
-    el('list-empty').classList.toggle('hidden', messages.length > 0);
+    const groups = threadGroups(messages);
+    el('list-empty').classList.toggle('hidden', groups.length > 0);
 
     messageList.replaceChildren(
-      ...messages.map((message) => {
-        const item = document.createElement('li');
-        item.classList.toggle('selected', message.id === state.selectedId);
-        item.style.borderLeftColor = accountColor(message.account, 1);
-
-        const top = document.createElement('div');
-        top.className = 'message-row-top';
-
-        const subject = document.createElement('span');
-        subject.className = 'message-subject';
-        subject.classList.toggle('unseen', !message.seen);
-        subject.textContent = message.subject || '(без темы)';
-
-        const date = document.createElement('span');
-        date.className = 'message-date';
-        date.textContent = formatDate(message.date);
-
-        // Quick actions revealed on row hover (the common ones)
-        const rowActions = document.createElement('span');
-        rowActions.className = 'row-actions';
-        for (const def of ACTIONS.filter((a) => a.quick)) {
-          rowActions.append(actionButton(message, def, 'row-action'));
+      ...groups.map((group) => {
+        if (group.length === 1) {
+          return renderMessageRow(group[0]);
         }
 
-        top.append(subject, date, rowActions);
+        const wrap = document.createElement('li');
+        wrap.className = 'thread-group';
+        wrap.style.borderLeftColor = accountColor(group[0].account, 1);
 
-        const from = document.createElement('div');
-        from.className = 'message-from';
+        const head = document.createElement('div');
+        head.className = 'thread-group-head';
+        const title = document.createElement('span');
+        title.className = 'thread-group-title';
+        title.textContent = group[0].subject || '(без темы)';
+        const count = document.createElement('span');
+        count.className = 'meta-chip thread-count';
+        count.textContent = `${group.length} писем`;
+        head.append(title, count);
 
-        const sender = document.createElement('span');
-        sender.className = 'message-sender';
-        sender.textContent =
-          (message.fromName || message.fromAddress || '—') +
-          (message.hasAttachments ? ' 📎' : '');
+        const nested = document.createElement('ul');
+        nested.className = 'thread-messages';
+        nested.replaceChildren(...group.map((message) => renderMessageRow(message)));
 
-        // Colored pill naming the mailbox — the primary per-account cue
-        const account = document.createElement('span');
-        account.className = 'account-pill';
-        account.style.color = accountColor(message.account, 1);
-        account.style.background = accountColor(message.account, 0.12);
-        const dot = document.createElement('span');
-        dot.className = 'account-dot';
-        dot.style.background = accountColor(message.account, 1);
-        account.append(dot, document.createTextNode(message.account));
-
-        from.append(sender, account);
-
-        item.append(top, from);
-        item.addEventListener('click', () => selectMessage(message.id));
-        return item;
+        wrap.append(head, nested);
+        return wrap;
       }),
     );
   }
@@ -356,6 +429,15 @@
     // Reset any previous test result when switching messages
     el('test-rules-result').textContent = '';
 
+    const gmail = el('detail-gmail');
+    if (message.gmailUrl) {
+      gmail.href = message.gmailUrl;
+      gmail.classList.remove('hidden');
+    } else {
+      gmail.removeAttribute('href');
+      gmail.classList.add('hidden');
+    }
+
     const meta = el('detail-meta');
     const rows = [
       ['От', `${message.fromName || ''} <${message.fromAddress || ''}>`],
@@ -370,6 +452,7 @@
         [
           message.status,
           message.seen ? 'прочитано' : 'не прочитано',
+          message.important ? 'важное' : null,
           message.archived ? 'в архиве' : null,
           message.hidden ? 'скрыто' : null,
         ]
@@ -544,14 +627,25 @@
     button.textContent = 'Синхронизация…';
     try {
       const data = await fetchJson(`${API_BASE}/sync`, { method: 'POST' });
-      const summary = data.results
+      const summary = (data.results || [])
         .map(
           (result) =>
             `${result.account}: ${result.error ? `ошибка (${result.error})` : `+${result.ingested}`}`,
         )
         .join(', ');
-      button.textContent = summary || 'Аккаунты не настроены';
+      const rules = data.rules
+        ? ` · правила: ${data.rules.applied}/${data.rules.processed}`
+        : '';
+      button.textContent = summary
+        ? `${summary}${rules}`
+        : 'Аккаунты не настроены';
       await Promise.all([loadStats(), loadMessages()]);
+      if (state.selectedId) {
+        state.detail = await fetchJson(
+          `${API_BASE}/messages/${state.selectedId}`,
+        );
+        renderDetail();
+      }
     } catch (error) {
       button.textContent = 'Ошибка синхронизации';
       console.error(error);
@@ -756,6 +850,56 @@
     }
   }
 
+  // Classify the open message and apply effects if a rule matches confidently.
+  async function applyRulesNow() {
+    if (!state.detail) return;
+    const result = el('test-rules-result');
+    const button = el('apply-rules-btn');
+    button.disabled = true;
+    result.textContent = 'Применяю…';
+    result.className = 'test-rules-result muted';
+    try {
+      const data = await fetchJson(
+        `${API_BASE}/messages/${state.detail.id}/process-rules`,
+        { method: 'POST' },
+      );
+      if (data.message) {
+        patchLocal(state.detail.id, {
+          seen: data.message.seen,
+          archived: data.message.archived,
+          hidden: data.message.hidden,
+          important: data.message.important,
+          labels: data.message.labels,
+          status: data.message.status,
+        });
+      }
+      let text;
+      let className = 'test-rules-result';
+      if (data.status === 'error') {
+        text = `Ошибка: ${data.error || 'не удалось применить'}`;
+      } else if (data.applied) {
+        const pct = Math.round((data.confidence || 0) * 100);
+        className = 'test-rules-result matched';
+        text = `Применено (${pct}%) — ${data.reasoning}`;
+      } else if (data.matchedRuleId) {
+        const pct = Math.round((data.confidence || 0) * 100);
+        text = `Совпадение слабое (${pct}%), не применено — ${data.reasoning}`;
+      } else {
+        text = `Ни одно правило не подошло${data.reasoning ? ` — ${data.reasoning}` : ''}`;
+      }
+      // renderDetail (via patchLocal) clears the result line — restore it
+      result.textContent = text;
+      result.className = className;
+      await loadRules();
+    } catch (error) {
+      console.error(error);
+      result.className = 'test-rules-result';
+      result.textContent = 'Ошибка применения';
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   // --- Journal ---
 
   async function loadLog() {
@@ -808,6 +952,7 @@
     if (!panel.classList.contains('hidden')) void loadLog();
   });
   el('test-rules-btn').addEventListener('click', () => void testRules());
+  el('apply-rules-btn').addEventListener('click', () => void applyRulesNow());
   el('rule-add').addEventListener('click', () => openRuleForm(null));
   el('rule-form').addEventListener('submit', (event) => void saveRule(event));
 

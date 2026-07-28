@@ -16,6 +16,10 @@ import {
   parseEmailAccounts,
   withMailbox,
 } from './email-accounts';
+import {
+  EmailRulesRunnerService,
+  ProcessPendingSummary,
+} from './email-rules-runner.service';
 
 export type { EmailAccountConfig } from './email-accounts';
 
@@ -24,6 +28,11 @@ export type AccountSyncResult = {
   ingested: number;
   skipped: number;
   error?: string;
+};
+
+export type SyncAllResult = {
+  results: AccountSyncResult[];
+  rules: ProcessPendingSummary;
 };
 
 const MAILBOX = EMAIL_MAILBOX;
@@ -46,6 +55,7 @@ export class EmailIngestService
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
+    private readonly rulesRunner: EmailRulesRunnerService,
   ) {
     this.accounts = parseEmailAccounts(
       this.configService.get<string>('EMAIL_ACCOUNTS'),
@@ -83,10 +93,12 @@ export class EmailIngestService
   }
 
   // Sync every configured account once; used by the poller and by scripts.
-  async syncAll(): Promise<AccountSyncResult[]> {
+  // After IMAP ingest, classify any status=new messages and apply matching
+  // rules (including leftovers from earlier syncs / failed LLM rounds).
+  async syncAll(): Promise<SyncAllResult> {
     if (this.running) {
       this.logger.warn('Email sync already running, skipping this round');
-      return [];
+      return { results: [], rules: { processed: 0, applied: 0, errors: 0 } };
     }
     this.running = true;
     try {
@@ -106,7 +118,8 @@ export class EmailIngestService
           });
         }
       }
-      return results;
+      const rules = await this.rulesRunner.processPending();
+      return { results, rules };
     } finally {
       this.running = false;
     }
