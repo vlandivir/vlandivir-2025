@@ -248,9 +248,6 @@
     editor.value = note.content || '';
     item.append(editor);
 
-    const media = renderMedia(note);
-    if (media) item.append(media);
-
     const actions = document.createElement('div');
     actions.className = 'note-actions';
 
@@ -274,6 +271,12 @@
 
     actions.append(saveBtn, status);
     item.append(actions);
+
+    // Media comes after the text editor: each item is two columns —
+    // the picture/video on the left, its editor on the right.
+    const media = renderMedia(note);
+    if (media) item.append(media);
+
     return item;
   }
 
@@ -288,21 +291,8 @@
     for (const image of images) {
       box.append(renderImage(image));
     }
-
-    if (videos.length > 0) {
-      const videoRow = document.createElement('div');
-      videoRow.className = 'note-videos';
-      for (const video of videos) {
-        const link = document.createElement('a');
-        link.className = 'media-link';
-        link.href = video.url;
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        link.textContent = '🎬 Видео';
-        if (video.description) link.title = video.description;
-        videoRow.append(link);
-      }
-      box.append(videoRow);
+    for (const video of videos) {
+      box.append(renderVideo(video));
     }
 
     return box;
@@ -404,6 +394,78 @@
       }
     } finally {
       buttons.forEach((b) => (b.disabled = false));
+    }
+  }
+
+  function renderVideo(video) {
+    const card = document.createElement('div');
+    card.className = 'image-block';
+
+    const player = document.createElement('video');
+    player.className = 'image-photo';
+    player.src = video.url;
+    player.controls = true;
+    player.preload = 'metadata';
+    card.append(player);
+
+    const editorWrap = document.createElement('div');
+    editorWrap.className = 'image-editor';
+
+    const label = document.createElement('div');
+    label.className = 'image-desc-label';
+    label.textContent = 'Описание видео';
+    editorWrap.append(label);
+
+    const desc = document.createElement('textarea');
+    desc.className = 'desc-editor';
+    desc.value = video.description || '';
+    desc.placeholder = 'Описание пока не задано';
+    editorWrap.append(desc);
+
+    const actions = document.createElement('div');
+    actions.className = 'note-actions';
+
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'primary-btn';
+    saveBtn.type = 'button';
+    saveBtn.textContent = 'Сохранить описание';
+
+    const status = document.createElement('span');
+    status.className = 'note-status';
+
+    saveBtn.addEventListener('click', () =>
+      saveVideoDescription(video.id, desc, saveBtn, status),
+    );
+    desc.addEventListener('input', () => {
+      status.textContent = '';
+      status.className = 'note-status';
+    });
+
+    actions.append(saveBtn, status);
+    editorWrap.append(actions);
+    card.append(editorWrap);
+    return card;
+  }
+
+  async function saveVideoDescription(id, editor, saveBtn, status) {
+    saveBtn.disabled = true;
+    status.className = 'note-status';
+    status.textContent = 'Сохранение…';
+    try {
+      await api(`/videos/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description: editor.value }),
+      });
+      status.className = 'note-status saved';
+      status.textContent = 'Сохранено';
+    } catch (err) {
+      if (err.message !== 'unauthorized') {
+        status.className = 'note-status error';
+        status.textContent = 'Ошибка сохранения';
+      }
+    } finally {
+      saveBtn.disabled = false;
     }
   }
 

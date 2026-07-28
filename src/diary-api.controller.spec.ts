@@ -20,6 +20,7 @@ describe('DiaryApiController', () => {
       updateMany: jest.Mock;
       update: jest.Mock;
     };
+    video: { updateMany: jest.Mock };
     embedding: { deleteMany: jest.Mock };
   };
   let llmService: {
@@ -41,6 +42,9 @@ describe('DiaryApiController', () => {
         findFirst: jest.fn(),
         updateMany: jest.fn(),
         update: jest.fn().mockResolvedValue({}),
+      },
+      video: {
+        updateMany: jest.fn(),
       },
       embedding: {
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
@@ -188,6 +192,36 @@ describe('DiaryApiController', () => {
         controller.updateImage(999, { description: 'x' }),
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(prisma.embedding.deleteMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('updateVideo', () => {
+    it('requires a string description', async () => {
+      await expect(
+        controller.updateVideo(1, {} as { description?: string }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.video.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('updates the video scoped via its note (no embedding to drop)', async () => {
+      prisma.video.updateMany.mockResolvedValue({ count: 1 });
+
+      const result = await controller.updateVideo(9, { description: 'clip' });
+
+      expect(prisma.video.updateMany).toHaveBeenCalledWith({
+        where: { id: 9, note: { chatId: DIARY_CHAT_ID } },
+        data: { description: 'clip' },
+      });
+      expect(prisma.embedding.deleteMany).not.toHaveBeenCalled();
+      expect(result).toEqual({ id: 9, description: 'clip' });
+    });
+
+    it('404s when no owned video matches', async () => {
+      prisma.video.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(
+        controller.updateVideo(999, { description: 'x' }),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 

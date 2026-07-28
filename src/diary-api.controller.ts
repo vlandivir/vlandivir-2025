@@ -118,7 +118,7 @@ export class DiaryApiController {
             content: true,
             noteDate: true,
             images: { select: { id: true, url: true, description: true } },
-            videos: { select: { url: true, description: true } },
+            videos: { select: { id: true, url: true, description: true } },
           },
         });
       }),
@@ -232,6 +232,29 @@ export class DiaryApiController {
     await this.prisma.embedding.deleteMany({
       where: { kind: 'image', refId: id },
     });
+
+    return { id, description };
+  }
+
+  // Edit a video's description. Scoped to the diary chat via the parent note.
+  // Videos aren't part of the RAG index, so there's no embedding to drop.
+  @Patch('videos/:id')
+  async updateVideo(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: UpdateImageBody,
+  ) {
+    if (typeof body?.description !== 'string') {
+      throw new BadRequestException('description is required');
+    }
+    const description = body.description;
+
+    const updated = await this.prisma.video.updateMany({
+      where: { id, note: { chatId: DIARY_CHAT_ID } },
+      data: { description },
+    });
+    if (updated.count === 0) {
+      throw new NotFoundException('Video not found');
+    }
 
     return { id, description };
   }
