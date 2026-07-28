@@ -14,14 +14,10 @@ import {
 } from '@nestjs/common';
 import { endOfDay, startOfDay } from 'date-fns';
 import { GoogleSessionGuard } from './auth/google-session.guard';
+import { DIARY_CHAT_ID } from './diary.constants';
 import { PrismaService } from './prisma/prisma.service';
 import { LlmService } from './services/llm.service';
 import { StorageService } from './services/storage.service';
-
-// The diary web app (/diary) reads and edits the owner's notes. There is a
-// single diary chat — the owner's personal Telegram chat — so every query is
-// scoped to this chat id (same constant the notifications API sends to).
-const DIARY_CHAT_ID = 150847737n;
 
 const FIRST_DIARY_YEAR = 1978;
 

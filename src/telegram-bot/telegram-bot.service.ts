@@ -802,6 +802,9 @@ export class TelegramBotService {
             'Перезапускаю обработку этого рилса в записной книжке 🎬',
           );
         } else {
+          if (existing.isOwn && existing.status === 'ready') {
+            await this.reelsService.ensureOwnReelInDiary(existing.id);
+          }
           const url = this.buildReelPageUrl(existing.id);
           await this.bot.telegram.sendMessage(
             chatId,

@@ -86,6 +86,9 @@ export class ReelsApiController {
         this.reelsService.processInBackground(existing.id);
         return restarted;
       }
+      if (existing.isOwn && existing.status === 'ready') {
+        await this.reelsService.ensureOwnReelInDiary(existing.id);
+      }
       throw new BadRequestException('Этот ролик уже добавлен');
     }
 
