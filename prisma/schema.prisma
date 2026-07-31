@@ -344,3 +344,39 @@ model EmailActionLog {
   @@index([messageId])
   @@index([createdAt])
 }
+
+// Shared trip photo/video album accessible via an unlisted secret URL.
+model Trip {
+  id                 String      @id @default(cuid())
+  secret             String      @unique
+  title              String
+  ownerContributorId String
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  media              TripMedia[]
+}
+
+model TripMedia {
+  id               String    @id @default(cuid())
+  tripId           String
+  trip             Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  contentHash      String
+  url              String
+  mimeType         String
+  size             BigInt
+  originalFilename String
+  kind             String // photo | video
+  contributorId    String
+  displayName      String
+  userAgent        String?
+  width            Int?
+  height           Int?
+  durationMs       Int?
+  takenAt          DateTime?
+  createdAt        DateTime  @default(now())
+  deletedAt        DateTime?
+
+  @@unique([tripId, contentHash])
+  @@index([tripId, createdAt])
+  @@index([tripId, deletedAt])
+}

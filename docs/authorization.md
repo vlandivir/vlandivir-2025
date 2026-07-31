@@ -31,8 +31,10 @@
 
 | Что | Маршруты | Где обозначено |
 |---|---|---|
-| Статические страницы | `/`, `/home`, `/subs`, `/gpx-route-png`, `/files`, `/places` (+ статика `/shared`, `/mini-app`) | `src/main.ts` (useStaticAssets) |
+| Статические страницы | `/`, `/home`, `/subs`, `/gpx-route-png`, `/files`, `/places`, `/trip` (+ статика `/shared`, `/mini-app`) | `src/main.ts` (useStaticAssets) |
 | Share-страницы карты | `/places/point/:id`, `/places/track/:id` | `src/map-pages.controller.ts` |
+| Альбомы поездок (страницы) | `/trip`, `/trip/:secret`, `/trip/en`, `/trip/en/:secret` | `src/app.controller.ts` + `src/main.ts` |
+| API альбомов поездок | `POST/GET/PATCH /trip-api/trips…`, uploads check/complete, soft-delete media | `src/trip-api.controller.ts` — доступ по `secret` в URL; авторство через `contributorId` (клиент) / `X-Contributor-Id`; админы (Google allowlist) видят soft-deleted |
 | Чтение карты | `GET /map-api/points`, `/tracks`, `/tags`, `/resolve-google-link` | `src/map-api.controller.ts` (без guard) |
 | Семантический поиск по карте | `GET /map-api/search?q=` | `src/map-api.controller.ts` (без guard); ищет по точкам/трекам с прикреплённым рилсом через эмбеддинги рилсов |
 | Обновление Instagram-меты (без force) | `POST /map-api/{points,tracks}/:id/instagram-meta` | там же; окно 24 ч защищает от злоупотребления |

@@ -18,6 +18,7 @@ import { EmailApiController } from './email-api.controller';
 import { EmailPagesController } from './email-pages.controller';
 import { DiaryApiController } from './diary-api.controller';
 import { DiaryPagesController } from './diary-pages.controller';
+import { TripApiController } from './trip-api.controller';
 import { McpController } from './mcp/mcp.controller';
 import { McpToolsService } from './mcp/mcp-tools.service';
 
@@ -45,6 +46,7 @@ import { McpToolsService } from './mcp/mcp-tools.service';
     EmailPagesController,
     DiaryApiController,
     DiaryPagesController,
+    TripApiController,
     McpController,
   ],
   providers: [AppService, McpToolsService],

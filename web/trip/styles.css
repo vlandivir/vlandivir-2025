@@ -1,0 +1,248 @@
+.trip-page {
+  padding-block: var(--v-space-6);
+  display: grid;
+  gap: var(--v-space-5);
+}
+
+.trip-lead,
+.trip-meta {
+  color: var(--v-muted);
+  margin: var(--v-space-2) 0 0;
+}
+
+.trip-form {
+  display: grid;
+  gap: var(--v-space-3);
+  margin-top: var(--v-space-4);
+  max-width: 28rem;
+}
+
+.trip-form label {
+  display: grid;
+  gap: var(--v-space-1);
+  font-weight: 600;
+}
+
+.trip-error {
+  color: hsl(var(--destructive));
+  margin-top: var(--v-space-3);
+}
+
+.trip-album-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-4);
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--v-space-5);
+}
+
+.trip-album-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-2);
+  align-items: center;
+}
+
+.trip-upload-label {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+}
+
+.trip-upload-queue {
+  display: grid;
+  gap: var(--v-space-2);
+  margin-bottom: var(--v-space-4);
+}
+
+.trip-upload-item {
+  display: grid;
+  gap: var(--v-space-1);
+  padding: var(--v-card-padding);
+  border: 1px solid hsl(var(--shadcn-border));
+  border-radius: var(--radius);
+  background: hsl(var(--card));
+}
+
+.trip-upload-item__row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--v-space-3);
+  font-size: 0.9rem;
+}
+
+.trip-upload-item__bar {
+  height: 6px;
+  border-radius: 999px;
+  background: hsl(var(--shadcn-muted));
+  overflow: hidden;
+}
+
+.trip-upload-item__bar > span {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: hsl(var(--primary));
+  transition: width 0.2s ease;
+}
+
+.trip-status {
+  margin: 0 0 var(--v-space-3);
+  color: var(--v-muted);
+}
+
+.trip-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--v-space-3);
+}
+
+.trip-card {
+  position: relative;
+  border: 1px solid hsl(var(--shadcn-border));
+  border-radius: var(--radius);
+  background: hsl(var(--card));
+  box-shadow: var(--v-shadow);
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: 1fr auto;
+}
+
+.trip-card.deleted {
+  opacity: 0.55;
+}
+
+.trip-card__media {
+  aspect-ratio: 1;
+  background: hsl(var(--shadcn-muted));
+  cursor: pointer;
+  border: 0;
+  padding: 0;
+  display: block;
+  width: 100%;
+}
+
+.trip-card__media img,
+.trip-card__media video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.trip-card__meta {
+  padding: var(--v-space-2) var(--v-space-3);
+  display: grid;
+  gap: 2px;
+  font-size: 0.8rem;
+}
+
+.trip-card__meta strong {
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trip-card__meta span {
+  color: var(--v-muted);
+}
+
+.trip-card__badge {
+  position: absolute;
+  top: var(--v-space-2);
+  left: var(--v-space-2);
+  z-index: 1;
+}
+
+.trip-card__delete {
+  position: absolute;
+  top: var(--v-space-2);
+  right: var(--v-space-2);
+  z-index: 1;
+  min-height: 32px;
+  padding-inline: 0.6rem;
+  font-size: 0.75rem;
+}
+
+.trip-empty {
+  color: var(--v-muted);
+  margin: var(--v-space-6) 0;
+}
+
+.trip-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: var(--v-space-4);
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.trip-modal[hidden] {
+  display: none;
+}
+
+.trip-modal__card {
+  width: min(420px, 100%);
+}
+
+.trip-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: #000;
+  display: grid;
+  place-items: center;
+  padding: var(--v-space-4);
+}
+
+.trip-lightbox[hidden] {
+  display: none;
+}
+
+.trip-lightbox__close {
+  position: absolute;
+  top: var(--v-space-3);
+  right: var(--v-space-3);
+  border: 0;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+.trip-lightbox__body {
+  max-width: min(96vw, 1200px);
+  max-height: 90vh;
+}
+
+.trip-lightbox__body img,
+.trip-lightbox__body video {
+  max-width: 100%;
+  max-height: 90vh;
+  display: block;
+  margin: 0 auto;
+}
+
+@media (max-width: 640px) {
+  .trip-album-actions {
+    width: 100%;
+  }
+
+  .trip-album-actions .primary-btn,
+  .trip-album-actions .ghost-btn {
+    flex: 1 1 calc(50% - var(--v-space-2));
+    justify-content: center;
+  }
+
+  .trip-upload-label {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+}

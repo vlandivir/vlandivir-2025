@@ -182,6 +182,16 @@ export class AuthService {
     return this.verifySessionToken(token);
   }
 
+  /** True when the email is on ALLOWED_GOOGLE_EMAILS (site admin / owner). */
+  isAllowedEmail(email: string): boolean {
+    return this.allowedEmails.has(email.trim().toLowerCase());
+  }
+
+  isAdminSession(request: Request): boolean {
+    const session = this.getSessionFromRequest(request);
+    return Boolean(session && this.isAllowedEmail(session.email));
+  }
+
   sessionCookie(token: string): string {
     return this.cookieString(SESSION_COOKIE, token, SESSION_DAYS * 24 * 3600);
   }

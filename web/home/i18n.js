@@ -17,6 +17,11 @@ window.PAGE_I18N = {
       'Загрузите GPX-файл и получите вертикальную PNG-картинку 1080×1920 с линией маршрута, точками и подписями.',
     gpxCta: 'Перейти к генератору',
     gpxHref: '/gpx-route-png/',
+    tripTitle: 'Фото поездки',
+    tripText:
+      'Общий альбом по секретной ссылке: друзья загружают фото и видео поездки в оригинальном качестве.',
+    tripCta: 'Создать альбом',
+    tripHref: '/trip',
   },
   en: {
     metaDescription:
@@ -36,5 +41,10 @@ window.PAGE_I18N = {
       'Upload a GPX file and get a vertical 1080×1920 PNG with your route line, points, and labels.',
     gpxCta: 'Go to generator',
     gpxHref: '/gpx-route-png/en',
+    tripTitle: 'Trip photos',
+    tripText:
+      'A shared album via a secret link: friends upload original-quality trip photos and videos.',
+    tripCta: 'Create album',
+    tripHref: '/trip/en',
   },
 };

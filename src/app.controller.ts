@@ -103,4 +103,24 @@ export class AppController {
   getFilesEn(@Res() res: Response): void {
     res.sendFile(path.join(process.cwd(), 'web', 'files', 'index.html'));
   }
+
+  @Get('trip')
+  getTrip(@Res() res: Response): void {
+    res.sendFile(path.join(process.cwd(), 'web', 'trip', 'index.html'));
+  }
+
+  @Get('trip/en')
+  getTripEn(@Res() res: Response): void {
+    res.sendFile(path.join(process.cwd(), 'web', 'trip', 'index.html'));
+  }
+
+  @Get('trip/en/:secret')
+  getTripEnSecret(@Res() res: Response): void {
+    res.sendFile(path.join(process.cwd(), 'web', 'trip', 'index.html'));
+  }
+
+  @Get('trip/:secret')
+  getTripSecret(@Res() res: Response): void {
+    res.sendFile(path.join(process.cwd(), 'web', 'trip', 'index.html'));
+  }
 }

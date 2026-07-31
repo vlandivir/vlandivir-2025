@@ -48,6 +48,12 @@ async function bootstrap() {
     app.useStaticAssets(gpxRoutePng, { prefix: '/gpx-route-png' });
     const filesPage = path.join(process.cwd(), 'web', 'files');
     app.useStaticAssets(filesPage, { prefix: '/files' });
+    const tripPage = path.join(process.cwd(), 'web', 'trip');
+    app.useStaticAssets(tripPage, {
+      prefix: '/trip',
+      index: false,
+      redirect: false,
+    });
     const placesPage = path.join(process.cwd(), 'web', 'places');
     app.useStaticAssets(placesPage, { prefix: '/places' });
     // Assets only (app.js/styles.css); the page itself is served by
@@ -111,6 +117,21 @@ async function bootstrap() {
     instance.get(/^\/files\/en\/?$/, (_req: unknown, res: Response) => {
       res.sendFile(path.join(filesPage, 'index.html'));
     });
+    instance.get(/^\/trip\/?$/, (_req: unknown, res: Response) => {
+      res.sendFile(path.join(tripPage, 'index.html'));
+    });
+    instance.get(/^\/trip\/en\/?$/, (_req: unknown, res: Response) => {
+      res.sendFile(path.join(tripPage, 'index.html'));
+    });
+    instance.get(/^\/trip\/en\/[^/]+\/?$/, (_req: unknown, res: Response) => {
+      res.sendFile(path.join(tripPage, 'index.html'));
+    });
+    instance.get(
+      /^\/trip\/(?!en(?:\/|$))[^/]+\/?$/,
+      (_req: unknown, res: Response) => {
+        res.sendFile(path.join(tripPage, 'index.html'));
+      },
+    );
     instance.get(
       /^\/subs(?:\/[a-f0-9]{24})?\/?$/,
       (_req: unknown, res: Response) => {
@@ -144,6 +165,12 @@ async function bootstrap() {
     app.useStaticAssets(gpxRoutePng, { prefix: '/gpx-route-png' });
     const filesPage = path.join(process.cwd(), 'web', 'files');
     app.useStaticAssets(filesPage, { prefix: '/files' });
+    const tripPage = path.join(process.cwd(), 'web', 'trip');
+    app.useStaticAssets(tripPage, {
+      prefix: '/trip',
+      index: false,
+      redirect: false,
+    });
     const placesPage = path.join(process.cwd(), 'web', 'places');
     app.useStaticAssets(placesPage, { prefix: '/places' });
     // Assets only (app.js/styles.css); the page itself is served by
@@ -206,6 +233,21 @@ async function bootstrap() {
     instance.get(/^\/files\/en\/?$/, (_req: unknown, res: Response) => {
       res.sendFile(path.join(filesPage, 'index.html'));
     });
+    instance.get(/^\/trip\/?$/, (_req: unknown, res: Response) => {
+      res.sendFile(path.join(tripPage, 'index.html'));
+    });
+    instance.get(/^\/trip\/en\/?$/, (_req: unknown, res: Response) => {
+      res.sendFile(path.join(tripPage, 'index.html'));
+    });
+    instance.get(/^\/trip\/en\/[^/]+\/?$/, (_req: unknown, res: Response) => {
+      res.sendFile(path.join(tripPage, 'index.html'));
+    });
+    instance.get(
+      /^\/trip\/(?!en(?:\/|$))[^/]+\/?$/,
+      (_req: unknown, res: Response) => {
+        res.sendFile(path.join(tripPage, 'index.html'));
+      },
+    );
     instance.get(
       /^\/subs(?:\/[a-f0-9]{24})?\/?$/,
       (_req: unknown, res: Response) => {

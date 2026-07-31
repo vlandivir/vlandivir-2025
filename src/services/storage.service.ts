@@ -1,6 +1,12 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { S3 } from '@aws-sdk/client-s3';
+import {
+  HeadObjectCommand,
+  PutBucketCorsCommand,
+  PutObjectCommand,
+  S3,
+} from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Upload } from '@aws-sdk/lib-storage';
 import { v4 as uuidv4 } from 'uuid';
 import { Readable } from 'stream';
@@ -38,6 +44,7 @@ export type SubsAudioTranscript = {
 
 @Injectable()
 export class StorageService implements OnModuleInit {
+  private readonly logger = new Logger(StorageService.name);
   private readonly s3: S3;
   private readonly bucket = 'vlandivir-2025';
   private readonly endpoint = 'https://fra1.digitaloceanspaces.com';
@@ -57,6 +64,7 @@ export class StorageService implements OnModuleInit {
 
   async onModuleInit() {
     await this.ensureBucketExists();
+    await this.ensureTripUploadCors();
   }
 
   private async ensureBucketExists() {
@@ -74,6 +82,110 @@ export class StorageService implements OnModuleInit {
         throw error;
       }
     }
+  }
+
+  /** Allow browser PUT/GET of trip media from the site origins. */
+  private async ensureTripUploadCors() {
+    try {
+      await this.s3.send(
+        new PutBucketCorsCommand({
+          Bucket: this.bucket,
+          CORSConfiguration: {
+            CORSRules: [
+              {
+                AllowedOrigins: [
+                  'https://vlandivir.com',
+                  'http://localhost:3000',
+                  'http://127.0.0.1:3000',
+                ],
+                AllowedMethods: ['GET', 'PUT', 'HEAD'],
+                AllowedHeaders: ['*'],
+                ExposeHeaders: ['ETag', 'x-amz-request-id'],
+                MaxAgeSeconds: 3600,
+              },
+            ],
+          },
+        }),
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Could not set Spaces CORS (trip uploads may fail in browser): ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+
+  getTripMediaKey(
+    tripId: string,
+    contentHash: string,
+    filename: string,
+  ): string {
+    const ext = this.extensionFromFilename(filename);
+    return `trips/${tripId}/${contentHash}${ext}`;
+  }
+
+  getTripMediaPublicUrl(
+    tripId: string,
+    contentHash: string,
+    filename: string,
+  ): string {
+    return this.getPublicUrl(
+      this.getTripMediaKey(tripId, contentHash, filename),
+    );
+  }
+
+  async getTripMediaPresignedPutUrl(
+    tripId: string,
+    contentHash: string,
+    filename: string,
+    mimeType: string,
+    expiresInSeconds = 3600,
+  ): Promise<{ uploadUrl: string; key: string; publicUrl: string }> {
+    const key = this.getTripMediaKey(tripId, contentHash, filename);
+    const command = new PutObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+      ContentType: mimeType,
+      ACL: 'public-read',
+    });
+    const uploadUrl = await getSignedUrl(this.s3, command, {
+      expiresIn: expiresInSeconds,
+    });
+    return {
+      uploadUrl,
+      key,
+      publicUrl: this.getPublicUrl(key),
+    };
+  }
+
+  async headTripMedia(
+    tripId: string,
+    contentHash: string,
+    filename: string,
+  ): Promise<{ size: number; contentType?: string } | null> {
+    const key = this.getTripMediaKey(tripId, contentHash, filename);
+    try {
+      const response = await this.s3.send(
+        new HeadObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+        }),
+      );
+      return {
+        size: response.ContentLength ?? 0,
+        contentType: response.ContentType,
+      };
+    } catch (error) {
+      if (this.isMissingObjectError(error)) return null;
+      throw error;
+    }
+  }
+
+  private extensionFromFilename(filename: string): string {
+    const match = /\.([a-zA-Z0-9]{1,12})$/.exec(filename.trim());
+    if (!match) return '';
+    return `.${match[1].toLowerCase()}`;
   }
 
   async uploadFile(
