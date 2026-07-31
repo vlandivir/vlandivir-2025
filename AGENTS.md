@@ -28,7 +28,7 @@ All public pages under `web/` share one visual language, defined by `web/shared/
 - Cards/panels: `.editor-card` (card padding), `.tool-block`/`.workflow-step`/`.archive-section` (section padding). All get border+radius+surface+shadow from the theme.
 - Buttons: `.primary-btn` (filled), `.ghost-btn`/`.mini-btn`/`.tool-link` (outlined, min-height 40px, font-weight 750). Icon-only: add `.icon-btn`.
 - Kickers: `.eyebrow`/`.section-kicker` (uppercase 12–13px, themed color); page width wrappers: `.page-shell`/`.shell`/`.container` (min(1160px, 100% − gutters)).
-- Inputs get themed borders/radius from the theme automatically; keep min-height 40px.
+- Inputs/selects/textareas get full chrome from the theme (`border`, `min-height: 40px`, horizontal padding, `font: inherit`). Do not re-declare those in page CSS except layout extras (`width`, `resize`, denser toolbars). Same for buttons: padding comes from the theme — page CSS must not restyle `.primary-btn` / `.ghost-btn` / `.mini-btn` colors or padding.
 - Badges/chips: `.badge`, `.meta-chip` (pill, `--secondary` fill).
 
 ### Page anatomy

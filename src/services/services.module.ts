@@ -15,6 +15,7 @@ import { EmailIngestService } from './email-ingest.service';
 import { EmailExecutorService } from './email-executor.service';
 import { EmailClassifierService } from './email-classifier.service';
 import { EmailRulesRunnerService } from './email-rules-runner.service';
+import { TripThumbsService } from './trip-thumbs.service';
 
 @Module({
   providers: [
@@ -34,6 +35,7 @@ import { EmailRulesRunnerService } from './email-rules-runner.service';
     EmailExecutorService,
     EmailClassifierService,
     EmailRulesRunnerService,
+    TripThumbsService,
   ],
   exports: [
     DateParserService,
@@ -52,6 +54,7 @@ import { EmailRulesRunnerService } from './email-rules-runner.service';
     EmailExecutorService,
     EmailClassifierService,
     EmailRulesRunnerService,
+    TripThumbsService,
   ],
 })
 export class ServicesModule {}

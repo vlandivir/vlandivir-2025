@@ -9,10 +9,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/shared/site-theme.css?v=20260718-1" />
+  <link rel="stylesheet" href="/shared/site-theme.css?v=20260731-2" />
   <link rel="stylesheet" href="/shared/site-header.css?v=20260718-1" />
-  <link rel="stylesheet" href="/trip/styles.css?v=20260731-1" />
-  <script src="/trip/i18n.js?v=20260731-1"></script>
+  <link rel="stylesheet" href="/trip/styles.css?v=20260731-5" />
+  <script src="/trip/i18n.js?v=20260731-5"></script>
   <script src="/shared/i18n.js?v=20260721-1"></script>
   <script src="/shared/site-header.js?v=20260718-1" defer></script>
 </head>
@@ -51,12 +51,23 @@
           <button class="ghost-btn" type="button" id="changeNameBtn" data-i18n="changeName">Сменить имя</button>
           <label class="primary-btn trip-upload-label">
             <span data-i18n="uploadCta">Загрузить фото и видео</span>
-            <input id="fileInput" type="file" accept="image/*,video/*" multiple hidden />
+            <!-- Do not use the HTML `hidden` attribute on file inputs: many
+                 mobile browsers then ignore label clicks and never open the picker. -->
+            <input id="fileInput" class="visually-hidden" type="file" accept="image/*,video/*" multiple />
           </label>
         </div>
       </header>
 
-      <div id="uploadQueue" class="trip-upload-queue" hidden></div>
+      <div id="uploadPanel" class="trip-upload-panel" hidden>
+        <div class="trip-upload-panel__head">
+          <strong id="uploadSummary" data-i18n="uploadSummaryIdle">Загрузка</strong>
+          <span id="uploadSummaryPct">0%</span>
+        </div>
+        <div class="trip-upload-item__bar trip-upload-panel__bar" aria-hidden="true">
+          <span id="uploadOverallBar"></span>
+        </div>
+        <div id="uploadQueue" class="trip-upload-queue"></div>
+      </div>
       <p id="albumStatus" class="trip-status" hidden></p>
       <div id="gallery" class="trip-gallery" aria-live="polite"></div>
       <p id="emptyGallery" class="trip-empty" hidden data-i18n="emptyGallery">Пока пусто. Загрузите первые фото или видео из галереи телефона.</p>
@@ -82,6 +93,6 @@
     <div class="trip-lightbox__body" id="lightboxBody"></div>
   </div>
 
-  <script src="/trip/app.js?v=20260731-1"></script>
+  <script src="/trip/app.js?v=20260731-5"></script>
 </body>
 </html>

@@ -50,26 +50,73 @@
   align-items: center;
 }
 
+.trip-upload-panel {
+  position: sticky;
+  top: var(--v-space-3);
+  z-index: 20;
+  display: grid;
+  gap: var(--v-space-3);
+  margin-bottom: var(--v-space-4);
+  padding: var(--v-card-padding);
+  border: 1px solid hsl(var(--shadcn-border));
+  border-radius: var(--radius);
+  background: hsl(var(--card));
+  box-shadow: var(--v-shadow);
+}
+
+.trip-upload-panel__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--v-space-3);
+  font-size: 0.95rem;
+}
+
+.trip-upload-panel__head strong {
+  font-weight: 700;
+}
+
+.trip-upload-panel__bar {
+  height: 10px;
+}
+
 .trip-upload-queue {
   display: grid;
   gap: var(--v-space-2);
-  margin-bottom: var(--v-space-4);
+  max-height: min(40vh, 320px);
+  overflow: auto;
 }
 
 .trip-upload-item {
   display: grid;
   gap: var(--v-space-1);
-  padding: var(--v-card-padding);
-  border: 1px solid hsl(var(--shadcn-border));
-  border-radius: var(--radius);
-  background: hsl(var(--card));
+  padding: var(--v-space-2) 0;
+  border-top: 1px solid hsl(var(--shadcn-border));
+}
+
+.trip-upload-item:first-child {
+  border-top: 0;
+  padding-top: 0;
 }
 
 .trip-upload-item__row {
   display: flex;
   justify-content: space-between;
   gap: var(--v-space-3);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+}
+
+.trip-upload-item__row .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.trip-upload-item__row .state {
+  flex: 0 0 auto;
+  color: var(--v-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .trip-upload-item__bar {
@@ -84,7 +131,7 @@
   height: 100%;
   width: 0;
   background: hsl(var(--primary));
-  transition: width 0.2s ease;
+  transition: width 0.15s linear;
 }
 
 .trip-status {
@@ -114,6 +161,7 @@
 }
 
 .trip-card__media {
+  position: relative;
   aspect-ratio: 1;
   background: hsl(var(--shadcn-muted));
   cursor: pointer;
@@ -129,6 +177,34 @@
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+.trip-card__media.is-video::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.5);
+  box-shadow: inset 0 0 0 2px #fff;
+  pointer-events: none;
+}
+
+.trip-card__media.is-video::before {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  margin: auto;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 8px 0 8px 14px;
+  border-color: transparent transparent transparent #fff;
+  transform: translateX(2px);
+  pointer-events: none;
 }
 
 .trip-card__meta {
@@ -161,8 +237,6 @@
   top: var(--v-space-2);
   right: var(--v-space-2);
   z-index: 1;
-  min-height: 32px;
-  padding-inline: 0.6rem;
   font-size: 0.75rem;
 }
 

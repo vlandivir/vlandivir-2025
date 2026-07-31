@@ -16,7 +16,11 @@
   const gallery = document.getElementById('gallery');
   const emptyGallery = document.getElementById('emptyGallery');
   const fileInput = document.getElementById('fileInput');
+  const uploadPanel = document.getElementById('uploadPanel');
   const uploadQueue = document.getElementById('uploadQueue');
+  const uploadSummary = document.getElementById('uploadSummary');
+  const uploadSummaryPct = document.getElementById('uploadSummaryPct');
+  const uploadOverallBar = document.getElementById('uploadOverallBar');
   const copyLinkBtn = document.getElementById('copyLinkBtn');
   const editTitleBtn = document.getElementById('editTitleBtn');
   const changeNameBtn = document.getElementById('changeNameBtn');
@@ -33,14 +37,21 @@
   /** @type {Array<any>} */
   let media = [];
 
-  function t(key) {
+  function t(key, vars) {
+    let text;
     if (window.SiteI18n && typeof window.SiteI18n.t === 'function') {
-      return window.SiteI18n.t(key);
+      text = window.SiteI18n.t(key);
+    } else {
+      const lang = document.documentElement.lang?.startsWith('en') ? 'en' : 'ru';
+      text =
+        window.PAGE_I18N?.[lang]?.[key] ??
+        window.PAGE_I18N?.ru?.[key] ??
+        key;
     }
-    const lang = document.documentElement.lang?.startsWith('en') ? 'en' : 'ru';
-    return (window.PAGE_I18N?.[lang]?.[key] ??
-      window.PAGE_I18N?.ru?.[key] ??
-      key);
+    if (!vars) return text;
+    return String(text).replace(/\{(\w+)\}/g, (_, name) =>
+      vars[name] == null ? '' : String(vars[name]),
+    );
   }
 
   function uuid() {
@@ -156,33 +167,35 @@
       : 'var(--v-muted)';
   }
 
-  async function sha256File(file) {
+  async function sha256File(file, onProgress) {
     // Prefer streaming incremental SHA-256 so large phone videos don't need
     // a full in-memory ArrayBuffer.
     if (file.stream && typeof ReadableStream !== 'undefined') {
       try {
-        return await sha256Stream(file.stream());
+        return await sha256Stream(file.stream(), file.size, onProgress);
       } catch {
         // fall through
       }
     }
+    onProgress?.(0.5);
     const buffer = await file.arrayBuffer();
     const digest = await crypto.subtle.digest('SHA-256', buffer);
+    onProgress?.(1);
     return hexFromBuffer(digest);
   }
 
-  async function sha256Stream(stream) {
-    // SubtleCrypto has no incremental SHA-256 in browsers yet for streams.
-    // Read in chunks into one Uint8Array only if we must — for phones we
-    // prefer hashing the File via arrayBuffer when stream path isn't viable.
-    // Implement a pure-JS incremental SHA-256 for streaming.
+  async function sha256Stream(stream, totalBytes, onProgress) {
     const hasher = createSha256();
     const reader = stream.getReader();
+    let loaded = 0;
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
       hasher.update(value);
+      loaded += value.byteLength;
+      if (totalBytes > 0) onProgress?.(Math.min(1, loaded / totalBytes));
     }
+    onProgress?.(1);
     return hasher.digestHex();
   }
 
@@ -355,8 +368,11 @@
 
       const mediaBtn = document.createElement('button');
       mediaBtn.type = 'button';
-      mediaBtn.className = 'trip-card__media';
-      if (item.kind === 'video') {
+      mediaBtn.className =
+        'trip-card__media' + (item.kind === 'video' ? ' is-video' : '');
+      const previewUrl = item.thumbUrl || item.url;
+      if (item.kind === 'video' && !item.thumbUrl) {
+        // Thumb still generating — cheap poster via muted video metadata.
         const video = document.createElement('video');
         video.src = item.url;
         video.muted = true;
@@ -365,7 +381,7 @@
         mediaBtn.appendChild(video);
       } else {
         const img = document.createElement('img');
-        img.src = item.url;
+        img.src = previewUrl;
         img.alt = item.originalFilename;
         img.loading = 'lazy';
         mediaBtn.appendChild(img);
@@ -429,6 +445,7 @@
     }
     createView.hidden = true;
     albumView.hidden = false;
+    emptyGallery.hidden = false;
     albumTitle.textContent = trip.title;
     syncHeaderLangPaths(trip.secret);
     const bits = [`${t('itemsCount')}`];
@@ -439,8 +456,11 @@
       editTitleBtn.hidden = true;
     }
     albumMeta.textContent = bits.join(' · ');
-    await ensureDisplayName();
+    // Load the gallery immediately; only ask for a name when uploading.
     await loadMedia();
+    if (!getDisplayName()) {
+      void ensureDisplayName();
+    }
   }
 
   async function loadMedia() {
@@ -457,6 +477,19 @@
       .filter(Boolean)
       .join(' · ');
     renderGallery();
+    // Video thumbs are built in the background — refresh a few times.
+    const pendingThumbs = media.some((m) => !m.thumbUrl && !m.deleted);
+    if (pendingThumbs) {
+      loadMedia._thumbTries = (loadMedia._thumbTries || 0) + 1;
+      if (loadMedia._thumbTries <= 5) {
+        window.clearTimeout(loadMedia._thumbTimer);
+        loadMedia._thumbTimer = window.setTimeout(() => {
+          void loadMedia();
+        }, 4000);
+      }
+    } else {
+      loadMedia._thumbTries = 0;
+    }
   }
 
   function showCreate() {
@@ -555,13 +588,46 @@
     el.querySelector('.name').textContent = `${file.name} (${formatBytes(file.size)})`;
     const stateEl = el.querySelector('.state');
     const barEl = el.querySelector('.trip-upload-item__bar > span');
-    return {
+    const item = {
       el,
+      file,
+      /** 0..1 fraction of this file's work (hash + upload + complete). */
+      fraction: 0,
+      done: false,
       setState(text, pct) {
         stateEl.textContent = text;
-        if (typeof pct === 'number') barEl.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+        if (typeof pct === 'number') {
+          const clamped = Math.max(0, Math.min(100, pct));
+          barEl.style.width = `${clamped}%`;
+          item.fraction = clamped / 100;
+          refreshOverallProgress();
+        }
+      },
+      markDone() {
+        item.done = true;
+        item.fraction = 1;
+        refreshOverallProgress();
       },
     };
+    return item;
+  }
+
+  /** @type {ReturnType<typeof makeQueueItem>[]} */
+  let activeUploadItems = [];
+
+  function refreshOverallProgress() {
+    if (!activeUploadItems.length) return;
+    const total = activeUploadItems.length;
+    const done = activeUploadItems.filter((item) => item.done).length;
+    const avg =
+      activeUploadItems.reduce((sum, item) => sum + item.fraction, 0) / total;
+    const pct = Math.round(avg * 100);
+    const finished = done === total;
+    uploadSummary.textContent = finished
+      ? t('uploadSummaryDone', { done, total })
+      : t('uploadSummary', { done, total });
+    uploadSummaryPct.textContent = `${pct}%`;
+    uploadOverallBar.style.width = `${pct}%`;
   }
 
   async function readImageDims(file) {
@@ -580,16 +646,21 @@
     if (!trip) return;
     if (file.size > MAX_FILE_BYTES) {
       queueItem.setState(t('tooLarge'), 100);
+      queueItem.markDone();
       return;
     }
     if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
       queueItem.setState(t('badType'), 100);
+      queueItem.markDone();
       return;
     }
 
     const displayName = await ensureDisplayName();
-    queueItem.setState(t('hashing'), 5);
-    const contentHash = await sha256File(file);
+    queueItem.setState(t('hashing'), 1);
+    const contentHash = await sha256File(file, (ratio) => {
+      const pct = Math.round(ratio * 100);
+      queueItem.setState(`${t('hashing')} ${pct}%`, ratio * 25);
+    });
     const dims = await readImageDims(file);
 
     const payload = {
@@ -603,7 +674,7 @@
       height: dims.height,
     };
 
-    queueItem.setState(t('uploading'), 15);
+    queueItem.setState(t('uploading'), 28);
     const check = await api(
       `/trip-api/trips/${encodeURIComponent(trip.secret)}/uploads/check`,
       { method: 'POST', body: JSON.stringify(payload) },
@@ -611,18 +682,25 @@
 
     if (check.status === 'alreadyExists') {
       queueItem.setState(t('alreadyExists'), 100);
+      queueItem.markDone();
       return;
     }
     if (check.status === 'restored') {
       queueItem.setState(t('restored'), 100);
+      queueItem.markDone();
       return;
     }
 
     await putWithProgress(check.uploadUrl, file, check.headers || {}, (pct) => {
-      queueItem.setState(`${t('uploading')} ${pct}%`, 15 + pct * 0.75);
+      // Upload is the bulk of the work: map 0..100% → 30..90 of the bar.
+      const label =
+        pct < 100
+          ? `${t('uploading')} ${pct}% · ${formatBytes((file.size * pct) / 100)}`
+          : t('uploading');
+      queueItem.setState(label, 30 + pct * 0.6);
     });
 
-    queueItem.setState(t('uploading'), 95);
+    queueItem.setState(t('finishing'), 92);
     const done = await api(
       `/trip-api/trips/${encodeURIComponent(trip.secret)}/uploads/complete`,
       { method: 'POST', body: JSON.stringify(payload) },
@@ -634,6 +712,7 @@
     } else {
       queueItem.setState(t('uploaded'), 100);
     }
+    queueItem.markDone();
   }
 
   function putWithProgress(url, file, headers, onProgress) {
@@ -659,33 +738,39 @@
   async function processFiles(fileList) {
     const files = [...fileList];
     if (!files.length) return;
-    uploadQueue.hidden = false;
+    uploadPanel.hidden = false;
     uploadQueue.innerHTML = '';
-    const items = files.map((file) => {
+    activeUploadItems = files.map((file) => {
       const item = makeQueueItem(file);
+      item.setState(t('waiting'), 0);
       uploadQueue.appendChild(item.el);
-      return { file, item };
+      return item;
     });
+    refreshOverallProgress();
+    uploadPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
     let index = 0;
     async function worker() {
-      while (index < items.length) {
-        const current = items[index++];
+      while (index < activeUploadItems.length) {
+        const current = activeUploadItems[index++];
         try {
-          await uploadOne(current.file, current.item);
+          await uploadOne(current.file, current);
         } catch (error) {
-          current.item.setState(
+          current.setState(
             `${t('failed')}: ${error.message || ''}`.trim(),
             100,
           );
+          current.markDone();
         }
       }
     }
     await Promise.all(
-      Array.from({ length: Math.min(CONCURRENCY, items.length) }, () =>
-        worker(),
-      ),
+      Array.from({
+        length: Math.min(CONCURRENCY, activeUploadItems.length),
+      }, () => worker()),
     );
+    refreshOverallProgress();
+    loadMedia._thumbTries = 0;
     await loadMedia();
   }
 

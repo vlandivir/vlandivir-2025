@@ -17,6 +17,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { AuthService } from './auth/auth.service';
 import { PrismaService } from './prisma/prisma.service';
 import { StorageService } from './services/storage.service';
+import { TripThumbsService } from './services/trip-thumbs.service';
 
 const MAX_FILE_BYTES = 2 * 1024 * 1024 * 1024; // 2 GiB
 const MAX_TITLE_LEN = 200;
@@ -57,6 +58,7 @@ export class TripApiController {
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
     private readonly authService: AuthService,
+    private readonly tripThumbs: TripThumbsService,
   ) {}
 
   @Post('trips')
@@ -135,6 +137,10 @@ export class TripApiController {
         : { tripId: trip.id, deletedAt: null },
       orderBy: { createdAt: 'desc' },
     });
+    // Lazily backfill thumbs (e.g. video frames that finished after upload).
+    for (const row of rows) {
+      if (!row.thumbUrl) this.tripThumbs.generateInBackground(row);
+    }
     return {
       isAdmin,
       media: rows.map((row) => this.serializeMedia(row)),
@@ -231,9 +237,13 @@ export class TripApiController {
     });
 
     if (existing && !existing.deletedAt) {
+      await this.ensureThumbFor(existing);
+      const fresh = await this.prisma.tripMedia.findUniqueOrThrow({
+        where: { id: existing.id },
+      });
       return {
         status: 'alreadyExists' as const,
-        media: this.serializeMedia(existing),
+        media: this.serializeMedia(fresh),
       };
     }
 
@@ -242,9 +252,13 @@ export class TripApiController {
         where: { id: existing.id },
         data: { deletedAt: null, displayName: meta.displayName },
       });
+      await this.ensureThumbFor(restored);
+      const fresh = await this.prisma.tripMedia.findUniqueOrThrow({
+        where: { id: restored.id },
+      });
       return {
         status: 'restored' as const,
-        media: this.serializeMedia(restored),
+        media: this.serializeMedia(fresh),
       };
     }
 
@@ -291,9 +305,13 @@ export class TripApiController {
           takenAt: meta.takenAt,
         },
       });
+      await this.ensureThumbFor(created);
+      const fresh = await this.prisma.tripMedia.findUniqueOrThrow({
+        where: { id: created.id },
+      });
       return {
         status: 'created' as const,
-        media: this.serializeMedia(created),
+        media: this.serializeMedia(fresh),
       };
     } catch (error) {
       // Race: another complete won the unique constraint.
@@ -306,9 +324,13 @@ export class TripApiController {
         },
       });
       if (raced) {
+        await this.ensureThumbFor(raced);
+        const fresh = await this.prisma.tripMedia.findUniqueOrThrow({
+          where: { id: raced.id },
+        });
         return {
           status: 'alreadyExists' as const,
-          media: this.serializeMedia(raced),
+          media: this.serializeMedia(fresh),
         };
       }
       throw error;
@@ -450,11 +472,33 @@ export class TripApiController {
     return Math.round(n);
   }
 
+  private async ensureThumbFor(media: {
+    id: string;
+    tripId: string;
+    contentHash: string;
+    url: string;
+    mimeType: string;
+    size: bigint;
+    originalFilename: string;
+    kind: string;
+    thumbUrl: string | null;
+  }): Promise<void> {
+    if (media.thumbUrl) return;
+    // Photos: wait so the gallery can use a cheap JPEG immediately.
+    // Videos: ffmpeg frame extract in the background (can take a few seconds).
+    if (media.kind === 'photo') {
+      await this.tripThumbs.ensureThumb(media);
+      return;
+    }
+    this.tripThumbs.generateInBackground(media);
+  }
+
   private serializeMedia(row: {
     id: string;
     tripId: string;
     contentHash: string;
     url: string;
+    thumbUrl: string | null;
     mimeType: string;
     size: bigint;
     originalFilename: string;
@@ -474,6 +518,7 @@ export class TripApiController {
       tripId: row.tripId,
       contentHash: row.contentHash,
       url: row.url,
+      thumbUrl: row.thumbUrl,
       mimeType: row.mimeType,
       size: Number(row.size),
       originalFilename: row.originalFilename,

@@ -135,6 +135,23 @@ export class StorageService implements OnModuleInit {
     );
   }
 
+  getTripThumbKey(tripId: string, contentHash: string): string {
+    return `trips/${tripId}/${contentHash}.thumb.jpg`;
+  }
+
+  getTripThumbPublicUrl(tripId: string, contentHash: string): string {
+    return this.getPublicUrl(this.getTripThumbKey(tripId, contentHash));
+  }
+
+  async uploadTripThumb(
+    tripId: string,
+    contentHash: string,
+    jpeg: Buffer,
+  ): Promise<string> {
+    const key = this.getTripThumbKey(tripId, contentHash);
+    return this.uploadFileWithKey(jpeg, 'image/jpeg', key);
+  }
+
   async getTripMediaPresignedPutUrl(
     tripId: string,
     contentHash: string,

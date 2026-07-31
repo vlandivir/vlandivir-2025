@@ -14,11 +14,9 @@ body {
 
 body {
   min-height: 100vh;
-  background:
-    linear-gradient(180deg, hsl(var(--background) / 0.82), hsl(var(--shadcn-muted) / 0.56) 42%, hsl(var(--shadcn-muted))),
-    var(--page);
-  color: var(--ink);
-  font-family: Montserrat, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  /* Page/body chrome comes from site-theme; keep only page layout below. */
+  color: var(--v-text);
+  font-family: var(--font-sans);
   line-height: 1.5;
 }
 
@@ -99,13 +97,6 @@ body {
 
 .font-page-search input {
   width: 100%;
-  min-height: 44px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 10px 12px;
-  background: hsl(var(--background));
-  color: var(--ink);
-  font: inherit;
 }
 
 .font-page-count {
@@ -187,10 +178,10 @@ body {
 .font-row__downloads {
   flex: 0 0 auto;
   margin-left: auto;
-  font-family: Montserrat, sans-serif;
+  font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 700;
-  color: var(--muted);
+  color: var(--v-muted);
   white-space: nowrap;
 }
 

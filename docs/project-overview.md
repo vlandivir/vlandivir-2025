@@ -80,7 +80,7 @@ Root module: [src/app.module.ts](../src/app.module.ts) — ConfigModule (global)
 - **Note / Image / Video / BotResponse** — diary: note text + raw Telegram message JSON, attached media (Spaces URLs + LLM descriptions), bot replies. Keyed by `chatId` (BigInt) + `noteDate`
 - **MapPoint / MapTrack / MapTag** — places map: coordinates or polylines, tags, `instagramMeta` JSONB cache
 - **Reel** — Instagram reel archive: shortcode, status machine (`pending/ready/error`), transcript + vision fields with their own statuses, tags, yt-dlp metadata dump
-- **Trip / TripMedia** — shared trip albums: unlisted `secret` URL, original media on Spaces keyed by content hash, uploader metadata (`contributorId`, display name, user-agent, optional dimensions/`takenAt`), soft-delete via `deletedAt`
+- **Trip / TripMedia** — shared trip albums: unlisted `secret` URL, original media on Spaces keyed by content hash, JPEG `thumbUrl` (~480px via sharp/ffmpeg) for cheap gallery previews, uploader metadata (`contributorId`, display name, user-agent, optional dimensions/`takenAt`), soft-delete via `deletedAt`
 - **ChatSettings / Todo / Question / Answer / TaskNote / TaskImage** — defined in the schema but not referenced anywhere in `src/` (planned features); the tables may contain data, check before dropping
 
 ## Web apps (`web/`)

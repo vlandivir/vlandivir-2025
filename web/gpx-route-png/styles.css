@@ -229,55 +229,17 @@ body {
   display: block;
 }
 
-.primary-btn {
-  background: var(--ink);
-  color: hsl(var(--primary-foreground));
-  border: none;
-  padding: 14px 22px;
-  border-radius: 10px;
-  font: 500 15px var(--font-sans);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  transition: background .15s ease, transform .15s ease;
-  letter-spacing: 0.005em;
-}
-.primary-btn:hover { background: hsl(var(--primary)); }
-.primary-btn:active { transform: translateY(1px); }
-.primary-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-  transform: none;
-}
-.primary-btn:disabled:hover { background: var(--ink); }
-
-.ghost-btn {
-  background: transparent;
-  color: var(--ink-2);
-  border: 1px solid var(--border-2);
-  padding: 10px 16px;
-  border-radius: 10px;
-  font: 500 14px var(--font-sans);
-  cursor: pointer;
-  margin-top: 22px;
-  width: 100%;
-  transition: border-color .15s ease, color .15s ease;
-}
-.ghost-btn:hover { border-color: var(--ink-2); color: var(--ink); }
+/* Button chrome comes from /shared/site-theme.css (.primary-btn / .ghost-btn). */
 .settings-actions {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-top: 4px;
+  gap: var(--v-control-gap);
+  margin-top: var(--v-space-1);
 }
-.settings-actions .ghost-btn {
+.settings-actions .ghost-btn,
+.drop-actions .ghost-btn {
   width: 100%;
-}
-
-.ghost-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
+  margin-top: 0;
 }
 
 /* ---- Stats Panel ---- */
@@ -318,44 +280,19 @@ body {
 .controls { margin-top: 24px; display: flex; flex-direction: column; gap: 16px; }
 .ctl { display: flex; flex-direction: column; gap: 8px; }
 .ctl-label { font-size: 13px; color: var(--ink-muted); }
+/* Field chrome comes from site-theme; only layout extras here. */
 .ctl input[type="text"],
 .ctl input[type="number"],
 .ctl select,
 .waypoint-row input,
 .waypoint-row textarea,
 .ai-brief textarea {
-  font: 14px var(--font-sans);
-  padding: 10px 12px;
-  border: 1px solid var(--border-2);
-  border-radius: 8px;
-  background: hsl(var(--card));
-  color: var(--ink);
-  outline: none;
-  transition: border-color .15s ease;
-}
-.ctl input[type="text"]:focus,
-.ctl input[type="number"]:focus,
-.ctl select:focus,
-.waypoint-row input:focus,
-.waypoint-row textarea:focus,
-.ai-brief textarea:focus { border-color: var(--accent); }
-
-.ctl select {
-  appearance: none;
-  background-image:
-    linear-gradient(45deg, transparent 50%, var(--ink-muted) 50%),
-    linear-gradient(135deg, var(--ink-muted) 50%, transparent 50%);
-  background-position:
-    calc(100% - 18px) 50%,
-    calc(100% - 12px) 50%;
-  background-size: 6px 6px, 6px 6px;
-  background-repeat: no-repeat;
-  padding-right: 34px;
+  width: 100%;
 }
 
 .ctl input[type="range"] {
   width: 100%;
-  accent-color: var(--accent);
+  accent-color: hsl(var(--primary));
 }
 
 #labelSizeOutput {
@@ -451,9 +388,8 @@ body {
 .ai-brief textarea {
   min-height: 150px;
   resize: vertical;
-  font: 12px/1.45 var(--font-mono);
-  color: var(--ink-2);
-  background: hsl(var(--card));
+  font-family: var(--font-mono);
+  font-size: 12px;
 }
 @media (max-width: 480px) {
   .field-grid { grid-template-columns: 1fr; }

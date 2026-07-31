@@ -362,6 +362,7 @@ model TripMedia {
   trip             Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
   contentHash      String
   url              String
+  thumbUrl         String?
   mimeType         String
   size             BigInt
   originalFilename String
