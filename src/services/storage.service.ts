@@ -53,6 +53,13 @@ export class StorageService implements OnModuleInit {
     this.s3 = new S3({
       endpoint: this.endpoint,
       region: 'fra1',
+      // Path-style URLs match public object URLs and the trip page CSP
+      // (connect-src https://fra1.digitaloceanspaces.com). Virtual-hosted
+      // https://vlandivir-2025.fra1.digitaloceanspaces.com is blocked by CSP.
+      forcePathStyle: true,
+      // Avoid CRC32 query params on presigned PUTs — browsers don't send them.
+      requestChecksumCalculation: 'WHEN_REQUIRED',
+      responseChecksumValidation: 'WHEN_REQUIRED',
       credentials: {
         accessKeyId:
           this.configService.get<string>('DO_SPACES_ACCESS_KEY') || '',

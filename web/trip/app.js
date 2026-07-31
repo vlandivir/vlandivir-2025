@@ -728,9 +728,23 @@
       };
       xhr.onload = () => {
         if (xhr.status >= 200 && xhr.status < 300) resolve();
-        else reject(new Error(`Upload failed (${xhr.status})`));
+        else {
+          const detail = (xhr.responseText || '').slice(0, 180);
+          reject(
+            new Error(
+              detail
+                ? `Upload failed (${xhr.status}): ${detail}`
+                : `Upload failed (${xhr.status})`,
+            ),
+          );
+        }
       };
-      xhr.onerror = () => reject(new Error('Upload failed'));
+      xhr.onerror = () =>
+        reject(
+          new Error(
+            'Upload network error (check CSP/CORS to DigitalOcean Spaces)',
+          ),
+        );
       xhr.send(file);
     });
   }
