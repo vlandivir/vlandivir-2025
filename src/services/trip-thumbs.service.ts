@@ -178,11 +178,16 @@ export class TripThumbsService {
     }
 
     try {
+      // OffsetTime* is required so naive EXIF datetimes are not treated as UTC
+      // (iPhone photos otherwise sort ~2h off vs QuickTime videos).
       const exif = (await exifr.parse(buffer, {
         pick: [
           'DateTimeOriginal',
           'CreateDate',
           'ModifyDate',
+          'OffsetTimeOriginal',
+          'OffsetTime',
+          'OffsetTimeDigitized',
           'Make',
           'Model',
           'LensModel',
@@ -203,7 +208,12 @@ export class TripThumbsService {
       const make = typeof exif.Make === 'string' ? exif.Make.trim() : '';
       const model = typeof exif.Model === 'string' ? exif.Model.trim() : '';
       let camera = [make, model].filter(Boolean).join(' ');
-      if (make && model.toLowerCase().startsWith(make.toLowerCase())) {
+      if (
+        make &&
+        model &&
+        (model.toLowerCase().startsWith(make.toLowerCase()) ||
+          make.toLowerCase() === 'apple')
+      ) {
         camera = model;
       }
       if (camera) meta.cameraModel = camera.slice(0, 120);

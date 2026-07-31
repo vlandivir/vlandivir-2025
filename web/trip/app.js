@@ -380,6 +380,12 @@
       const bHas = Number.isFinite(tb);
       if (aHas && bHas && ta !== tb) return tb - ta;
       if (aHas !== bHas) return aHas ? -1 : 1;
+      const nameCmp = String(a.originalFilename || '').localeCompare(
+        String(b.originalFilename || ''),
+        undefined,
+        { numeric: true, sensitivity: 'base' },
+      );
+      if (nameCmp !== 0) return nameCmp;
       return Date.parse(b.createdAt) - Date.parse(a.createdAt);
     });
   }

@@ -382,4 +382,5 @@ model TripMedia {
   @@index([tripId, createdAt])
   @@index([tripId, deletedAt])
   @@index([tripId, takenAt])
+  @@index([tripId, originalFilename, size])
 }

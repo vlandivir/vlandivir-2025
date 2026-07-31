@@ -161,48 +161,9 @@ export class TripApiController {
     const trip = await this.findTripOrThrow(secret);
     const meta = this.parseUploadMeta(body, req);
 
-    const existing = await this.prisma.tripMedia.findUnique({
-      where: {
-        tripId_contentHash: {
-          tripId: trip.id,
-          contentHash: meta.contentHash,
-        },
-      },
-    });
-
-    if (existing && !existing.deletedAt) {
-      return {
-        status: 'alreadyExists' as const,
-        media: this.serializeMedia(existing),
-      };
-    }
-
-    if (existing?.deletedAt && existing.contributorId === meta.contributorId) {
-      const restored = await this.prisma.tripMedia.update({
-        where: { id: existing.id },
-        data: {
-          deletedAt: null,
-          displayName: meta.displayName,
-          userAgent: meta.userAgent,
-          originalFilename: meta.originalFilename,
-          width: meta.width,
-          height: meta.height,
-          durationMs: meta.durationMs,
-          takenAt: meta.takenAt,
-        },
-      });
-      return {
-        status: 'restored' as const,
-        media: this.serializeMedia(restored),
-      };
-    }
-
-    if (existing?.deletedAt) {
-      return {
-        status: 'alreadyExists' as const,
-        media: this.serializeMedia(existing),
-      };
-    }
+    const existing = await this.findExistingUpload(trip.id, meta);
+    const resolved = await this.resolveExistingUpload(existing, meta);
+    if (resolved) return resolved;
 
     const { uploadUrl, publicUrl } =
       await this.storage.getTripMediaPresignedPutUrl(
@@ -232,47 +193,12 @@ export class TripApiController {
     const trip = await this.findTripOrThrow(secret);
     const meta = this.parseUploadMeta(body, req);
 
-    const existing = await this.prisma.tripMedia.findUnique({
-      where: {
-        tripId_contentHash: {
-          tripId: trip.id,
-          contentHash: meta.contentHash,
-        },
-      },
+    const existing = await this.findExistingUpload(trip.id, meta);
+    const resolved = await this.resolveExistingUpload(existing, meta, {
+      ensureThumb: true,
+      lightRestore: true,
     });
-
-    if (existing && !existing.deletedAt) {
-      await this.ensureThumbFor(existing);
-      const fresh = await this.prisma.tripMedia.findUniqueOrThrow({
-        where: { id: existing.id },
-      });
-      return {
-        status: 'alreadyExists' as const,
-        media: this.serializeMedia(fresh),
-      };
-    }
-
-    if (existing?.deletedAt && existing.contributorId === meta.contributorId) {
-      const restored = await this.prisma.tripMedia.update({
-        where: { id: existing.id },
-        data: { deletedAt: null, displayName: meta.displayName },
-      });
-      await this.ensureThumbFor(restored);
-      const fresh = await this.prisma.tripMedia.findUniqueOrThrow({
-        where: { id: restored.id },
-      });
-      return {
-        status: 'restored' as const,
-        media: this.serializeMedia(fresh),
-      };
-    }
-
-    if (existing?.deletedAt) {
-      return {
-        status: 'alreadyExists' as const,
-        media: this.serializeMedia(existing),
-      };
-    }
+    if (resolved) return resolved;
 
     const head = await this.storage.headTripMedia(
       trip.id,
@@ -386,6 +312,101 @@ export class TripApiController {
     const trip = await this.prisma.trip.findUnique({ where: { secret } });
     if (!trip) throw new NotFoundException('Trip not found');
     return trip;
+  }
+
+  /**
+   * Exact sha256 match, or same filename+size (iPhone often rewrites a few
+   * QuickTime header bytes on re-export, so the hash changes).
+   */
+  private async findExistingUpload(
+    tripId: string,
+    meta: { contentHash: string; originalFilename: string; size: number },
+  ) {
+    const byHash = await this.prisma.tripMedia.findUnique({
+      where: {
+        tripId_contentHash: {
+          tripId,
+          contentHash: meta.contentHash,
+        },
+      },
+    });
+    if (byHash) return byHash;
+
+    return this.prisma.tripMedia.findFirst({
+      where: {
+        tripId,
+        originalFilename: meta.originalFilename,
+        size: BigInt(meta.size),
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  private async resolveExistingUpload(
+    existing: Awaited<ReturnType<typeof this.findExistingUpload>>,
+    meta: {
+      contributorId: string;
+      displayName: string;
+      userAgent: string | null;
+      originalFilename: string;
+      width: number | null;
+      height: number | null;
+      durationMs: number | null;
+      takenAt: Date | null;
+    },
+    options?: {
+      ensureThumb?: boolean;
+      /** When true, only refresh displayName on restore (complete path). */
+      lightRestore?: boolean;
+    },
+  ) {
+    if (!existing) return null;
+
+    if (!existing.deletedAt) {
+      if (options?.ensureThumb) await this.ensureThumbFor(existing);
+      const fresh = options?.ensureThumb
+        ? await this.prisma.tripMedia.findUniqueOrThrow({
+            where: { id: existing.id },
+          })
+        : existing;
+      return {
+        status: 'alreadyExists' as const,
+        media: this.serializeMedia(fresh),
+      };
+    }
+
+    if (existing.contributorId === meta.contributorId) {
+      const restored = await this.prisma.tripMedia.update({
+        where: { id: existing.id },
+        data: options?.lightRestore
+          ? { deletedAt: null, displayName: meta.displayName }
+          : {
+              deletedAt: null,
+              displayName: meta.displayName,
+              userAgent: meta.userAgent,
+              originalFilename: meta.originalFilename,
+              width: meta.width,
+              height: meta.height,
+              durationMs: meta.durationMs,
+              takenAt: meta.takenAt,
+            },
+      });
+      if (options?.ensureThumb) await this.ensureThumbFor(restored);
+      const fresh = options?.ensureThumb
+        ? await this.prisma.tripMedia.findUniqueOrThrow({
+            where: { id: restored.id },
+          })
+        : restored;
+      return {
+        status: 'restored' as const,
+        media: this.serializeMedia(fresh),
+      };
+    }
+
+    return {
+      status: 'alreadyExists' as const,
+      media: this.serializeMedia(existing),
+    };
   }
 
   private parseUploadMeta(body: UploadCheckBody, req: Request) {
