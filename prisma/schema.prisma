@@ -374,10 +374,12 @@ model TripMedia {
   height           Int?
   durationMs       Int?
   takenAt          DateTime?
+  cameraModel      String?
   createdAt        DateTime  @default(now())
   deletedAt        DateTime?
 
   @@unique([tripId, contentHash])
   @@index([tripId, createdAt])
   @@index([tripId, deletedAt])
+  @@index([tripId, takenAt])
 }

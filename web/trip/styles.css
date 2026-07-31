@@ -207,8 +207,16 @@
   pointer-events: none;
 }
 
+.trip-card__footer {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--v-space-2);
+  padding: var(--v-space-2) var(--v-space-3) var(--v-space-3);
+}
+
 .trip-card__meta {
-  padding: var(--v-space-2) var(--v-space-3);
+  flex: 1;
+  min-width: 0;
   display: grid;
   gap: 2px;
   font-size: 0.8rem;
@@ -223,6 +231,9 @@
 
 .trip-card__meta span {
   color: var(--v-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .trip-card__badge {
@@ -233,11 +244,18 @@
 }
 
 .trip-card__delete {
-  position: absolute;
-  top: var(--v-space-2);
-  right: var(--v-space-2);
-  z-index: 1;
-  font-size: 0.75rem;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  color: var(--v-muted);
+}
+
+.trip-card__delete:hover {
+  color: hsl(var(--destructive));
 }
 
 .trip-empty {

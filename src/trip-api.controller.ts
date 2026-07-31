@@ -135,11 +135,16 @@ export class TripApiController {
       where: isAdmin
         ? { tripId: trip.id }
         : { tripId: trip.id, deletedAt: null },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [
+        { takenAt: { sort: 'desc', nulls: 'last' } },
+        { createdAt: 'desc' },
+      ],
     });
-    // Lazily backfill thumbs (e.g. video frames that finished after upload).
+    // Lazily backfill thumbs / capture metadata (EXIF, device).
     for (const row of rows) {
-      if (!row.thumbUrl) this.tripThumbs.generateInBackground(row);
+      if (!row.thumbUrl || row.cameraModel == null) {
+        this.tripThumbs.generateInBackground(row);
+      }
     }
     return {
       isAdmin,
@@ -510,6 +515,7 @@ export class TripApiController {
     height: number | null;
     durationMs: number | null;
     takenAt: Date | null;
+    cameraModel: string | null;
     createdAt: Date;
     deletedAt: Date | null;
   }) {
@@ -530,6 +536,8 @@ export class TripApiController {
       height: row.height,
       durationMs: row.durationMs,
       takenAt: row.takenAt?.toISOString() ?? null,
+      cameraModel: row.cameraModel ? row.cameraModel : null,
+      metaReady: row.cameraModel != null,
       createdAt: row.createdAt.toISOString(),
       deletedAt: row.deletedAt?.toISOString() ?? null,
       deleted: Boolean(row.deletedAt),

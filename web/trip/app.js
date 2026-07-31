@@ -337,9 +337,38 @@
     return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
   }
 
+  function formatTakenAt(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    try {
+      return new Intl.DateTimeFormat(document.documentElement.lang || 'ru', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(d);
+    } catch {
+      return d.toLocaleString();
+    }
+  }
+
+  function sortMedia(list) {
+    return [...list].sort((a, b) => {
+      const ta = a.takenAt ? Date.parse(a.takenAt) : NaN;
+      const tb = b.takenAt ? Date.parse(b.takenAt) : NaN;
+      const aHas = Number.isFinite(ta);
+      const bHas = Number.isFinite(tb);
+      if (aHas && bHas && ta !== tb) return tb - ta;
+      if (aHas !== bHas) return aHas ? -1 : 1;
+      return Date.parse(b.createdAt) - Date.parse(a.createdAt);
+    });
+  }
+
   function renderGallery() {
     gallery.innerHTML = '';
-    const visible = media;
+    const visible = sortMedia(media);
     emptyGallery.hidden = visible.length > 0;
     for (const item of visible) {
       const card = document.createElement('article');
@@ -351,19 +380,6 @@
         badge.className = 'badge trip-card__badge';
         badge.textContent = t('deletedBadge');
         card.appendChild(badge);
-      }
-
-      const mine = item.contributorId === getContributorId();
-      if ((mine || trip?.isAdmin) && !item.deleted) {
-        const del = document.createElement('button');
-        del.type = 'button';
-        del.className = 'mini-btn trip-card__delete';
-        del.textContent = t('deleteBtn');
-        del.addEventListener('click', (event) => {
-          event.stopPropagation();
-          void deleteMedia(item.id);
-        });
-        card.appendChild(del);
       }
 
       const mediaBtn = document.createElement('button');
@@ -389,14 +405,49 @@
       mediaBtn.addEventListener('click', () => openLightbox(item));
       card.appendChild(mediaBtn);
 
+      const footer = document.createElement('div');
+      footer.className = 'trip-card__footer';
+
       const meta = document.createElement('div');
       meta.className = 'trip-card__meta';
-      meta.innerHTML = `<strong></strong><span></span>`;
-      meta.querySelector('strong').textContent = item.originalFilename;
-      meta.querySelector('span').textContent =
-        `${t('byAuthor')} ${item.displayName} · ${formatBytes(item.size)}`;
-      card.appendChild(meta);
+      const nameEl = document.createElement('strong');
+      nameEl.textContent = item.originalFilename;
+      meta.appendChild(nameEl);
 
+      const line1 = document.createElement('span');
+      const taken = formatTakenAt(item.takenAt);
+      line1.textContent = taken
+        ? taken
+        : `${t('byAuthor')} ${item.displayName}`;
+      meta.appendChild(line1);
+
+      const details = [];
+      if (taken) details.push(`${t('byAuthor')} ${item.displayName}`);
+      if (item.cameraModel) details.push(item.cameraModel);
+      details.push(formatBytes(item.size));
+      const line2 = document.createElement('span');
+      line2.textContent = details.join(' · ');
+      meta.appendChild(line2);
+
+      footer.appendChild(meta);
+
+      const mine = item.contributorId === getContributorId();
+      if ((mine || trip?.isAdmin) && !item.deleted) {
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'ghost-btn icon-btn trip-card__delete';
+        del.setAttribute('aria-label', t('deleteBtn'));
+        del.title = t('deleteBtn');
+        del.innerHTML =
+          '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
+        del.addEventListener('click', (event) => {
+          event.stopPropagation();
+          void deleteMedia(item.id);
+        });
+        footer.appendChild(del);
+      }
+
+      card.appendChild(footer);
       gallery.appendChild(card);
     }
   }
@@ -477,9 +528,11 @@
       .filter(Boolean)
       .join(' · ');
     renderGallery();
-    // Video thumbs are built in the background — refresh a few times.
-    const pendingThumbs = media.some((m) => !m.thumbUrl && !m.deleted);
-    if (pendingThumbs) {
+    // Thumbs / EXIF are filled in the background — refresh a few times.
+    const pendingMeta = media.some(
+      (m) => !m.deleted && (!m.thumbUrl || !m.metaReady),
+    );
+    if (pendingMeta) {
       loadMedia._thumbTries = (loadMedia._thumbTries || 0) + 1;
       if (loadMedia._thumbTries <= 5) {
         window.clearTimeout(loadMedia._thumbTimer);
