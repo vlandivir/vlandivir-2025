@@ -750,8 +750,10 @@
   }
 
   async function processFiles(fileList) {
-    const files = [...fileList];
+    const files = Array.from(fileList || []);
     if (!files.length) return;
+    // Ask for a name up front so the queue isn't stuck behind the modal.
+    await ensureDisplayName();
     uploadPanel.hidden = false;
     uploadQueue.innerHTML = '';
     activeUploadItems = files.map((file) => {
@@ -789,9 +791,11 @@
   }
 
   fileInput.addEventListener('change', () => {
-    const files = fileInput.files;
+    // Copy first: resetting value clears the live FileList in Chrome/Safari,
+    // so processFiles would see zero files and silently do nothing.
+    const files = Array.from(fileInput.files || []);
     fileInput.value = '';
-    if (files?.length) void processFiles(files);
+    if (files.length) void processFiles(files);
   });
 
   // Boot
