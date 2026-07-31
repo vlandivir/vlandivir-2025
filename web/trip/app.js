@@ -168,35 +168,50 @@
   }
 
   async function sha256File(file, onProgress) {
-    // Prefer streaming incremental SHA-256 so large phone videos don't need
-    // a full in-memory ArrayBuffer.
-    if (file.stream && typeof ReadableStream !== 'undefined') {
-      try {
-        return await sha256Stream(file.stream(), file.size, onProgress);
-      } catch {
-        // fall through
-      }
+    // Chunk via File.slice — Blob.stream() can hang forever on iOS Safari
+    // for Photo Library assets, so the upload queue never leaves "waiting".
+    const chunkSize = 2 * 1024 * 1024;
+    const hasher = createSha256();
+    const total = file.size || 0;
+    let offset = 0;
+    while (offset < total) {
+      const buf = await file.slice(offset, offset + chunkSize).arrayBuffer();
+      hasher.update(new Uint8Array(buf));
+      offset += buf.byteLength;
+      if (total > 0) onProgress?.(Math.min(1, offset / total));
+      // Yield so the upload panel can paint on mobile.
+      await new Promise((resolve) => setTimeout(resolve, 0));
     }
-    onProgress?.(0.5);
-    const buffer = await file.arrayBuffer();
-    const digest = await crypto.subtle.digest('SHA-256', buffer);
-    onProgress?.(1);
-    return hexFromBuffer(digest);
+    if (total === 0) onProgress?.(1);
+    return hasher.digestHex();
   }
 
-  async function sha256Stream(stream, totalBytes, onProgress) {
-    const hasher = createSha256();
-    const reader = stream.getReader();
-    let loaded = 0;
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      hasher.update(value);
-      loaded += value.byteLength;
-      if (totalBytes > 0) onProgress?.(Math.min(1, loaded / totalBytes));
+  function isAllowedMedia(file) {
+    const type = (file.type || '').toLowerCase();
+    if (type.startsWith('image/') || type.startsWith('video/')) return true;
+    // iOS/Android often omit MIME for gallery picks — fall back to extension.
+    if (!type || type === 'application/octet-stream') {
+      return /\.(jpe?g|png|gif|webp|heic|heif|avif|tif?f|bmp|mp4|mov|m4v|webm|mkv|avi|3gp)$/i.test(
+        file.name || '',
+      );
     }
-    onProgress?.(1);
-    return hasher.digestHex();
+    return false;
+  }
+
+  function guessMimeType(file) {
+    const type = (file.type || '').trim();
+    if (type) return type;
+    const name = (file.name || '').toLowerCase();
+    if (/\.(jpe?g)$/.test(name)) return 'image/jpeg';
+    if (/\.png$/.test(name)) return 'image/png';
+    if (/\.webp$/.test(name)) return 'image/webp';
+    if (/\.gif$/.test(name)) return 'image/gif';
+    if (/\.(heic|heif)$/.test(name)) return 'image/heic';
+    if (/\.mp4$/.test(name)) return 'video/mp4';
+    if (/\.mov$/.test(name)) return 'video/quicktime';
+    if (/\.m4v$/.test(name)) return 'video/x-m4v';
+    if (/\.webm$/.test(name)) return 'video/webm';
+    return 'application/octet-stream';
   }
 
   function hexFromBuffer(buffer) {
@@ -684,7 +699,9 @@
   }
 
   async function readImageDims(file) {
-    if (!file.type.startsWith('image/')) return { width: null, height: null };
+    if (!guessMimeType(file).startsWith('image/')) {
+      return { width: null, height: null };
+    }
     try {
       const bitmap = await createImageBitmap(file);
       const dims = { width: bitmap.width, height: bitmap.height };
@@ -696,13 +713,17 @@
   }
 
   async function uploadOne(file, queueItem) {
-    if (!trip) return;
+    if (!trip) {
+      queueItem.setState(t('failed'), 100);
+      queueItem.markDone();
+      return;
+    }
     if (file.size > MAX_FILE_BYTES) {
       queueItem.setState(t('tooLarge'), 100);
       queueItem.markDone();
       return;
     }
-    if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
+    if (!isAllowedMedia(file)) {
       queueItem.setState(t('badType'), 100);
       queueItem.markDone();
       return;
@@ -715,10 +736,11 @@
       queueItem.setState(`${t('hashing')} ${pct}%`, ratio * 25);
     });
     const dims = await readImageDims(file);
+    const mimeType = guessMimeType(file);
 
     const payload = {
       contentHash,
-      mimeType: file.type || 'application/octet-stream',
+      mimeType,
       size: file.size,
       originalFilename: file.name || 'file',
       contributorId: getContributorId(),
@@ -744,7 +766,11 @@
       return;
     }
 
-    await putWithProgress(check.uploadUrl, file, check.headers || {}, (pct) => {
+    const putHeaders = {
+      ...(check.headers || {}),
+      'Content-Type': mimeType,
+    };
+    await putWithProgress(check.uploadUrl, file, putHeaders, (pct) => {
       // Upload is the bulk of the work: map 0..100% → 30..90 of the bar.
       const label =
         pct < 100
@@ -805,23 +831,34 @@
   async function processFiles(fileList) {
     const files = Array.from(fileList || []);
     if (!files.length) return;
-    // Ask for a name up front so the queue isn't stuck behind the modal.
-    await ensureDisplayName();
+
+    // Show the queue immediately (before the name modal) so mobile users see
+    // that the picker selection was accepted.
     uploadPanel.hidden = false;
     uploadQueue.innerHTML = '';
-    activeUploadItems = files.map((file) => {
+    const batchItems = files.map((file) => {
       const item = makeQueueItem(file);
       item.setState(t('waiting'), 0);
       uploadQueue.appendChild(item.el);
       return item;
     });
+    activeUploadItems = batchItems;
     refreshOverallProgress();
     uploadPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
+    await ensureDisplayName();
+
+    // Keep a local list so a second pick can't steal this batch's workers.
+    const items = batchItems;
     let index = 0;
+    const concurrency = Math.min(
+      /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ? 1 : CONCURRENCY,
+      items.length,
+    );
     async function worker() {
-      while (index < activeUploadItems.length) {
-        const current = activeUploadItems[index++];
+      while (index < items.length) {
+        const current = items[index++];
+        if (!current) break;
         try {
           await uploadOne(current.file, current);
         } catch (error) {
@@ -834,21 +871,28 @@
       }
     }
     await Promise.all(
-      Array.from({
-        length: Math.min(CONCURRENCY, activeUploadItems.length),
-      }, () => worker()),
+      Array.from({ length: concurrency }, () => worker()),
     );
     refreshOverallProgress();
     loadMedia._thumbTries = 0;
     await loadMedia();
   }
 
+  /** Serialize batches — overlapping processFiles races on mobile. */
+  let uploadChain = Promise.resolve();
+
   fileInput.addEventListener('change', () => {
     // Copy first: resetting value clears the live FileList in Chrome/Safari,
     // so processFiles would see zero files and silently do nothing.
     const files = Array.from(fileInput.files || []);
     fileInput.value = '';
-    if (files.length) void processFiles(files);
+    if (!files.length) return;
+    uploadChain = uploadChain
+      .catch(() => undefined)
+      .then(() => processFiles(files))
+      .catch((error) => {
+        showStatus(error?.message || t('failed'), true);
+      });
   });
 
   // Boot
