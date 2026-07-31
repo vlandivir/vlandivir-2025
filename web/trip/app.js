@@ -413,7 +413,7 @@
       } else {
         const img = document.createElement('img');
         img.src = previewUrl;
-        img.alt = item.originalFilename;
+        img.alt = item.displayName || item.kind || 'media';
         img.loading = 'lazy';
         mediaBtn.appendChild(img);
       }
@@ -425,24 +425,24 @@
 
       const meta = document.createElement('div');
       meta.className = 'trip-card__meta';
-      const nameEl = document.createElement('strong');
-      nameEl.textContent = item.originalFilename;
-      meta.appendChild(nameEl);
 
-      const line1 = document.createElement('span');
-      const taken = formatTakenAt(item.takenAt);
-      line1.textContent = taken
-        ? taken
-        : `${t('byAuthor')} ${item.displayName}`;
-      meta.appendChild(line1);
+      const authorEl = document.createElement('strong');
+      authorEl.textContent = item.displayName || '—';
+      meta.appendChild(authorEl);
 
-      const details = [];
-      if (taken) details.push(`${t('byAuthor')} ${item.displayName}`);
-      if (item.cameraModel) details.push(item.cameraModel);
-      details.push(formatBytes(item.size));
-      const line2 = document.createElement('span');
-      line2.textContent = details.join(' · ');
-      meta.appendChild(line2);
+      const when =
+        formatTakenAt(item.takenAt) || formatTakenAt(item.createdAt);
+      if (when) {
+        const dateEl = document.createElement('span');
+        dateEl.textContent = when;
+        meta.appendChild(dateEl);
+      }
+
+      if (item.cameraModel) {
+        const deviceEl = document.createElement('span');
+        deviceEl.textContent = item.cameraModel;
+        meta.appendChild(deviceEl);
+      }
 
       footer.appendChild(meta);
 
