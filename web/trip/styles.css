@@ -87,6 +87,10 @@
   overflow: auto;
 }
 
+#retryFailedBtn {
+  justify-self: start;
+}
+
 .trip-upload-item {
   display: grid;
   gap: var(--v-space-1);

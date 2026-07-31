@@ -11,8 +11,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/shared/site-theme.css?v=20260731-2" />
   <link rel="stylesheet" href="/shared/site-header.css?v=20260718-1" />
-  <link rel="stylesheet" href="/trip/styles.css?v=20260731-8" />
-  <script src="/trip/i18n.js?v=20260731-8"></script>
+  <link rel="stylesheet" href="/trip/styles.css?v=20260731-12" />
+  <script src="/trip/i18n.js?v=20260731-12"></script>
   <script src="/shared/i18n.js?v=20260721-1"></script>
   <script src="/shared/site-header.js?v=20260731-10" defer></script>
 </head>
@@ -49,6 +49,7 @@
           <button class="ghost-btn" type="button" id="copyLinkBtn" data-i18n="copyLink">Скопировать ссылку</button>
           <button class="ghost-btn" type="button" id="editTitleBtn" hidden data-i18n="editTitle">Переименовать</button>
           <button class="ghost-btn" type="button" id="changeNameBtn" data-i18n="changeName">Сменить имя</button>
+          <button class="ghost-btn" type="button" id="toggleDeletedBtn" hidden data-i18n="hideDeleted">Скрыть удалённые</button>
           <label class="primary-btn trip-upload-label">
             <span data-i18n="uploadCta">Загрузить фото и видео</span>
             <!-- Do not use the HTML `hidden` attribute on file inputs: many
@@ -67,6 +68,9 @@
           <span id="uploadOverallBar"></span>
         </div>
         <div id="uploadQueue" class="trip-upload-queue"></div>
+        <button class="primary-btn" type="button" id="retryFailedBtn" hidden data-i18n="retryFailed">
+          Перезагрузить неудавшиеся
+        </button>
       </div>
       <p id="albumStatus" class="trip-status" hidden></p>
       <div id="gallery" class="trip-gallery" aria-live="polite"></div>
@@ -93,6 +97,6 @@
     <div class="trip-lightbox__body" id="lightboxBody"></div>
   </div>
 
-  <script src="/trip/app.js?v=20260731-11"></script>
+  <script src="/trip/app.js?v=20260731-12"></script>
 </body>
 </html>

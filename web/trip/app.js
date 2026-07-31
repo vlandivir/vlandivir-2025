@@ -24,6 +24,8 @@
   const copyLinkBtn = document.getElementById('copyLinkBtn');
   const editTitleBtn = document.getElementById('editTitleBtn');
   const changeNameBtn = document.getElementById('changeNameBtn');
+  const toggleDeletedBtn = document.getElementById('toggleDeletedBtn');
+  const retryFailedBtn = document.getElementById('retryFailedBtn');
   const nameModal = document.getElementById('nameModal');
   const nameForm = document.getElementById('nameForm');
   const nameInput = document.getElementById('nameInput');
@@ -36,6 +38,7 @@
   let trip = null;
   /** @type {Array<any>} */
   let media = [];
+  let hideDeleted = true;
 
   function t(key, vars) {
     let text;
@@ -381,10 +384,40 @@
     });
   }
 
+  function syncDeletedToggle() {
+    const deletedCount = media.filter((m) => m.deleted).length;
+    if (!trip?.isAdmin || deletedCount === 0) {
+      toggleDeletedBtn.hidden = true;
+      return;
+    }
+    toggleDeletedBtn.hidden = false;
+    toggleDeletedBtn.textContent = hideDeleted
+      ? t('showDeleted')
+      : t('hideDeleted');
+  }
+
+  function syncRetryButton() {
+    const failed = activeUploadItems.filter(
+      (item) => item.failed && item.retryable && item.file,
+    );
+    if (!failed.length) {
+      retryFailedBtn.hidden = true;
+      return;
+    }
+    retryFailedBtn.hidden = false;
+    retryFailedBtn.disabled = false;
+    retryFailedBtn.textContent = t('retryFailedCount', {
+      count: String(failed.length),
+    });
+  }
+
   function renderGallery() {
     gallery.innerHTML = '';
-    const visible = sortMedia(media);
+    const visible = sortMedia(
+      hideDeleted ? media.filter((item) => !item.deleted) : media,
+    );
     emptyGallery.hidden = visible.length > 0;
+    syncDeletedToggle();
     for (const item of visible) {
       const card = document.createElement('article');
       card.className = 'trip-card' + (item.deleted ? ' deleted' : '');
@@ -635,6 +668,25 @@
     nameForm.addEventListener('submit', onSubmit);
   });
 
+  toggleDeletedBtn.addEventListener('click', () => {
+    hideDeleted = !hideDeleted;
+    renderGallery();
+  });
+
+  retryFailedBtn.addEventListener('click', () => {
+    const files = activeUploadItems
+      .filter((item) => item.failed && item.retryable && item.file)
+      .map((item) => item.file);
+    if (!files.length) return;
+    retryFailedBtn.disabled = true;
+    uploadChain = uploadChain
+      .catch(() => undefined)
+      .then(() => processFiles(files))
+      .catch((error) => {
+        showStatus(error?.message || t('failed'), true);
+      });
+  });
+
   lightboxClose.addEventListener('click', closeLightbox);
   lightbox.addEventListener('click', (event) => {
     if (event.target === lightbox) closeLightbox();
@@ -662,6 +714,8 @@
       /** 0..1 fraction of this file's work (hash + upload + complete). */
       fraction: 0,
       done: false,
+      failed: false,
+      retryable: false,
       setState(text, pct) {
         stateEl.textContent = text;
         if (typeof pct === 'number') {
@@ -675,6 +729,11 @@
         item.done = true;
         item.fraction = 1;
         refreshOverallProgress();
+      },
+      markFailed(retryable) {
+        item.failed = true;
+        item.retryable = Boolean(retryable);
+        item.markDone();
       },
     };
     return item;
@@ -715,17 +774,17 @@
   async function uploadOne(file, queueItem) {
     if (!trip) {
       queueItem.setState(t('failed'), 100);
-      queueItem.markDone();
+      queueItem.markFailed(true);
       return;
     }
     if (file.size > MAX_FILE_BYTES) {
       queueItem.setState(t('tooLarge'), 100);
-      queueItem.markDone();
+      queueItem.markFailed(false);
       return;
     }
     if (!isAllowedMedia(file)) {
       queueItem.setState(t('badType'), 100);
-      queueItem.markDone();
+      queueItem.markFailed(false);
       return;
     }
 
@@ -835,6 +894,7 @@
     // Show the queue immediately (before the name modal) so mobile users see
     // that the picker selection was accepted.
     uploadPanel.hidden = false;
+    retryFailedBtn.hidden = true;
     uploadQueue.innerHTML = '';
     const batchItems = files.map((file) => {
       const item = makeQueueItem(file);
@@ -866,7 +926,7 @@
             `${t('failed')}: ${error.message || ''}`.trim(),
             100,
           );
-          current.markDone();
+          current.markFailed(true);
         }
       }
     }
@@ -874,6 +934,7 @@
       Array.from({ length: concurrency }, () => worker()),
     );
     refreshOverallProgress();
+    syncRetryButton();
     loadMedia._thumbTries = 0;
     await loadMedia();
   }
