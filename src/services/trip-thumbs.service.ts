@@ -153,8 +153,14 @@ export class TripThumbsService {
       where: { id: media.id },
       data: {
         ...(thumbUrl ? { thumbUrl } : {}),
-        takenAt: media.takenAt ?? capture.takenAt ?? undefined,
-        ...(needsMeta ? { cameraModel: capture.cameraModel ?? '' } : {}),
+        // Prefer freshly probed capture date — iPhone creation_time is often
+        // export/upload time, while com.apple.quicktime.creationdate is real.
+        ...(needsMeta
+          ? {
+              takenAt: capture.takenAt ?? media.takenAt ?? undefined,
+              cameraModel: capture.cameraModel ?? '',
+            }
+          : {}),
       },
     });
     return thumbUrl;
@@ -210,29 +216,74 @@ export class TripThumbsService {
   private async readVideoCaptureMeta(url: string): Promise<CaptureMeta> {
     try {
       const json = await this.runFfprobeJson(url);
-      const tags = {
-        ...(json.format?.tags || {}),
-        ...(json.streams?.[0]?.tags || {}),
-      } as Record<string, string>;
+      const tags = this.collectFfprobeTags(json);
+      // iPhone: creation_time is often the export/share time; the real capture
+      // date lives in com.apple.quicktime.creationdate (keys use dots, not _).
       const raw =
-        tags.creation_time ||
-        tags.com_apple_quicktime_creationdate ||
-        tags.date ||
+        this.ffprobeTag(tags, 'com.apple.quicktime.creationdate') ||
+        this.ffprobeTag(tags, 'creation_time') ||
+        this.ffprobeTag(tags, 'creation_date') ||
+        this.ffprobeTag(tags, 'date') ||
         '';
-      const takenAt = raw ? new Date(raw) : null;
-      const make = (tags.make || tags.com_apple_quicktime_make || '').trim();
-      const model = (tags.model || tags.com_apple_quicktime_model || '').trim();
+      const takenAt = this.parseCaptureDate(raw);
+      const make = this.ffprobeTag(tags, 'com.apple.quicktime.make', 'make');
+      const model = this.ffprobeTag(tags, 'com.apple.quicktime.model', 'model');
       let camera = [make, model].filter(Boolean).join(' ');
-      if (make && model.toLowerCase().startsWith(make.toLowerCase())) {
+      if (
+        make &&
+        model &&
+        (model.toLowerCase().startsWith(make.toLowerCase()) ||
+          make.toLowerCase() === 'apple')
+      ) {
         camera = model;
       }
       return {
-        takenAt: takenAt && !Number.isNaN(takenAt.getTime()) ? takenAt : null,
+        takenAt,
         cameraModel: camera ? camera.slice(0, 120) : null,
       };
     } catch {
       return {};
     }
+  }
+
+  private collectFfprobeTags(json: {
+    format?: { tags?: Record<string, string> };
+    streams?: Array<{ tags?: Record<string, string> }>;
+  }): Record<string, string> {
+    const out: Record<string, string> = {};
+    const add = (tags?: Record<string, string>) => {
+      if (!tags) return;
+      for (const [key, value] of Object.entries(tags)) {
+        if (typeof value === 'string' && value.trim()) {
+          out[key] = value.trim();
+        }
+      }
+    };
+    add(json.format?.tags);
+    for (const stream of json.streams || []) add(stream.tags);
+    return out;
+  }
+
+  private ffprobeTag(tags: Record<string, string>, ...keys: string[]): string {
+    for (const key of keys) {
+      if (tags[key]) return tags[key];
+      const lower = key.toLowerCase();
+      for (const [candidate, value] of Object.entries(tags)) {
+        if (candidate.toLowerCase() === lower) return value;
+      }
+    }
+    return '';
+  }
+
+  private parseCaptureDate(raw: string): Date | null {
+    if (!raw) return null;
+    // ffprobe sometimes emits 6-digit fractional seconds.
+    const normalized = raw.replace(
+      /(\.\d{3})\d+(Z|[+-]\d{2}:?\d{2})?$/,
+      '$1$2',
+    );
+    const takenAt = new Date(normalized);
+    return Number.isNaN(takenAt.getTime()) ? null : takenAt;
   }
 
   private async thumbFromVideoUrl(url: string): Promise<Buffer | null> {
