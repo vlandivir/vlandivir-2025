@@ -72,7 +72,7 @@ export class MapPagesController {
     const baseUrl =
       process.env.VLANDIVIR_2025_BASE_URL ||
       `${req.protocol}://${req.get('host')}`;
-    const title = `${record.name} — Карта моих мест`;
+    const title = `${record.name} — Карта Сербии и окресностей :)`;
     // Messenger previews are one-liners: collapse the newlines Instagram
     // captions are full of, and keep the text short
     const description = (

@@ -7,6 +7,7 @@
       navLabel: 'Навигация',
       langLabel: 'Выбор языка',
       home: 'Главная',
+      places: 'Карта',
       subs: 'Subs',
       gpx: 'GPX',
       files: 'Ваши файлы',
@@ -20,6 +21,7 @@
       navLabel: 'Navigation',
       langLabel: 'Language',
       home: 'Home',
+      places: 'Map',
       subs: 'Subs',
       gpx: 'GPX',
       files: 'Files',
@@ -50,6 +52,7 @@
   function pagePaths(lang) {
     return {
       home: lang === 'en' ? '/en' : '/',
+      places: '/places/',
       subs: lang === 'en' ? '/subs/en' : '/subs/',
       gpx: lang === 'en' ? '/gpx-route-png/en' : '/gpx-route-png/',
       files: lang === 'en' ? '/files/en' : '/files/',
@@ -109,6 +112,11 @@
     nav.className = 'v-site-header__nav';
     nav.setAttribute('aria-label', copy.navLabel);
     nav.append(
+      makeLink({
+        href: paths.places,
+        text: copy.places,
+        active: active === 'places',
+      }),
       makeLink({ href: paths.subs, text: copy.subs, active: active === 'subs' }),
       makeLink({ href: paths.gpx, text: copy.gpx, active: active === 'gpx' }),
       makeLink({
