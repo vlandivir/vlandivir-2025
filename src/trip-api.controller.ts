@@ -140,12 +140,10 @@ export class TripApiController {
         { createdAt: 'desc' },
       ],
     });
-    // Lazily backfill thumbs / capture metadata (EXIF, device).
-    for (const row of rows) {
-      if (!row.thumbUrl || row.cameraModel == null) {
-        this.tripThumbs.generateInBackground(row);
-      }
-    }
+    // Do not lazy-backfill on list: ffmpeg/ffprobe against remote originals
+    // OOMs the 4GB droplet and kills the process before cameraModel is saved,
+    // so every refresh restarts the death spiral. Thumbs/meta are filled on
+    // upload complete instead.
     return {
       isAdmin,
       media: rows.map((row) => this.serializeMedia(row)),
