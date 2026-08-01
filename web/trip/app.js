@@ -10,6 +10,8 @@
   const createError = document.getElementById('createError');
   const tripTitleInput = document.getElementById('tripTitleInput');
   const createNameInput = document.getElementById('createNameInput');
+  const albumListSection = document.getElementById('albumListSection');
+  const albumList = document.getElementById('albumList');
   const albumTitle = document.getElementById('albumTitle');
   const albumMeta = document.getElementById('albumMeta');
   const albumStatus = document.getElementById('albumStatus');
@@ -32,13 +34,22 @@
   const lightbox = document.getElementById('lightbox');
   const lightboxBody = document.getElementById('lightboxBody');
   const lightboxClose = document.getElementById('lightboxClose');
+  const lightboxPrev = document.getElementById('lightboxPrev');
+  const lightboxNext = document.getElementById('lightboxNext');
+  const lightboxCounter = document.getElementById('lightboxCounter');
+  const lightboxFields = document.getElementById('lightboxFields');
+  const lightboxExif = document.getElementById('lightboxExif');
+  const lightboxExifFields = document.getElementById('lightboxExifFields');
   const header = document.querySelector('[data-site-header]');
+  const albumsRegistry = window.TripAlbumsRegistry;
 
   /** @type {{ id: string, secret: string, title: string, ownerContributorId: string, isAdmin: boolean } | null} */
   let trip = null;
   /** @type {Array<any>} */
   let media = [];
   let hideDeleted = true;
+  /** @type {number} */
+  let lightboxIndex = -1;
 
   function t(key, vars) {
     let text;
@@ -131,6 +142,132 @@
     } else {
       header.dataset.langRu = '/trip';
       header.dataset.langEn = '/trip/en';
+    }
+  }
+
+  async function rememberAlbum(album, { visited = true } = {}) {
+    if (!albumsRegistry || !album?.secret) return;
+    try {
+      await albumsRegistry.remember({
+        secret: album.secret,
+        title: album.title,
+        isOwner: Boolean(album.isOwner),
+        visited,
+      });
+    } catch {
+      // IndexedDB can be unavailable (private mode) — list is best-effort.
+    }
+  }
+
+  function formatAlbumWhen(iso) {
+    if (!iso) return '';
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return '';
+    const lang = document.documentElement.lang?.startsWith('en') ? 'en' : 'ru';
+    try {
+      return new Intl.DateTimeFormat(lang === 'en' ? 'en-GB' : 'ru-RU', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      }).format(date);
+    } catch {
+      return date.toLocaleDateString();
+    }
+  }
+
+  async function loadAlbumList() {
+    if (!albumListSection || !albumList) return;
+    /** @type {Map<string, { secret: string, title: string, isOwner: boolean, lastVisitedAt: string }>} */
+    const bySecret = new Map();
+    const dismissed = new Set();
+
+    if (albumsRegistry) {
+      try {
+        const all = await albumsRegistry.list({ includeDismissed: true });
+        for (const row of all) {
+          if (row.dismissed) {
+            dismissed.add(row.secret);
+            continue;
+          }
+          bySecret.set(row.secret, {
+            secret: row.secret,
+            title: row.title,
+            isOwner: Boolean(row.isOwner),
+            lastVisitedAt: row.lastVisitedAt,
+          });
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    try {
+      const data = await api('/trip-api/my-trips', {
+        headers: { 'X-Contributor-Id': getContributorId() },
+      });
+      for (const row of data.trips || []) {
+        if (dismissed.has(row.secret)) continue;
+        const existing = bySecret.get(row.secret);
+        bySecret.set(row.secret, {
+          secret: row.secret,
+          title: row.title || existing?.title || 'Album',
+          isOwner: true,
+          lastVisitedAt:
+            existing?.lastVisitedAt || row.updatedAt || row.createdAt,
+        });
+      }
+    } catch {
+      // Server list is optional; local history still works.
+    }
+
+    const albums = Array.from(bySecret.values()).sort((a, b) =>
+      String(b.lastVisitedAt || '').localeCompare(String(a.lastVisitedAt || '')),
+    );
+
+    albumList.innerHTML = '';
+    if (!albums.length) {
+      albumListSection.hidden = true;
+      return;
+    }
+
+    albumListSection.hidden = false;
+    for (const album of albums) {
+      const li = document.createElement('li');
+      li.className = 'trip-album-list__row';
+
+      const link = document.createElement('a');
+      link.className = 'trip-album-list__item';
+      link.href = albumPath(album.secret);
+
+      const body = document.createElement('div');
+      body.className = 'trip-album-list__body';
+      const titleEl = document.createElement('strong');
+      titleEl.textContent = album.title;
+      const metaEl = document.createElement('span');
+      const role = album.isOwner ? t('myAlbumsOwner') : t('myAlbumsVisited');
+      const when = formatAlbumWhen(album.lastVisitedAt);
+      metaEl.textContent = when ? `${role} · ${when}` : role;
+      body.append(titleEl, metaEl);
+      link.append(body);
+
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'ghost-btn icon-btn trip-album-list__remove';
+      removeBtn.setAttribute('aria-label', t('myAlbumsRemoveAria'));
+      removeBtn.title = t('myAlbumsRemove');
+      removeBtn.textContent = '×';
+      removeBtn.addEventListener('click', async () => {
+        if (!albumsRegistry) return;
+        try {
+          await albumsRegistry.dismiss(album.secret);
+        } catch {
+          // ignore
+        }
+        await loadAlbumList();
+      });
+
+      li.append(link, removeBtn);
+      albumList.append(li);
     }
   }
 
@@ -369,6 +506,17 @@
     return `${dd}.${mm}.${yy} ${hh}:${mi}`;
   }
 
+  function formatDuration(ms) {
+    if (ms == null || !Number.isFinite(ms) || ms < 0) return '';
+    const totalSec = Math.round(ms / 1000);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    const pad = (n) => String(n).padStart(2, '0');
+    if (h > 0) return `${h}:${pad(m)}:${pad(s)}`;
+    return `${m}:${pad(s)}`;
+  }
+
   function sortMedia(list) {
     return [...list].sort((a, b) => {
       const ta = a.takenAt ? Date.parse(a.takenAt) : NaN;
@@ -385,6 +533,10 @@
       if (nameCmp !== 0) return nameCmp;
       return Date.parse(b.createdAt) - Date.parse(a.createdAt);
     });
+  }
+
+  function visibleMedia() {
+    return sortMedia(hideDeleted ? media.filter((item) => !item.deleted) : media);
   }
 
   function syncDeletedToggle() {
@@ -416,11 +568,18 @@
 
   function renderGallery() {
     gallery.innerHTML = '';
-    const visible = sortMedia(
-      hideDeleted ? media.filter((item) => !item.deleted) : media,
-    );
+    const visible = visibleMedia();
     emptyGallery.hidden = visible.length > 0;
     syncDeletedToggle();
+    // Keep lightbox on the same item if the list refreshed underneath it.
+    if (!lightbox.hidden) {
+      const openId = lightbox.dataset.mediaId;
+      const nextIndex = openId
+        ? visible.findIndex((item) => item.id === openId)
+        : -1;
+      if (nextIndex >= 0) showLightboxAt(nextIndex, { keepMedia: true });
+      else closeLightbox();
+    }
     for (const item of visible) {
       const card = document.createElement('article');
       card.className = 'trip-card' + (item.deleted ? ' deleted' : '');
@@ -453,7 +612,10 @@
         img.loading = 'lazy';
         mediaBtn.appendChild(img);
       }
-      mediaBtn.addEventListener('click', () => openLightbox(item));
+      mediaBtn.addEventListener('click', () => {
+        const index = visibleMedia().findIndex((row) => row.id === item.id);
+        openLightbox(index >= 0 ? index : 0);
+      });
       card.appendChild(mediaBtn);
 
       const footer = document.createElement('div');
@@ -503,27 +665,203 @@
     }
   }
 
-  function openLightbox(item) {
-    lightboxBody.innerHTML = '';
-    if (item.kind === 'video') {
-      const video = document.createElement('video');
-      video.src = item.url;
-      video.controls = true;
-      video.autoplay = true;
-      video.playsInline = true;
-      lightboxBody.appendChild(video);
-    } else {
-      const img = document.createElement('img');
-      img.src = item.url;
-      img.alt = item.originalFilename;
-      lightboxBody.appendChild(img);
+  function appendMetaRow(parent, label, value) {
+    if (value == null || value === '') return;
+    const row = document.createElement('div');
+    const dt = document.createElement('dt');
+    dt.textContent = label;
+    const dd = document.createElement('dd');
+    dd.textContent = String(value);
+    row.append(dt, dd);
+    parent.appendChild(row);
+  }
+
+  function formatExifValue(value) {
+    if (value == null) return '';
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
+        return formatTakenAt(value) || value;
+      }
+      return String(value);
     }
+    if (Array.isArray(value)) {
+      if (value.every((item) => typeof item !== 'object' || item == null)) {
+        return value.map((item) => formatExifValue(item)).join(', ');
+      }
+      try {
+        return JSON.stringify(value, null, 2);
+      } catch {
+        return String(value);
+      }
+    }
+    if (typeof value === 'object') {
+      // GPS-style {latitude, longitude} or nested tag groups.
+      if (
+        typeof value.latitude === 'number' &&
+        typeof value.longitude === 'number'
+      ) {
+        return `${value.latitude}, ${value.longitude}`;
+      }
+      try {
+        return JSON.stringify(value, null, 2);
+      } catch {
+        return String(value);
+      }
+    }
+    return String(value);
+  }
+
+  function flattenExif(obj, prefix = '') {
+    /** @type {Array<{ key: string, value: string }>} */
+    const rows = [];
+    if (!obj || typeof obj !== 'object') return rows;
+    const entries = Object.entries(obj).sort(([a], [b]) =>
+      a.localeCompare(b, undefined, { sensitivity: 'base' }),
+    );
+    for (const [key, raw] of entries) {
+      const path = prefix ? `${prefix}.${key}` : key;
+      if (raw == null || raw === '') continue;
+      if (Array.isArray(raw) && raw.some((item) => item && typeof item === 'object')) {
+        rows.push({ key: path, value: formatExifValue(raw) });
+        continue;
+      }
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        const nested = flattenExif(raw, path);
+        if (nested.length) rows.push(...nested);
+        else rows.push({ key: path, value: formatExifValue(raw) });
+        continue;
+      }
+      rows.push({ key: path, value: formatExifValue(raw) });
+    }
+    return rows;
+  }
+
+  function renderLightboxMeta(item) {
+    lightboxFields.innerHTML = '';
+    lightboxExifFields.innerHTML = '';
+
+    appendMetaRow(
+      lightboxFields,
+      t('metaKind'),
+      item.kind === 'video' ? t('metaKindVideo') : t('metaKindPhoto'),
+    );
+    appendMetaRow(lightboxFields, t('metaFilename'), item.originalFilename);
+    appendMetaRow(lightboxFields, t('metaAuthor'), item.displayName);
+    appendMetaRow(
+      lightboxFields,
+      t('metaTakenAt'),
+      formatTakenAt(item.takenAt),
+    );
+    appendMetaRow(
+      lightboxFields,
+      t('metaUploadedAt'),
+      formatTakenAt(item.createdAt),
+    );
+    appendMetaRow(lightboxFields, t('metaCamera'), item.cameraModel);
+    if (item.width && item.height) {
+      appendMetaRow(
+        lightboxFields,
+        t('metaDimensions'),
+        `${item.width} × ${item.height}`,
+      );
+    }
+    appendMetaRow(
+      lightboxFields,
+      t('metaDuration'),
+      formatDuration(item.durationMs),
+    );
+    appendMetaRow(
+      lightboxFields,
+      t('metaFileSize'),
+      item.size != null ? formatBytes(item.size) : '',
+    );
+    appendMetaRow(lightboxFields, t('metaMime'), item.mimeType);
+    appendMetaRow(lightboxFields, t('metaUserAgent'), item.userAgent);
+    if (item.deleted) {
+      appendMetaRow(lightboxFields, t('metaDeleted'), t('metaDeletedYes'));
+    }
+
+    lightboxExif.querySelectorAll('.trip-lightbox__exif-note').forEach((el) => {
+      el.remove();
+    });
+    const exifRows = flattenExif(item.exif);
+    lightboxExif.hidden = false;
+    if (!item.metaReady || !exifRows.length) {
+      const note = document.createElement('p');
+      note.className = 'trip-lightbox__exif-note';
+      note.textContent = !item.metaReady ? t('metaPending') : t('metaEmptyExif');
+      lightboxExif.appendChild(note);
+      return;
+    }
+    for (const row of exifRows) {
+      appendMetaRow(lightboxExifFields, row.key, row.value);
+    }
+  }
+
+  function showLightboxAt(index, { keepMedia = false } = {}) {
+    const visible = visibleMedia();
+    if (!visible.length) {
+      closeLightbox();
+      return;
+    }
+    const clamped = Math.max(0, Math.min(index, visible.length - 1));
+    const item = visible[clamped];
+    const sameItem =
+      keepMedia &&
+      lightbox.dataset.mediaId === item.id &&
+      lightboxBody.querySelector('img, video');
+
+    lightboxIndex = clamped;
+    lightbox.dataset.mediaId = item.id;
+    lightboxCounter.textContent = t('lightboxCounter', {
+      current: String(clamped + 1),
+      total: String(visible.length),
+    });
+    lightboxPrev.disabled = clamped <= 0;
+    lightboxNext.disabled = clamped >= visible.length - 1;
+
+    if (!sameItem) {
+      lightboxBody.innerHTML = '';
+      if (item.kind === 'video') {
+        const video = document.createElement('video');
+        video.src = item.url;
+        video.controls = true;
+        video.autoplay = true;
+        video.playsInline = true;
+        lightboxBody.appendChild(video);
+      } else {
+        const img = document.createElement('img');
+        img.src = item.url;
+        img.alt = item.originalFilename || '';
+        lightboxBody.appendChild(img);
+      }
+    }
+
+    renderLightboxMeta(item);
     lightbox.hidden = false;
+  }
+
+  function openLightbox(index) {
+    showLightboxAt(index);
+  }
+
+  function stepLightbox(delta) {
+    if (lightbox.hidden) return;
+    showLightboxAt(lightboxIndex + delta);
   }
 
   function closeLightbox() {
     lightbox.hidden = true;
     lightboxBody.innerHTML = '';
+    lightboxFields.innerHTML = '';
+    lightboxExifFields.innerHTML = '';
+    lightboxExif.querySelectorAll('.trip-lightbox__exif-note').forEach((el) => {
+      el.remove();
+    });
+    lightboxExif.hidden = true;
+    lightboxCounter.textContent = '';
+    lightboxIndex = -1;
+    delete lightbox.dataset.mediaId;
   }
 
   async function deleteMedia(id) {
@@ -550,14 +888,20 @@
     emptyGallery.hidden = false;
     albumTitle.textContent = trip.title;
     syncHeaderLangPaths(trip.secret);
+    const isOwner = trip.ownerContributorId === getContributorId();
     const bits = [`${t('itemsCount')}`];
-    if (trip.ownerContributorId === getContributorId()) {
+    if (isOwner) {
       bits.unshift(t('youAreOwner'));
       editTitleBtn.hidden = false;
     } else {
       editTitleBtn.hidden = true;
     }
     albumMeta.textContent = bits.join(' · ');
+    void rememberAlbum({
+      secret: trip.secret,
+      title: trip.title,
+      isOwner,
+    });
     // Load the gallery immediately; only ask for a name when uploading.
     await loadMedia();
     if (!getDisplayName()) {
@@ -602,6 +946,7 @@
     syncHeaderLangPaths(null);
     const name = getDisplayName();
     if (name) createNameInput.value = name;
+    void loadAlbumList();
   }
 
   createForm.addEventListener('submit', async (event) => {
@@ -619,6 +964,11 @@
           displayName,
           contributorId: getContributorId(),
         }),
+      });
+      await rememberAlbum({
+        secret: created.secret,
+        title: created.title,
+        isOwner: true,
       });
       history.replaceState({}, '', albumPath(created.secret));
       await loadTrip(created.secret);
@@ -655,6 +1005,10 @@
     });
     trip.title = updated.title;
     albumTitle.textContent = trip.title;
+    void rememberAlbum(
+      { secret: trip.secret, title: trip.title, isOwner: true },
+      { visited: false },
+    );
   });
 
   changeNameBtn.addEventListener('click', () => {
@@ -691,11 +1045,23 @@
   });
 
   lightboxClose.addEventListener('click', closeLightbox);
-  lightbox.addEventListener('click', (event) => {
-    if (event.target === lightbox) closeLightbox();
-  });
+  lightboxPrev.addEventListener('click', () => stepLightbox(-1));
+  lightboxNext.addEventListener('click', () => stepLightbox(1));
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') closeLightbox();
+    if (lightbox.hidden) return;
+    if (event.key === 'Escape') {
+      closeLightbox();
+      return;
+    }
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      stepLightbox(-1);
+      return;
+    }
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      stepLightbox(1);
+    }
   });
 
   function makeQueueItem(file) {

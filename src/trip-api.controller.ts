@@ -87,6 +87,36 @@ export class TripApiController {
     };
   }
 
+  /** Albums created with this browser contributorId (client UUID identity). */
+  @Get('my-trips')
+  async listMyTrips(@Headers('x-contributor-id') contributorHeader?: string) {
+    const contributorId = this.requireContributorId(contributorHeader);
+    const trips = await this.prisma.trip.findMany({
+      where: { ownerContributorId: contributorId },
+      orderBy: { updatedAt: 'desc' },
+      take: 100,
+      select: {
+        id: true,
+        secret: true,
+        title: true,
+        ownerContributorId: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+    return {
+      trips: trips.map((trip) => ({
+        id: trip.id,
+        secret: trip.secret,
+        title: trip.title,
+        ownerContributorId: trip.ownerContributorId,
+        isOwner: true,
+        createdAt: trip.createdAt.toISOString(),
+        updatedAt: trip.updatedAt.toISOString(),
+      })),
+    };
+  }
+
   @Get('trips/:secret')
   async getTrip(@Param('secret') secret: string, @Req() req: Request) {
     const trip = await this.findTripOrThrow(secret);
@@ -141,9 +171,9 @@ export class TripApiController {
       ],
     });
     // Do not lazy-backfill on list: ffmpeg/ffprobe against remote originals
-    // OOMs the 4GB droplet and kills the process before cameraModel is saved,
-    // so every refresh restarts the death spiral. Thumbs/meta are filled on
-    // upload complete instead.
+    // OOMs the 4GB droplet and kills the process before cameraModel/exif is
+    // saved, so every refresh restarts the death spiral. Thumbs/meta are
+    // filled on upload complete instead.
     return {
       isAdmin,
       media: rows.map((row) => this.serializeMedia(row)),
@@ -535,9 +565,14 @@ export class TripApiController {
     durationMs: number | null;
     takenAt: Date | null;
     cameraModel: string | null;
+    exif?: unknown;
     createdAt: Date;
     deletedAt: Date | null;
   }) {
+    const exif =
+      row.exif && typeof row.exif === 'object' && !Array.isArray(row.exif)
+        ? (row.exif as Record<string, unknown>)
+        : null;
     return {
       id: row.id,
       tripId: row.tripId,
@@ -556,7 +591,8 @@ export class TripApiController {
       durationMs: row.durationMs,
       takenAt: row.takenAt?.toISOString() ?? null,
       cameraModel: row.cameraModel ? row.cameraModel : null,
-      metaReady: row.cameraModel != null,
+      exif,
+      metaReady: row.cameraModel != null && row.exif != null,
       createdAt: row.createdAt.toISOString(),
       deletedAt: row.deletedAt?.toISOString() ?? null,
       deleted: Boolean(row.deletedAt),

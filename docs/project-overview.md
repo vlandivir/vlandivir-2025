@@ -33,11 +33,11 @@ Root module: [src/app.module.ts](../src/app.module.ts) — ConfigModule (global)
 | [mcp/mcp.controller.ts](../src/mcp/mcp.controller.ts) | `/mcp` | Stateless MCP server (Streamable HTTP). Public tools: map search/get/tags. `Authorization: Bearer <MCP_API_KEY>` adds reels tools (search/get/ask); plus `X-Chat-Id` adds diary tools (search/get note/get day/ask) scoped to that chat. Tools live in [mcp/mcp-tools.service.ts](../src/mcp/mcp-tools.service.ts) |
 | [subs.controller.ts](../src/subs.controller.ts) | `/subs-api` | Subtitle pipeline: upload vertical video → extract MP3 + waveform manifest → Whisper transcript → LLM translation → ffmpeg render with ASS subtitles → download. Everything cached in Spaces under `subs/*` by video hash |
 | [mini-app/mini-app.controller.ts](../src/mini-app/mini-app.controller.ts) | `/mini-app-api` | Telegram Mini App backend: verifies signed initData, returns user profile/note count/avatar |
-| [gtd/gtd-api.controller.ts](../src/gtd/gtd-api.controller.ts) | `/gtd-api` | Private GTD API for projects, one-task queue, snoozing, archive, history, private attachments and optional Google ↔ Telegram linking |
+| [gtd/gtd-api.controller.ts](../src/gtd/gtd-api.controller.ts) | `/gtd-api` | Private GTD API for projects, one-task queue, snoozing, archive, history, private attachments and optional Google ↔ Telegram account linking; accepts Google session or signed Telegram initData |
 | [gtd/gtd-pages.controller.ts](../src/gtd/gtd-pages.controller.ts) | `/gtd`, `/gtd/link` | Google-session-protected GTD page and account-link confirmation page |
 | [diary-pages.controller.ts](../src/diary-pages.controller.ts) | `/diary`, `/diary/:MM-DD` | Owner-only diary web app (Google session): calendar landing + one day-of-month across years; serves `web/diary/index.html` |
 | [diary-api.controller.ts](../src/diary-api.controller.ts) | `/diary-api` | Owner-only diary API (Google session): `GET /calendar` (which day-of-month cells have notes), `GET /day` (notes across years), `PATCH /notes/:id` (edit text), `PATCH /images/:id` (edit image description), `POST /images/:id/describe` (regenerate description — handwriting-aware vision pass + text refinement), `PATCH /videos/:id` (edit video description). Note/image edits drop the matching search embedding for lazy re-index (videos aren't indexed). Scoped to the owner's chat |
-| [trip-api.controller.ts](../src/trip-api.controller.ts) | `/trip-api` | Shared trip photo/video albums: create by anyone, access via unlisted `secret`; presigned PUT to Spaces; SHA-256 dedup; soft-delete own media; Google allowlist admins see deleted items |
+| [trip-api.controller.ts](../src/trip-api.controller.ts) | `/trip-api` | Shared trip photo/video albums: create by anyone, access via unlisted `secret`; `GET /my-trips` lists albums owned by the client `contributorId`; visited albums also tracked in browser IndexedDB (`web/trip/registry.js`); presigned PUT to Spaces; SHA-256 dedup; soft-delete own media; Google allowlist admins see deleted items |
 
 ## Telegram bot (`src/telegram-bot/`)
 
@@ -82,9 +82,9 @@ Root module: [src/app.module.ts](../src/app.module.ts) — ConfigModule (global)
 - **Note / Image / Video / BotResponse** — diary: note text + raw Telegram message JSON, attached media (Spaces URLs + LLM descriptions), bot replies. Keyed by `chatId` (BigInt) + `noteDate`
 - **MapPoint / MapTrack / MapTag** — places map: coordinates or polylines, tags, `instagramMeta` JSONB cache
 - **Reel** — Instagram reel archive: shortcode, status machine (`pending/ready/error`), transcript + vision fields with their own statuses, tags, yt-dlp metadata dump
-- **Trip / TripMedia** — shared trip albums: unlisted `secret` URL, original media on Spaces keyed by content hash, JPEG `thumbUrl` (~480px via sharp/ffmpeg) for cheap gallery previews, uploader metadata (`contributorId`, display name, user-agent, optional dimensions/`takenAt`), soft-delete via `deletedAt`
+- **Trip / TripMedia** — shared trip albums: unlisted `secret` URL, original media on Spaces keyed by content hash, JPEG `thumbUrl` (~480px via sharp/ffmpeg) for cheap gallery previews, uploader metadata (`contributorId`, display name, user-agent, optional dimensions/`takenAt`/`cameraModel`), full capture tags in `exif` JSONB (EXIF for photos, ffprobe tags for videos), soft-delete via `deletedAt`
 - **ChatSettings / Todo / Question / Answer / TaskNote / TaskImage** — defined in the schema but not referenced anywhere in `src/` (planned features); the tables may contain data, check before dropping
-- **GtdWorkspace / GtdIdentity / GtdProject / GtdTask / GtdTaskEvent / GtdAttachment / GtdLinkRequest** — isolated GTD model. Google and Telegram identities start independently and can optionally be merged 1:1; legacy todo tables are not reused
+- **GtdWorkspace / GtdIdentity / GtdProject / GtdTask / GtdTaskEvent / GtdAttachment / GtdLinkRequest** — isolated GTD model. Google and Telegram identities start with independent workspaces and can optionally be merged 1:1; none of the legacy todo tables are reused
 
 ## Web apps (`web/`)
 
@@ -97,7 +97,7 @@ Root module: [src/app.module.ts](../src/app.module.ts) — ConfigModule (global)
 | `subs/`, `subs-exp/` | Vertical-video subtitle editor (+ experimental variant) | Vanilla JS; dark "workbench" palette allowed; bilingual (static chrome via `subs/i18n.js` + `data-i18n`, dynamic strings via `app.js` TEXT) |
 | `gpx-route-png/` | GPX → PNG route renderer | Fully client-side; bilingual via single-file i18n |
 | `files/` | Files page | Bilingual via single-file i18n |
-| `trip/` | Shared trip photo/video album | Secret-link SPA; create at `/trip`, album at `/trip/<secret>`; bilingual via single-file i18n |
+| `trip/` | Shared trip photo/video album | Secret-link SPA; create at `/trip` (with “my albums” list from IndexedDB visits + owned via `contributorId`), album at `/trip/<secret>`; bilingual via single-file i18n |
 | `telegram-app/` | GTD web app + Telegram Mini App | React + Vite; built with `npm run telegram-app:build`, served at `/gtd` and `/mini-app` |
 | `shared/` | `site-theme.css`, `site-header.{css,js}`, `i18n.js` | Design tokens + i18n runtime — all pages must use them (see AGENTS.md) |
 

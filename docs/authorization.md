@@ -22,7 +22,7 @@
 | `EditAccessGuard` | `src/auth/edit-access.guard.ts` | 401. Пускает: сессия ИЛИ `x-map-api-key`/`x-reels-api-key` = `REELS_API_KEY` \|\| `MAP_API_KEY` \|\| `NOTE_API_KEY` |
 | `canEdit()` (map-api) | `src/map-api.controller.ts` | Для `?force=1` в instagram-meta: сессия или ключ, иначе 401 |
 | Локальные проверки ключей | `src/notes-api.controller.ts`, `src/notifications-api.controller.ts`, `src/mcp/mcp.controller.ts` | 401 |
-| Подпись Telegram initData | `src/mini-app/mini-app.controller.ts`, `src/gtd/gtd-auth.service.ts` | 401 при неверной подписи; GTD создаёт workspace при первом валидном входе |
+| Подпись Telegram initData | `src/mini-app/mini-app.controller.ts`, `src/gtd/gtd-auth.service.ts` | 401 при неверной подписи; GTD создаёт отдельное workspace при первом валидном входе |
 | `GtdAuthGuard` | `src/gtd/gtd-auth.guard.ts` | Принимает Google session или `x-telegram-init-data`, резолвит identity и строго скоупит workspace |
 | OAuth-модуль (вход/сессии) | `src/auth/auth.service.ts`, `src/auth/auth.controller.ts` | — |
 
@@ -35,7 +35,7 @@
 | Статические страницы | `/`, `/home`, `/subs`, `/gpx-route-png`, `/files`, `/places`, `/trip` (+ статика `/shared`, `/mini-app`; shell Mini App не содержит приватных данных) | `src/main.ts` (useStaticAssets) |
 | Share-страницы карты | `/places/point/:id`, `/places/track/:id` | `src/map-pages.controller.ts` |
 | Альбомы поездок (страницы) | `/trip`, `/trip/:secret`, `/trip/en`, `/trip/en/:secret` | `src/app.controller.ts` + `src/main.ts` |
-| API альбомов поездок | `POST/GET/PATCH /trip-api/trips…`, uploads check/complete, soft-delete media | `src/trip-api.controller.ts` — доступ по `secret` в URL; авторство через `contributorId` (клиент) / `X-Contributor-Id`; админы (Google allowlist) видят soft-deleted |
+| API альбомов поездок | `POST/GET/PATCH /trip-api/trips…`, `GET /trip-api/my-trips`, uploads check/complete, soft-delete media | `src/trip-api.controller.ts` — доступ по `secret` в URL; авторство через `contributorId` (клиент) / `X-Contributor-Id`; `GET /my-trips` — список созданных альбомов по `X-Contributor-Id`; админы (Google allowlist) видят soft-deleted |
 | Чтение карты | `GET /map-api/points`, `/tracks`, `/tags`, `/resolve-google-link` | `src/map-api.controller.ts` (без guard) |
 | Семантический поиск по карте | `GET /map-api/search?q=` | `src/map-api.controller.ts` (без guard); ищет по точкам/трекам с прикреплённым рилсом через эмбеддинги рилсов |
 | Обновление Instagram-меты (без force) | `POST /map-api/{points,tracks}/:id/instagram-meta` | там же; окно 24 ч защищает от злоупотребления |
@@ -57,8 +57,8 @@
 
 | Что | Маршруты | Поведение |
 |---|---|---|
-| GTD API | `GET/POST/PATCH /gtd-api/*` | `GtdAuthGuard`: Google cookie или `x-telegram-init-data`; все данные скоупятся по workspace |
-| Привязка GTD | `POST /gtd-api/link/start`, `GET /gtd-api/link/preview`, `POST /gtd-api/link/confirm` | Старт — Telegram identity, preview/confirm — Google identity; одноразовый токен 10 минут, привязка опциональна |
+| GTD API | `GET/POST/PATCH /gtd-api/*` | `GtdAuthGuard`: Google cookie или `x-telegram-init-data`; все проекты, задачи, история и вложения скоупятся по workspace |
+| Привязка GTD | `POST /gtd-api/link/start`, `GET /gtd-api/link/preview`, `POST /gtd-api/link/confirm` | Старт — только Telegram identity, preview/confirm — только Google identity; одноразовый токен 10 минут, привязка опциональна |
 
 Старые секретные ссылки `/reels/<secret>[/<id>]` удалены: `/reels/<не-число>` →
 redirect `/reels`, `/reels/<secret>/<id>` → 301 на `/reels/<id>` (дальше вход).

@@ -11,8 +11,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/shared/site-theme.css?v=20260731-2" />
   <link rel="stylesheet" href="/shared/site-header.css?v=20260718-1" />
-  <link rel="stylesheet" href="/trip/styles.css?v=20260731-12" />
-  <script src="/trip/i18n.js?v=20260731-12"></script>
+  <link rel="stylesheet" href="/trip/styles.css?v=20260801-2" />
+  <script src="/trip/i18n.js?v=20260801-2"></script>
   <script src="/shared/i18n.js?v=20260721-1"></script>
   <script src="/shared/site-header.js?v=20260801-1" defer></script>
 </head>
@@ -36,6 +36,12 @@
         <button class="primary-btn" type="submit" data-i18n="createCta">Создать альбом</button>
       </form>
       <p id="createError" class="trip-error" hidden></p>
+
+      <section id="albumListSection" class="trip-album-list" hidden>
+        <h2 class="section-kicker" data-i18n="myAlbumsTitle">Мои альбомы</h2>
+        <p class="trip-album-list__lead" data-i18n="myAlbumsLead">Созданные вами и те, в которые вы заходили с этого устройства.</p>
+        <ul id="albumList" class="trip-album-list__items"></ul>
+      </section>
     </section>
 
     <section id="albumView" class="trip-album" hidden>
@@ -93,10 +99,26 @@
   </div>
 
   <div id="lightbox" class="trip-lightbox" hidden>
-    <button type="button" class="trip-lightbox__close" id="lightboxClose" aria-label="Close">×</button>
-    <div class="trip-lightbox__body" id="lightboxBody"></div>
+    <button type="button" class="trip-lightbox__close" id="lightboxClose" data-i18n-attr="aria-label:lightboxCloseAria" aria-label="Закрыть">×</button>
+    <button type="button" class="trip-lightbox__nav trip-lightbox__nav--prev" id="lightboxPrev" data-i18n-attr="aria-label:lightboxPrevAria" aria-label="Предыдущее">‹</button>
+    <button type="button" class="trip-lightbox__nav trip-lightbox__nav--next" id="lightboxNext" data-i18n-attr="aria-label:lightboxNextAria" aria-label="Следующее">›</button>
+    <div class="trip-lightbox__layout">
+      <div class="trip-lightbox__media" id="lightboxBody"></div>
+      <aside class="trip-lightbox__side" id="lightboxSide" aria-labelledby="lightboxMetaTitle">
+        <div class="trip-lightbox__side-head">
+          <h2 id="lightboxMetaTitle" class="trip-lightbox__side-title" data-i18n="lightboxMetaTitle">Информация</h2>
+          <span class="trip-lightbox__counter" id="lightboxCounter"></span>
+        </div>
+        <dl class="trip-lightbox__fields" id="lightboxFields"></dl>
+        <div class="trip-lightbox__exif" id="lightboxExif" hidden>
+          <h3 class="trip-lightbox__exif-title" data-i18n="lightboxExifTitle">EXIF / метаданные файла</h3>
+          <dl class="trip-lightbox__fields trip-lightbox__fields--exif" id="lightboxExifFields"></dl>
+        </div>
+      </aside>
+    </div>
   </div>
 
-  <script src="/trip/app.js?v=20260731-14"></script>
+  <script src="/trip/registry.js?v=20260801-1"></script>
+  <script src="/trip/app.js?v=20260801-2"></script>
 </body>
 </html>
