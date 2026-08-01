@@ -130,6 +130,126 @@ model TaskImage {
   @@index([chatId])
 }
 
+enum GtdIdentityProvider {
+  GOOGLE
+  TELEGRAM
+}
+
+enum GtdTaskStatus {
+  ACTIVE
+  COMPLETED
+  CANCELED
+}
+
+enum GtdTaskEventType {
+  CREATED
+  UPDATED
+  PROJECT_CHANGED
+  SNOOZED
+  ROTATED
+  COMPLETED
+  CANCELED
+  ATTACHMENT_ADDED
+}
+
+model GtdWorkspace {
+  id         String        @id @default(cuid())
+  nextOrder  BigInt        @default(0)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  identities GtdIdentity[]
+  projects   GtdProject[]
+  tasks      GtdTask[]
+}
+
+model GtdIdentity {
+  id           String              @id @default(cuid())
+  workspaceId  String
+  workspace    GtdWorkspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  provider     GtdIdentityProvider
+  providerId   String
+  displayName  String?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  linkRequests GtdLinkRequest[]
+
+  @@unique([provider, providerId])
+  @@unique([workspaceId, provider])
+  @@index([workspaceId])
+}
+
+model GtdLinkRequest {
+  id                 String      @id @default(cuid())
+  tokenHash          String      @unique
+  telegramIdentityId String
+  telegramIdentity   GtdIdentity @relation(fields: [telegramIdentityId], references: [id], onDelete: Cascade)
+  expiresAt          DateTime
+  consumedAt         DateTime?
+  createdAt          DateTime    @default(now())
+
+  @@index([telegramIdentityId])
+  @@index([expiresAt])
+}
+
+model GtdProject {
+  id          String       @id @default(cuid())
+  workspaceId String
+  workspace   GtdWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  archivedAt  DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  tasks       GtdTask[]
+
+  @@index([workspaceId, archivedAt])
+}
+
+model GtdTask {
+  id           String          @id @default(cuid())
+  workspaceId  String
+  workspace    GtdWorkspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  projectId    String?
+  project      GtdProject?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  content      String          @db.Text
+  status       GtdTaskStatus   @default(ACTIVE)
+  orderKey     BigInt
+  snoozedUntil DateTime?
+  completedAt  DateTime?
+  canceledAt   DateTime?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  events       GtdTaskEvent[]
+  attachments  GtdAttachment[]
+
+  @@index([workspaceId, status, snoozedUntil, orderKey])
+  @@index([workspaceId, projectId, status, orderKey])
+  @@index([workspaceId, createdAt])
+}
+
+model GtdTaskEvent {
+  id        String           @id @default(cuid())
+  taskId    String
+  task      GtdTask          @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  type      GtdTaskEventType
+  metadata  Json             @default("{}")
+  createdAt DateTime         @default(now())
+
+  @@index([taskId, createdAt])
+}
+
+model GtdAttachment {
+  id           String   @id @default(cuid())
+  taskId       String
+  task         GtdTask  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  storageKey   String   @unique
+  originalName String
+  mimeType     String
+  size         Int
+  createdAt    DateTime @default(now())
+
+  @@index([taskId, createdAt])
+}
+
 model MapPoint {
   id                     Int       @id @default(autoincrement())
   name                   String
@@ -201,14 +321,14 @@ model Reel {
 // Rows are written/queried via raw SQL (pgvector); Prisma client can't
 // handle the vector type directly.
 model Embedding {
-  id        Int                          @id @default(autoincrement())
+  id        Int                         @id @default(autoincrement())
   kind      String // reel | note | image
   refId     Int
   chatId    BigInt? // scope for private notes/images; null for reels
-  content   String                       @db.Text // the text that was embedded
+  content   String                      @db.Text // the text that was embedded
   embedding Unsupported("vector(1536)")
-  createdAt DateTime                     @default(now())
-  updatedAt DateTime                     @updatedAt
+  createdAt DateTime                    @default(now())
+  updatedAt DateTime                    @updatedAt
 
   @@unique([kind, refId])
 }

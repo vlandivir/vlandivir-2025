@@ -378,7 +378,7 @@ describe('TelegramBotService', () => {
     const svc = service as unknown as { getHelpMessage(): string };
     const result = svc.getHelpMessage();
     const expected = [
-      '/a - Open App',
+      '/a - Open GTD Mini App',
       '/bar - Distance to Pivski Zabavnik',
       '/c or /collage - Create image collage',
       '/d or /dairy - Dairy Notes',

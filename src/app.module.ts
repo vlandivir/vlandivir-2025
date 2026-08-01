@@ -21,6 +21,7 @@ import { DiaryPagesController } from './diary-pages.controller';
 import { TripApiController } from './trip-api.controller';
 import { McpController } from './mcp/mcp.controller';
 import { McpToolsService } from './mcp/mcp-tools.service';
+import { GtdModule } from './gtd/gtd.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { McpToolsService } from './mcp/mcp-tools.service';
     AuthModule,
     ServicesModule,
     TelegramBotModule,
+    GtdModule,
   ],
   controllers: [
     AppController,
