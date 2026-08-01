@@ -34,6 +34,7 @@ export class DiarySearchService {
       FROM "Note" n
       LEFT JOIN "Embedding" e ON e."kind" = 'note' AND e."refId" = n."id"
       WHERE e."id" IS NULL
+        AND n."deletedAt" IS NULL
         AND length(trim(n."content")) > 0
         AND (${chatId ?? null}::bigint IS NULL OR n."chatId" = ${chatId ?? null}::bigint)
       ORDER BY n."id" ASC
@@ -57,6 +58,7 @@ export class DiarySearchService {
       JOIN "Note" n ON n."id" = i."noteId"
       LEFT JOIN "Embedding" e ON e."kind" = 'image' AND e."refId" = i."id"
       WHERE e."id" IS NULL
+        AND n."deletedAt" IS NULL
         AND i."description" IS NOT NULL AND i."description" <> ''
         AND (${chatId ?? null}::bigint IS NULL OR n."chatId" = ${chatId ?? null}::bigint)
       ORDER BY i."id" ASC
@@ -154,7 +156,7 @@ export class DiarySearchService {
     if (!byNote.size) return [];
 
     const noteRows = await this.prisma.note.findMany({
-      where: { id: { in: [...byNote.keys()] } },
+      where: { id: { in: [...byNote.keys()] }, deletedAt: null },
       select: { id: true, content: true, noteDate: true },
     });
 

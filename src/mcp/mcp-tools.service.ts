@@ -406,7 +406,7 @@ export class McpToolsService {
       },
       async ({ noteId }) => {
         const note = await this.prisma.note.findFirst({
-          where: { id: noteId, chatId },
+          where: { id: noteId, chatId, deletedAt: null },
           include: { images: true, videos: true },
         });
         if (!note) return this.errorResult(`Заметка ${noteId} не найдена`);
@@ -441,6 +441,7 @@ export class McpToolsService {
         const notes = await this.prisma.note.findMany({
           where: {
             chatId,
+            deletedAt: null,
             noteDate: { gte: startOfDay(parsed), lt: endOfDay(parsed) },
           },
           include: { images: true, videos: true },
@@ -484,12 +485,16 @@ export class McpToolsService {
         const rows = await this.prisma.$queryRaw<{ id: number }[]>`
           SELECT "id" FROM "Note"
           WHERE "chatId" = ${chatId}
+            AND "deletedAt" IS NULL
             AND EXTRACT(MONTH FROM "noteDate") = ${month}
             AND EXTRACT(DAY FROM "noteDate") = ${day}
         `;
         const notes = rows.length
           ? await this.prisma.note.findMany({
-              where: { id: { in: rows.map((row) => row.id) } },
+              where: {
+                id: { in: rows.map((row) => row.id) },
+                deletedAt: null,
+              },
               include: { images: true, videos: true },
               orderBy: { noteDate: 'asc' },
             })

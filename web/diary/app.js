@@ -1,6 +1,7 @@
 (() => {
   const API_BASE = '/diary-api';
   const BASE_PATH = '/diary';
+  const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 
   const MONTHS_RU = [
     'Январь',
@@ -49,6 +50,7 @@
   const el = (id) => document.getElementById(id);
   const calendarView = el('calendar-view');
   const dayView = el('day-view');
+  const archiveView = el('archive-view');
   const errorBox = el('error');
 
   const pad2 = (n) => String(n).padStart(2, '0');
@@ -63,6 +65,11 @@
     errorBox.classList.add('hidden');
   }
 
+  function invalidateCalendar() {
+    const container = el('months');
+    if (container) container.dataset.loaded = '';
+  }
+
   async function api(path, options) {
     const response = await fetch(`${API_BASE}${path}`, options);
     if (response.status === 401) {
@@ -71,9 +78,18 @@
       throw new Error('unauthorized');
     }
     if (!response.ok) {
-      throw new Error(`Request failed: ${response.status}`);
+      let detail = '';
+      try {
+        const body = await response.json();
+        detail = body?.message || '';
+      } catch {
+        // ignore
+      }
+      throw new Error(detail || `Request failed: ${response.status}`);
     }
-    return response.json();
+    if (response.status === 204) return null;
+    const text = await response.text();
+    return text ? JSON.parse(text) : null;
   }
 
   // --- Routing ---
@@ -88,15 +104,26 @@
     return { month, day };
   }
 
+  function isArchivePath() {
+    return /^\/diary\/archive\/?$/.test(location.pathname);
+  }
+
   function render() {
     clearError();
     const target = parseDayPath();
-    if (target) {
+    if (isArchivePath()) {
       calendarView.classList.add('hidden');
+      dayView.classList.add('hidden');
+      archiveView.classList.remove('hidden');
+      void renderArchive();
+    } else if (target) {
+      calendarView.classList.add('hidden');
+      archiveView.classList.add('hidden');
       dayView.classList.remove('hidden');
       void renderDay(target.month, target.day);
     } else {
       dayView.classList.add('hidden');
+      archiveView.classList.add('hidden');
       calendarView.classList.remove('hidden');
       void renderCalendar();
     }
@@ -232,9 +259,100 @@
     return block;
   }
 
+  // --- Archive view ---
+
+  async function renderArchive() {
+    const list = el('archive-list');
+    const emptyBox = el('archive-empty');
+    list.replaceChildren();
+    emptyBox.classList.add('hidden');
+
+    let data;
+    try {
+      data = await api('/archive');
+    } catch (err) {
+      if (err.message !== 'unauthorized') {
+        showError('Не удалось загрузить архив.');
+      }
+      return;
+    }
+
+    const notes = data.notes || [];
+    if (notes.length === 0) {
+      emptyBox.classList.remove('hidden');
+      return;
+    }
+
+    const frag = document.createDocumentFragment();
+    for (const note of notes) {
+      frag.append(renderArchivedNote(note));
+    }
+    list.replaceChildren(frag);
+  }
+
+  function renderArchivedNote(note) {
+    const item = document.createElement('div');
+    item.className = 'editor-card archive-note';
+
+    const meta = document.createElement('div');
+    meta.className = 'note-date';
+    const deletedLabel = note.deletedAt
+      ? ` · удалено ${noteDateFormat.format(new Date(note.deletedAt))}`
+      : '';
+    meta.textContent =
+      (note.noteDate
+        ? noteDateFormat.format(new Date(note.noteDate))
+        : 'Без даты') + deletedLabel;
+    item.append(meta);
+
+    const content = document.createElement('p');
+    content.className = 'archive-note-content';
+    content.textContent = note.content?.trim() || '(без текста)';
+    item.append(content);
+
+    const media = renderMedia(note, { readOnly: true });
+    if (media) item.append(media);
+
+    const actions = document.createElement('div');
+    actions.className = 'note-actions';
+
+    const restoreBtn = document.createElement('button');
+    restoreBtn.className = 'primary-btn';
+    restoreBtn.type = 'button';
+    restoreBtn.textContent = 'Восстановить';
+
+    const status = document.createElement('span');
+    status.className = 'note-status';
+
+    restoreBtn.addEventListener('click', async () => {
+      if (!confirm('Восстановить запись в дневник?')) return;
+      restoreBtn.disabled = true;
+      status.textContent = 'Восстановление…';
+      try {
+        await api(`/notes/${note.id}/restore`, { method: 'POST' });
+        invalidateCalendar();
+        item.remove();
+        if (!el('archive-list').children.length) {
+          el('archive-empty').classList.remove('hidden');
+        }
+      } catch (err) {
+        if (err.message !== 'unauthorized') {
+          status.className = 'note-status error';
+          status.textContent = 'Не удалось восстановить';
+          restoreBtn.disabled = false;
+        }
+      }
+    });
+
+    actions.append(restoreBtn, status);
+    item.append(actions);
+    return item;
+  }
+
   function renderNote(note) {
     const item = document.createElement('div');
     item.className = 'note-item';
+    item.dataset.noteId = String(note.id);
 
     const date = document.createElement('div');
     date.className = 'note-date';
@@ -256,11 +374,19 @@
     saveBtn.type = 'button';
     saveBtn.textContent = 'Сохранить';
 
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'ghost-btn';
+    deleteBtn.type = 'button';
+    deleteBtn.textContent = 'Удалить';
+
     const status = document.createElement('span');
     status.className = 'note-status';
 
     saveBtn.addEventListener('click', () =>
       saveNote(note.id, editor, saveBtn, status),
+    );
+    deleteBtn.addEventListener('click', () =>
+      deleteNote(note.id, item, deleteBtn, status),
     );
 
     // Re-enable the save button once the text changes after a save.
@@ -269,18 +395,21 @@
       status.className = 'note-status';
     });
 
-    actions.append(saveBtn, status);
+    actions.append(saveBtn, deleteBtn, status);
     item.append(actions);
 
-    // Media comes after the text editor: each item is two columns —
-    // the picture/video on the left, its editor on the right.
+    const mediaHost = document.createElement('div');
+    mediaHost.className = 'note-media-host';
     const media = renderMedia(note);
-    if (media) item.append(media);
+    if (media) mediaHost.append(media);
+    item.append(mediaHost);
+
+    item.append(renderVideoUpload(note, mediaHost, status));
 
     return item;
   }
 
-  function renderMedia(note) {
+  function renderMedia(note, options = {}) {
     const images = note.images || [];
     const videos = note.videos || [];
     if (images.length === 0 && videos.length === 0) return null;
@@ -289,16 +418,26 @@
     box.className = 'note-media';
 
     for (const image of images) {
-      box.append(renderImage(image));
+      box.append(renderImage(image, options));
     }
     for (const video of videos) {
-      box.append(renderVideo(video));
+      box.append(renderVideo(video, options));
     }
 
     return box;
   }
 
-  function renderImage(image) {
+  function ensureMediaBox(mediaHost) {
+    let box = mediaHost.querySelector('.note-media');
+    if (!box) {
+      box = document.createElement('div');
+      box.className = 'note-media';
+      mediaHost.append(box);
+    }
+    return box;
+  }
+
+  function renderImage(image, options = {}) {
     const card = document.createElement('div');
     card.className = 'image-block';
 
@@ -308,6 +447,16 @@
     img.loading = 'lazy';
     img.alt = image.description || 'Фото';
     card.append(img);
+
+    if (options.readOnly) {
+      if (image.description) {
+        const desc = document.createElement('p');
+        desc.className = 'archive-media-desc';
+        desc.textContent = image.description;
+        card.append(desc);
+      }
+      return card;
+    }
 
     const editorWrap = document.createElement('div');
     editorWrap.className = 'image-editor';
@@ -397,9 +546,10 @@
     }
   }
 
-  function renderVideo(video) {
+  function renderVideo(video, options = {}) {
     const card = document.createElement('div');
     card.className = 'image-block';
+    card.dataset.videoId = String(video.id);
 
     const player = document.createElement('video');
     player.className = 'image-photo';
@@ -407,6 +557,16 @@
     player.controls = true;
     player.preload = 'metadata';
     card.append(player);
+
+    if (options.readOnly) {
+      if (video.description) {
+        const desc = document.createElement('p');
+        desc.className = 'archive-media-desc';
+        desc.textContent = video.description;
+        card.append(desc);
+      }
+      return card;
+    }
 
     const editorWrap = document.createElement('div');
     editorWrap.className = 'image-editor';
@@ -430,21 +590,95 @@
     saveBtn.type = 'button';
     saveBtn.textContent = 'Сохранить описание';
 
+    const sendBtn = document.createElement('button');
+    sendBtn.className = 'ghost-btn';
+    sendBtn.type = 'button';
+    sendBtn.textContent = 'В Telegram';
+
     const status = document.createElement('span');
     status.className = 'note-status';
 
     saveBtn.addEventListener('click', () =>
       saveVideoDescription(video.id, desc, saveBtn, status),
     );
+    sendBtn.addEventListener('click', () =>
+      sendVideoToTelegram(video.id, sendBtn, status),
+    );
     desc.addEventListener('input', () => {
       status.textContent = '';
       status.className = 'note-status';
     });
 
-    actions.append(saveBtn, status);
+    actions.append(saveBtn, sendBtn, status);
     editorWrap.append(actions);
     card.append(editorWrap);
     return card;
+  }
+
+  function renderVideoUpload(note, mediaHost, status) {
+    const wrap = document.createElement('div');
+    wrap.className = 'video-upload';
+
+    const label = document.createElement('label');
+    label.className = 'ghost-btn video-upload-label';
+    label.textContent = 'Добавить видео';
+
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'video/*';
+    input.hidden = true;
+
+    const notify = document.createElement('label');
+    notify.className = 'video-upload-notify';
+    const notifyBox = document.createElement('input');
+    notifyBox.type = 'checkbox';
+    notifyBox.checked = true;
+    notify.append(notifyBox, document.createTextNode(' Отправить в Telegram'));
+
+    label.append(input);
+    wrap.append(label, notify);
+
+    input.addEventListener('change', async () => {
+      const file = input.files?.[0];
+      input.value = '';
+      if (!file) return;
+
+      if (file.size > MAX_VIDEO_BYTES) {
+        status.className = 'note-status error';
+        status.textContent = 'Файл больше 100 МБ';
+        return;
+      }
+
+      label.classList.add('is-busy');
+      status.className = 'note-status';
+      status.textContent = 'Загрузка видео…';
+
+      const form = new FormData();
+      form.append('video', file);
+      const notifyQs = notifyBox.checked ? '?notify=1' : '';
+
+      try {
+        const video = await api(`/notes/${note.id}/videos${notifyQs}`, {
+          method: 'POST',
+          body: form,
+        });
+        const box = ensureMediaBox(mediaHost);
+        box.append(renderVideo(video));
+        status.className = 'note-status saved';
+        status.textContent = video.telegramSent
+          ? 'Видео сохранено и отправлено в Telegram'
+          : 'Видео сохранено';
+      } catch (err) {
+        if (err.message !== 'unauthorized') {
+          status.className = 'note-status error';
+          status.textContent = 'Не удалось загрузить видео';
+        }
+      } finally {
+        label.classList.remove('is-busy');
+      }
+    });
+
+    return wrap;
   }
 
   async function saveVideoDescription(id, editor, saveBtn, status) {
@@ -466,6 +700,24 @@
       }
     } finally {
       saveBtn.disabled = false;
+    }
+  }
+
+  async function sendVideoToTelegram(id, sendBtn, status) {
+    sendBtn.disabled = true;
+    status.className = 'note-status';
+    status.textContent = 'Отправка…';
+    try {
+      await api(`/videos/${id}/send`, { method: 'POST' });
+      status.className = 'note-status saved';
+      status.textContent = 'Отправлено в Telegram';
+    } catch (err) {
+      if (err.message !== 'unauthorized') {
+        status.className = 'note-status error';
+        status.textContent = 'Не удалось отправить';
+      }
+    } finally {
+      sendBtn.disabled = false;
     }
   }
 
@@ -491,10 +743,46 @@
     }
   }
 
-  // Back link should route within the SPA.
+  async function deleteNote(id, item, deleteBtn, status) {
+    if (!confirm('Удалить запись в архив? Её можно будет восстановить.')) {
+      return;
+    }
+    deleteBtn.disabled = true;
+    status.className = 'note-status';
+    status.textContent = 'Удаление…';
+    try {
+      await api(`/notes/${id}`, { method: 'DELETE' });
+      invalidateCalendar();
+      const list = item.parentElement;
+      const yearBlock = list?.parentElement;
+      item.remove();
+      if (list && list.children.length === 0) {
+        yearBlock?.remove();
+      }
+      if (!el('years').children.length) {
+        el('day-empty').classList.remove('hidden');
+      }
+    } catch (err) {
+      if (err.message !== 'unauthorized') {
+        status.className = 'note-status error';
+        status.textContent = 'Не удалось удалить';
+        deleteBtn.disabled = false;
+      }
+    }
+  }
+
+  // Back / archive links should route within the SPA.
   el('back-link').addEventListener('click', (event) => {
     event.preventDefault();
     navigate(BASE_PATH);
+  });
+  el('archive-back-link').addEventListener('click', (event) => {
+    event.preventDefault();
+    navigate(BASE_PATH);
+  });
+  el('archive-link').addEventListener('click', (event) => {
+    event.preventDefault();
+    navigate(`${BASE_PATH}/archive`);
   });
 
   window.addEventListener('popstate', render);

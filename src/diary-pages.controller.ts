@@ -5,8 +5,9 @@ import * as path from 'path';
 import { AuthService } from './auth/auth.service';
 import { GoogleSessionGuard } from './auth/google-session.guard';
 
-// The diary app lives at /diary behind Google sign-in. /diary is the calendar
-// and /diary/MM-DD is one day-of-month across years; both are the same SPA.
+// The diary app lives at /diary behind Google sign-in. /diary is the calendar,
+// /diary/MM-DD is one day-of-month across years, /diary/archive is soft-deleted
+// notes — all the same SPA.
 @Controller('diary')
 export class DiaryPagesController {
   constructor(private readonly authService: AuthService) {}
@@ -17,14 +18,14 @@ export class DiaryPagesController {
     res.type('html').send(await this.loadHtml());
   }
 
-  // /diary/MM-DD — deep link to one day; anything else goes to the calendar.
+  // /diary/MM-DD or /diary/archive; anything else goes to the calendar.
   @Get(':day')
   async dayPage(
     @Param('day') day: string,
     @Req() req: Request,
     @Res() res: Response,
   ) {
-    if (!/^\d{2}-\d{2}$/.test(day)) {
+    if (day !== 'archive' && !/^\d{2}-\d{2}$/.test(day)) {
       res.redirect('/diary');
       return;
     }

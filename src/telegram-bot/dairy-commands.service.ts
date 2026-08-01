@@ -93,6 +93,7 @@ export class DairyCommandsService {
     return await this.prisma.note.findMany({
       where: {
         chatId,
+        deletedAt: null,
         noteDate: {
           gte: startOfDay(date),
           lt: endOfDay(date),
@@ -124,6 +125,7 @@ export class DairyCommandsService {
       this.prisma.note.findMany({
         where: {
           chatId,
+          deletedAt: null,
           noteDate: {
             gte: startOfDay(new Date(year, month, day)),
             lt: endOfDay(new Date(year, month, day)),
