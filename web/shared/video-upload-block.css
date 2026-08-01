@@ -28,7 +28,7 @@
 }
 
 .file-picker__meta {
-  color: var(--muted);
+  color: hsl(var(--shadcn-muted-foreground));
   font-size: 14px;
   overflow-wrap: anywhere;
 }

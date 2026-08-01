@@ -561,7 +561,7 @@ body {
 }
 
 .ask-reel-link {
-  color: hsl(var(--shadcn-primary));
+  color: hsl(var(--primary));
   text-decoration: underline;
   cursor: pointer;
 }

@@ -1,7 +1,3 @@
-:root {
-  --shadow: var(--v-shadow);
-}
-
 * {
   box-sizing: border-box;
 }
@@ -34,7 +30,7 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  color: var(--ink);
+  color: hsl(var(--foreground));
   font-weight: 800;
   text-decoration: none;
 }
@@ -44,16 +40,16 @@ body {
   width: 44px;
   height: 44px;
   place-items: center;
-  border: 1px solid var(--green);
+  border: 1px solid hsl(var(--primary));
   border-radius: 8px;
-  background: var(--green);
+  background: hsl(var(--primary));
   color: hsl(var(--primary-foreground));
   font-family: "JetBrains Mono", monospace;
   font-size: 13px;
 }
 
 .font-page-nav a {
-  color: var(--green-dark);
+  color: hsl(var(--primary) / 0.9);
   font-weight: 700;
   text-decoration: none;
 }
@@ -80,7 +76,7 @@ body {
 .font-page-intro__lead {
   margin: 0;
   max-width: 62ch;
-  color: var(--muted);
+  color: hsl(var(--shadcn-muted-foreground));
 }
 
 .font-page-toolbar {
@@ -101,14 +97,14 @@ body {
 
 .font-page-count {
   margin: 0;
-  color: var(--muted);
+  color: hsl(var(--shadcn-muted-foreground));
   font-size: 14px;
   font-weight: 700;
 }
 
 .font-page-status {
   margin: 12px 0 0;
-  color: var(--green-dark);
+  color: hsl(var(--primary) / 0.9);
   font-size: 14px;
   font-weight: 700;
 }
@@ -127,10 +123,10 @@ body {
 }
 
 .font-row {
-  border: 1px solid var(--line);
+  border: 1px solid hsl(var(--shadcn-border));
   border-radius: 12px;
-  background: var(--paper);
-  box-shadow: var(--shadow);
+  background: hsl(var(--card));
+  box-shadow: var(--v-shadow);
 }
 
 .font-row__label {
@@ -145,7 +141,7 @@ body {
   width: 20px;
   height: 20px;
   flex: 0 0 auto;
-  accent-color: var(--green);
+  accent-color: hsl(var(--primary));
 }
 
 .font-row__body {
@@ -163,7 +159,7 @@ body {
   font-size: clamp(28px, 4vw, 40px);
   font-weight: 400;
   line-height: 1;
-  color: var(--ink);
+  color: hsl(var(--foreground));
 }
 
 .font-row__sample {
@@ -172,7 +168,7 @@ body {
   font-size: clamp(22px, 3.2vw, 32px);
   font-weight: 400;
   line-height: 1;
-  color: var(--muted);
+  color: hsl(var(--shadcn-muted-foreground));
 }
 
 .font-row__downloads {
@@ -186,7 +182,7 @@ body {
 }
 
 .font-row__download {
-  color: var(--green-dark);
+  color: hsl(var(--primary) / 0.9);
   text-decoration: none;
 }
 
@@ -195,8 +191,8 @@ body {
 }
 
 .font-row:has(.font-row__checkbox:checked) {
-  border-color: var(--green);
-  box-shadow: 0 0 0 1px var(--green), var(--shadow);
+  border-color: hsl(var(--primary));
+  box-shadow: 0 0 0 1px hsl(var(--primary)), var(--v-shadow);
 }
 
 @media (max-width: 640px) {
