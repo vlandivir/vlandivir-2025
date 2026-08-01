@@ -359,17 +359,14 @@
     if (!iso) return '';
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return '';
-    try {
-      return new Intl.DateTimeFormat(document.documentElement.lang || 'ru', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      }).format(d);
-    } catch {
-      return d.toLocaleString();
-    }
+    // Compact so time fits on narrow trip cards: 26.07.26 17:34
+    const pad = (n) => String(n).padStart(2, '0');
+    const dd = pad(d.getDate());
+    const mm = pad(d.getMonth() + 1);
+    const yy = pad(d.getFullYear() % 100);
+    const hh = pad(d.getHours());
+    const mi = pad(d.getMinutes());
+    return `${dd}.${mm}.${yy} ${hh}:${mi}`;
   }
 
   function sortMedia(list) {

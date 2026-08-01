@@ -136,12 +136,22 @@ export class TripThumbsService {
 
     let thumbUrl = media.thumbUrl;
     if (!thumbUrl) {
-      const jpeg = await this.thumbFromVideoUrl(media.url);
-      if (jpeg?.length) {
-        thumbUrl = await this.storage.uploadTripThumb(
-          media.tripId,
-          media.contentHash,
-          jpeg,
+      try {
+        const jpeg = await this.thumbFromVideoUrl(media.url);
+        if (jpeg?.length) {
+          thumbUrl = await this.storage.uploadTripThumb(
+            media.tripId,
+            media.contentHash,
+            jpeg,
+          );
+        }
+      } catch (error) {
+        // Audio-only / odd QuickTime exports still have capture tags — don't
+        // skip metadata just because ffmpeg couldn't pull a frame.
+        this.logger.warn(
+          `Trip video thumb failed for ${media.id}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
         );
       }
     }
