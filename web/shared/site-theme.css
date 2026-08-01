@@ -16,8 +16,10 @@
   --shadcn-accent-foreground: 222.2 47.4% 11.2%;
   --destructive: 0 84.2% 60.2%;
   --destructive-foreground: 210 40% 98%;
-  --shadcn-border: 214.3 31.8% 91.4%;
-  --shadcn-input: 214.3 31.8% 91.4%;
+  --success: 142.1 70.6% 35.3%;
+  --success-foreground: 0 0% 100%;
+  --shadcn-border: 216.8 14.8% 59%;
+  --shadcn-input: 216.8 14.8% 59%;
   --shadcn-ring: 222.2 84% 4.9%;
   --shadcn-card-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadcn-popover-shadow:
@@ -77,6 +79,37 @@
   --color-picker-muted: hsl(var(--shadcn-muted-foreground));
   --color-picker-active: hsl(var(--primary));
   --color-picker-family-active: hsl(var(--primary) / 0.18);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 47.4% 8.5%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 47.4% 8.5%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --shadcn-muted: 217.2 32.6% 17.5%;
+    --shadcn-muted-foreground: 215 20.2% 70%;
+    --shadcn-accent: 217.2 32.6% 20.5%;
+    --shadcn-accent-foreground: 210 40% 98%;
+    --destructive: 0 72.2% 50.6%;
+    --destructive-foreground: 210 40% 98%;
+    --success: 142.1 69.2% 40%;
+    --success-foreground: 144.9 80.4% 10%;
+    --shadcn-border: 216.7 17.3% 40.8%;
+    --shadcn-input: 216.7 17.3% 40.8%;
+    --shadcn-ring: 212.7 26.8% 83.9%;
+    --shadcn-card-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.32);
+    --shadcn-popover-shadow:
+      0 12px 28px -8px rgb(0 0 0 / 0.68),
+      0 4px 10px -4px rgb(0 0 0 / 0.48);
+  }
 }
 
 * {

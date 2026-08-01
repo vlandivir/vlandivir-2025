@@ -4,7 +4,6 @@
   --yellow: #f4bf4f;
   --blue: #2d5f8f;
   --charcoal: #20272d;
-  --shadow: var(--v-shadow);
 }
 
 * {
@@ -26,8 +25,8 @@ body {
       hsl(var(--shadcn-muted) / 0.56) 42%,
       hsl(var(--shadcn-muted))
     ),
-    var(--page);
-  color: var(--ink);
+    hsl(var(--background));
+  color: hsl(var(--foreground));
   font-family: var(--font-sans);
   line-height: 1.5;
 }
@@ -103,7 +102,7 @@ code {
 .lead {
   max-width: 620px;
   margin-bottom: 30px;
-  color: var(--muted);
+  color: hsl(var(--shadcn-muted-foreground));
   font-size: 20px;
 }
 
@@ -113,7 +112,7 @@ code {
   min-height: 48px;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--green);
+  border: 1px solid hsl(var(--primary));
   border-radius: 8px;
   padding: 12px 18px;
   font-weight: 800;
@@ -121,13 +120,13 @@ code {
 }
 
 .primary-link {
-  background: var(--green);
+  background: hsl(var(--primary));
   color: hsl(var(--primary-foreground));
 }
 
 .secondary-link {
   background: hsl(var(--card) / 0.74);
-  color: var(--green-dark);
+  color: hsl(var(--primary) / 0.9);
 }
 
 .subtitle-preview {
@@ -139,7 +138,7 @@ code {
   border: 1px solid #2e3b43;
   border-radius: 8px;
   background: var(--charcoal);
-  box-shadow: var(--shadow);
+  box-shadow: var(--v-shadow);
 }
 
 .frame-topbar {
@@ -228,7 +227,7 @@ code {
 }
 
 .clip--one {
-  background: var(--green);
+  background: hsl(var(--primary));
 }
 
 .clip--two {
@@ -244,7 +243,7 @@ code {
   grid-template-columns: 280px minmax(0, 1fr);
   gap: 42px;
   padding: 56px 0;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid hsl(var(--shadcn-border));
 }
 
 .section-head {
@@ -262,7 +261,7 @@ code {
 .feature {
   min-height: 210px;
   padding: 24px;
-  border: 1px solid var(--line);
+  border: 1px solid hsl(var(--shadcn-border));
   border-radius: 8px;
   background: hsl(var(--card) / 0.78);
 }
@@ -278,7 +277,7 @@ code {
 
 .feature p {
   margin-bottom: 0;
-  color: var(--muted);
+  color: hsl(var(--shadcn-muted-foreground));
 }
 
 pre {
@@ -295,7 +294,7 @@ pre {
 
 .saved-links,
 .subtitle-editor {
-  border-top: 1px solid var(--line);
+  border-top: 1px solid hsl(var(--shadcn-border));
   padding: 48px 0;
 }
 
@@ -331,7 +330,7 @@ pre {
   align-items: center;
   justify-content: center;
   border-radius: 10px;
-  background: var(--ink);
+  background: hsl(var(--foreground));
   color: hsl(var(--primary-foreground));
   font-family: 'JetBrains Mono', monospace;
   font-size: 17px;
@@ -341,7 +340,7 @@ pre {
 
 .workflow-step-title {
   margin: 0 0 10px;
-  color: var(--ink);
+  color: hsl(var(--foreground));
   font-size: clamp(22px, 2.4vw, 30px);
   font-weight: 800;
   line-height: 1.15;
@@ -351,7 +350,7 @@ pre {
 .workflow-step-text {
   max-width: 68ch;
   margin: 0;
-  color: var(--muted);
+  color: hsl(var(--shadcn-muted-foreground));
   font-size: 16px;
   line-height: 1.55;
 }
@@ -391,11 +390,11 @@ pre {
 .empty-state,
 .link-item p {
   margin-bottom: 0;
-  color: var(--muted);
+  color: hsl(var(--shadcn-muted-foreground));
 }
 
 .link-item {
-  border: 1px solid var(--line);
+  border: 1px solid hsl(var(--shadcn-border));
   border-radius: 8px;
   background: hsl(var(--card) / 0.82);
 }
@@ -412,7 +411,7 @@ pre {
   min-height: 86px;
   align-content: center;
   gap: 5px;
-  border: 1px dashed var(--green);
+  border: 1px dashed hsl(var(--primary));
   border-radius: 8px;
   padding: 18px;
   background: hsl(var(--shadcn-muted));
@@ -425,7 +424,7 @@ pre {
 }
 
 .file-picker__meta {
-  color: var(--muted);
+  color: hsl(var(--shadcn-muted-foreground));
   font-size: 14px;
   overflow-wrap: anywhere;
 }
@@ -462,14 +461,14 @@ pre {
   width: 0;
   height: 100%;
   border-radius: inherit;
-  background: var(--green);
+  background: hsl(var(--primary));
   transition: width 0.18s ease;
 }
 
 .upload-status {
   min-height: 24px;
   margin: 12px 0 0;
-  color: var(--green-dark);
+  color: hsl(var(--primary) / 0.9);
   font-size: 14px;
   font-weight: 700;
   overflow-wrap: anywhere;
@@ -494,7 +493,7 @@ pre {
   max-width: 100%;
   min-height: 0;
   overflow: hidden;
-  border: 1px solid var(--line);
+  border: 1px solid hsl(var(--shadcn-border));
   border-radius: 8px;
   background: #11181d;
 }
@@ -585,7 +584,7 @@ pre {
 
 .video-control-range {
   width: 100%;
-  accent-color: var(--green);
+  accent-color: hsl(var(--primary));
 }
 
 .video-control-time {
@@ -617,8 +616,8 @@ pre {
 }
 
 .video-eyedropper__button[aria-pressed='true'] {
-  border-color: var(--green);
-  background: color-mix(in srgb, var(--green) 26%, #11181d);
+  border-color: hsl(var(--primary));
+  background: color-mix(in srgb, hsl(var(--primary)) 26%, #11181d);
 }
 
 .video-eyedropper__button svg {
@@ -712,7 +711,7 @@ pre {
 
 .clear-button {
   min-height: 42px;
-  border-color: var(--line);
+  border-color: hsl(var(--shadcn-border));
   cursor: pointer;
 }
 
@@ -790,7 +789,7 @@ pre {
 }
 
 .editor-card {
-  border: 1px solid var(--line);
+  border: 1px solid hsl(var(--shadcn-border));
   border-radius: 8px;
   padding: 22px;
   background: hsl(var(--card) / 0.84);
@@ -920,7 +919,7 @@ pre {
   display: grid;
   gap: 8px;
   padding: 12px;
-  border: 1px dashed var(--line);
+  border: 1px dashed hsl(var(--shadcn-border));
   border-radius: 8px;
   background: hsl(var(--shadcn-muted));
 }
@@ -947,7 +946,7 @@ pre {
 }
 
 .editor-field span {
-  color: var(--muted);
+  color: hsl(var(--shadcn-muted-foreground));
   font-size: 13px;
   font-weight: 800;
 }
@@ -960,7 +959,7 @@ pre {
 }
 
 .font-picker-link {
-  color: var(--green-dark);
+  color: hsl(var(--primary) / 0.9);
   font-size: 12px;
   font-weight: 700;
   text-decoration: none;
@@ -976,11 +975,11 @@ pre {
 .editor-field textarea {
   width: 100%;
   min-height: 44px;
-  border: 1px solid var(--line);
+  border: 1px solid hsl(var(--shadcn-border));
   border-radius: 8px;
   padding: 10px 12px;
   background: hsl(var(--background));
-  color: var(--ink);
+  color: hsl(var(--foreground));
   font: inherit;
 }
 
@@ -998,7 +997,7 @@ pre {
   display: grid;
   gap: 12px;
   padding: 14px;
-  border: 1px dashed var(--line);
+  border: 1px dashed hsl(var(--shadcn-border));
   border-radius: 8px;
   background: hsl(var(--shadcn-muted));
 }
@@ -1034,7 +1033,7 @@ pre {
   border: 1px solid hsl(var(--shadcn-border));
   border-radius: 4px;
   background: hsl(var(--background));
-  color: var(--muted);
+  color: hsl(var(--shadcn-muted-foreground));
   cursor: pointer;
   font: inherit;
   font-size: 10px;
@@ -1044,8 +1043,8 @@ pre {
 }
 
 .align-control button.is-active {
-  border-color: var(--green);
-  background: var(--green);
+  border-color: hsl(var(--primary));
+  background: hsl(var(--primary));
   color: hsl(var(--primary-foreground));
 }
 
@@ -1068,8 +1067,8 @@ pre {
 }
 
 .align-preview__cell.is-active {
-  background: var(--green);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--green) 40%, transparent);
+  background: hsl(var(--primary));
+  box-shadow: 0 0 0 1px color-mix(in srgb, hsl(var(--primary)) 40%, transparent);
 }
 
 .position-item__meta {
@@ -1081,7 +1080,7 @@ pre {
 }
 
 .position-item__coords {
-  color: var(--muted);
+  color: hsl(var(--shadcn-muted-foreground));
   font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
 }
@@ -1093,7 +1092,7 @@ pre {
 }
 
 .position-item__align-label {
-  color: var(--muted);
+  color: hsl(var(--shadcn-muted-foreground));
   font-size: 11px;
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -1115,7 +1114,7 @@ pre {
 .editor-cancel,
 .editor-new {
   min-height: 48px;
-  border-color: var(--line);
+  border-color: hsl(var(--shadcn-border));
   cursor: pointer;
 }
 
@@ -1130,7 +1129,7 @@ pre {
 .position-item,
 .cue-item {
   position: relative;
-  border: 1px solid var(--line);
+  border: 1px solid hsl(var(--shadcn-border));
   border-radius: 8px;
   background: #808080;
 }
@@ -1138,8 +1137,8 @@ pre {
 .style-item.is-editing,
 .position-item.is-editing,
 .cue-item.is-editing {
-  border-color: var(--green);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--green) 18%, transparent);
+  border-color: hsl(var(--primary));
+  box-shadow: 0 0 0 2px color-mix(in srgb, hsl(var(--primary)) 18%, transparent);
 }
 
 .position-item {
@@ -1181,7 +1180,7 @@ pre {
 }
 
 .position-item p {
-  color: var(--muted);
+  color: hsl(var(--shadcn-muted-foreground));
   font-size: 13px;
 }
 
@@ -1197,10 +1196,10 @@ pre {
   width: 34px;
   height: 34px;
   place-items: center;
-  border: 1px solid var(--line);
+  border: 1px solid hsl(var(--shadcn-border));
   border-radius: 8px;
   background: hsl(var(--background));
-  color: var(--muted);
+  color: hsl(var(--shadcn-muted-foreground));
   cursor: pointer;
   font-size: 20px;
   font-weight: 800;
@@ -1255,8 +1254,8 @@ pre {
   height: 10px;
   flex: 0 0 auto;
   margin-top: -4px;
-  border-right: 2px solid var(--muted);
-  border-bottom: 2px solid var(--muted);
+  border-right: 2px solid hsl(var(--shadcn-muted-foreground));
+  border-bottom: 2px solid hsl(var(--shadcn-muted-foreground));
   transform: rotate(45deg);
   transition: transform 0.15s ease;
 }
@@ -1276,7 +1275,7 @@ pre {
 
 .ass-cheatsheet__lead {
   margin: 0 0 14px;
-  color: var(--muted);
+  color: hsl(var(--shadcn-muted-foreground));
   font-size: 14px;
 }
 
@@ -1294,7 +1293,7 @@ pre {
 .ass-cheatsheet__grid ul {
   margin: 0;
   padding-left: 18px;
-  color: var(--muted);
+  color: hsl(var(--shadcn-muted-foreground));
   font-size: 13px;
 }
 
@@ -1324,7 +1323,7 @@ pre {
 
 .ass-style-import {
   margin-top: 16px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid hsl(var(--shadcn-border));
   padding-top: 16px;
 }
 
@@ -1341,7 +1340,7 @@ pre {
 
 .ass-style-import__hint {
   margin: 12px 0 8px;
-  color: var(--muted);
+  color: hsl(var(--shadcn-muted-foreground));
   font-size: 13px;
 }
 
@@ -1349,7 +1348,7 @@ pre {
   width: 100%;
   min-height: 96px;
   resize: vertical;
-  border: 1px solid var(--line);
+  border: 1px solid hsl(var(--shadcn-border));
   border-radius: 8px;
   padding: 12px;
   background: #172026;
@@ -1369,7 +1368,7 @@ pre {
 
 .ass-style-import__status {
   margin: 0;
-  color: var(--muted);
+  color: hsl(var(--shadcn-muted-foreground));
   font-size: 13px;
 }
 
@@ -1389,7 +1388,7 @@ pre {
   width: fit-content;
   max-width: 100%;
   grid-column: 1;
-  color: var(--ink);
+  color: hsl(var(--foreground));
   font-size: 20px;
   font-weight: 800;
   line-height: 1.25;
@@ -1496,10 +1495,10 @@ pre {
   gap: 8px;
   min-height: 34px;
   padding: 6px 10px;
-  border: 1px solid var(--line);
+  border: 1px solid hsl(var(--shadcn-border));
   border-radius: 8px;
-  background: var(--paper);
-  color: var(--muted);
+  background: hsl(var(--card));
+  color: hsl(var(--shadcn-muted-foreground));
   cursor: pointer;
   font-size: 12px;
   font-weight: 800;
@@ -1510,7 +1509,7 @@ pre {
   width: 16px;
   height: 16px;
   margin: 0;
-  accent-color: var(--green);
+  accent-color: hsl(var(--primary));
 }
 
 .ass-card-head {
@@ -1526,7 +1525,7 @@ pre {
 }
 
 .ass-card-head span {
-  color: var(--muted);
+  color: hsl(var(--shadcn-muted-foreground));
   font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
   text-align: right;
@@ -1536,7 +1535,7 @@ pre {
 .reset-ass-button,
 .refresh-preview-button {
   min-height: 40px;
-  border-color: var(--line);
+  border-color: hsl(var(--shadcn-border));
   cursor: pointer;
 }
 
@@ -1558,7 +1557,7 @@ pre {
   flex: 1;
   min-height: 280px;
   resize: none;
-  border: 1px solid var(--line);
+  border: 1px solid hsl(var(--shadcn-border));
   border-radius: 8px;
   padding: 16px;
   background: #172026;
@@ -1569,8 +1568,8 @@ pre {
 }
 
 .ass-output:focus {
-  border-color: color-mix(in srgb, var(--green) 70%, var(--line));
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 16%, transparent);
+  border-color: color-mix(in srgb, hsl(var(--primary)) 70%, hsl(var(--shadcn-border)));
+  box-shadow: 0 0 0 3px color-mix(in srgb, hsl(var(--primary)) 16%, transparent);
   outline: none;
 }
 
@@ -1586,7 +1585,7 @@ pre {
 
 .render-video-card__text,
 .render-video-status {
-  color: var(--muted);
+  color: hsl(var(--shadcn-muted-foreground));
 }
 
 .ffmpeg-command {
@@ -1621,7 +1620,7 @@ pre {
   width: 28px;
   height: 28px;
   border: 3px solid hsl(var(--primary) / 0.2);
-  border-top-color: var(--green-dark);
+  border-top-color: hsl(var(--primary) / 0.9);
   border-radius: 50%;
   animation: render-spin 0.8s linear infinite;
 }
@@ -1649,13 +1648,13 @@ pre {
 
 .render-video-link,
 .render-video-download-link {
-  color: var(--green-dark);
+  color: hsl(var(--primary) / 0.9);
   font-weight: 800;
 }
 
 .render-video-status {
   margin: 0;
-  color: var(--muted);
+  color: hsl(var(--shadcn-muted-foreground));
   font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
 }
@@ -1688,7 +1687,7 @@ pre {
 
 .audio-extract-button {
   min-height: 40px;
-  border-color: var(--line);
+  border-color: hsl(var(--shadcn-border));
   cursor: pointer;
 }
 
@@ -1699,14 +1698,14 @@ pre {
 
 .audio-status {
   margin: 0;
-  color: var(--muted);
+  color: hsl(var(--shadcn-muted-foreground));
   font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
 }
 
 .audio-waveform {
   overflow: hidden;
-  border: 1px solid var(--line);
+  border: 1px solid hsl(var(--shadcn-border));
   border-radius: 8px;
   background: #172026;
 }
@@ -1724,7 +1723,7 @@ pre {
 .transcription-panel {
   display: grid;
   gap: 12px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid hsl(var(--shadcn-border));
   padding-top: 14px;
 }
 
@@ -1745,7 +1744,7 @@ pre {
 
 .transcription-button {
   min-height: 48px;
-  border-color: var(--line);
+  border-color: hsl(var(--shadcn-border));
   cursor: pointer;
 }
 
@@ -1757,7 +1756,7 @@ pre {
 .transcription-save-button {
   justify-self: start;
   min-height: 44px;
-  border-color: var(--line);
+  border-color: hsl(var(--shadcn-border));
   cursor: pointer;
 }
 
@@ -1782,7 +1781,7 @@ pre {
 
 .transcription-translate-button {
   min-height: 48px;
-  border-color: var(--line);
+  border-color: hsl(var(--shadcn-border));
   cursor: pointer;
 }
 
@@ -1818,7 +1817,7 @@ pre {
 
 .transcription-status {
   margin: 0;
-  color: var(--muted);
+  color: hsl(var(--shadcn-muted-foreground));
   font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
 }
@@ -1826,7 +1825,7 @@ pre {
 .transcription-output {
   min-height: 220px;
   resize: vertical;
-  border: 1px solid var(--line);
+  border: 1px solid hsl(var(--shadcn-border));
   border-radius: 8px;
   padding: 14px;
   background: #172026;
@@ -1859,7 +1858,7 @@ pre {
 
 .transcription-outputs__label {
   margin: 0;
-  color: var(--muted);
+  color: hsl(var(--shadcn-muted-foreground));
   font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
 }
@@ -1867,7 +1866,7 @@ pre {
 .transcription-timings-button {
   justify-self: start;
   min-height: 44px;
-  border-color: var(--line);
+  border-color: hsl(var(--shadcn-border));
   cursor: pointer;
 }
 
@@ -2068,7 +2067,7 @@ pre {
   grid-template-columns: auto minmax(180px, 280px) minmax(72px, auto);
   align-items: center;
   gap: 10px;
-  color: var(--muted);
+  color: hsl(var(--shadcn-muted-foreground));
   font-size: 13px;
   font-weight: 800;
 }
@@ -2076,13 +2075,13 @@ pre {
 .subs-page .cue-timeline__scale-control input {
   width: 100%;
   min-width: 0;
-  accent-color: var(--green);
+  accent-color: hsl(var(--primary));
   cursor: pointer;
   touch-action: none;
 }
 
 .subs-page .cue-timeline__scale-output {
-  color: var(--ink);
+  color: hsl(var(--foreground));
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
   font-weight: 800;
@@ -2106,7 +2105,7 @@ pre {
   max-width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
-  border: 1px solid var(--line);
+  border: 1px solid hsl(var(--shadcn-border));
   border-radius: 8px;
   background: #172026;
 }
@@ -2173,7 +2172,7 @@ pre {
   overflow: hidden;
   margin: 0;
   padding: 7px 10px 6px;
-  border-color: color-mix(in srgb, var(--cue-accent) 32%, var(--line));
+  border-color: color-mix(in srgb, var(--cue-accent) 32%, hsl(var(--shadcn-border)));
   background: linear-gradient(
     180deg,
     color-mix(in srgb, var(--cue-accent) 22%, #344248),
@@ -2260,7 +2259,7 @@ pre {
   margin: 0;
   border-color: hsl(var(--shadcn-border));
   background: hsl(var(--card) / 0.96);
-  color: var(--ink);
+  color: hsl(var(--foreground));
 }
 
 .subs-page .cue-form.is-editing {
@@ -2286,7 +2285,7 @@ pre {
 
 .subs-page .editor-delete {
   grid-column: 1 / -1;
-  border-color: color-mix(in srgb, var(--coral) 70%, var(--line));
+  border-color: color-mix(in srgb, var(--coral) 70%, hsl(var(--shadcn-border)));
   color: var(--coral);
   cursor: pointer;
 }
@@ -2298,7 +2297,7 @@ pre {
 
 .subs-page .cue-form__cheatsheet {
   grid-column: auto;
-  border: 1px solid var(--line);
+  border: 1px solid hsl(var(--shadcn-border));
   border-radius: 8px;
   padding: 14px;
   background: hsl(var(--shadcn-muted));
@@ -2407,7 +2406,7 @@ pre {
   gap: 12px;
   align-items: end;
   padding: 14px;
-  border: 1px dashed var(--line);
+  border: 1px dashed hsl(var(--shadcn-border));
   border-radius: 8px;
   background: hsl(var(--shadcn-muted));
 }
@@ -2419,7 +2418,7 @@ pre {
 
 .cue-form__hint {
   margin: 0;
-  color: var(--muted);
+  color: hsl(var(--shadcn-muted-foreground));
   font-size: 12px;
 }
 
@@ -2428,7 +2427,7 @@ pre {
   align-items: center;
   gap: 10px;
   min-height: 44px;
-  color: var(--ink);
+  color: hsl(var(--foreground));
   font-size: 13px;
   font-weight: 800;
 }
@@ -2436,7 +2435,7 @@ pre {
 .editor-checkbox input {
   width: 18px;
   height: 18px;
-  accent-color: var(--green);
+  accent-color: hsl(var(--primary));
 }
 
 @media (max-width: 860px) {

@@ -99,7 +99,7 @@ Root module: [src/app.module.ts](../src/app.module.ts) — ConfigModule (global)
 | `files/` | Files page | Bilingual via single-file i18n |
 | `trip/` | Shared trip photo/video album | Secret-link SPA; create at `/trip` (with “my albums” list from IndexedDB visits + owned via `contributorId`), album at `/trip/<secret>`; bilingual via single-file i18n |
 | `telegram-app/` | GTD web app + Telegram Mini App | React + Vite; built with `npm run telegram-app:build`, served at `/gtd` and `/mini-app` |
-| `shared/` | `site-theme.css`, `site-header.{css,js}`, `i18n.js` | Design tokens + i18n runtime — all pages must use them (see AGENTS.md) |
+| `shared/` | `site-theme.css`, `site-header.{css,js}`, `i18n.js` | Light/dark design tokens + i18n runtime — all pages must use them (see [design-system.md](design-system.md) and AGENTS.md) |
 
 ## Scripts (`src/scripts/`, run via npm scripts)
 

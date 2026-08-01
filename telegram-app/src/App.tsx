@@ -35,9 +35,11 @@ import {
   Stack,
   Text,
   Textarea,
+  useColorMode,
   useDisclosure,
   useToast,
 } from '@chakra-ui/react';
+import { applyAppTheme, subscribeToThemeChanges } from './theme';
 
 type Provider = 'GOOGLE' | 'TELEGRAM';
 type Project = {
@@ -142,8 +144,18 @@ function fileSize(bytes: number) {
 
 export default function App() {
   const isLinkPage = location.pathname === '/gtd/link';
-  if (isLinkPage) return <LinkConfirmation />;
-  return <GtdApp />;
+  return (
+    <ThemeSync>{isLinkPage ? <LinkConfirmation /> : <GtdApp />}</ThemeSync>
+  );
+}
+
+function ThemeSync({ children }: { children: React.ReactNode }) {
+  const { setColorMode } = useColorMode();
+  useEffect(() => {
+    setColorMode(applyAppTheme());
+    return subscribeToThemeChanges(setColorMode);
+  }, [setColorMode]);
+  return <>{children}</>;
 }
 
 function LinkConfirmation() {
@@ -212,13 +224,7 @@ function LinkConfirmation() {
                 Проекты, задачи, вложения и история с обеих сторон будут
                 сохранены.
               </Text>
-              <Button
-                colorScheme="gray"
-                bg="shadcn.primary"
-                color="shadcn.primaryForeground"
-                onClick={confirm}
-                isLoading={busy}
-              >
+              <Button variant="primary" onClick={confirm} isLoading={busy}>
                 Объединить пространства
               </Button>
             </Stack>
@@ -346,11 +352,11 @@ function GtdApp() {
         </Alert>
       )}
 
-      <Flex gap={2} mb={4}>
+      <Flex gap={2} mb={4} wrap={{ base: 'wrap', md: 'nowrap' }}>
         <Select
           value={scope}
           onChange={(event) => setScope(event.target.value)}
-          bg="shadcn.card"
+          flex={{ base: '1 1 100%', md: '1 1 auto' }}
         >
           <option value="all">Все задачи</option>
           <option value="inbox">Входящие</option>
@@ -362,14 +368,10 @@ function GtdApp() {
               </option>
             ))}
         </Select>
-        <Button variant="outline" onClick={projects.onOpen}>
+        <Button flex={{ base: '1', md: '0 0 auto' }} onClick={projects.onOpen}>
           Проекты
         </Button>
-        <Button
-          bg="shadcn.primary"
-          color="shadcn.primaryForeground"
-          onClick={create.onOpen}
-        >
+        <Button variant="primary" onClick={create.onOpen} minW="48px">
           ＋
         </Button>
       </Flex>
@@ -479,18 +481,30 @@ function TaskCard(props: {
 
   return (
     <Panel>
-      <Flex justify="space-between" align="start" gap={4} mb={6}>
-        <Box>
+      <Flex
+        justify="space-between"
+        align={{ base: 'stretch', sm: 'start' }}
+        direction={{ base: 'column', sm: 'row' }}
+        gap={4}
+        mb={6}
+      >
+        <Box minW="0" flex="1">
           <Badge mb={3}>{task.project?.name || 'Входящие'}</Badge>
           <Text
             fontSize={{ base: 'xl', md: '2xl' }}
             fontWeight="semibold"
             whiteSpace="pre-wrap"
+            overflowWrap="anywhere"
           >
             {task.content}
           </Text>
         </Box>
-        <Text color="shadcn.mutedForeground" fontSize="sm" whiteSpace="nowrap">
+        <Text
+          color="shadcn.mutedForeground"
+          fontSize="sm"
+          whiteSpace="nowrap"
+          alignSelf={{ base: 'flex-start', sm: 'auto' }}
+        >
           {props.counts?.available || 0} доступно
         </Text>
       </Flex>
@@ -548,7 +562,7 @@ function TaskCard(props: {
         <ButtonGroup isAttached width="100%">
           <Button
             flex="1"
-            colorScheme="green"
+            variant="success"
             onClick={() => props.onAction('COMPLETE')}
             isDisabled={props.busy}
           >
@@ -696,8 +710,7 @@ function CreateTaskModal({
             Закрыть
           </Button>
           <Button
-            bg="shadcn.primary"
-            color="shadcn.primaryForeground"
+            variant="primary"
             onClick={submit}
             isLoading={busy}
             isDisabled={!content.trim()}
@@ -782,11 +795,7 @@ function EditTaskModal({
           </Stack>
         </ModalBody>
         <ModalFooter>
-          <Button
-            onClick={save}
-            bg="shadcn.primary"
-            color="shadcn.primaryForeground"
-          >
+          <Button onClick={save} variant="primary">
             Сохранить
           </Button>
         </ModalFooter>
@@ -939,7 +948,9 @@ function ArchiveModal({
                 <Box key={task.id}>
                   <Badge
                     mb={1}
-                    colorScheme={task.status === 'COMPLETED' ? 'green' : 'gray'}
+                    variant={
+                      task.status === 'COMPLETED' ? 'success' : 'destructive'
+                    }
                   >
                     {task.status === 'COMPLETED' ? 'Выполнено' : 'Отменено'}
                   </Badge>
@@ -1069,12 +1080,7 @@ function SettingsModal({
               }
             />
             {identity?.provider === 'TELEGRAM' && !identity.linked && (
-              <Button
-                onClick={link}
-                isLoading={busy}
-                bg="shadcn.primary"
-                color="shadcn.primaryForeground"
-              >
+              <Button onClick={link} isLoading={busy} variant="primary">
                 Привязать Google
               </Button>
             )}
@@ -1124,10 +1130,11 @@ function PageShell({ children }: { children: React.ReactNode }) {
   return (
     <Box
       minH="100vh"
-      bg="var(--tg-theme-bg-color, var(--chakra-colors-shadcn-background))"
-      color="var(--tg-theme-text-color, var(--chakra-colors-shadcn-foreground))"
+      bg="shadcn.background"
+      color="shadcn.foreground"
       px={{ base: 4, md: 8 }}
-      py={{ base: 5, md: 8 }}
+      pt={{ base: 'max(20px, env(safe-area-inset-top))', md: 8 }}
+      pb={{ base: 'max(24px, env(safe-area-inset-bottom))', md: 8 }}
     >
       <Box maxW="760px" mx="auto">
         {children}
@@ -1142,7 +1149,8 @@ function Panel({ children }: { children: React.ReactNode }) {
       border="1px solid"
       borderColor="shadcn.border"
       borderRadius="lg"
-      bg="var(--tg-theme-secondary-bg-color, var(--chakra-colors-shadcn-card))"
+      bg="shadcn.card"
+      color="shadcn.cardForeground"
       p={{ base: 5, md: 7 }}
       shadow="sm"
     >

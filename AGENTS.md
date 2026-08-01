@@ -8,7 +8,7 @@ Access control (who can reach which routes, guards, machine keys) is documented 
 
 ## Design system (web pages)
 
-All public pages under `web/` share one visual language, defined by `web/shared/site-theme.css` (shadcn-style HSL tokens + shared component styling). Page CSS must be **layout-only**: no palettes, no hardcoded colors, no font stacks.
+All public pages under `web/` share one visual language, defined by `web/shared/site-theme.css` (shadcn-style HSL tokens + shared component styling). The full contract is documented in [docs/design-system.md](docs/design-system.md). Page CSS must be **layout-only**: no palettes, no hardcoded colors, no font stacks. The site follows `prefers-color-scheme`; both light and dark themes must remain usable.
 
 ### Tokens (the only allowed sources of color/spacing/type)
 
@@ -16,6 +16,7 @@ All public pages under `web/` share one visual language, defined by `web/shared/
 - Text: `var(--v-text)` main, `var(--v-muted)` secondary, `hsl(var(--primary-foreground))` on filled-primary.
 - Borders: `hsl(var(--shadcn-border))`; form inputs `hsl(var(--shadcn-input))`; focus ring `hsl(var(--shadcn-ring))`.
 - Accents: `hsl(var(--primary))` (actions/links/progress), `hsl(var(--destructive))` (errors, warm highlights like the Instagram icon). Tints via alpha: `hsl(var(--primary) / 0.1)`.
+- Success: `hsl(var(--success))` with `hsl(var(--success-foreground))` for completed/positive actions.
 - Spacing scale `--v-space-1` (4px) … `--v-space-8` (64px); page/panel/card paddings `--v-section-padding` / `--v-panel-padding` / `--v-card-padding`.
 - Radius `var(--radius)` (nested elements `calc(var(--radius) - 2px)`); shadows `var(--v-shadow)` (cards) and `var(--shadcn-popover-shadow)` (popovers/modals).
 - Fonts: `var(--font-sans)` (Inter, Google Fonts weights 400–700) and `var(--font-mono)`. 
