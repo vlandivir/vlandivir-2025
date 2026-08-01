@@ -10,6 +10,8 @@
   const createError = document.getElementById('createError');
   const tripTitleInput = document.getElementById('tripTitleInput');
   const createNameInput = document.getElementById('createNameInput');
+  const albumListSection = document.getElementById('albumListSection');
+  const albumList = document.getElementById('albumList');
   const albumTitle = document.getElementById('albumTitle');
   const albumMeta = document.getElementById('albumMeta');
   const albumStatus = document.getElementById('albumStatus');
@@ -33,6 +35,7 @@
   const lightboxBody = document.getElementById('lightboxBody');
   const lightboxClose = document.getElementById('lightboxClose');
   const header = document.querySelector('[data-site-header]');
+  const albumsRegistry = window.TripAlbumsRegistry;
 
   /** @type {{ id: string, secret: string, title: string, ownerContributorId: string, isAdmin: boolean } | null} */
   let trip = null;
@@ -131,6 +134,132 @@
     } else {
       header.dataset.langRu = '/trip';
       header.dataset.langEn = '/trip/en';
+    }
+  }
+
+  async function rememberAlbum(album, { visited = true } = {}) {
+    if (!albumsRegistry || !album?.secret) return;
+    try {
+      await albumsRegistry.remember({
+        secret: album.secret,
+        title: album.title,
+        isOwner: Boolean(album.isOwner),
+        visited,
+      });
+    } catch {
+      // IndexedDB can be unavailable (private mode) — list is best-effort.
+    }
+  }
+
+  function formatAlbumWhen(iso) {
+    if (!iso) return '';
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return '';
+    const lang = document.documentElement.lang?.startsWith('en') ? 'en' : 'ru';
+    try {
+      return new Intl.DateTimeFormat(lang === 'en' ? 'en-GB' : 'ru-RU', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      }).format(date);
+    } catch {
+      return date.toLocaleDateString();
+    }
+  }
+
+  async function loadAlbumList() {
+    if (!albumListSection || !albumList) return;
+    /** @type {Map<string, { secret: string, title: string, isOwner: boolean, lastVisitedAt: string }>} */
+    const bySecret = new Map();
+    const dismissed = new Set();
+
+    if (albumsRegistry) {
+      try {
+        const all = await albumsRegistry.list({ includeDismissed: true });
+        for (const row of all) {
+          if (row.dismissed) {
+            dismissed.add(row.secret);
+            continue;
+          }
+          bySecret.set(row.secret, {
+            secret: row.secret,
+            title: row.title,
+            isOwner: Boolean(row.isOwner),
+            lastVisitedAt: row.lastVisitedAt,
+          });
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    try {
+      const data = await api('/trip-api/my-trips', {
+        headers: { 'X-Contributor-Id': getContributorId() },
+      });
+      for (const row of data.trips || []) {
+        if (dismissed.has(row.secret)) continue;
+        const existing = bySecret.get(row.secret);
+        bySecret.set(row.secret, {
+          secret: row.secret,
+          title: row.title || existing?.title || 'Album',
+          isOwner: true,
+          lastVisitedAt:
+            existing?.lastVisitedAt || row.updatedAt || row.createdAt,
+        });
+      }
+    } catch {
+      // Server list is optional; local history still works.
+    }
+
+    const albums = Array.from(bySecret.values()).sort((a, b) =>
+      String(b.lastVisitedAt || '').localeCompare(String(a.lastVisitedAt || '')),
+    );
+
+    albumList.innerHTML = '';
+    if (!albums.length) {
+      albumListSection.hidden = true;
+      return;
+    }
+
+    albumListSection.hidden = false;
+    for (const album of albums) {
+      const li = document.createElement('li');
+      li.className = 'trip-album-list__row';
+
+      const link = document.createElement('a');
+      link.className = 'trip-album-list__item';
+      link.href = albumPath(album.secret);
+
+      const body = document.createElement('div');
+      body.className = 'trip-album-list__body';
+      const titleEl = document.createElement('strong');
+      titleEl.textContent = album.title;
+      const metaEl = document.createElement('span');
+      const role = album.isOwner ? t('myAlbumsOwner') : t('myAlbumsVisited');
+      const when = formatAlbumWhen(album.lastVisitedAt);
+      metaEl.textContent = when ? `${role} · ${when}` : role;
+      body.append(titleEl, metaEl);
+      link.append(body);
+
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'ghost-btn icon-btn trip-album-list__remove';
+      removeBtn.setAttribute('aria-label', t('myAlbumsRemoveAria'));
+      removeBtn.title = t('myAlbumsRemove');
+      removeBtn.textContent = '×';
+      removeBtn.addEventListener('click', async () => {
+        if (!albumsRegistry) return;
+        try {
+          await albumsRegistry.dismiss(album.secret);
+        } catch {
+          // ignore
+        }
+        await loadAlbumList();
+      });
+
+      li.append(link, removeBtn);
+      albumList.append(li);
     }
   }
 
@@ -550,14 +679,20 @@
     emptyGallery.hidden = false;
     albumTitle.textContent = trip.title;
     syncHeaderLangPaths(trip.secret);
+    const isOwner = trip.ownerContributorId === getContributorId();
     const bits = [`${t('itemsCount')}`];
-    if (trip.ownerContributorId === getContributorId()) {
+    if (isOwner) {
       bits.unshift(t('youAreOwner'));
       editTitleBtn.hidden = false;
     } else {
       editTitleBtn.hidden = true;
     }
     albumMeta.textContent = bits.join(' · ');
+    void rememberAlbum({
+      secret: trip.secret,
+      title: trip.title,
+      isOwner,
+    });
     // Load the gallery immediately; only ask for a name when uploading.
     await loadMedia();
     if (!getDisplayName()) {
@@ -602,6 +737,7 @@
     syncHeaderLangPaths(null);
     const name = getDisplayName();
     if (name) createNameInput.value = name;
+    void loadAlbumList();
   }
 
   createForm.addEventListener('submit', async (event) => {
@@ -619,6 +755,11 @@
           displayName,
           contributorId: getContributorId(),
         }),
+      });
+      await rememberAlbum({
+        secret: created.secret,
+        title: created.title,
+        isOwner: true,
       });
       history.replaceState({}, '', albumPath(created.secret));
       await loadTrip(created.secret);
@@ -655,6 +796,10 @@
     });
     trip.title = updated.title;
     albumTitle.textContent = trip.title;
+    void rememberAlbum(
+      { secret: trip.secret, title: trip.title, isOwner: true },
+      { visited: false },
+    );
   });
 
   changeNameBtn.addEventListener('click', () => {

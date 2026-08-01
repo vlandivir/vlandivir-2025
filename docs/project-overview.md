@@ -35,7 +35,7 @@ Root module: [src/app.module.ts](../src/app.module.ts) — ConfigModule (global)
 | [mini-app/mini-app.controller.ts](../src/mini-app/mini-app.controller.ts) | `/mini-app-api` | Telegram Mini App backend: verifies signed initData, returns user profile/note count/avatar |
 | [diary-pages.controller.ts](../src/diary-pages.controller.ts) | `/diary`, `/diary/:MM-DD` | Owner-only diary web app (Google session): calendar landing + one day-of-month across years; serves `web/diary/index.html` |
 | [diary-api.controller.ts](../src/diary-api.controller.ts) | `/diary-api` | Owner-only diary API (Google session): `GET /calendar` (which day-of-month cells have notes), `GET /day` (notes across years), `PATCH /notes/:id` (edit text), `PATCH /images/:id` (edit image description), `POST /images/:id/describe` (regenerate description — handwriting-aware vision pass + text refinement), `PATCH /videos/:id` (edit video description). Note/image edits drop the matching search embedding for lazy re-index (videos aren't indexed). Scoped to the owner's chat |
-| [trip-api.controller.ts](../src/trip-api.controller.ts) | `/trip-api` | Shared trip photo/video albums: create by anyone, access via unlisted `secret`; presigned PUT to Spaces; SHA-256 dedup; soft-delete own media; Google allowlist admins see deleted items |
+| [trip-api.controller.ts](../src/trip-api.controller.ts) | `/trip-api` | Shared trip photo/video albums: create by anyone, access via unlisted `secret`; `GET /my-trips` lists albums owned by the client `contributorId`; visited albums also tracked in browser IndexedDB (`web/trip/registry.js`); presigned PUT to Spaces; SHA-256 dedup; soft-delete own media; Google allowlist admins see deleted items |
 
 ## Telegram bot (`src/telegram-bot/`)
 
@@ -94,7 +94,7 @@ Root module: [src/app.module.ts](../src/app.module.ts) — ConfigModule (global)
 | `subs/`, `subs-exp/` | Vertical-video subtitle editor (+ experimental variant) | Vanilla JS; dark "workbench" palette allowed; bilingual (static chrome via `subs/i18n.js` + `data-i18n`, dynamic strings via `app.js` TEXT) |
 | `gpx-route-png/` | GPX → PNG route renderer | Fully client-side; bilingual via single-file i18n |
 | `files/` | Files page | Bilingual via single-file i18n |
-| `trip/` | Shared trip photo/video album | Secret-link SPA; create at `/trip`, album at `/trip/<secret>`; bilingual via single-file i18n |
+| `trip/` | Shared trip photo/video album | Secret-link SPA; create at `/trip` (with “my albums” list from IndexedDB visits + owned via `contributorId`), album at `/trip/<secret>`; bilingual via single-file i18n |
 | `mini-app/` | Telegram Mini App | React + Vite; only `web/` dir with a build step (`npm run web:mini-app:build`) |
 | `shared/` | `site-theme.css`, `site-header.{css,js}`, `i18n.js` | Design tokens + i18n runtime — all pages must use them (see AGENTS.md) |
 
