@@ -370,12 +370,12 @@ export class TelegramBotService {
         }
         const baseUrl = new URL(webhookUrl).origin;
         const appUrl = `${baseUrl}/mini-app`;
-        await ctx.reply('Откройте мини‑приложение:', {
+        await ctx.reply('Откройте GTD:', {
           reply_markup: {
             inline_keyboard: [
               [
                 {
-                  text: 'Open App',
+                  text: 'Открыть GTD',
                   web_app: { url: appUrl },
                 },
               ],
@@ -1506,7 +1506,7 @@ export class TelegramBotService {
       { name: '/history', description: 'Chat History' },
       { name: '/s', description: 'Serbian Translation' },
       { name: '/p or /phrase', description: 'Translate between RU/EN/SR' },
-      { name: '/a', description: 'Open App' },
+      { name: '/a', description: 'Open GTD Mini App' },
       { name: '/bar', description: 'Distance to Pivski Zabavnik' },
       { name: '/c or /collage', description: 'Create image collage' },
       { name: '/dl or /debuglog', description: 'Export in-memory debug log' },

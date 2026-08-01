@@ -34,6 +34,12 @@
   const lightbox = document.getElementById('lightbox');
   const lightboxBody = document.getElementById('lightboxBody');
   const lightboxClose = document.getElementById('lightboxClose');
+  const lightboxPrev = document.getElementById('lightboxPrev');
+  const lightboxNext = document.getElementById('lightboxNext');
+  const lightboxCounter = document.getElementById('lightboxCounter');
+  const lightboxFields = document.getElementById('lightboxFields');
+  const lightboxExif = document.getElementById('lightboxExif');
+  const lightboxExifFields = document.getElementById('lightboxExifFields');
   const header = document.querySelector('[data-site-header]');
   const albumsRegistry = window.TripAlbumsRegistry;
 
@@ -42,6 +48,8 @@
   /** @type {Array<any>} */
   let media = [];
   let hideDeleted = true;
+  /** @type {number} */
+  let lightboxIndex = -1;
 
   function t(key, vars) {
     let text;
@@ -498,6 +506,17 @@
     return `${dd}.${mm}.${yy} ${hh}:${mi}`;
   }
 
+  function formatDuration(ms) {
+    if (ms == null || !Number.isFinite(ms) || ms < 0) return '';
+    const totalSec = Math.round(ms / 1000);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    const pad = (n) => String(n).padStart(2, '0');
+    if (h > 0) return `${h}:${pad(m)}:${pad(s)}`;
+    return `${m}:${pad(s)}`;
+  }
+
   function sortMedia(list) {
     return [...list].sort((a, b) => {
       const ta = a.takenAt ? Date.parse(a.takenAt) : NaN;
@@ -514,6 +533,10 @@
       if (nameCmp !== 0) return nameCmp;
       return Date.parse(b.createdAt) - Date.parse(a.createdAt);
     });
+  }
+
+  function visibleMedia() {
+    return sortMedia(hideDeleted ? media.filter((item) => !item.deleted) : media);
   }
 
   function syncDeletedToggle() {
@@ -545,11 +568,18 @@
 
   function renderGallery() {
     gallery.innerHTML = '';
-    const visible = sortMedia(
-      hideDeleted ? media.filter((item) => !item.deleted) : media,
-    );
+    const visible = visibleMedia();
     emptyGallery.hidden = visible.length > 0;
     syncDeletedToggle();
+    // Keep lightbox on the same item if the list refreshed underneath it.
+    if (!lightbox.hidden) {
+      const openId = lightbox.dataset.mediaId;
+      const nextIndex = openId
+        ? visible.findIndex((item) => item.id === openId)
+        : -1;
+      if (nextIndex >= 0) showLightboxAt(nextIndex, { keepMedia: true });
+      else closeLightbox();
+    }
     for (const item of visible) {
       const card = document.createElement('article');
       card.className = 'trip-card' + (item.deleted ? ' deleted' : '');
@@ -582,7 +612,10 @@
         img.loading = 'lazy';
         mediaBtn.appendChild(img);
       }
-      mediaBtn.addEventListener('click', () => openLightbox(item));
+      mediaBtn.addEventListener('click', () => {
+        const index = visibleMedia().findIndex((row) => row.id === item.id);
+        openLightbox(index >= 0 ? index : 0);
+      });
       card.appendChild(mediaBtn);
 
       const footer = document.createElement('div');
@@ -632,27 +665,203 @@
     }
   }
 
-  function openLightbox(item) {
-    lightboxBody.innerHTML = '';
-    if (item.kind === 'video') {
-      const video = document.createElement('video');
-      video.src = item.url;
-      video.controls = true;
-      video.autoplay = true;
-      video.playsInline = true;
-      lightboxBody.appendChild(video);
-    } else {
-      const img = document.createElement('img');
-      img.src = item.url;
-      img.alt = item.originalFilename;
-      lightboxBody.appendChild(img);
+  function appendMetaRow(parent, label, value) {
+    if (value == null || value === '') return;
+    const row = document.createElement('div');
+    const dt = document.createElement('dt');
+    dt.textContent = label;
+    const dd = document.createElement('dd');
+    dd.textContent = String(value);
+    row.append(dt, dd);
+    parent.appendChild(row);
+  }
+
+  function formatExifValue(value) {
+    if (value == null) return '';
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
+        return formatTakenAt(value) || value;
+      }
+      return String(value);
     }
+    if (Array.isArray(value)) {
+      if (value.every((item) => typeof item !== 'object' || item == null)) {
+        return value.map((item) => formatExifValue(item)).join(', ');
+      }
+      try {
+        return JSON.stringify(value, null, 2);
+      } catch {
+        return String(value);
+      }
+    }
+    if (typeof value === 'object') {
+      // GPS-style {latitude, longitude} or nested tag groups.
+      if (
+        typeof value.latitude === 'number' &&
+        typeof value.longitude === 'number'
+      ) {
+        return `${value.latitude}, ${value.longitude}`;
+      }
+      try {
+        return JSON.stringify(value, null, 2);
+      } catch {
+        return String(value);
+      }
+    }
+    return String(value);
+  }
+
+  function flattenExif(obj, prefix = '') {
+    /** @type {Array<{ key: string, value: string }>} */
+    const rows = [];
+    if (!obj || typeof obj !== 'object') return rows;
+    const entries = Object.entries(obj).sort(([a], [b]) =>
+      a.localeCompare(b, undefined, { sensitivity: 'base' }),
+    );
+    for (const [key, raw] of entries) {
+      const path = prefix ? `${prefix}.${key}` : key;
+      if (raw == null || raw === '') continue;
+      if (Array.isArray(raw) && raw.some((item) => item && typeof item === 'object')) {
+        rows.push({ key: path, value: formatExifValue(raw) });
+        continue;
+      }
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        const nested = flattenExif(raw, path);
+        if (nested.length) rows.push(...nested);
+        else rows.push({ key: path, value: formatExifValue(raw) });
+        continue;
+      }
+      rows.push({ key: path, value: formatExifValue(raw) });
+    }
+    return rows;
+  }
+
+  function renderLightboxMeta(item) {
+    lightboxFields.innerHTML = '';
+    lightboxExifFields.innerHTML = '';
+
+    appendMetaRow(
+      lightboxFields,
+      t('metaKind'),
+      item.kind === 'video' ? t('metaKindVideo') : t('metaKindPhoto'),
+    );
+    appendMetaRow(lightboxFields, t('metaFilename'), item.originalFilename);
+    appendMetaRow(lightboxFields, t('metaAuthor'), item.displayName);
+    appendMetaRow(
+      lightboxFields,
+      t('metaTakenAt'),
+      formatTakenAt(item.takenAt),
+    );
+    appendMetaRow(
+      lightboxFields,
+      t('metaUploadedAt'),
+      formatTakenAt(item.createdAt),
+    );
+    appendMetaRow(lightboxFields, t('metaCamera'), item.cameraModel);
+    if (item.width && item.height) {
+      appendMetaRow(
+        lightboxFields,
+        t('metaDimensions'),
+        `${item.width} × ${item.height}`,
+      );
+    }
+    appendMetaRow(
+      lightboxFields,
+      t('metaDuration'),
+      formatDuration(item.durationMs),
+    );
+    appendMetaRow(
+      lightboxFields,
+      t('metaFileSize'),
+      item.size != null ? formatBytes(item.size) : '',
+    );
+    appendMetaRow(lightboxFields, t('metaMime'), item.mimeType);
+    appendMetaRow(lightboxFields, t('metaUserAgent'), item.userAgent);
+    if (item.deleted) {
+      appendMetaRow(lightboxFields, t('metaDeleted'), t('metaDeletedYes'));
+    }
+
+    lightboxExif.querySelectorAll('.trip-lightbox__exif-note').forEach((el) => {
+      el.remove();
+    });
+    const exifRows = flattenExif(item.exif);
+    lightboxExif.hidden = false;
+    if (!item.metaReady || !exifRows.length) {
+      const note = document.createElement('p');
+      note.className = 'trip-lightbox__exif-note';
+      note.textContent = !item.metaReady ? t('metaPending') : t('metaEmptyExif');
+      lightboxExif.appendChild(note);
+      return;
+    }
+    for (const row of exifRows) {
+      appendMetaRow(lightboxExifFields, row.key, row.value);
+    }
+  }
+
+  function showLightboxAt(index, { keepMedia = false } = {}) {
+    const visible = visibleMedia();
+    if (!visible.length) {
+      closeLightbox();
+      return;
+    }
+    const clamped = Math.max(0, Math.min(index, visible.length - 1));
+    const item = visible[clamped];
+    const sameItem =
+      keepMedia &&
+      lightbox.dataset.mediaId === item.id &&
+      lightboxBody.querySelector('img, video');
+
+    lightboxIndex = clamped;
+    lightbox.dataset.mediaId = item.id;
+    lightboxCounter.textContent = t('lightboxCounter', {
+      current: String(clamped + 1),
+      total: String(visible.length),
+    });
+    lightboxPrev.disabled = clamped <= 0;
+    lightboxNext.disabled = clamped >= visible.length - 1;
+
+    if (!sameItem) {
+      lightboxBody.innerHTML = '';
+      if (item.kind === 'video') {
+        const video = document.createElement('video');
+        video.src = item.url;
+        video.controls = true;
+        video.autoplay = true;
+        video.playsInline = true;
+        lightboxBody.appendChild(video);
+      } else {
+        const img = document.createElement('img');
+        img.src = item.url;
+        img.alt = item.originalFilename || '';
+        lightboxBody.appendChild(img);
+      }
+    }
+
+    renderLightboxMeta(item);
     lightbox.hidden = false;
+  }
+
+  function openLightbox(index) {
+    showLightboxAt(index);
+  }
+
+  function stepLightbox(delta) {
+    if (lightbox.hidden) return;
+    showLightboxAt(lightboxIndex + delta);
   }
 
   function closeLightbox() {
     lightbox.hidden = true;
     lightboxBody.innerHTML = '';
+    lightboxFields.innerHTML = '';
+    lightboxExifFields.innerHTML = '';
+    lightboxExif.querySelectorAll('.trip-lightbox__exif-note').forEach((el) => {
+      el.remove();
+    });
+    lightboxExif.hidden = true;
+    lightboxCounter.textContent = '';
+    lightboxIndex = -1;
+    delete lightbox.dataset.mediaId;
   }
 
   async function deleteMedia(id) {
@@ -836,11 +1045,23 @@
   });
 
   lightboxClose.addEventListener('click', closeLightbox);
-  lightbox.addEventListener('click', (event) => {
-    if (event.target === lightbox) closeLightbox();
-  });
+  lightboxPrev.addEventListener('click', () => stepLightbox(-1));
+  lightboxNext.addEventListener('click', () => stepLightbox(1));
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') closeLightbox();
+    if (lightbox.hidden) return;
+    if (event.key === 'Escape') {
+      closeLightbox();
+      return;
+    }
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      stepLightbox(-1);
+      return;
+    }
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      stepLightbox(1);
+    }
   });
 
   function makeQueueItem(file) {
