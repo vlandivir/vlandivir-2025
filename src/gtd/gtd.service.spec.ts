@@ -1,4 +1,4 @@
-import { GtdIdentityProvider } from '../generated/prisma-client';
+import { GtdIdentityProvider, GtdTaskStatus } from '../generated/prisma-client';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { StorageService } from '../services/storage.service';
 import { GtdService } from './gtd.service';
@@ -35,6 +35,35 @@ describe('GtdService', () => {
     expect(snoozeUntil('SNOOZE_MONDAY', now).toISOString()).toBe(
       '2026-08-03T09:00:00.000Z',
     );
+  });
+
+  it('serializes orderKey on act so Nest can JSON-encode the response', async () => {
+    const updatedTask = {
+      id: 'task-1',
+      workspaceId: 'ws',
+      orderKey: 42n,
+      status: GtdTaskStatus.COMPLETED,
+      content: 'done',
+    };
+    const mockPrisma = {
+      gtdTask: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'task-1',
+          workspaceId: 'ws',
+          status: GtdTaskStatus.ACTIVE,
+        }),
+      },
+      $transaction: jest.fn().mockResolvedValue(updatedTask),
+    } as unknown as PrismaService;
+    const actService = new GtdService(mockPrisma, storage);
+
+    const result = await actService.act('ws', 'task-1', 'COMPLETE');
+
+    expect(result.orderKey).toBe('42');
+    expect(typeof result.orderKey).toBe('string');
+    // Regression: raw bigint breaks Express/Nest res.json with a 500
+    // after the DB write already succeeded.
+    expect(() => JSON.stringify(result)).not.toThrow();
   });
 
   it('merges Telegram tasks after the Google queue without losing order', async () => {

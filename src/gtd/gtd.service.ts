@@ -222,7 +222,10 @@ export class GtdService {
       throw new BadRequestException('Invalid action');
     await this.requireTask(workspaceId, taskId, true);
     const now = new Date();
-    return this.prisma.$transaction(async (tx) => {
+    // Must serialize: Prisma returns orderKey as bigint, and Nest JSON
+    // serialization throws "Do not know how to serialize a BigInt" → 500
+    // even though the DB write already succeeded (hence the UI toast).
+    const updated = await this.prisma.$transaction(async (tx) => {
       if (action === 'ROTATE')
         return tx.gtdTask.update({
           where: { id: taskId },
@@ -262,6 +265,7 @@ export class GtdService {
               },
       });
     });
+    return this.serializeTask(updated);
   }
 
   async taskDetails(workspaceId: string, taskId: string) {
