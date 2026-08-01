@@ -128,6 +128,43 @@ export class TelegramBotService {
     return { messageId: message.message_id };
   }
 
+  // Send a diary video by public URL (web-uploaded clips, /d re-sends).
+  // Falls back to a text link if Telegram rejects the file (size / fetch).
+  async sendDiaryVideo(
+    chatId: number,
+    videoUrl: string,
+    caption: string | undefined,
+    noteDate?: Date,
+  ): Promise<void> {
+    const dateLine = noteDate
+      ? `Видео из дневника · ${format(noteDate, 'd MMMM yyyy', { locale: ru })}`
+      : 'Видео из дневника';
+    const fullCaption = [dateLine, caption?.trim() || null]
+      .filter(Boolean)
+      .join('\n\n')
+      .slice(0, 1024);
+
+    try {
+      await this.bot.telegram.sendVideo(chatId, videoUrl, {
+        caption: fullCaption || undefined,
+      });
+    } catch (error) {
+      this.debugLogService.warn(
+        'telegram.sendDiaryVideo',
+        'sendVideo failed, falling back to URL',
+        {
+          chatId,
+          videoUrl,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      );
+      await this.bot.telegram.sendMessage(
+        chatId,
+        [fullCaption, videoUrl].filter(Boolean).join('\n\n'),
+      );
+    }
+  }
+
   async sendApiNotePhoto(
     chatId: number,
     imageBuffer: Buffer,

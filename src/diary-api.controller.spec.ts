@@ -7,6 +7,7 @@ import { DiaryApiController } from './diary-api.controller';
 import { PrismaService } from './prisma/prisma.service';
 import { LlmService } from './services/llm.service';
 import { StorageService } from './services/storage.service';
+import { TelegramBotService } from './telegram-bot/telegram-bot.service';
 
 const DIARY_CHAT_ID = 150847737n;
 
@@ -14,13 +15,21 @@ describe('DiaryApiController', () => {
   let controller: DiaryApiController;
   let prisma: {
     $queryRaw: jest.Mock;
-    note: { findMany: jest.Mock; updateMany: jest.Mock };
+    note: {
+      findMany: jest.Mock;
+      findFirst: jest.Mock;
+      updateMany: jest.Mock;
+    };
     image: {
       findFirst: jest.Mock;
       updateMany: jest.Mock;
       update: jest.Mock;
     };
-    video: { updateMany: jest.Mock };
+    video: {
+      updateMany: jest.Mock;
+      create: jest.Mock;
+      findFirst: jest.Mock;
+    };
     embedding: { deleteMany: jest.Mock };
   };
   let llmService: {
@@ -30,6 +39,10 @@ describe('DiaryApiController', () => {
   };
   let storageService: {
     downloadFile: jest.Mock;
+    uploadVideo: jest.Mock;
+  };
+  let telegramBotService: {
+    sendDiaryVideo: jest.Mock;
   };
 
   beforeEach(() => {
@@ -37,6 +50,7 @@ describe('DiaryApiController', () => {
       $queryRaw: jest.fn(),
       note: {
         findMany: jest.fn(),
+        findFirst: jest.fn(),
         updateMany: jest.fn(),
       },
       image: {
@@ -46,6 +60,8 @@ describe('DiaryApiController', () => {
       },
       video: {
         updateMany: jest.fn(),
+        create: jest.fn(),
+        findFirst: jest.fn(),
       },
       embedding: {
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
@@ -58,11 +74,16 @@ describe('DiaryApiController', () => {
     };
     storageService = {
       downloadFile: jest.fn(),
+      uploadVideo: jest.fn(),
+    };
+    telegramBotService = {
+      sendDiaryVideo: jest.fn().mockResolvedValue(undefined),
     };
     controller = new DiaryApiController(
       prisma as unknown as PrismaService,
       llmService as unknown as LlmService,
       storageService as unknown as StorageService,
+      telegramBotService as unknown as TelegramBotService,
     );
   });
 
@@ -92,6 +113,7 @@ describe('DiaryApiController', () => {
       const currentYear = new Date().getFullYear();
       prisma.note.findMany.mockImplementation(({ where }) => {
         expect(where.chatId).toBe(DIARY_CHAT_ID);
+        expect(where.deletedAt).toBeNull();
         const year = where.noteDate.gte.getFullYear();
         if (year === currentYear) {
           return Promise.resolve([
@@ -145,7 +167,7 @@ describe('DiaryApiController', () => {
       const result = await controller.updateNote(5, { content: 'edited' });
 
       expect(prisma.note.updateMany).toHaveBeenCalledWith({
-        where: { id: 5, chatId: DIARY_CHAT_ID },
+        where: { id: 5, chatId: DIARY_CHAT_ID, deletedAt: null },
         data: { content: 'edited' },
       });
       expect(prisma.embedding.deleteMany).toHaveBeenCalledWith({
@@ -164,6 +186,94 @@ describe('DiaryApiController', () => {
     });
   });
 
+  describe('deleteNote', () => {
+    it('soft-deletes and drops the search embedding', async () => {
+      prisma.note.updateMany.mockResolvedValue({ count: 1 });
+
+      const result = await controller.deleteNote(12);
+
+      expect(prisma.note.updateMany).toHaveBeenCalledWith({
+        where: { id: 12, chatId: DIARY_CHAT_ID, deletedAt: null },
+        data: { deletedAt: expect.any(Date) },
+      });
+      expect(prisma.embedding.deleteMany).toHaveBeenCalledWith({
+        where: { kind: 'note', refId: 12 },
+      });
+      expect(result).toEqual({ id: 12, deleted: true });
+    });
+
+    it('404s when the note is missing or already archived', async () => {
+      prisma.note.updateMany.mockResolvedValue({ count: 0 });
+      await expect(controller.deleteNote(999)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('restoreNote', () => {
+    it('clears deletedAt for an archived note', async () => {
+      prisma.note.updateMany.mockResolvedValue({ count: 1 });
+
+      const result = await controller.restoreNote(12);
+
+      expect(prisma.note.updateMany).toHaveBeenCalledWith({
+        where: { id: 12, chatId: DIARY_CHAT_ID, deletedAt: { not: null } },
+        data: { deletedAt: null },
+      });
+      expect(result).toEqual({ id: 12, restored: true });
+    });
+  });
+
+  describe('archive', () => {
+    it('lists soft-deleted notes newest first', async () => {
+      prisma.note.findMany.mockResolvedValue([
+        {
+          id: 1,
+          content: 'gone',
+          deletedAt: new Date(),
+          images: [],
+          videos: [],
+        },
+      ]);
+
+      const result = await controller.archive();
+
+      expect(prisma.note.findMany).toHaveBeenCalledWith({
+        where: { chatId: DIARY_CHAT_ID, deletedAt: { not: null } },
+        orderBy: { deletedAt: 'desc' },
+        select: expect.any(Object),
+      });
+      expect(result.notes).toHaveLength(1);
+    });
+  });
+
+  describe('sendVideoToChat', () => {
+    it('sends an owned video via Telegram', async () => {
+      prisma.video.findFirst.mockResolvedValue({
+        id: 3,
+        url: 'https://spaces/v.mp4',
+        note: { content: 'caption', noteDate: new Date('2007-08-01') },
+      });
+
+      const result = await controller.sendVideoToChat(3);
+
+      expect(telegramBotService.sendDiaryVideo).toHaveBeenCalledWith(
+        150847737,
+        'https://spaces/v.mp4',
+        'caption',
+        new Date('2007-08-01'),
+      );
+      expect(result).toEqual({ id: 3, sent: true });
+    });
+
+    it('404s when the video is not owned', async () => {
+      prisma.video.findFirst.mockResolvedValue(null);
+      await expect(controller.sendVideoToChat(9)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+  });
+
   describe('updateImage', () => {
     it('requires a string description', async () => {
       await expect(
@@ -178,7 +288,7 @@ describe('DiaryApiController', () => {
       const result = await controller.updateImage(7, { description: 'text' });
 
       expect(prisma.image.updateMany).toHaveBeenCalledWith({
-        where: { id: 7, note: { chatId: DIARY_CHAT_ID } },
+        where: { id: 7, note: { chatId: DIARY_CHAT_ID, deletedAt: null } },
         data: { description: 'text' },
       });
       expect(prisma.embedding.deleteMany).toHaveBeenCalledWith({
@@ -211,7 +321,7 @@ describe('DiaryApiController', () => {
       const result = await controller.updateVideo(9, { description: 'clip' });
 
       expect(prisma.video.updateMany).toHaveBeenCalledWith({
-        where: { id: 9, note: { chatId: DIARY_CHAT_ID } },
+        where: { id: 9, note: { chatId: DIARY_CHAT_ID, deletedAt: null } },
         data: { description: 'clip' },
       });
       expect(prisma.embedding.deleteMany).not.toHaveBeenCalled();

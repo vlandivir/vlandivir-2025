@@ -41,6 +41,7 @@ export class HistoryCommandsService {
       const messages = await this.prisma.note.findMany({
         where: {
           chatId,
+          deletedAt: null,
         },
         orderBy: {
           noteDate: 'asc',

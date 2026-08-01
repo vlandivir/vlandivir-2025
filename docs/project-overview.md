@@ -35,8 +35,8 @@ Root module: [src/app.module.ts](../src/app.module.ts) — ConfigModule (global)
 | [mini-app/mini-app.controller.ts](../src/mini-app/mini-app.controller.ts) | `/mini-app-api` | Telegram Mini App backend: verifies signed initData, returns user profile/note count/avatar |
 | [gtd/gtd-api.controller.ts](../src/gtd/gtd-api.controller.ts) | `/gtd-api` | Private GTD API for projects, one-task queue, snoozing, archive, history, private attachments and optional Google ↔ Telegram account linking; accepts Google session or signed Telegram initData |
 | [gtd/gtd-pages.controller.ts](../src/gtd/gtd-pages.controller.ts) | `/gtd`, `/gtd/link` | Google-session-protected GTD page and account-link confirmation page |
-| [diary-pages.controller.ts](../src/diary-pages.controller.ts) | `/diary`, `/diary/:MM-DD` | Owner-only diary web app (Google session): calendar landing + one day-of-month across years; serves `web/diary/index.html` |
-| [diary-api.controller.ts](../src/diary-api.controller.ts) | `/diary-api` | Owner-only diary API (Google session): `GET /calendar` (which day-of-month cells have notes), `GET /day` (notes across years), `PATCH /notes/:id` (edit text), `PATCH /images/:id` (edit image description), `POST /images/:id/describe` (regenerate description — handwriting-aware vision pass + text refinement), `PATCH /videos/:id` (edit video description). Note/image edits drop the matching search embedding for lazy re-index (videos aren't indexed). Scoped to the owner's chat |
+| [diary-pages.controller.ts](../src/diary-pages.controller.ts) | `/diary`, `/diary/:MM-DD`, `/diary/archive` | Owner-only diary web app (Google session): calendar landing + one day-of-month across years + soft-deleted archive; serves `web/diary/index.html` |
+| [diary-api.controller.ts](../src/diary-api.controller.ts) | `/diary-api` | Owner-only diary API (Google session): `GET /calendar`, `GET /day`, `GET /archive`, `PATCH/DELETE /notes/:id` (edit / soft-delete via `deletedAt`), `POST /notes/:id/restore`, `POST /notes/:id/videos` (upload up to 100 MB, optional `?notify=1` → Telegram), `PATCH /images/:id`, `POST /images/:id/describe`, `PATCH /videos/:id`, `POST /videos/:id/send` (push clip to Telegram). Note/image edits drop the matching search embedding for lazy re-index (videos aren't indexed). Scoped to the owner's chat |
 | [trip-api.controller.ts](../src/trip-api.controller.ts) | `/trip-api` | Shared trip photo/video albums: create by anyone, access via unlisted `secret`; `GET /my-trips` lists albums owned by the client `contributorId`; visited albums also tracked in browser IndexedDB (`web/trip/registry.js`); presigned PUT to Spaces; SHA-256 dedup; soft-delete own media; Google allowlist admins see deleted items |
 
 ## Telegram bot (`src/telegram-bot/`)
@@ -79,7 +79,7 @@ Root module: [src/app.module.ts](../src/app.module.ts) — ConfigModule (global)
 
 ## Data model (`prisma/schema.prisma`)
 
-- **Note / Image / Video / BotResponse** — diary: note text + raw Telegram message JSON, attached media (Spaces URLs + LLM descriptions), bot replies. Keyed by `chatId` (BigInt) + `noteDate`
+- **Note / Image / Video / BotResponse** — diary: note text + raw Telegram message JSON, attached media (Spaces URLs + LLM descriptions), bot replies. Keyed by `chatId` (BigInt) + `noteDate`. Soft-delete via `Note.deletedAt` (hidden from calendar/`/d`/search; recoverable from `/diary/archive`)
 - **MapPoint / MapTrack / MapTag** — places map: coordinates or polylines, tags, `instagramMeta` JSONB cache
 - **Reel** — Instagram reel archive: shortcode, status machine (`pending/ready/error`), transcript + vision fields with their own statuses, tags, yt-dlp metadata dump
 - **Trip / TripMedia** — shared trip albums: unlisted `secret` URL, original media on Spaces keyed by content hash, JPEG `thumbUrl` (~480px via sharp/ffmpeg) for cheap gallery previews, uploader metadata (`contributorId`, display name, user-agent, optional dimensions/`takenAt`/`cameraModel`), full capture tags in `exif` JSONB (EXIF for photos, ffprobe tags for videos), soft-delete via `deletedAt`
@@ -93,7 +93,7 @@ Root module: [src/app.module.ts](../src/app.module.ts) — ConfigModule (global)
 | `home/` | Landing page | Bilingual via single-file i18n (`index.html` + `i18n.js`); served at `/` and `/en` |
 | `places/` | Leaflet map of points/tracks | Vanilla JS SPA; split-panel desktop / drawer mobile; see AGENTS.md for detailed rules |
 | `reels/` | Unlisted reels catalog | Vanilla JS; served only via `/reels/<secret>` |
-| `diary/` | Diary calendar + note editor | Vanilla JS SPA behind Google sign-in; year-agnostic calendar → `/diary/MM-DD` day view, inline note-text editing, enlarged images with an editable/regenerable description |
+| `diary/` | Diary calendar + note editor | Vanilla JS SPA behind Google sign-in; year-agnostic calendar → `/diary/MM-DD` day view, inline note editing, soft-delete archive (`/diary/archive`), video upload + send-to-Telegram, enlarged images with an editable/regenerable description |
 | `subs/`, `subs-exp/` | Vertical-video subtitle editor (+ experimental variant) | Vanilla JS; dark "workbench" palette allowed; bilingual (static chrome via `subs/i18n.js` + `data-i18n`, dynamic strings via `app.js` TEXT) |
 | `gpx-route-png/` | GPX → PNG route renderer | Fully client-side; bilingual via single-file i18n |
 | `files/` | Files page | Bilingual via single-file i18n |

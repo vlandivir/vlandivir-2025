@@ -215,9 +215,61 @@
 
 .note-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--v-space-2);
   margin-top: var(--v-space-2);
+}
+
+.note-media-host {
+  margin-top: var(--v-space-3);
+}
+
+.video-upload {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--v-space-3);
+  margin-top: var(--v-space-3);
+}
+
+.video-upload-label {
+  cursor: pointer;
+}
+
+.video-upload-label.is-busy {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.video-upload-notify {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--v-space-1);
+  font-size: 13px;
+  color: var(--v-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.archive-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-3);
+  margin-top: var(--v-space-3);
+}
+
+.archive-note-content {
+  margin: 0 0 var(--v-space-2);
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.archive-media-desc {
+  margin: var(--v-space-2) 0 0;
+  font-size: 13px;
+  color: var(--v-muted);
+  white-space: pre-wrap;
 }
 
 .note-status {

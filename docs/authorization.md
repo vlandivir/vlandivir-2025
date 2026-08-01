@@ -49,8 +49,8 @@
 | Записная книжка рилсов (страницы) | `GET /reels`, `GET /reels/:id` | `src/reels-pages.controller.ts` (`GoogleSessionGuard` / `requireSession`) |
 | Дашборд почты (страница) | `GET /email` | `src/email-pages.controller.ts` |
 | API почты | `GET/POST /email-api/*` (stats, messages, sync) | `src/email-api.controller.ts` (guard на классе) |
-| Дневник (страницы) | `GET /diary`, `GET /diary/:MM-DD` | `src/diary-pages.controller.ts` (`GoogleSessionGuard` / `requireSession`); записи скоупятся к личному чату владельца |
-| API дневника | `GET /diary-api/calendar`, `GET /diary-api/day`, `PATCH /diary-api/notes/:id`, `PATCH /diary-api/images/:id`, `POST /diary-api/images/:id/describe`, `PATCH /diary-api/videos/:id` | `src/diary-api.controller.ts` (guard на классе) |
+| Дневник (страницы) | `GET /diary`, `GET /diary/:MM-DD`, `GET /diary/archive` | `src/diary-pages.controller.ts` (`GoogleSessionGuard` / `requireSession`); записи скоупятся к личному чату владельца |
+| API дневника | `GET /diary-api/calendar`, `GET /diary-api/day`, `GET /diary-api/archive`, `PATCH/DELETE /diary-api/notes/:id`, `POST /diary-api/notes/:id/restore`, `POST /diary-api/notes/:id/videos`, `PATCH /diary-api/images/:id`, `POST /diary-api/images/:id/describe`, `PATCH /diary-api/videos/:id`, `POST /diary-api/videos/:id/send` | `src/diary-api.controller.ts` (guard на классе); soft-delete через `Note.deletedAt` |
 | GTD web app | `GET /gtd`, `GET /gtd/link` | `src/gtd/gtd-pages.controller.ts`; Google identity получает личное workspace независимо от Telegram |
 
 ### Google-сессия ИЛИ подписанный Telegram initData

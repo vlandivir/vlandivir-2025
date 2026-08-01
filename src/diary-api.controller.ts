@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   NotFoundException,
   Param,
@@ -10,16 +11,25 @@ import {
   Post,
   Query,
   ServiceUnavailableException,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { endOfDay, startOfDay } from 'date-fns';
+import { readFile, unlink } from 'fs/promises';
+import { tmpdir } from 'os';
 import { GoogleSessionGuard } from './auth/google-session.guard';
-import { DIARY_CHAT_ID } from './diary.constants';
+import { DIARY_CHAT_ID, DIARY_CHAT_ID_NUMBER } from './diary.constants';
 import { PrismaService } from './prisma/prisma.service';
 import { LlmService, DESCRIBE_FAILURE_SENTINELS } from './services/llm.service';
 import { StorageService } from './services/storage.service';
+import { TelegramBotService } from './telegram-bot/telegram-bot.service';
 
 const FIRST_DIARY_YEAR = 1978;
+// Web upload bypasses Telegram getFile's ~20 MB cap; 100 MB is enough for
+// diary clips while staying within typical Spaces/memory limits.
+const MAX_DIARY_VIDEO_BYTES = 100 * 1024 * 1024;
 
 type UpdateNoteBody = {
   content?: string;
@@ -27,6 +37,13 @@ type UpdateNoteBody = {
 
 type UpdateImageBody = {
   description?: string;
+};
+
+type UploadedVideo = {
+  path: string;
+  originalname: string;
+  mimetype: string;
+  size: number;
 };
 
 // Owner-only diary API (page: /diary). Session only, like the email
@@ -38,10 +55,12 @@ export class DiaryApiController {
     private readonly prisma: PrismaService,
     private readonly llmService: LlmService,
     private readonly storageService: StorageService,
+    private readonly telegramBotService: TelegramBotService,
   ) {}
 
   // Which day-of-month cells have at least one note (any year), for the
-  // year-agnostic calendar. Month/day are 1-indexed.
+  // year-agnostic calendar. Month/day are 1-indexed. Soft-deleted notes
+  // are excluded so empty days don't stay highlighted.
   @Get('calendar')
   async calendar() {
     const rows = await this.prisma.$queryRaw<
@@ -53,10 +72,32 @@ export class DiaryApiController {
         COUNT(*)::int AS count
       FROM "Note"
       WHERE "chatId" = ${DIARY_CHAT_ID}
+        AND "deletedAt" IS NULL
       GROUP BY month, day
       ORDER BY month, day
     `;
     return { days: rows };
+  }
+
+  // Soft-deleted notes, newest archive action first.
+  @Get('archive')
+  async archive() {
+    const notes = await this.prisma.note.findMany({
+      where: {
+        chatId: DIARY_CHAT_ID,
+        deletedAt: { not: null },
+      },
+      orderBy: { deletedAt: 'desc' },
+      select: {
+        id: true,
+        content: true,
+        noteDate: true,
+        deletedAt: true,
+        images: { select: { id: true, url: true, description: true } },
+        videos: { select: { id: true, url: true, description: true } },
+      },
+    });
+    return { notes };
   }
 
   // All notes for one day-of-month across every year, newest year first.
@@ -90,6 +131,7 @@ export class DiaryApiController {
         return this.prisma.note.findMany({
           where: {
             chatId: DIARY_CHAT_ID,
+            deletedAt: null,
             noteDate: {
               gte: startOfDay(target),
               lt: endOfDay(target),
@@ -127,7 +169,7 @@ export class DiaryApiController {
     const content = body.content;
 
     const updated = await this.prisma.note.updateMany({
-      where: { id, chatId: DIARY_CHAT_ID },
+      where: { id, chatId: DIARY_CHAT_ID, deletedAt: null },
       data: { content },
     });
     if (updated.count === 0) {
@@ -143,6 +185,151 @@ export class DiaryApiController {
     return { id, content };
   }
 
+  // Soft-delete: note leaves the calendar/day views and bot /d, but stays
+  // recoverable from GET /archive.
+  @Delete('notes/:id')
+  async deleteNote(@Param('id', ParseIntPipe) id: number) {
+    const updated = await this.prisma.note.updateMany({
+      where: { id, chatId: DIARY_CHAT_ID, deletedAt: null },
+      data: { deletedAt: new Date() },
+    });
+    if (updated.count === 0) {
+      throw new NotFoundException('Note not found');
+    }
+
+    await this.prisma.embedding.deleteMany({
+      where: { kind: 'note', refId: id },
+    });
+
+    return { id, deleted: true };
+  }
+
+  @Post('notes/:id/restore')
+  async restoreNote(@Param('id', ParseIntPipe) id: number) {
+    const updated = await this.prisma.note.updateMany({
+      where: { id, chatId: DIARY_CHAT_ID, deletedAt: { not: null } },
+      data: { deletedAt: null },
+    });
+    if (updated.count === 0) {
+      throw new NotFoundException('Archived note not found');
+    }
+
+    return { id, restored: true };
+  }
+
+  // Attach a video to an existing note (web upload; bypasses Bot API 20 MB).
+  // Optional ?notify=1 also pushes the clip to the owner's Telegram chat.
+  @Post('notes/:id/videos')
+  @UseInterceptors(
+    FileInterceptor('video', {
+      dest: tmpdir(),
+      limits: { fileSize: MAX_DIARY_VIDEO_BYTES },
+      fileFilter: (_req, file, callback) => {
+        if (file.mimetype.startsWith('video/')) {
+          callback(null, true);
+          return;
+        }
+        callback(
+          new BadRequestException('Only video files are supported'),
+          false,
+        );
+      },
+    }),
+  )
+  async uploadNoteVideo(
+    @Param('id', ParseIntPipe) id: number,
+    @UploadedFile() file: UploadedVideo | undefined,
+    @Query('notify') notifyArg?: string,
+    @Body() body?: { description?: string },
+  ) {
+    if (!file) {
+      throw new BadRequestException('video file is required');
+    }
+
+    const note = await this.prisma.note.findFirst({
+      where: { id, chatId: DIARY_CHAT_ID, deletedAt: null },
+      select: { id: true, content: true, noteDate: true },
+    });
+    if (!note) {
+      await this.safeUnlink(file.path);
+      throw new NotFoundException('Note not found');
+    }
+
+    let videoUrl: string;
+    try {
+      const buffer = await readFile(file.path);
+      videoUrl = await this.storageService.uploadVideo(
+        buffer,
+        file.mimetype || 'video/mp4',
+        DIARY_CHAT_ID_NUMBER,
+      );
+    } catch (error) {
+      await this.safeUnlink(file.path);
+      throw error;
+    }
+    await this.safeUnlink(file.path);
+
+    const description =
+      typeof body?.description === 'string' ? body.description : '';
+
+    const video = await this.prisma.video.create({
+      data: {
+        url: videoUrl,
+        description,
+        noteId: note.id,
+      },
+      select: { id: true, url: true, description: true },
+    });
+
+    let telegramSent = false;
+    const notify =
+      notifyArg === '1' || notifyArg === 'true' || notifyArg === 'yes';
+    if (notify) {
+      try {
+        await this.telegramBotService.sendDiaryVideo(
+          DIARY_CHAT_ID_NUMBER,
+          video.url,
+          note.content || undefined,
+          note.noteDate,
+        );
+        telegramSent = true;
+      } catch (error) {
+        console.error('Failed to send diary video to Telegram', error);
+      }
+    }
+
+    return { ...video, telegramSent };
+  }
+
+  // Push an already-attached video to the owner's Telegram chat (e.g. after
+  // a web upload that skipped notify, or to re-send).
+  @Post('videos/:id/send')
+  async sendVideoToChat(@Param('id', ParseIntPipe) id: number) {
+    const video = await this.prisma.video.findFirst({
+      where: {
+        id,
+        note: { chatId: DIARY_CHAT_ID, deletedAt: null },
+      },
+      select: {
+        id: true,
+        url: true,
+        note: { select: { content: true, noteDate: true } },
+      },
+    });
+    if (!video?.note) {
+      throw new NotFoundException('Video not found');
+    }
+
+    await this.telegramBotService.sendDiaryVideo(
+      DIARY_CHAT_ID_NUMBER,
+      video.url,
+      video.note.content || undefined,
+      video.note.noteDate,
+    );
+
+    return { id: video.id, sent: true };
+  }
+
   // Edit an image's description (e.g. correct a poor auto-transcription).
   // Scoped to the diary chat via the image's parent note.
   @Patch('images/:id')
@@ -156,7 +343,7 @@ export class DiaryApiController {
     const description = body.description;
 
     const updated = await this.prisma.image.updateMany({
-      where: { id, note: { chatId: DIARY_CHAT_ID } },
+      where: { id, note: { chatId: DIARY_CHAT_ID, deletedAt: null } },
       data: { description },
     });
     if (updated.count === 0) {
@@ -175,7 +362,7 @@ export class DiaryApiController {
   @Post('images/:id/describe')
   async describeImage(@Param('id', ParseIntPipe) id: number) {
     const image = await this.prisma.image.findFirst({
-      where: { id, note: { chatId: DIARY_CHAT_ID } },
+      where: { id, note: { chatId: DIARY_CHAT_ID, deletedAt: null } },
       select: { id: true, url: true, note: { select: { content: true } } },
     });
     if (!image) {
@@ -227,7 +414,7 @@ export class DiaryApiController {
     const description = body.description;
 
     const updated = await this.prisma.video.updateMany({
-      where: { id, note: { chatId: DIARY_CHAT_ID } },
+      where: { id, note: { chatId: DIARY_CHAT_ID, deletedAt: null } },
       data: { description },
     });
     if (updated.count === 0) {
@@ -235,5 +422,13 @@ export class DiaryApiController {
     }
 
     return { id, description };
+  }
+
+  private async safeUnlink(filePath: string): Promise<void> {
+    try {
+      await unlink(filePath);
+    } catch {
+      // temp file may already be gone
+    }
   }
 }

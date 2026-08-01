@@ -21,12 +21,14 @@ model Note {
   noteDate   DateTime  @default(now())
   createdAt  DateTime  @default(now())
   updatedAt  DateTime? @updatedAt
+  deletedAt  DateTime?
   chatId     BigInt
   images     Image[]
   videos     Video[]
 
   @@index([chatId])
   @@index([noteDate])
+  @@index([chatId, deletedAt])
 }
 
 model BotResponse {
