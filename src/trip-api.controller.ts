@@ -87,6 +87,36 @@ export class TripApiController {
     };
   }
 
+  /** Albums created with this browser contributorId (client UUID identity). */
+  @Get('my-trips')
+  async listMyTrips(@Headers('x-contributor-id') contributorHeader?: string) {
+    const contributorId = this.requireContributorId(contributorHeader);
+    const trips = await this.prisma.trip.findMany({
+      where: { ownerContributorId: contributorId },
+      orderBy: { updatedAt: 'desc' },
+      take: 100,
+      select: {
+        id: true,
+        secret: true,
+        title: true,
+        ownerContributorId: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+    return {
+      trips: trips.map((trip) => ({
+        id: trip.id,
+        secret: trip.secret,
+        title: trip.title,
+        ownerContributorId: trip.ownerContributorId,
+        isOwner: true,
+        createdAt: trip.createdAt.toISOString(),
+        updatedAt: trip.updatedAt.toISOString(),
+      })),
+    };
+  }
+
   @Get('trips/:secret')
   async getTrip(@Param('secret') secret: string, @Req() req: Request) {
     const trip = await this.findTripOrThrow(secret);
