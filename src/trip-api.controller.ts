@@ -172,7 +172,7 @@ export class TripApiController {
     });
     // Lazily backfill thumbs / capture metadata (EXIF, device).
     for (const row of rows) {
-      if (!row.thumbUrl || row.cameraModel == null) {
+      if (!row.thumbUrl || row.cameraModel == null || row.exif == null) {
         this.tripThumbs.generateInBackground(row);
       }
     }
@@ -567,9 +567,14 @@ export class TripApiController {
     durationMs: number | null;
     takenAt: Date | null;
     cameraModel: string | null;
+    exif?: unknown;
     createdAt: Date;
     deletedAt: Date | null;
   }) {
+    const exif =
+      row.exif && typeof row.exif === 'object' && !Array.isArray(row.exif)
+        ? (row.exif as Record<string, unknown>)
+        : null;
     return {
       id: row.id,
       tripId: row.tripId,
@@ -588,7 +593,8 @@ export class TripApiController {
       durationMs: row.durationMs,
       takenAt: row.takenAt?.toISOString() ?? null,
       cameraModel: row.cameraModel ? row.cameraModel : null,
-      metaReady: row.cameraModel != null,
+      exif,
+      metaReady: row.cameraModel != null && row.exif != null,
       createdAt: row.createdAt.toISOString(),
       deletedAt: row.deletedAt?.toISOString() ?? null,
       deleted: Boolean(row.deletedAt),

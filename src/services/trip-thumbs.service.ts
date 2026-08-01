@@ -5,6 +5,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import * as exifr from 'exifr';
 import * as sharp from 'sharp';
+import { Prisma } from '../generated/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from './storage.service';
 
@@ -27,6 +28,7 @@ type ThumbSource = {
   cameraModel?: string | null;
   width?: number | null;
   height?: number | null;
+  exif?: Prisma.JsonValue | null;
 };
 
 type CaptureMeta = {
@@ -34,6 +36,7 @@ type CaptureMeta = {
   cameraModel?: string | null;
   width?: number | null;
   height?: number | null;
+  exif?: Prisma.InputJsonObject;
 };
 
 @Injectable()
@@ -67,22 +70,53 @@ export class TripThumbsService {
     void this.ensureThumb(media);
   }
 
+  private needsCaptureMeta(media: ThumbSource): boolean {
+    return media.cameraModel == null || media.exif == null;
+  }
+
   private async ensurePhotoThumbAndMeta(
     media: ThumbSource,
   ): Promise<string | null> {
-    if (media.thumbUrl && media.cameraModel != null) {
+    if (media.thumbUrl && !this.needsCaptureMeta(media)) {
       return media.thumbUrl;
     }
 
     const size = Number(media.size);
-    if (Number.isFinite(size) && size > MAX_IMAGE_BYTES_FOR_THUMB) {
+    const tooLarge = Number.isFinite(size) && size > MAX_IMAGE_BYTES_FOR_THUMB;
+    if (tooLarge && media.thumbUrl && !this.needsCaptureMeta(media)) {
+      return media.thumbUrl;
+    }
+
+    if (tooLarge && !media.thumbUrl && !this.needsCaptureMeta(media)) {
       this.logger.warn(
         `Skip image thumb for ${media.id}: ${size} bytes too large`,
       );
-      if (media.cameraModel == null) {
+      return media.thumbUrl;
+    }
+
+    if (tooLarge && this.needsCaptureMeta(media) && media.thumbUrl) {
+      // Too big to re-download just for EXIF — mark inspected.
+      await this.prisma.tripMedia.update({
+        where: { id: media.id },
+        data: {
+          cameraModel: media.cameraModel ?? '',
+          exif: media.exif ?? {},
+        },
+      });
+      return media.thumbUrl;
+    }
+
+    if (tooLarge) {
+      this.logger.warn(
+        `Skip image thumb for ${media.id}: ${size} bytes too large`,
+      );
+      if (this.needsCaptureMeta(media)) {
         await this.prisma.tripMedia.update({
           where: { id: media.id },
-          data: { cameraModel: '' },
+          data: {
+            cameraModel: media.cameraModel ?? '',
+            exif: media.exif ?? {},
+          },
         });
       }
       return media.thumbUrl;
@@ -94,7 +128,9 @@ export class TripThumbsService {
       media.originalFilename,
     );
     const original = await this.storage.downloadByKey(key);
-    const capture = await this.readImageCaptureMeta(original);
+    const capture = this.needsCaptureMeta(media)
+      ? await this.readImageCaptureMeta(original)
+      : {};
 
     let thumbUrl = media.thumbUrl;
     if (!thumbUrl) {
@@ -113,15 +149,20 @@ export class TripThumbsService {
       );
     }
 
-    // cameraModel '' means "inspected, no device tag" so list won't re-scan forever.
+    // cameraModel '' / exif {} means "inspected, none" so list won't re-scan.
     await this.prisma.tripMedia.update({
       where: { id: media.id },
       data: {
         thumbUrl,
-        takenAt: media.takenAt ?? capture.takenAt ?? undefined,
-        cameraModel: media.cameraModel ?? capture.cameraModel ?? '',
-        width: media.width ?? capture.width ?? undefined,
-        height: media.height ?? capture.height ?? undefined,
+        ...(this.needsCaptureMeta(media)
+          ? {
+              takenAt: media.takenAt ?? capture.takenAt ?? undefined,
+              cameraModel: media.cameraModel ?? capture.cameraModel ?? '',
+              width: media.width ?? capture.width ?? undefined,
+              height: media.height ?? capture.height ?? undefined,
+              exif: capture.exif ?? {},
+            }
+          : {}),
       },
     });
     return thumbUrl;
@@ -130,7 +171,7 @@ export class TripThumbsService {
   private async ensureVideoThumbAndMeta(
     media: ThumbSource,
   ): Promise<string | null> {
-    if (media.thumbUrl && media.cameraModel != null) {
+    if (media.thumbUrl && !this.needsCaptureMeta(media)) {
       return media.thumbUrl;
     }
 
@@ -156,7 +197,7 @@ export class TripThumbsService {
       }
     }
 
-    const needsMeta = media.cameraModel == null;
+    const needsMeta = this.needsCaptureMeta(media);
     const capture = needsMeta ? await this.readVideoCaptureMeta(media.url) : {};
 
     await this.prisma.tripMedia.update({
@@ -168,7 +209,8 @@ export class TripThumbsService {
         ...(needsMeta
           ? {
               takenAt: capture.takenAt ?? media.takenAt ?? undefined,
-              cameraModel: capture.cameraModel ?? '',
+              cameraModel: media.cameraModel ?? capture.cameraModel ?? '',
+              exif: capture.exif ?? {},
             }
           : {}),
       },
@@ -177,7 +219,7 @@ export class TripThumbsService {
   }
 
   private async readImageCaptureMeta(buffer: Buffer): Promise<CaptureMeta> {
-    const meta: CaptureMeta = {};
+    const meta: CaptureMeta = { exif: {} };
     try {
       const image = sharp(buffer);
       const sharpMeta = await image.metadata();
@@ -188,22 +230,23 @@ export class TripThumbsService {
     }
 
     try {
-      // OffsetTime* is required so naive EXIF datetimes are not treated as UTC
-      // (iPhone photos otherwise sort ~2h off vs QuickTime videos).
+      // Full EXIF for the lightbox; OffsetTime* keeps naive datetimes local.
       const exif = (await exifr.parse(buffer, {
-        pick: [
-          'DateTimeOriginal',
-          'CreateDate',
-          'ModifyDate',
-          'OffsetTimeOriginal',
-          'OffsetTime',
-          'OffsetTimeDigitized',
-          'Make',
-          'Model',
-          'LensModel',
-        ],
+        gps: true,
+        icc: false,
+        iptc: true,
+        xmp: true,
+        interop: true,
+        translateKeys: true,
+        translateValues: true,
+        reviveValues: true,
+        sanitize: true,
+        mergeOutput: true,
       })) as Record<string, unknown> | undefined;
+
       if (!exif) return meta;
+
+      meta.exif = this.toJsonObject(exif);
 
       const taken =
         exif.DateTimeOriginal instanceof Date
@@ -257,18 +300,132 @@ export class TripThumbsService {
       ) {
         camera = model;
       }
+
+      const format = json.format || {};
+      const streams = (json.streams || []).map((stream) => {
+        const {
+          index,
+          codec_type: codecType,
+          codec_name: codecName,
+          width,
+          height,
+          duration,
+          bit_rate: bitRate,
+          tags: streamTags,
+        } = stream as {
+          index?: number;
+          codec_type?: string;
+          codec_name?: string;
+          width?: number;
+          height?: number;
+          duration?: string;
+          bit_rate?: string;
+          tags?: Record<string, string>;
+        };
+        return this.toJsonObject({
+          index,
+          codecType,
+          codecName,
+          width,
+          height,
+          duration,
+          bitRate,
+          ...(streamTags && Object.keys(streamTags).length
+            ? { tags: streamTags }
+            : {}),
+        });
+      });
+
+      const exif = this.toJsonObject({
+        ...tags,
+        ...(typeof format.format_name === 'string'
+          ? { formatName: format.format_name }
+          : {}),
+        ...(typeof format.duration === 'string'
+          ? { duration: format.duration }
+          : {}),
+        ...(typeof format.size === 'string' ? { formatSize: format.size } : {}),
+        ...(typeof format.bit_rate === 'string'
+          ? { bitRate: format.bit_rate }
+          : {}),
+        ...(streams.length ? { streams } : {}),
+      });
+
       return {
         takenAt,
         cameraModel: camera ? camera.slice(0, 120) : null,
+        exif,
       };
     } catch {
-      return {};
+      return { exif: {} };
     }
   }
 
+  /** JSON-safe plain object for Prisma Json columns (Dates → ISO, drop junk). */
+  private toJsonObject(value: unknown): Prisma.InputJsonObject {
+    const seen = new WeakSet<object>();
+    const walk = (input: unknown): Prisma.JsonValue => {
+      if (input == null) return null;
+      if (typeof input === 'string' || typeof input === 'boolean') return input;
+      if (typeof input === 'number') {
+        return Number.isFinite(input) ? input : String(input);
+      }
+      if (typeof input === 'bigint') return input.toString();
+      if (input instanceof Date) {
+        return Number.isNaN(input.getTime())
+          ? String(input)
+          : input.toISOString();
+      }
+      if (typeof Buffer !== 'undefined' && Buffer.isBuffer(input)) {
+        return `[binary ${input.length} bytes]`;
+      }
+      if (ArrayBuffer.isView(input)) {
+        return `[binary ${(input as ArrayBufferView).byteLength} bytes]`;
+      }
+      if (Array.isArray(input)) {
+        return input.map((item) => walk(item));
+      }
+      if (typeof input === 'object') {
+        if (seen.has(input)) return '[circular]';
+        seen.add(input);
+        const out: Record<string, Prisma.JsonValue> = {};
+        for (const [key, nested] of Object.entries(
+          input as Record<string, unknown>,
+        )) {
+          if (typeof nested === 'function' || typeof nested === 'undefined') {
+            continue;
+          }
+          out[key] = walk(nested);
+        }
+        return out;
+      }
+      return String(input);
+    };
+    const result = walk(value);
+    if (result && typeof result === 'object' && !Array.isArray(result)) {
+      return result as Prisma.InputJsonObject;
+    }
+    return {};
+  }
+
   private collectFfprobeTags(json: {
-    format?: { tags?: Record<string, string> };
-    streams?: Array<{ tags?: Record<string, string> }>;
+    format?: {
+      tags?: Record<string, string>;
+      format_name?: string;
+      duration?: string;
+      size?: string;
+      bit_rate?: string;
+    };
+    streams?: Array<{
+      tags?: Record<string, string>;
+      index?: number;
+      codec_type?: string;
+      codec_name?: string;
+      width?: number;
+      height?: number;
+      duration?: string;
+      bit_rate?: string;
+    }>;
   }): Record<string, string> {
     const out: Record<string, string> = {};
     const add = (tags?: Record<string, string>) => {
@@ -365,8 +522,23 @@ export class TripThumbsService {
   }
 
   private runFfprobeJson(url: string): Promise<{
-    format?: { tags?: Record<string, string> };
-    streams?: Array<{ tags?: Record<string, string> }>;
+    format?: {
+      tags?: Record<string, string>;
+      format_name?: string;
+      duration?: string;
+      size?: string;
+      bit_rate?: string;
+    };
+    streams?: Array<{
+      tags?: Record<string, string>;
+      index?: number;
+      codec_type?: string;
+      codec_name?: string;
+      width?: number;
+      height?: number;
+      duration?: string;
+      bit_rate?: string;
+    }>;
   }> {
     return new Promise((resolve, reject) => {
       const child = spawn(
@@ -397,12 +569,7 @@ export class TripThumbsService {
           return;
         }
         try {
-          resolve(
-            JSON.parse(stdout) as {
-              format?: { tags?: Record<string, string> };
-              streams?: Array<{ tags?: Record<string, string> }>;
-            },
-          );
+          resolve(JSON.parse(stdout));
         } catch (error) {
           reject(error);
         }
