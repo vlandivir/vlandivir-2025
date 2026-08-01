@@ -11,6 +11,7 @@
       subs: 'Subs',
       gpx: 'GPX',
       files: 'Ваши файлы',
+      gtd: 'GTD',
       instagram: 'Instagram',
       instagramLabel: 'Открыть Instagram @vlandivir',
       login: 'Войти',
@@ -25,6 +26,7 @@
       subs: 'Subs',
       gpx: 'GPX',
       files: 'Files',
+      gtd: 'GTD',
       instagram: 'Instagram',
       instagramLabel: 'Open Instagram @vlandivir',
       login: 'Sign in',
@@ -56,6 +58,7 @@
       subs: lang === 'en' ? '/subs/en' : '/subs/',
       gpx: lang === 'en' ? '/gpx-route-png/en' : '/gpx-route-png/',
       files: lang === 'en' ? '/files/en' : '/files/',
+      gtd: '/gtd',
     };
   }
 
@@ -117,7 +120,11 @@
         text: copy.places,
         active: active === 'places',
       }),
-      makeLink({ href: paths.subs, text: copy.subs, active: active === 'subs' }),
+      makeLink({
+        href: paths.subs,
+        text: copy.subs,
+        active: active === 'subs',
+      }),
       makeLink({ href: paths.gpx, text: copy.gpx, active: active === 'gpx' }),
       makeLink({
         href: paths.files,
@@ -151,6 +158,13 @@
     right.append(account);
     void fetchMe().then((me) => {
       if (me && me.authenticated) {
+        nav.append(
+          makeLink({
+            href: paths.gtd,
+            text: copy.gtd,
+            active: active === 'gtd',
+          }),
+        );
         const email = document.createElement('span');
         email.className = 'v-site-header__email';
         email.textContent = me.email;

@@ -3,10 +3,11 @@ declare global {
     Telegram?: {
       WebApp?: {
         initData?: string;
+        ready?: () => void;
+        expand?: () => void;
+        openLink?: (url: string) => void;
       };
     };
   }
 }
 export {};
-
-
