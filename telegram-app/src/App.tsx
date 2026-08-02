@@ -110,14 +110,19 @@ async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-async function downloadAttachment(attachment: Attachment) {
+async function fetchAttachmentBlob(attachment: Attachment) {
   const headers = new Headers();
   if (initData) headers.set('x-telegram-init-data', initData);
   const response = await fetch(`/gtd-api/attachments/${attachment.id}`, {
     headers,
+    credentials: 'same-origin',
   });
-  if (!response.ok) throw new Error('Не удалось скачать файл');
-  const blob = await response.blob();
+  if (!response.ok) throw new Error('Не удалось загрузить файл');
+  return response.blob();
+}
+
+async function downloadAttachment(attachment: Attachment) {
+  const blob = await fetchAttachmentBlob(attachment);
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
@@ -125,6 +130,14 @@ async function downloadAttachment(attachment: Attachment) {
   anchor.target = '_blank';
   anchor.click();
   setTimeout(() => URL.revokeObjectURL(url), 30_000);
+}
+
+function isImageAttachment(attachment: Attachment) {
+  return attachment.mimeType.startsWith('image/');
+}
+
+function isVideoAttachment(attachment: Attachment) {
+  return attachment.mimeType.startsWith('video/');
 }
 
 function formatDate(value: string) {
@@ -140,6 +153,181 @@ function formatDate(value: string) {
 function fileSize(bytes: number) {
   if (bytes < 1024 * 1024) return `${Math.ceil(bytes / 1024)} КБ`;
   return `${(bytes / 1024 / 1024).toFixed(1)} МБ`;
+}
+
+const ATTACH_ACCEPT =
+  'image/*,video/*,.pdf,.txt,.md,.doc,.docx,.xls,.xlsx,.ppt,.pptx';
+
+/** Auth'd blob URL — Telegram Mini App can't put initData on <img src>. */
+function useAttachmentObjectUrl(attachment: Attachment) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    let cancelled = false;
+    setUrl(null);
+    setFailed(false);
+    void fetchAttachmentBlob(attachment)
+      .then((blob) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setUrl(objectUrl);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [attachment.id]);
+
+  return { url, failed };
+}
+
+function AttachmentPreview({
+  attachment,
+  compact = false,
+}: {
+  attachment: Attachment;
+  compact?: boolean;
+}) {
+  const toast = useToast();
+  const media = isImageAttachment(attachment) || isVideoAttachment(attachment);
+  const { url, failed } = useAttachmentObjectUrl(attachment);
+
+  if (!media) {
+    return (
+      <Button
+        variant="outline"
+        justifyContent="space-between"
+        fontWeight="normal"
+        width="100%"
+        onClick={() =>
+          void downloadAttachment(attachment).catch((reason: unknown) =>
+            toast({ status: 'error', title: String(reason) }),
+          )
+        }
+      >
+        <Text noOfLines={1}>{attachment.originalName}</Text>
+        <Text color="shadcn.mutedForeground" fontSize="xs">
+          {fileSize(attachment.size)}
+        </Text>
+      </Button>
+    );
+  }
+
+  return (
+    <Box
+      borderWidth="1px"
+      borderColor="shadcn.border"
+      borderRadius="md"
+      overflow="hidden"
+      bg="shadcn.muted"
+    >
+      {failed && (
+        <Button
+          variant="ghost"
+          width="100%"
+          borderRadius={0}
+          onClick={() =>
+            void downloadAttachment(attachment).catch((reason: unknown) =>
+              toast({ status: 'error', title: String(reason) }),
+            )
+          }
+        >
+          Не удалось показать · скачать
+        </Button>
+      )}
+      {!failed && !url && (
+        <Flex align="center" justify="center" minH={compact ? '96px' : '160px'}>
+          <Spinner size="sm" />
+        </Flex>
+      )}
+      {url && isImageAttachment(attachment) && (
+        <Box
+          as="a"
+          href={url}
+          target="_blank"
+          rel="noreferrer"
+          display="block"
+          cursor="zoom-in"
+        >
+          <Box
+            as="img"
+            src={url}
+            alt={attachment.originalName}
+            maxH={compact ? '160px' : '360px'}
+            w="100%"
+            objectFit="contain"
+            display="block"
+            bg="blackAlpha.50"
+          />
+        </Box>
+      )}
+      {url && isVideoAttachment(attachment) && (
+        <Box
+          as="video"
+          src={url}
+          controls
+          playsInline
+          preload="metadata"
+          maxH={compact ? '200px' : '420px'}
+          w="100%"
+          display="block"
+          bg="black"
+        />
+      )}
+      <Flex
+        px={3}
+        py={2}
+        justify="space-between"
+        gap={2}
+        align="center"
+        borderTopWidth="1px"
+        borderColor="shadcn.border"
+        bg="shadcn.card"
+      >
+        <Text fontSize="xs" noOfLines={1} title={attachment.originalName}>
+          {attachment.originalName}
+        </Text>
+        <Button
+          size="xs"
+          variant="ghost"
+          flexShrink={0}
+          onClick={() =>
+            void downloadAttachment(attachment).catch((reason: unknown) =>
+              toast({ status: 'error', title: String(reason) }),
+            )
+          }
+        >
+          Скачать
+        </Button>
+      </Flex>
+    </Box>
+  );
+}
+
+function AttachmentsList({
+  attachments,
+  compact = false,
+}: {
+  attachments: Attachment[];
+  compact?: boolean;
+}) {
+  if (attachments.length === 0) return null;
+  return (
+    <Stack spacing={3}>
+      {attachments.map((attachment) => (
+        <AttachmentPreview
+          key={attachment.id}
+          attachment={attachment}
+          compact={compact}
+        />
+      ))}
+    </Stack>
+  );
 }
 
 export default function App() {
@@ -510,26 +698,9 @@ function TaskCard(props: {
       </Flex>
 
       {task.attachments.length > 0 && (
-        <Stack spacing={2} mb={5}>
-          {task.attachments.map((attachment) => (
-            <Button
-              key={attachment.id}
-              variant="outline"
-              justifyContent="space-between"
-              fontWeight="normal"
-              onClick={() =>
-                void downloadAttachment(attachment).catch((reason: unknown) =>
-                  toast({ status: 'error', title: String(reason) }),
-                )
-              }
-            >
-              <Text noOfLines={1}>{attachment.originalName}</Text>
-              <Text color="shadcn.mutedForeground" fontSize="xs">
-                {fileSize(attachment.size)}
-              </Text>
-            </Button>
-          ))}
-        </Stack>
+        <Box mb={5}>
+          <AttachmentsList attachments={task.attachments} />
+        </Box>
       )}
 
       <Flex wrap="wrap" gap={2} mb={5}>
@@ -552,7 +723,7 @@ function TaskCard(props: {
           hidden
           type="file"
           multiple
-          accept="image/*,.pdf,.txt,.md,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+          accept={ATTACH_ACCEPT}
           onChange={(event) => void upload(event.target.files)}
         />
       </Flex>
@@ -697,7 +868,7 @@ function CreateTaskModal({
               <Input
                 type="file"
                 multiple
-                accept="image/*,.pdf,.txt,.md,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                accept={ATTACH_ACCEPT}
                 onChange={(event) =>
                   setFiles(Array.from(event.target.files || []).slice(0, 10))
                 }
@@ -955,7 +1126,15 @@ function ArchiveModal({
                     {task.status === 'COMPLETED' ? 'Выполнено' : 'Отменено'}
                   </Badge>
                   <Text whiteSpace="pre-wrap">{task.content}</Text>
-                  <Text fontSize="xs" color="shadcn.mutedForeground">
+                  {task.attachments.length > 0 && (
+                    <Box mt={3}>
+                      <AttachmentsList
+                        attachments={task.attachments}
+                        compact
+                      />
+                    </Box>
+                  )}
+                  <Text fontSize="xs" color="shadcn.mutedForeground" mt={2}>
                     {formatDate(task.updatedAt)}
                   </Text>
                 </Box>
