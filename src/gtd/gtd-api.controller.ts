@@ -125,9 +125,11 @@ export class GtdApiController {
     );
     res.setHeader('Content-Type', result.attachment.mimeType);
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    const disposition = result.attachment.mimeType.startsWith('image/')
-      ? 'inline'
-      : 'attachment';
+    const mime = result.attachment.mimeType;
+    const disposition =
+      mime.startsWith('image/') || mime.startsWith('video/')
+        ? 'inline'
+        : 'attachment';
     res.setHeader(
       'Content-Disposition',
       `${disposition}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(result.attachment.originalName)}`,

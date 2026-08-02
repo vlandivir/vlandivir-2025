@@ -604,6 +604,13 @@ export class GtdService {
         'image/heif',
       ].includes(mime) ||
       [
+        'video/mp4',
+        'video/quicktime',
+        'video/webm',
+        'video/x-m4v',
+        'video/3gpp',
+      ].includes(mime) ||
+      [
         'application/pdf',
         'text/plain',
         'text/markdown',
