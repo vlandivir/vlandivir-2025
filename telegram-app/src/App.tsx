@@ -516,22 +516,12 @@ function GtdApp() {
 
   return (
     <PageShell>
-      <Flex align="center" justify="space-between" gap={3} mb={5}>
-        <Box>
-          <Heading size="lg">GTD</Heading>
-          <Text fontSize="sm" color="shadcn.mutedForeground">
-            {data?.identity.displayName || 'Загрузка…'}
-          </Text>
-        </Box>
-        <ButtonGroup size="sm" variant="outline" spacing={2}>
-          <Button onClick={archive.onOpen}>Архив</Button>
-          <IconButton
-            aria-label="Настройки"
-            icon={<Text fontSize="lg">⋯</Text>}
-            onClick={settings.onOpen}
-          />
-        </ButtonGroup>
-      </Flex>
+      <Box mb={5}>
+        <Heading size="lg">GTD</Heading>
+        <Text fontSize="sm" color="shadcn.mutedForeground">
+          {data?.identity.displayName || 'Загрузка…'}
+        </Text>
+      </Box>
 
       {error && (
         <Alert status="error" mb={4}>
@@ -540,7 +530,22 @@ function GtdApp() {
         </Alert>
       )}
 
-      <Flex gap={2} mb={4} wrap={{ base: 'wrap', md: 'nowrap' }}>
+      {busy && !data ? (
+        <Flex justify="center" py={24}>
+          <Spinner />
+        </Flex>
+      ) : (
+        <TaskCard
+          task={data?.currentTask || null}
+          busy={busy}
+          onAction={action}
+          onEdit={edit.onOpen}
+          onHistory={history.onOpen}
+          onRefresh={() => refresh(true)}
+        />
+      )}
+
+      <Flex gap={2} mt={4} wrap={{ base: 'wrap', md: 'nowrap' }}>
         <Select
           value={scope}
           onChange={(event) => setScope(event.target.value)}
@@ -563,22 +568,18 @@ function GtdApp() {
           ＋
         </Button>
       </Flex>
-
-      {busy && !data ? (
-        <Flex justify="center" py={24}>
-          <Spinner />
-        </Flex>
-      ) : (
-        <TaskCard
-          task={data?.currentTask || null}
-          counts={data?.counts}
-          busy={busy}
-          onAction={action}
-          onEdit={edit.onOpen}
-          onHistory={history.onOpen}
-          onRefresh={() => refresh(true)}
+      <Flex gap={2} mt={2} justify="flex-end">
+        <Button size="sm" variant="outline" onClick={archive.onOpen}>
+          Архив
+        </Button>
+        <IconButton
+          aria-label="Настройки"
+          size="sm"
+          variant="outline"
+          icon={<Text fontSize="lg">⋯</Text>}
+          onClick={settings.onOpen}
         />
-      )}
+      </Flex>
 
       <CreateTaskModal
         disclosure={create}
@@ -612,7 +613,6 @@ function GtdApp() {
 
 function TaskCard(props: {
   task: Task | null;
-  counts?: Bootstrap['counts'];
   busy: boolean;
   onAction: (action: string) => void;
   onEdit: () => void;
@@ -669,33 +669,18 @@ function TaskCard(props: {
 
   return (
     <Panel>
-      <Flex
-        justify="space-between"
-        align={{ base: 'stretch', sm: 'start' }}
-        direction={{ base: 'column', sm: 'row' }}
-        gap={4}
-        mb={6}
-      >
-        <Box minW="0" flex="1">
-          <Badge mb={3}>{task.project?.name || 'Входящие'}</Badge>
-          <Text
-            fontSize={{ base: 'xl', md: '2xl' }}
-            fontWeight="semibold"
-            whiteSpace="pre-wrap"
-            overflowWrap="anywhere"
-          >
-            {task.content}
-          </Text>
-        </Box>
+      <Box mb={6}>
+        <Badge mb={3}>{task.project?.name || 'Входящие'}</Badge>
         <Text
-          color="shadcn.mutedForeground"
-          fontSize="sm"
-          whiteSpace="nowrap"
-          alignSelf={{ base: 'flex-start', sm: 'auto' }}
+          fontSize={{ base: '2xl', md: '3xl' }}
+          fontWeight="semibold"
+          whiteSpace="pre-wrap"
+          overflowWrap="anywhere"
+          lineHeight="short"
         >
-          {props.counts?.available || 0} доступно
+          {task.content}
         </Text>
-      </Flex>
+      </Box>
 
       {task.attachments.length > 0 && (
         <Box mb={5}>
