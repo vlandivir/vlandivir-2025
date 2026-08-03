@@ -46,6 +46,28 @@
     hour: '2-digit',
     minute: '2-digit',
   });
+  const noteTimeFormat = new Intl.DateTimeFormat('ru-RU', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  function truncateText(value, max) {
+    const text = String(value || '').replace(/\s+/g, ' ').trim();
+    if (!text) return '';
+    if (text.length <= max) return text;
+    return `${text.slice(0, max - 1).trimEnd()}…`;
+  }
+
+  function captionSummaryLabel(kind, description) {
+    const preview = truncateText(description, 72);
+    if (preview) return `Описание · ${preview}`;
+    return kind === 'video' ? 'Добавить описание видео' : 'Добавить описание';
+  }
+
+  function autosizeNoteEditor(editor) {
+    editor.style.height = 'auto';
+    editor.style.height = `${Math.max(editor.scrollHeight, 72)}px`;
+  }
 
   const el = (id) => document.getElementById(id);
   const calendarView = el('calendar-view');
@@ -243,7 +265,7 @@
 
   function renderYearBlock(entry) {
     const block = document.createElement('div');
-    block.className = 'editor-card year-block';
+    block.className = 'year-block';
 
     const head = document.createElement('h2');
     head.className = 'year-head';
@@ -354,20 +376,33 @@
     item.className = 'note-item';
     item.dataset.noteId = String(note.id);
 
-    const date = document.createElement('div');
-    date.className = 'note-date';
-    date.textContent = note.noteDate
-      ? noteDateFormat.format(new Date(note.noteDate))
-      : '';
-    item.append(date);
+    const meta = document.createElement('div');
+    meta.className = 'note-meta';
+    if (note.noteDate) {
+      const time = document.createElement('time');
+      time.className = 'note-time';
+      time.dateTime = note.noteDate;
+      time.textContent = noteTimeFormat.format(new Date(note.noteDate));
+      meta.append(time);
+    }
+    item.append(meta);
 
     const editor = document.createElement('textarea');
     editor.className = 'note-editor';
     editor.value = note.content || '';
+    editor.placeholder = 'Что произошло…';
+    editor.rows = 3;
     item.append(editor);
+    requestAnimationFrame(() => autosizeNoteEditor(editor));
 
-    const actions = document.createElement('div');
-    actions.className = 'note-actions';
+    const mediaHost = document.createElement('div');
+    mediaHost.className = 'note-media-host';
+    const media = renderMedia(note);
+    if (media) mediaHost.append(media);
+    item.append(mediaHost);
+
+    const toolbar = document.createElement('div');
+    toolbar.className = 'note-toolbar';
 
     const saveBtn = document.createElement('button');
     saveBtn.className = 'primary-btn';
@@ -388,23 +423,19 @@
     deleteBtn.addEventListener('click', () =>
       deleteNote(note.id, item, deleteBtn, status),
     );
-
-    // Re-enable the save button once the text changes after a save.
     editor.addEventListener('input', () => {
+      autosizeNoteEditor(editor);
       status.textContent = '';
       status.className = 'note-status';
     });
 
-    actions.append(saveBtn, deleteBtn, status);
-    item.append(actions);
-
-    const mediaHost = document.createElement('div');
-    mediaHost.className = 'note-media-host';
-    const media = renderMedia(note);
-    if (media) mediaHost.append(media);
-    item.append(mediaHost);
-
-    item.append(renderVideoUpload(note, mediaHost, status));
+    toolbar.append(
+      saveBtn,
+      deleteBtn,
+      renderVideoUpload(note, mediaHost, status),
+      status,
+    );
+    item.append(toolbar);
 
     return item;
   }
@@ -437,12 +468,52 @@
     return box;
   }
 
+  function renderMediaCaption(kind, initialDescription, buildActions) {
+    const details = document.createElement('details');
+    details.className = 'media-caption';
+    if (!initialDescription) details.open = true;
+
+    const summary = document.createElement('summary');
+    summary.className = 'media-caption-summary';
+    summary.textContent = captionSummaryLabel(kind, initialDescription);
+    details.append(summary);
+
+    const body = document.createElement('div');
+    body.className = 'media-caption-body';
+
+    const desc = document.createElement('textarea');
+    desc.className = 'desc-editor';
+    desc.value = initialDescription || '';
+    desc.placeholder = 'Описание пока не задано';
+    body.append(desc);
+
+    const actions = document.createElement('div');
+    actions.className = 'note-actions';
+    const status = document.createElement('span');
+    status.className = 'note-status';
+
+    const syncSummary = () => {
+      summary.textContent = captionSummaryLabel(kind, desc.value);
+    };
+    desc.addEventListener('input', () => {
+      status.textContent = '';
+      status.className = 'note-status';
+      syncSummary();
+    });
+
+    buildActions({ desc, actions, status, syncSummary });
+    actions.append(status);
+    body.append(actions);
+    details.append(body);
+    return details;
+  }
+
   function renderImage(image, options = {}) {
     const card = document.createElement('div');
-    card.className = 'image-block';
+    card.className = 'media-block';
 
     const img = document.createElement('img');
-    img.className = 'image-photo';
+    img.className = 'media-photo';
     img.src = image.url;
     img.loading = 'lazy';
     img.alt = image.description || 'Фото';
@@ -458,50 +529,35 @@
       return card;
     }
 
-    const editorWrap = document.createElement('div');
-    editorWrap.className = 'image-editor';
+    card.append(
+      renderMediaCaption('image', image.description, ({ desc, actions, status, syncSummary }) => {
+        const saveBtn = document.createElement('button');
+        saveBtn.className = 'mini-btn';
+        saveBtn.type = 'button';
+        saveBtn.textContent = 'Сохранить';
 
-    const label = document.createElement('div');
-    label.className = 'image-desc-label';
-    label.textContent = 'Описание изображения';
-    editorWrap.append(label);
+        const regenBtn = document.createElement('button');
+        regenBtn.className = 'mini-btn';
+        regenBtn.type = 'button';
+        regenBtn.textContent = 'Сгенерировать';
 
-    const desc = document.createElement('textarea');
-    desc.className = 'desc-editor';
-    desc.value = image.description || '';
-    desc.placeholder = 'Описание пока не задано';
-    editorWrap.append(desc);
+        saveBtn.addEventListener('click', async () => {
+          await saveImageDescription(image.id, desc, saveBtn, status);
+          syncSummary();
+        });
+        regenBtn.addEventListener('click', async () => {
+          await regenerateImageDescription(
+            image.id,
+            desc,
+            [saveBtn, regenBtn],
+            status,
+          );
+          syncSummary();
+        });
 
-    const actions = document.createElement('div');
-    actions.className = 'note-actions';
-
-    const saveBtn = document.createElement('button');
-    saveBtn.className = 'primary-btn';
-    saveBtn.type = 'button';
-    saveBtn.textContent = 'Сохранить описание';
-
-    const regenBtn = document.createElement('button');
-    regenBtn.className = 'ghost-btn';
-    regenBtn.type = 'button';
-    regenBtn.textContent = 'Сгенерировать заново';
-
-    const status = document.createElement('span');
-    status.className = 'note-status';
-
-    saveBtn.addEventListener('click', () =>
-      saveImageDescription(image.id, desc, saveBtn, status),
+        actions.append(saveBtn, regenBtn);
+      }),
     );
-    regenBtn.addEventListener('click', () =>
-      regenerateImageDescription(image.id, desc, [saveBtn, regenBtn], status),
-    );
-    desc.addEventListener('input', () => {
-      status.textContent = '';
-      status.className = 'note-status';
-    });
-
-    actions.append(saveBtn, regenBtn, status);
-    editorWrap.append(actions);
-    card.append(editorWrap);
     return card;
   }
 
@@ -548,11 +604,11 @@
 
   function renderVideo(video, options = {}) {
     const card = document.createElement('div');
-    card.className = 'image-block';
+    card.className = 'media-block';
     card.dataset.videoId = String(video.id);
 
     const player = document.createElement('video');
-    player.className = 'image-photo';
+    player.className = 'media-photo';
     player.src = video.url;
     player.controls = true;
     player.preload = 'metadata';
@@ -568,50 +624,29 @@
       return card;
     }
 
-    const editorWrap = document.createElement('div');
-    editorWrap.className = 'image-editor';
+    card.append(
+      renderMediaCaption('video', video.description, ({ desc, actions, status, syncSummary }) => {
+        const saveBtn = document.createElement('button');
+        saveBtn.className = 'mini-btn';
+        saveBtn.type = 'button';
+        saveBtn.textContent = 'Сохранить';
 
-    const label = document.createElement('div');
-    label.className = 'image-desc-label';
-    label.textContent = 'Описание видео';
-    editorWrap.append(label);
+        const sendBtn = document.createElement('button');
+        sendBtn.className = 'mini-btn';
+        sendBtn.type = 'button';
+        sendBtn.textContent = 'В Telegram';
 
-    const desc = document.createElement('textarea');
-    desc.className = 'desc-editor';
-    desc.value = video.description || '';
-    desc.placeholder = 'Описание пока не задано';
-    editorWrap.append(desc);
+        saveBtn.addEventListener('click', async () => {
+          await saveVideoDescription(video.id, desc, saveBtn, status);
+          syncSummary();
+        });
+        sendBtn.addEventListener('click', () =>
+          sendVideoToTelegram(video.id, sendBtn, status),
+        );
 
-    const actions = document.createElement('div');
-    actions.className = 'note-actions';
-
-    const saveBtn = document.createElement('button');
-    saveBtn.className = 'primary-btn';
-    saveBtn.type = 'button';
-    saveBtn.textContent = 'Сохранить описание';
-
-    const sendBtn = document.createElement('button');
-    sendBtn.className = 'ghost-btn';
-    sendBtn.type = 'button';
-    sendBtn.textContent = 'В Telegram';
-
-    const status = document.createElement('span');
-    status.className = 'note-status';
-
-    saveBtn.addEventListener('click', () =>
-      saveVideoDescription(video.id, desc, saveBtn, status),
+        actions.append(saveBtn, sendBtn);
+      }),
     );
-    sendBtn.addEventListener('click', () =>
-      sendVideoToTelegram(video.id, sendBtn, status),
-    );
-    desc.addEventListener('input', () => {
-      status.textContent = '';
-      status.className = 'note-status';
-    });
-
-    actions.append(saveBtn, sendBtn, status);
-    editorWrap.append(actions);
-    card.append(editorWrap);
     return card;
   }
 
