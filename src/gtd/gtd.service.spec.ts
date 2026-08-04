@@ -66,6 +66,84 @@ describe('GtdService', () => {
     expect(() => JSON.stringify(result)).not.toThrow();
   });
 
+  it('creates new tasks at the front of the queue', async () => {
+    const created = {
+      id: 'new',
+      workspaceId: 'ws',
+      orderKey: 4n,
+      content: 'fresh',
+      project: null,
+      attachments: [],
+    };
+    const taskCreate = jest.fn().mockResolvedValue(created);
+    const tx = {
+      gtdWorkspace: {
+        update: jest.fn().mockResolvedValue({ id: 'ws' }),
+      },
+      gtdTask: {
+        aggregate: jest.fn().mockResolvedValue({ _min: { orderKey: 5n } }),
+        create: taskCreate,
+      },
+    };
+    const mockPrisma = {
+      gtdProject: { findFirst: jest.fn() },
+      $transaction: jest.fn(
+        async (callback: (client: typeof tx) => Promise<unknown>) =>
+          callback(tx),
+      ),
+    } as unknown as PrismaService;
+    const createService = new GtdService(mockPrisma, storage);
+
+    const result = await createService.createTask('ws', 'fresh');
+
+    expect(taskCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ orderKey: 4n, content: 'fresh' }),
+      }),
+    );
+    expect(result.orderKey).toBe('4');
+  });
+
+  it('uses nextOrder when creating the first task in a workspace', async () => {
+    const created = {
+      id: 'first',
+      workspaceId: 'ws',
+      orderKey: 1n,
+      content: 'only',
+      project: null,
+      attachments: [],
+    };
+    const taskCreate = jest.fn().mockResolvedValue(created);
+    const tx = {
+      gtdWorkspace: {
+        update: jest
+          .fn()
+          .mockResolvedValueOnce({ id: 'ws' })
+          .mockResolvedValueOnce({ nextOrder: 1n }),
+      },
+      gtdTask: {
+        aggregate: jest.fn().mockResolvedValue({ _min: { orderKey: null } }),
+        create: taskCreate,
+      },
+    };
+    const mockPrisma = {
+      gtdProject: { findFirst: jest.fn() },
+      $transaction: jest.fn(
+        async (callback: (client: typeof tx) => Promise<unknown>) =>
+          callback(tx),
+      ),
+    } as unknown as PrismaService;
+    const createService = new GtdService(mockPrisma, storage);
+
+    await createService.createTask('ws', 'only');
+
+    expect(taskCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ orderKey: 1n }),
+      }),
+    );
+  });
+
   it('merges Telegram tasks after the Google queue without losing order', async () => {
     const taskUpdate = jest.fn().mockResolvedValue({});
     const tx = {

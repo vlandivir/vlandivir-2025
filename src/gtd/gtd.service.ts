@@ -153,7 +153,7 @@ export class GtdService {
     const dueDate =
       dueDateValue === undefined ? null : this.parseDueDate(dueDateValue);
     return this.prisma.$transaction(async (tx) => {
-      const orderKey = await this.nextOrder(tx, workspaceId);
+      const orderKey = await this.frontOrder(tx, workspaceId);
       const task = await tx.gtdTask.create({
         data: {
           workspaceId,
@@ -596,6 +596,21 @@ export class GtdService {
         select: { nextOrder: true },
       })
     ).nextOrder;
+  }
+  /** Place a new task before every existing one so it becomes current immediately. */
+  private async frontOrder(tx: Prisma.TransactionClient, workspaceId: string) {
+    // Serialize concurrent creates against the workspace row (same lock as nextOrder).
+    await tx.gtdWorkspace.update({
+      where: { id: workspaceId },
+      data: { nextOrder: { increment: 0 } },
+      select: { id: true },
+    });
+    const min = await tx.gtdTask.aggregate({
+      where: { workspaceId },
+      _min: { orderKey: true },
+    });
+    if (min._min.orderKey == null) return this.nextOrder(tx, workspaceId);
+    return min._min.orderKey - 1n;
   }
   private content(value: unknown) {
     if (
