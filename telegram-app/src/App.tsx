@@ -60,6 +60,7 @@ type Task = {
   status: 'ACTIVE' | 'COMPLETED' | 'CANCELED';
   projectId: string | null;
   project: Project | null;
+  dueDate: string | null;
   snoozedUntil: string | null;
   createdAt: string;
   updatedAt: string;
@@ -148,6 +149,39 @@ function formatDate(value: string) {
       timeZone: 'UTC',
     }).format(new Date(value)) + ' UTC'
   );
+}
+
+function dueDateInputValue(value: string | null | undefined) {
+  if (!value) return '';
+  return value.slice(0, 10);
+}
+
+function formatDueDate(value: string) {
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  }).format(new Date(value));
+}
+
+function isDueOverdue(value: string, now = new Date()) {
+  const endOfToday = Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate() + 1,
+  );
+  return new Date(value).getTime() < endOfToday - 86_400_000;
+}
+
+function isDueToday(value: string, now = new Date()) {
+  const start = Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate(),
+  );
+  const end = start + 86_400_000;
+  const time = new Date(value).getTime();
+  return time >= start && time < end;
 }
 
 function fileSize(bytes: number) {
@@ -447,6 +481,7 @@ function GtdApp() {
 
   const scopeQuery = useMemo(() => {
     if (scope === 'inbox') return '?scope=inbox';
+    if (scope === 'today') return '?scope=today';
     if (scope.startsWith('project:'))
       return `?scope=project&projectId=${encodeURIComponent(scope.slice(8))}`;
     return '?scope=all';
@@ -552,6 +587,7 @@ function GtdApp() {
           flex={{ base: '1 1 100%', md: '1 1 auto' }}
         >
           <option value="all">Все задачи</option>
+          <option value="today">Сегодня</option>
           <option value="inbox">Входящие</option>
           {data?.projects
             .filter((project) => !project.archived)
@@ -670,7 +706,26 @@ function TaskCard(props: {
   return (
     <Panel>
       <Box mb={6}>
-        <Badge mb={3}>{task.project?.name || 'Входящие'}</Badge>
+        <Flex align="center" gap={2} mb={3} wrap="wrap">
+          <Badge>{task.project?.name || 'Входящие'}</Badge>
+          {task.dueDate && (
+            <Text
+              fontSize="xs"
+              color={
+                isDueOverdue(task.dueDate)
+                  ? 'shadcn.destructive'
+                  : 'shadcn.mutedForeground'
+              }
+              opacity={isDueOverdue(task.dueDate) ? 0.85 : 0.75}
+            >
+              {isDueOverdue(task.dueDate)
+                ? `просрочено · ${formatDueDate(task.dueDate)}`
+                : isDueToday(task.dueDate)
+                  ? `сегодня · ${formatDueDate(task.dueDate)}`
+                  : `до ${formatDueDate(task.dueDate)}`}
+            </Text>
+          )}
+        </Flex>
         <Text
           fontSize={{ base: '2xl', md: '3xl' }}
           fontWeight="semibold"
@@ -784,6 +839,7 @@ function CreateTaskModal({
 }) {
   const [content, setContent] = useState('');
   const [projectId, setProjectId] = useState('');
+  const [dueDate, setDueDate] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const toast = useToast();
@@ -792,7 +848,11 @@ function CreateTaskModal({
     try {
       const task = await api<Task>('/tasks', {
         method: 'POST',
-        body: JSON.stringify({ content, projectId: projectId || null }),
+        body: JSON.stringify({
+          content,
+          projectId: projectId || null,
+          dueDate: dueDate || null,
+        }),
       });
       for (const file of files.slice(0, 10)) {
         const form = new FormData();
@@ -804,6 +864,7 @@ function CreateTaskModal({
       }
       setContent('');
       setProjectId('');
+      setDueDate('');
       setFiles([]);
       disclosure.onClose();
       onCreated();
@@ -849,6 +910,14 @@ function CreateTaskModal({
               </Select>
             </FormControl>
             <FormControl>
+              <FormLabel>Дедлайн</FormLabel>
+              <Input
+                type="date"
+                value={dueDate}
+                onChange={(event) => setDueDate(event.target.value)}
+              />
+            </FormControl>
+            <FormControl>
               <FormLabel>Вложения</FormLabel>
               <Input
                 type="file"
@@ -892,11 +961,13 @@ function EditTaskModal({
 }) {
   const [content, setContent] = useState('');
   const [projectId, setProjectId] = useState('');
+  const [dueDate, setDueDate] = useState('');
   const toast = useToast();
   useEffect(() => {
     if (disclosure.isOpen && task) {
       setContent(task.content);
       setProjectId(task.projectId || '');
+      setDueDate(dueDateInputValue(task.dueDate));
     }
   }, [disclosure.isOpen, task]);
   const save = async () => {
@@ -904,7 +975,11 @@ function EditTaskModal({
     try {
       await api(`/tasks/${task.id}`, {
         method: 'PATCH',
-        body: JSON.stringify({ content, projectId: projectId || null }),
+        body: JSON.stringify({
+          content,
+          projectId: projectId || null,
+          dueDate: dueDate || null,
+        }),
       });
       disclosure.onClose();
       onSaved();
@@ -948,6 +1023,25 @@ function EditTaskModal({
                   </option>
                 ))}
             </Select>
+            <FormControl>
+              <FormLabel>Дедлайн</FormLabel>
+              <Flex gap={2}>
+                <Input
+                  type="date"
+                  value={dueDate}
+                  onChange={(event) => setDueDate(event.target.value)}
+                />
+                {dueDate && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => setDueDate('')}
+                    flexShrink={0}
+                  >
+                    Сбросить
+                  </Button>
+                )}
+              </Flex>
+            </FormControl>
           </Stack>
         </ModalBody>
         <ModalFooter>

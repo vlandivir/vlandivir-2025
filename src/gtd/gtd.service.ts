@@ -19,7 +19,10 @@ const MAX_CONTENT = 10_000;
 const MAX_PROJECT_NAME = 120;
 export const GTD_MAX_ATTACHMENTS = 10;
 export const GTD_MAX_FILE_BYTES = 20 * 1024 * 1024;
-type Scope = { kind: 'all' | 'inbox' | 'project'; projectId?: string };
+type Scope = {
+  kind: 'all' | 'inbox' | 'project' | 'today';
+  projectId?: string;
+};
 export type GtdAction =
   | 'ROTATE'
   | 'SNOOZE_HOUR'
@@ -42,7 +45,7 @@ export class GtdService {
 
   async bootstrap(auth: GtdAuthContext, scope: Scope) {
     const now = new Date();
-    const scopeWhere = this.scopeWhere(scope);
+    const scopeWhere = this.scopeWhere(scope, now);
     if (scope.kind === 'project')
       await this.requireProject(auth.workspaceId, scope.projectId || '', false);
     const eligible = {
@@ -51,6 +54,17 @@ export class GtdService {
       ...scopeWhere,
       OR: [{ snoozedUntil: null }, { snoozedUntil: { lte: now } }],
     };
+    const taskOrder =
+      scope.kind === 'today'
+        ? ([
+            { dueDate: 'asc' },
+            { orderKey: 'asc' },
+            { id: 'asc' },
+          ] as Prisma.GtdTaskOrderByWithRelationInput[])
+        : ([
+            { orderKey: 'asc' },
+            { id: 'asc' },
+          ] as Prisma.GtdTaskOrderByWithRelationInput[]);
     const [workspace, projects, current, availableCount, activeCount, next] =
       await Promise.all([
         this.prisma.gtdWorkspace.findUniqueOrThrow({
@@ -65,7 +79,7 @@ export class GtdService {
         }),
         this.prisma.gtdTask.findFirst({
           where: eligible,
-          orderBy: [{ orderKey: 'asc' }, { id: 'asc' }],
+          orderBy: taskOrder,
           include: this.taskInclude,
         }),
         this.prisma.gtdTask.count({ where: eligible }),
@@ -132,9 +146,12 @@ export class GtdService {
     workspaceId: string,
     contentValue: unknown,
     projectId?: unknown,
+    dueDateValue?: unknown,
   ) {
     const content = this.content(contentValue);
     const project = await this.optionalActiveProject(workspaceId, projectId);
+    const dueDate =
+      dueDateValue === undefined ? null : this.parseDueDate(dueDateValue);
     return this.prisma.$transaction(async (tx) => {
       const orderKey = await this.frontOrder(tx, workspaceId);
       const task = await tx.gtdTask.create({
@@ -142,6 +159,7 @@ export class GtdService {
           workspaceId,
           projectId: project?.id,
           content,
+          dueDate,
           orderKey,
           events: { create: { type: GtdTaskEventType.CREATED } },
         },
@@ -154,7 +172,7 @@ export class GtdService {
   async updateTask(
     workspaceId: string,
     taskId: string,
-    body: { content?: unknown; projectId?: unknown },
+    body: { content?: unknown; projectId?: unknown; dueDate?: unknown },
   ) {
     const task = await this.requireTask(workspaceId, taskId, true);
     const data: Prisma.GtdTaskUpdateInput = {};
@@ -194,6 +212,18 @@ export class GtdService {
             previousProjectId: task.projectId,
             projectId: nextProjectId,
           },
+        });
+      }
+    }
+    if (body.dueDate !== undefined) {
+      const dueDate = this.parseDueDate(body.dueDate);
+      const previous = task.dueDate?.toISOString() || null;
+      const next = dueDate?.toISOString() || null;
+      if (previous !== next) {
+        data.dueDate = dueDate;
+        events.push({
+          type: GtdTaskEventType.UPDATED,
+          metadata: { previousDueDate: previous, dueDate: next },
         });
       }
     }
@@ -498,15 +528,65 @@ export class GtdService {
     return { linked: true };
   }
 
-  private serializeTask<T extends { orderKey: bigint }>(task: T) {
-    return { ...task, orderKey: task.orderKey.toString() };
+  private serializeTask<
+    T extends {
+      orderKey: bigint;
+      dueDate?: Date | null;
+      snoozedUntil?: Date | null;
+      completedAt?: Date | null;
+      canceledAt?: Date | null;
+      createdAt?: Date;
+      updatedAt?: Date;
+    },
+  >(task: T) {
+    return {
+      ...task,
+      orderKey: task.orderKey.toString(),
+      dueDate: task.dueDate?.toISOString() || null,
+      snoozedUntil: task.snoozedUntil?.toISOString() || null,
+      completedAt: task.completedAt?.toISOString() || null,
+      canceledAt: task.canceledAt?.toISOString() || null,
+      createdAt: task.createdAt?.toISOString(),
+      updatedAt: task.updatedAt?.toISOString(),
+    };
   }
-  private scopeWhere(scope: Scope): Prisma.GtdTaskWhereInput {
-    return scope.kind === 'inbox'
-      ? { projectId: null }
-      : scope.kind === 'project'
-        ? { projectId: scope.projectId }
-        : {};
+  private scopeWhere(scope: Scope, now = new Date()): Prisma.GtdTaskWhereInput {
+    if (scope.kind === 'inbox') return { projectId: null };
+    if (scope.kind === 'project') return { projectId: scope.projectId };
+    if (scope.kind === 'today') {
+      // Calendar date in UTC: today + overdue (dueDate before tomorrow).
+      return { dueDate: { not: null, lt: this.startOfUtcDay(now, 1) } };
+    }
+    return {};
+  }
+  /** Date-only deadline as midnight UTC. Accepts YYYY-MM-DD or null/'' to clear. */
+  private parseDueDate(value: unknown): Date | null {
+    if (value === null || value === '') return null;
+    if (typeof value !== 'string')
+      throw new BadRequestException('dueDate must be YYYY-MM-DD or null');
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+    if (!match) throw new BadRequestException('dueDate must be YYYY-MM-DD');
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (
+      date.getUTCFullYear() !== year ||
+      date.getUTCMonth() !== month - 1 ||
+      date.getUTCDate() !== day
+    ) {
+      throw new BadRequestException('dueDate is not a valid calendar date');
+    }
+    return date;
+  }
+  private startOfUtcDay(now: Date, dayOffset = 0) {
+    return new Date(
+      Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate() + dayOffset,
+      ),
+    );
   }
   private async nextOrder(tx: Prisma.TransactionClient, workspaceId: string) {
     return (

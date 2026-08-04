@@ -218,4 +218,49 @@ describe('GtdService', () => {
       where: { id: 'telegram-workspace' },
     });
   });
+
+  it('parses dueDate as midnight UTC and rejects invalid values', () => {
+    const parseDueDate = (value: unknown): Date | null =>
+      (
+        service as unknown as {
+          parseDueDate(value: unknown): Date | null;
+        }
+      ).parseDueDate(value);
+
+    expect(parseDueDate(null)).toBeNull();
+    expect(parseDueDate('')).toBeNull();
+    expect(parseDueDate('2026-08-04')?.toISOString()).toBe(
+      '2026-08-04T00:00:00.000Z',
+    );
+    expect(() => parseDueDate('04-08-2026')).toThrow(
+      'dueDate must be YYYY-MM-DD',
+    );
+    expect(() => parseDueDate('2026-02-30')).toThrow(
+      'dueDate is not a valid calendar date',
+    );
+  });
+
+  it('filters the today scope to due today and overdue in UTC', () => {
+    const scopeWhere = (
+      scope: { kind: string; projectId?: string },
+      now: Date,
+    ) =>
+      (
+        service as unknown as {
+          scopeWhere(
+            scope: { kind: string; projectId?: string },
+            now: Date,
+          ): Record<string, unknown>;
+        }
+      ).scopeWhere(scope, now);
+
+    expect(
+      scopeWhere({ kind: 'today' }, new Date('2026-08-04T15:30:00.000Z')),
+    ).toEqual({
+      dueDate: { not: null, lt: new Date('2026-08-05T00:00:00.000Z') },
+    });
+    expect(scopeWhere({ kind: 'inbox' }, new Date())).toEqual({
+      projectId: null,
+    });
+  });
 });

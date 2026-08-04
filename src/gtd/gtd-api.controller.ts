@@ -42,7 +42,11 @@ export class GtdApiController {
     @Query('projectId') projectId?: string,
   ) {
     const kind =
-      scopeValue === 'inbox' || scopeValue === 'project' ? scopeValue : 'all';
+      scopeValue === 'inbox' ||
+      scopeValue === 'project' ||
+      scopeValue === 'today'
+        ? scopeValue
+        : 'all';
     if (kind === 'project' && !projectId)
       throw new BadRequestException('projectId is required');
     return this.gtd.bootstrap(req.gtdAuth, { kind, projectId });
@@ -62,18 +66,20 @@ export class GtdApiController {
   }
   @Post('tasks') createTask(
     @Req() req: GtdRequest,
-    @Body() body: { content?: unknown; projectId?: unknown },
+    @Body() body: { content?: unknown; projectId?: unknown; dueDate?: unknown },
   ) {
     return this.gtd.createTask(
       req.gtdAuth.workspaceId,
       body?.content,
       body?.projectId,
+      body?.dueDate,
     );
   }
   @Patch('tasks/:id') updateTask(
     @Req() req: GtdRequest,
     @Param('id') id: string,
-    @Body() body: { content?: unknown; projectId?: unknown },
+    @Body()
+    body: { content?: unknown; projectId?: unknown; dueDate?: unknown },
   ) {
     return this.gtd.updateTask(req.gtdAuth.workspaceId, id, body || {});
   }
