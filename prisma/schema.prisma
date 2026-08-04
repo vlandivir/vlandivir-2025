@@ -215,6 +215,7 @@ model GtdTask {
   content      String          @db.Text
   status       GtdTaskStatus   @default(ACTIVE)
   orderKey     BigInt
+  dueDate      DateTime?
   snoozedUntil DateTime?
   completedAt  DateTime?
   canceledAt   DateTime?
@@ -225,6 +226,7 @@ model GtdTask {
 
   @@index([workspaceId, status, snoozedUntil, orderKey])
   @@index([workspaceId, projectId, status, orderKey])
+  @@index([workspaceId, dueDate, status, orderKey])
   @@index([workspaceId, createdAt])
 }
 
