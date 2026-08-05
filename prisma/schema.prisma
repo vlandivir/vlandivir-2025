@@ -289,36 +289,63 @@ model MapTag {
 }
 
 model Reel {
-  id                Int       @id @default(autoincrement())
+  id                Int               @id @default(autoincrement())
   instagramUrl      String
-  shortcode         String    @unique
-  source            String    @default("notebook") // notebook | map | own
-  isOwn             Boolean   @default(false) // authored by me; hideable on the reels page
-  status            String    @default("pending") // pending | ready | error
-  error             String?   @db.Text
+  shortcode         String            @unique
+  source            String            @default("notebook") // notebook | map | own
+  isOwn             Boolean           @default(false) // authored by me; hideable on the reels page
+  status            String            @default("pending") // pending | ready | error
+  error             String?           @db.Text
   title             String?
-  description       String?   @db.Text
+  description       String?           @db.Text
   author            String?
   publishedAt       DateTime?
   duration          Float?
   videoUrl          String? // copy in DO Spaces
   coverUrl          String? // copy in DO Spaces
   audioUrl          String? // extracted mp3 in DO Spaces
-  transcript        String?   @db.Text
-  transcriptClean   String?   @db.Text // LLM-corrected, split into replicas (one per line)
+  transcript        String?           @db.Text
+  transcriptClean   String?           @db.Text // LLM-corrected, split into replicas (one per line)
   transcriptLang    String?
-  transcriptStatus  String    @default("none") // none | pending | ready | error
-  transcriptError   String?   @db.Text
-  frameUrls         String[]  @default([]) // 1 fps frames in DO Spaces
-  visionDescription String?   @db.Text // LLM description of what happens on screen
-  visionStatus      String    @default("none") // none | pending | ready | error
-  visionError       String?   @db.Text
-  tags              String[]  @default([]) // set by hand, shared MapTag dictionary
-  meta              Json?     @db.JsonB // raw yt-dlp info
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  transcriptStatus  String            @default("none") // none | pending | ready | error
+  transcriptError   String?           @db.Text
+  frameUrls         String[]          @default([]) // 1 fps frames in DO Spaces
+  visionDescription String?           @db.Text // LLM description of what happens on screen
+  visionStatus      String            @default("none") // none | pending | ready | error
+  visionError       String?           @db.Text
+  tags              String[]          @default([]) // set by hand, shared MapTag dictionary
+  meta              Json?             @db.JsonB // raw yt-dlp info
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  projectClips      ReelProjectClip[]
 
   @@index([status])
+}
+
+// Named montage projects for CapCut export (owner-only via reels-api).
+model ReelProject {
+  id        Int               @id @default(autoincrement())
+  name      String
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  clips     ReelProjectClip[]
+}
+
+model ReelProjectClip {
+  id              Int         @id @default(autoincrement())
+  projectId       Int
+  reelId          Int
+  position        Int // 0-based order within the project
+  trimStartSec    Float? // null = from start
+  trimEndSec      Float? // null = to end
+  trimmedVideoUrl String? // Spaces copy after ffmpeg -c copy trim
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  project         ReelProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reel            Reel        @relation(fields: [reelId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, position])
+  @@index([reelId])
 }
 
 // Unified embeddings for semantic search over reels, notes and images.
