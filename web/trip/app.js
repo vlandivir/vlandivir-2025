@@ -27,6 +27,13 @@
   const editTitleBtn = document.getElementById('editTitleBtn');
   const changeNameBtn = document.getElementById('changeNameBtn');
   const toggleDeletedBtn = document.getElementById('toggleDeletedBtn');
+  const montageToggleBtn = document.getElementById('montageToggleBtn');
+  const montagePanel = document.getElementById('montagePanel');
+  const montageCloseBtn = document.getElementById('montageCloseBtn');
+  const montageCreateForm = document.getElementById('montageCreateForm');
+  const montageNameInput = document.getElementById('montageNameInput');
+  const montageProjectsList = document.getElementById('montageProjectsList');
+  const montageDetail = document.getElementById('montageDetail');
   const retryFailedBtn = document.getElementById('retryFailedBtn');
   const nameModal = document.getElementById('nameModal');
   const nameForm = document.getElementById('nameForm');
@@ -50,6 +57,13 @@
   let hideDeleted = true;
   /** @type {number} */
   let lightboxIndex = -1;
+  /** @type {Array<{ id: number, name: string, clipCount: number }>} */
+  let montageProjects = [];
+  /** @type {any} */
+  let activeMontageProject = null;
+  /** @type {number | null} */
+  let selectedMontageClipId = null;
+  let montageOpen = false;
 
   function t(key, vars) {
     let text;
@@ -645,6 +659,24 @@
       footer.appendChild(meta);
 
       const mine = item.contributorId === getContributorId();
+      if (
+        trip?.isAdmin &&
+        item.kind === 'video' &&
+        !item.deleted
+      ) {
+        const add = document.createElement('button');
+        add.type = 'button';
+        add.className = 'mini-btn trip-card__add';
+        const inCount = clipCountInActiveProject(item.id);
+        add.textContent = inCount
+          ? t('montageInProject', { count: inCount })
+          : t('montageAdd');
+        add.addEventListener('click', (event) => {
+          event.stopPropagation();
+          void addMediaToMontage(item);
+        });
+        footer.appendChild(add);
+      }
       if ((mine || trip?.isAdmin) && !item.deleted) {
         const del = document.createElement('button');
         del.type = 'button';
@@ -916,6 +948,8 @@
     );
     trip.isAdmin = data.isAdmin;
     media = data.media || [];
+    montageToggleBtn.hidden = !trip.isAdmin;
+    if (!trip.isAdmin) setMontageOpen(false);
     albumMeta.textContent = [
       trip.ownerContributorId === getContributorId() ? t('youAreOwner') : null,
       `${media.filter((m) => !m.deleted).length} ${t('itemsCount')}`,
@@ -923,6 +957,7 @@
       .filter(Boolean)
       .join(' · ');
     renderGallery();
+    if (montageOpen && trip.isAdmin) void loadMontageProjects();
     // Thumbs / EXIF are filled in the background — refresh a few times.
     const pendingMeta = media.some(
       (m) => !m.deleted && (!m.thumbUrl || !m.metaReady),
@@ -1324,6 +1359,519 @@
         showStatus(error?.message || t('failed'), true);
       });
   });
+
+  // --- Montage projects (Google admin only) ---
+
+  function montageStorageKey() {
+    return trip ? `trip-active-project:${trip.secret}` : '';
+  }
+
+  function projectsBase() {
+    return `/trip-api/trips/${encodeURIComponent(trip.secret)}/projects`;
+  }
+
+  function clipCountInActiveProject(mediaId) {
+    if (!activeMontageProject?.clips) return 0;
+    return activeMontageProject.clips.filter((c) => c.mediaId === mediaId)
+      .length;
+  }
+
+  function formatDurationSec(seconds) {
+    if (typeof seconds !== 'number' || !Number.isFinite(seconds)) return '';
+    const total = Math.round(seconds);
+    const minutes = Math.floor(total / 60);
+    const rest = String(total % 60).padStart(2, '0');
+    return `${minutes}:${rest}`;
+  }
+
+  function setMontageOpen(open) {
+    montageOpen = open;
+    montagePanel.hidden = !open;
+    montageToggleBtn.classList.toggle('is-active', open);
+    if (open && trip?.isAdmin) void loadMontageProjects();
+  }
+
+  montageToggleBtn.addEventListener('click', () => {
+    if (!trip?.isAdmin) {
+      showStatus(t('montageNeedLogin'), true);
+      return;
+    }
+    setMontageOpen(!montageOpen);
+  });
+  montageCloseBtn.addEventListener('click', () => setMontageOpen(false));
+
+  async function loadMontageProjects() {
+    if (!trip?.isAdmin) return;
+    try {
+      montageProjects = await api(projectsBase());
+    } catch (error) {
+      if (String(error.message || '').includes('админ') || String(error.message || '').includes('admin')) {
+        montageToggleBtn.hidden = true;
+        setMontageOpen(false);
+        showStatus(t('montageNeedLogin'), true);
+        return;
+      }
+      showStatus(error.message || t('loadFailed'), true);
+      return;
+    }
+    renderMontageProjectsList();
+    const savedId = Number(localStorage.getItem(montageStorageKey()) || 0);
+    const preferred =
+      (activeMontageProject &&
+        montageProjects.find((p) => p.id === activeMontageProject.id)?.id) ||
+      (savedId && montageProjects.find((p) => p.id === savedId)?.id) ||
+      montageProjects[0]?.id;
+    if (preferred) {
+      await openMontageProject(preferred);
+    } else {
+      activeMontageProject = null;
+      selectedMontageClipId = null;
+      renderMontageDetail();
+    }
+  }
+
+  function renderMontageProjectsList() {
+    montageProjectsList.innerHTML = '';
+    if (!montageProjects.length) {
+      const empty = document.createElement('p');
+      empty.className = 'trip-montage__empty';
+      empty.textContent = t('montageEmptyProjects');
+      montageProjectsList.appendChild(empty);
+      return;
+    }
+    montageProjects.forEach((project) => {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className =
+        'trip-montage__project' +
+        (activeMontageProject?.id === project.id ? ' is-active' : '');
+      const name = document.createElement('span');
+      name.className = 'trip-montage__project-name';
+      name.textContent = project.name;
+      const meta = document.createElement('span');
+      meta.className = 'trip-montage__project-meta';
+      meta.textContent = `${project.clipCount} ${t('montageClips')}`;
+      row.append(name, meta);
+      row.addEventListener('click', () => openMontageProject(project.id));
+      montageProjectsList.appendChild(row);
+    });
+  }
+
+  async function openMontageProject(projectId) {
+    activeMontageProject = await api(`${projectsBase()}/${projectId}`);
+    localStorage.setItem(montageStorageKey(), String(projectId));
+    if (
+      selectedMontageClipId &&
+      !activeMontageProject.clips.some((c) => c.id === selectedMontageClipId)
+    ) {
+      selectedMontageClipId = null;
+    }
+    renderMontageProjectsList();
+    renderMontageDetail();
+    renderGallery();
+  }
+
+  function renderMontageDetail() {
+    montageDetail.innerHTML = '';
+    if (!activeMontageProject) {
+      montageDetail.hidden = true;
+      return;
+    }
+    montageDetail.hidden = false;
+
+    const head = document.createElement('div');
+    head.className = 'trip-montage__detail-head';
+    const title = document.createElement('h3');
+    title.textContent = activeMontageProject.name;
+    head.appendChild(title);
+
+    const actions = document.createElement('div');
+    actions.className = 'trip-montage__detail-actions';
+
+    const renameBtn = document.createElement('button');
+    renameBtn.type = 'button';
+    renameBtn.className = 'mini-btn';
+    renameBtn.textContent = t('montageRename');
+    renameBtn.addEventListener('click', () => void renameMontageProject());
+    actions.appendChild(renameBtn);
+
+    const exportBtn = document.createElement('button');
+    exportBtn.type = 'button';
+    exportBtn.className = 'primary-btn';
+    exportBtn.textContent = t('montageExport');
+    exportBtn.disabled = !activeMontageProject.clips.length;
+    exportBtn.addEventListener('click', () =>
+      void exportMontageProject(exportBtn),
+    );
+    actions.appendChild(exportBtn);
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
+    deleteBtn.className = 'mini-btn danger-btn';
+    deleteBtn.textContent = t('montageDelete');
+    deleteBtn.addEventListener('click', () => void deleteMontageProject());
+    actions.appendChild(deleteBtn);
+
+    head.appendChild(actions);
+    montageDetail.appendChild(head);
+
+    if (!activeMontageProject.clips.length) {
+      const empty = document.createElement('p');
+      empty.className = 'trip-montage__empty';
+      empty.textContent = t('montageEmptyClips');
+      montageDetail.appendChild(empty);
+      return;
+    }
+
+    const clips = document.createElement('div');
+    clips.className = 'trip-montage__clips';
+    activeMontageProject.clips.forEach((clip, index) => {
+      clips.appendChild(buildMontageClipRow(clip, index));
+    });
+    montageDetail.appendChild(clips);
+
+    const selected = activeMontageProject.clips.find(
+      (c) => c.id === selectedMontageClipId,
+    );
+    if (selected) montageDetail.appendChild(buildMontageTrimPanel(selected));
+  }
+
+  function buildMontageClipRow(clip, index) {
+    const mediaItem = clip.media || {};
+    const row = document.createElement('div');
+    row.className =
+      'trip-montage__clip' +
+      (selectedMontageClipId === clip.id ? ' is-selected' : '');
+
+    const cover = document.createElement('div');
+    cover.className = 'trip-montage__clip-cover';
+    if (mediaItem.thumbUrl) {
+      const img = document.createElement('img');
+      img.src = mediaItem.thumbUrl;
+      img.alt = '';
+      cover.appendChild(img);
+    } else {
+      cover.textContent = String(index + 1).padStart(2, '0');
+    }
+    row.appendChild(cover);
+
+    const body = document.createElement('button');
+    body.type = 'button';
+    body.className = 'trip-montage__clip-body';
+    const title = document.createElement('div');
+    title.className = 'trip-montage__clip-title';
+    title.textContent = `${String(index + 1).padStart(2, '0')}. ${
+      mediaItem.originalFilename || clip.mediaId
+    }`;
+    const meta = document.createElement('div');
+    meta.className = 'trip-montage__clip-meta';
+    const durationSec =
+      mediaItem.durationMs != null ? mediaItem.durationMs / 1000 : null;
+    const start = clip.trimStartSec ?? 0;
+    const end = clip.trimEndSec != null ? clip.trimEndSec : durationSec;
+    const range =
+      end == null
+        ? `${formatDurationSec(start)}–…`
+        : `${formatDurationSec(start)}–${formatDurationSec(end)}`;
+    meta.textContent = [range, clip.trimmedVideoUrl ? t('montageTrimmed') : null]
+      .filter(Boolean)
+      .join(' · ');
+    body.append(title, meta);
+    body.addEventListener('click', () => {
+      selectedMontageClipId = clip.id;
+      renderMontageDetail();
+    });
+    row.appendChild(body);
+
+    const tools = document.createElement('div');
+    tools.className = 'trip-montage__clip-tools';
+    const up = document.createElement('button');
+    up.type = 'button';
+    up.className = 'ghost-btn icon-btn';
+    up.textContent = '↑';
+    up.disabled = index === 0;
+    up.addEventListener('click', () => void moveMontageClip(clip.id, -1));
+    const down = document.createElement('button');
+    down.type = 'button';
+    down.className = 'ghost-btn icon-btn';
+    down.textContent = '↓';
+    down.disabled = index >= activeMontageProject.clips.length - 1;
+    down.addEventListener('click', () => void moveMontageClip(clip.id, 1));
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'ghost-btn icon-btn';
+    remove.textContent = '✕';
+    remove.addEventListener('click', () => void removeMontageClip(clip));
+    tools.append(up, down, remove);
+    row.appendChild(tools);
+    return row;
+  }
+
+  function buildMontageTrimPanel(clip) {
+    const mediaItem = clip.media || {};
+    const durationSec =
+      mediaItem.durationMs != null ? mediaItem.durationMs / 1000 : 0;
+    const panel = document.createElement('div');
+    panel.className = 'trip-montage__trim';
+
+    const label = document.createElement('div');
+    label.className = 'trip-montage__trim-label';
+    label.textContent = t('montageTrimLabel');
+    panel.appendChild(label);
+
+    const video = document.createElement('video');
+    video.className = 'trip-montage__trim-video';
+    video.controls = true;
+    video.playsInline = true;
+    video.src = mediaItem.url;
+    video.currentTime = clip.trimStartSec || 0;
+    panel.appendChild(video);
+
+    const row = document.createElement('div');
+    row.className = 'trip-montage__trim-row';
+    const startInput = document.createElement('input');
+    startInput.type = 'number';
+    startInput.min = '0';
+    startInput.step = '0.1';
+    startInput.placeholder = t('montageTrimStart');
+    startInput.value =
+      clip.trimStartSec != null ? String(clip.trimStartSec) : '0';
+    const endInput = document.createElement('input');
+    endInput.type = 'number';
+    endInput.min = '0';
+    endInput.step = '0.1';
+    endInput.placeholder = t('montageTrimEnd');
+    endInput.value =
+      clip.trimEndSec != null
+        ? String(clip.trimEndSec)
+        : durationSec
+          ? String(Math.round(durationSec * 10) / 10)
+          : '';
+    row.append(startInput, endInput);
+    panel.appendChild(row);
+
+    if (durationSec) {
+      const hint = document.createElement('p');
+      hint.className = 'trip-montage__empty';
+      hint.textContent = t('montageDuration', {
+        duration: formatDurationSec(durationSec),
+      });
+      panel.appendChild(hint);
+    }
+
+    const actions = document.createElement('div');
+    actions.className = 'trip-montage__trim-actions';
+
+    const markStart = document.createElement('button');
+    markStart.type = 'button';
+    markStart.className = 'mini-btn';
+    markStart.textContent = t('montageMarkStart');
+    markStart.addEventListener('click', () => {
+      startInput.value = String(Math.round(video.currentTime * 10) / 10);
+    });
+    const markEnd = document.createElement('button');
+    markEnd.type = 'button';
+    markEnd.className = 'mini-btn';
+    markEnd.textContent = t('montageMarkEnd');
+    markEnd.addEventListener('click', () => {
+      endInput.value = String(Math.round(video.currentTime * 10) / 10);
+    });
+    const saveBtn = document.createElement('button');
+    saveBtn.type = 'button';
+    saveBtn.className = 'mini-btn';
+    saveBtn.textContent = t('montageSaveTrim');
+    saveBtn.addEventListener('click', async () => {
+      await patchMontageTrim(
+        clip.id,
+        Number(startInput.value),
+        Number(endInput.value),
+      );
+    });
+    const applyBtn = document.createElement('button');
+    applyBtn.type = 'button';
+    applyBtn.className = 'primary-btn';
+    applyBtn.textContent = clip.trimmedVideoUrl
+      ? t('montageReapplyTrim')
+      : t('montageApplyTrim');
+    applyBtn.addEventListener('click', async () => {
+      applyBtn.disabled = true;
+      try {
+        await patchMontageTrim(
+          clip.id,
+          Number(startInput.value),
+          Number(endInput.value),
+        );
+        await api(
+          `${projectsBase()}/${activeMontageProject.id}/clips/${clip.id}/trim`,
+          { method: 'POST' },
+        );
+        selectedMontageClipId = clip.id;
+        await openMontageProject(activeMontageProject.id);
+      } catch (error) {
+        showStatus(error.message || t('failed'), true);
+      } finally {
+        applyBtn.disabled = false;
+      }
+    });
+    actions.append(markStart, markEnd, saveBtn, applyBtn);
+    panel.appendChild(actions);
+    return panel;
+  }
+
+  async function patchMontageTrim(clipId, trimStartSec, trimEndSec) {
+    if (!Number.isFinite(trimStartSec) || !Number.isFinite(trimEndSec)) {
+      throw new Error(t('failed'));
+    }
+    await api(
+      `${projectsBase()}/${activeMontageProject.id}/clips/${clipId}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ trimStartSec, trimEndSec }),
+      },
+    );
+    selectedMontageClipId = clipId;
+    await openMontageProject(activeMontageProject.id);
+  }
+
+  async function moveMontageClip(clipId, delta) {
+    const ids = activeMontageProject.clips.map((c) => c.id);
+    const index = ids.indexOf(clipId);
+    const next = index + delta;
+    if (index < 0 || next < 0 || next >= ids.length) return;
+    [ids[index], ids[next]] = [ids[next], ids[index]];
+    activeMontageProject = await api(
+      `${projectsBase()}/${activeMontageProject.id}/clips/order`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ clipIds: ids }),
+      },
+    );
+    renderMontageProjectsList();
+    renderMontageDetail();
+  }
+
+  async function removeMontageClip(clip) {
+    const name = clip.media?.originalFilename || clip.mediaId;
+    if (!confirm(t('montageRemoveClipConfirm', { name }))) return;
+    await api(
+      `${projectsBase()}/${activeMontageProject.id}/clips/${clip.id}`,
+      { method: 'DELETE' },
+    );
+    if (selectedMontageClipId === clip.id) selectedMontageClipId = null;
+    await openMontageProject(activeMontageProject.id);
+    await loadMontageProjects();
+  }
+
+  async function addMediaToMontage(item) {
+    if (!trip?.isAdmin) {
+      showStatus(t('montageNeedLogin'), true);
+      return;
+    }
+    setMontageOpen(true);
+    if (!montageProjects.length) await loadMontageProjects();
+    let projectId = activeMontageProject?.id;
+    if (!projectId) {
+      if (!montageProjects.length) {
+        const name = prompt(t('montageRenamePrompt'), trip.title || 'Project');
+        if (!name) return;
+        const created = await api(projectsBase(), {
+          method: 'POST',
+          body: JSON.stringify({ name }),
+        });
+        projectId = created.id;
+        localStorage.setItem(montageStorageKey(), String(projectId));
+      } else {
+        projectId = montageProjects[0].id;
+      }
+    }
+    await api(`${projectsBase()}/${projectId}/clips`, {
+      method: 'POST',
+      body: JSON.stringify({ mediaId: item.id }),
+    });
+    await openMontageProject(projectId);
+    await loadMontageProjects();
+  }
+
+  montageCreateForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!trip?.isAdmin) return;
+    const name = montageNameInput.value.trim();
+    if (!name) return;
+    try {
+      const created = await api(projectsBase(), {
+        method: 'POST',
+        body: JSON.stringify({ name }),
+      });
+      montageNameInput.value = '';
+      localStorage.setItem(montageStorageKey(), String(created.id));
+      await loadMontageProjects();
+      await openMontageProject(created.id);
+    } catch (error) {
+      showStatus(error.message || t('failed'), true);
+    }
+  });
+
+  async function renameMontageProject() {
+    const name = prompt(
+      t('montageRenamePrompt'),
+      activeMontageProject.name,
+    );
+    if (!name || name.trim() === activeMontageProject.name) return;
+    await api(`${projectsBase()}/${activeMontageProject.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name }),
+    });
+    await loadMontageProjects();
+  }
+
+  async function deleteMontageProject() {
+    if (
+      !confirm(
+        t('montageDeleteConfirm', { name: activeMontageProject.name }),
+      )
+    ) {
+      return;
+    }
+    await api(`${projectsBase()}/${activeMontageProject.id}`, {
+      method: 'DELETE',
+    });
+    localStorage.removeItem(montageStorageKey());
+    activeMontageProject = null;
+    selectedMontageClipId = null;
+    await loadMontageProjects();
+  }
+
+  async function exportMontageProject(button) {
+    button.disabled = true;
+    const prev = button.textContent;
+    button.textContent = t('montageExporting');
+    try {
+      const response = await fetch(
+        `${projectsBase()}/${activeMontageProject.id}/export.zip`,
+      );
+      if (!response.ok) {
+        const error = await response.json().catch(() => null);
+        throw new Error(error?.message || t('failed'));
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const disposition = response.headers.get('Content-Disposition') || '';
+      const match = /filename="([^"]+)"/.exec(disposition);
+      a.download = match?.[1] || `${activeMontageProject.name}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      await openMontageProject(activeMontageProject.id);
+    } catch (error) {
+      showStatus(error.message || t('failed'), true);
+    } finally {
+      button.disabled = false;
+      button.textContent = prev;
+    }
+  }
 
   // Boot
   getContributorId();

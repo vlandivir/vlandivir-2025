@@ -517,15 +517,16 @@ export class StorageService implements OnModuleInit {
     return `${this.endpoint}/${this.bucket}/${key}`;
   }
 
-  getReelProjectClipKey(projectId: number, clipId: number): string {
-    return `reels/projects/${projectId}/${clipId}.mp4`;
+  getTripProjectClipKey(
+    tripId: string,
+    projectId: number,
+    clipId: number,
+  ): string {
+    return `trips/${tripId}/projects/${projectId}/${clipId}.mp4`;
   }
 
-  getReelProjectClipUrl(projectId: number, clipId: number): string {
-    return this.getPublicUrl(this.getReelProjectClipKey(projectId, clipId));
-  }
-
-  async uploadReelProjectClip(
+  async uploadTripProjectClip(
+    tripId: string,
     projectId: number,
     clipId: number,
     buffer: Buffer,
@@ -533,7 +534,7 @@ export class StorageService implements OnModuleInit {
     return this.uploadFileWithKey(
       buffer,
       'video/mp4',
-      this.getReelProjectClipKey(projectId, clipId),
+      this.getTripProjectClipKey(tripId, projectId, clipId),
     );
   }
 
