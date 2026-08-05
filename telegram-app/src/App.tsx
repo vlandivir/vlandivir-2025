@@ -842,6 +842,7 @@ function CreateTaskModal({
   const [dueDate, setDueDate] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
   const toast = useToast();
   const submit = async () => {
     setBusy(true);
@@ -866,6 +867,7 @@ function CreateTaskModal({
       setProjectId('');
       setDueDate('');
       setFiles([]);
+      if (fileInput.current) fileInput.current.value = '';
       disclosure.onClose();
       onCreated();
     } catch (reason) {
@@ -919,14 +921,45 @@ function CreateTaskModal({
             </FormControl>
             <FormControl>
               <FormLabel>Вложения</FormLabel>
-              <Input
-                type="file"
-                multiple
-                accept={ATTACH_ACCEPT}
-                onChange={(event) =>
-                  setFiles(Array.from(event.target.files || []).slice(0, 10))
-                }
-              />
+              <Stack spacing={2}>
+                <Flex gap={2} align="center" wrap="wrap">
+                  <Button
+                    variant="outline"
+                    onClick={() => fileInput.current?.click()}
+                  >
+                    Выбрать файлы
+                  </Button>
+                  {files.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setFiles([]);
+                        if (fileInput.current) fileInput.current.value = '';
+                      }}
+                    >
+                      Очистить
+                    </Button>
+                  )}
+                </Flex>
+                <input
+                  ref={fileInput}
+                  hidden
+                  type="file"
+                  multiple
+                  accept={ATTACH_ACCEPT}
+                  onChange={(event) =>
+                    setFiles(Array.from(event.target.files || []).slice(0, 10))
+                  }
+                />
+                <Text fontSize="sm" color="shadcn.mutedForeground">
+                  {files.length === 0
+                    ? 'Файлы не выбраны'
+                    : files.length === 1
+                      ? files[0]?.name || '1 файл'
+                      : `Выбрано файлов: ${files.length}`}
+                </Text>
+              </Stack>
             </FormControl>
           </Stack>
         </ModalBody>
