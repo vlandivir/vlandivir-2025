@@ -905,7 +905,11 @@
   }
 
   async function deleteRule(rule) {
-    if (!confirm(`Удалить правило «${rule.condition}»?`)) return;
+    const ok = await window.AppDialog.confirm(
+      `Удалить правило «${rule.condition}»?`,
+      { danger: true, confirmLabel: 'Удалить' },
+    );
+    if (!ok) return;
     await fetchJson(`${API_BASE}/rules/${rule.id}`, { method: 'DELETE' });
     await loadRules();
     if (state.detail) renderDetail();

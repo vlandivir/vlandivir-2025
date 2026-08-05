@@ -1254,6 +1254,8 @@ function ProjectsModal({
   onChanged: () => void;
 }) {
   const [name, setName] = useState('');
+  const [renameTarget, setRenameTarget] = useState<Project | null>(null);
+  const [renameValue, setRenameValue] = useState('');
   const toast = useToast();
   const create = async () => {
     try {
@@ -1284,63 +1286,112 @@ function ProjectsModal({
       });
     }
   };
+  const openRename = (project: Project) => {
+    setRenameTarget(project);
+    setRenameValue(project.name);
+  };
+  const closeRename = () => {
+    setRenameTarget(null);
+    setRenameValue('');
+  };
+  const saveRename = async () => {
+    if (!renameTarget) return;
+    const next = renameValue.trim();
+    if (!next || next === renameTarget.name) {
+      closeRename();
+      return;
+    }
+    await update(renameTarget, { name: next });
+    closeRename();
+  };
   return (
-    <Modal isOpen={disclosure.isOpen} onClose={disclosure.onClose}>
-      <ModalOverlay />
-      <ModalContent>
-        <ModalHeader>Проекты</ModalHeader>
-        <ModalCloseButton />
-        <ModalBody>
-          <Stack spacing={3}>
-            <Flex gap={2}>
-              <Input
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                placeholder="Новый проект"
-              />
-              <Button onClick={create} isDisabled={!name.trim()}>
-                Создать
-              </Button>
-            </Flex>
-            <Divider />
-            {projects.map((project) => (
-              <Flex key={project.id} align="center" gap={2}>
-                <Text
-                  flex="1"
-                  color={
-                    project.archived ? 'shadcn.mutedForeground' : undefined
-                  }
-                >
-                  {project.name}
-                </Text>
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  onClick={() => {
-                    const next = prompt('Название проекта', project.name);
-                    if (next) void update(project, { name: next });
-                  }}
-                >
-                  Переименовать
-                </Button>
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  onClick={() =>
-                    void update(project, { archived: !project.archived })
-                  }
-                >
-                  {project.archived ? 'Вернуть' : 'В архив'}
+    <>
+      <Modal isOpen={disclosure.isOpen} onClose={disclosure.onClose}>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Проекты</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <Stack spacing={3}>
+              <Flex gap={2}>
+                <Input
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder="Новый проект"
+                />
+                <Button onClick={create} isDisabled={!name.trim()}>
+                  Создать
                 </Button>
               </Flex>
-            ))}
-          </Stack>
-        </ModalBody>
-        <ModalFooter>
-          <Button onClick={disclosure.onClose}>Готово</Button>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
+              <Divider />
+              {projects.map((project) => (
+                <Flex key={project.id} align="center" gap={2}>
+                  <Text
+                    flex="1"
+                    color={
+                      project.archived ? 'shadcn.mutedForeground' : undefined
+                    }
+                  >
+                    {project.name}
+                  </Text>
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    onClick={() => openRename(project)}
+                  >
+                    Переименовать
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    onClick={() =>
+                      void update(project, { archived: !project.archived })
+                    }
+                  >
+                    {project.archived ? 'Вернуть' : 'В архив'}
+                  </Button>
+                </Flex>
+              ))}
+            </Stack>
+          </ModalBody>
+          <ModalFooter>
+            <Button onClick={disclosure.onClose}>Готово</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+      <Modal isOpen={Boolean(renameTarget)} onClose={closeRename}>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Название проекта</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <Input
+              value={renameValue}
+              onChange={(event) => setRenameValue(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  void saveRename();
+                }
+              }}
+              autoFocus
+            />
+          </ModalBody>
+          <ModalFooter gap={2}>
+            <Button variant="ghost" onClick={closeRename}>
+              Отмена
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => void saveRename()}
+              isDisabled={!renameValue.trim()}
+            >
+              OK
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+    </>
   );
 }
 
