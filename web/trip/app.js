@@ -1728,6 +1728,16 @@
     );
     actions.appendChild(exportBtn);
 
+    if (activeMontageProject.exportZipUrl) {
+      const openZip = document.createElement('a');
+      openZip.className = 'mini-btn';
+      openZip.href = activeMontageProject.exportZipUrl;
+      openZip.target = '_blank';
+      openZip.rel = 'noopener';
+      openZip.textContent = t('montageOpenZip');
+      actions.appendChild(openZip);
+    }
+
     const deleteBtn = document.createElement('button');
     deleteBtn.type = 'button';
     deleteBtn.className = 'mini-btn danger-btn';
@@ -2144,25 +2154,24 @@
     const prev = button.textContent;
     button.textContent = t('montageExporting');
     try {
-      const response = await fetch(
-        `${projectsBase()}/${activeMontageProject.id}/export.zip`,
+      const result = await api(
+        `${projectsBase()}/${activeMontageProject.id}/export`,
+        { method: 'POST' },
       );
-      if (!response.ok) {
-        const error = await response.json().catch(() => null);
-        throw new Error(error?.message || t('failed'));
-      }
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
+      if (!result?.url) throw new Error(t('failed'));
+      activeMontageProject.exportZipUrl = result.url;
       const a = document.createElement('a');
-      a.href = url;
-      const disposition = response.headers.get('Content-Disposition') || '';
-      const match = /filename="([^"]+)"/.exec(disposition);
-      a.download = match?.[1] || `${activeMontageProject.name}.zip`;
+      a.href = result.url;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.download = result.filename || `${activeMontageProject.name}.zip`;
       document.body.appendChild(a);
       a.click();
       a.remove();
-      URL.revokeObjectURL(url);
+      renderMontageDetail();
+      await loadMontageProjects();
       await openMontageProject(activeMontageProject.id);
+      showStatus(t('montageExportReady'));
     } catch (error) {
       showStatus(error.message || t('failed'), true);
     } finally {

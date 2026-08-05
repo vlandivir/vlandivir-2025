@@ -386,7 +386,7 @@ export class TripApiController {
     return this.tripProjects.deleteProject(trip.id, projectId);
   }
 
-  @Get('trips/:secret/projects/:projectId/export.zip')
+  @Post('trips/:secret/projects/:projectId/export')
   async exportProjectZip(
     @Param('secret') secret: string,
     @Param('projectId', ParseIntPipe) projectId: number,
