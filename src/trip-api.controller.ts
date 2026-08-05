@@ -393,7 +393,17 @@ export class TripApiController {
     @Req() req: Request,
   ) {
     const trip = await this.requireAdminTrip(secret, req);
-    return this.tripProjects.exportZip(trip.id, projectId);
+    return this.tripProjects.startExportZip(trip.id, projectId);
+  }
+
+  @Get('trips/:secret/projects/:projectId/export')
+  async getProjectExportStatus(
+    @Param('secret') secret: string,
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Req() req: Request,
+  ) {
+    const trip = await this.requireAdminTrip(secret, req);
+    return this.tripProjects.getExportStatus(trip.id, projectId);
   }
 
   @Post('trips/:secret/projects/:projectId/clips')

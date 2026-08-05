@@ -36,7 +36,7 @@
 | Share-страницы карты | `/places/point/:id`, `/places/track/:id` | `src/map-pages.controller.ts` |
 | Альбомы поездок (страницы) | `/trip`, `/trip/:secret`, `/trip/en`, `/trip/en/:secret` | `src/app.controller.ts` + `src/main.ts` |
 | API альбомов поездок | `POST/GET/PATCH /trip-api/trips…`, `GET /trip-api/my-trips`, uploads check/complete, soft-delete media | `src/trip-api.controller.ts` — доступ по `secret` в URL; авторство через `contributorId` (клиент) / `X-Contributor-Id`; `GET /my-trips` — список созданных альбомов по `X-Contributor-Id`; админы (Google allowlist) видят soft-deleted |
-| Монтаж видео поездки | `GET/POST/PATCH/DELETE /trip-api/trips/:secret/projects…`, клипы (order/trim), `POST …/export` (ZIP → Spaces, JSON `{ url }`) | `src/trip-api.controller.ts` — **только Google admin** (`isAdminSession`); проекты в рамках одной поездки |
+| Монтаж видео поездки | `GET/POST/PATCH/DELETE /trip-api/trips/:secret/projects…`, клипы (order/trim), `POST …/export` (фоновая сборка ZIP → Spaces), `GET …/export` (статус) | `src/trip-api.controller.ts` — **только Google admin** (`isAdminSession`); проекты в рамках одной поездки |
 | Чтение карты | `GET /map-api/points`, `/tracks`, `/tags`, `/resolve-google-link` | `src/map-api.controller.ts` (без guard) |
 | Семантический поиск по карте | `GET /map-api/search?q=` | `src/map-api.controller.ts` (без guard); ищет по точкам/трекам с прикреплённым рилсом через эмбеддинги рилсов |
 | Обновление Instagram-меты (без force) | `POST /map-api/{points,tracks}/:id/instagram-meta` | там же; окно 24 ч защищает от злоупотребления |
