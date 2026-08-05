@@ -7,18 +7,14 @@ import {
   NotFoundException,
   Param,
   ParseIntPipe,
-  Patch,
   Post,
-  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
 import { EditAccessGuard } from './auth/edit-access.guard';
 import { PrismaService } from './prisma/prisma.service';
 import { ReelsService } from './services/reels.service';
-import { ReelProjectsService } from './services/reel-projects.service';
 import { ReelsQaService } from './services/reels-qa.service';
-import { StorageService } from './services/storage.service';
 
 // Same limits as the map API — the tag dictionary is shared
 const MAX_TAGS = 10;
@@ -29,9 +25,7 @@ export class ReelsApiController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly reelsService: ReelsService,
-    private readonly reelProjectsService: ReelProjectsService,
     private readonly reelsQaService: ReelsQaService,
-    private readonly storageService: StorageService,
   ) {}
 
   @UseGuards(EditAccessGuard)
@@ -278,14 +272,6 @@ export class ReelsApiController {
     const reel = await this.prisma.reel.findUnique({ where: { id } });
     if (!reel) throw new NotFoundException('Reel not found');
 
-    const projectClips = await this.prisma.reelProjectClip.findMany({
-      where: { reelId: id },
-      select: { trimmedVideoUrl: true },
-    });
-    for (const clip of projectClips) {
-      await this.storageService.deleteByPublicUrl(clip.trimmedVideoUrl);
-    }
-
     await this.prisma.reel.delete({ where: { id } });
     await this.reelsService.unindexReel(id);
     return { deleted: true };
@@ -295,104 +281,5 @@ export class ReelsApiController {
   @Post('key-check')
   checkKey() {
     return { ok: true };
-  }
-
-  // --- Montage projects (CapCut export) ---
-
-  @UseGuards(EditAccessGuard)
-  @Get('projects')
-  listProjects() {
-    return this.reelProjectsService.listProjects();
-  }
-
-  @UseGuards(EditAccessGuard)
-  @Post('projects')
-  createProject(@Body() body: { name?: string }) {
-    return this.reelProjectsService.createProject(body.name || '');
-  }
-
-  @UseGuards(EditAccessGuard)
-  @Get('projects/:id')
-  getProject(@Param('id', ParseIntPipe) id: number) {
-    return this.reelProjectsService.getProject(id);
-  }
-
-  @UseGuards(EditAccessGuard)
-  @Patch('projects/:id')
-  renameProject(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() body: { name?: string },
-  ) {
-    return this.reelProjectsService.renameProject(id, body.name || '');
-  }
-
-  @UseGuards(EditAccessGuard)
-  @Delete('projects/:id')
-  deleteProject(@Param('id', ParseIntPipe) id: number) {
-    return this.reelProjectsService.deleteProject(id);
-  }
-
-  @UseGuards(EditAccessGuard)
-  @Get('projects/:id/export.zip')
-  exportProjectZip(@Param('id', ParseIntPipe) id: number) {
-    return this.reelProjectsService.exportZip(id);
-  }
-
-  @UseGuards(EditAccessGuard)
-  @Post('projects/:id/clips')
-  addProjectClip(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() body: { reelId?: number },
-  ) {
-    if (!Number.isInteger(body.reelId)) {
-      throw new BadRequestException('Нужен reelId');
-    }
-    return this.reelProjectsService.addClip(id, body.reelId as number);
-  }
-
-  @UseGuards(EditAccessGuard)
-  @Put('projects/:id/clips/order')
-  reorderProjectClips(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() body: { clipIds?: number[] },
-  ) {
-    return this.reelProjectsService.reorderClips(id, body.clipIds || []);
-  }
-
-  @UseGuards(EditAccessGuard)
-  @Patch('projects/:id/clips/:clipId')
-  updateProjectClip(
-    @Param('id', ParseIntPipe) id: number,
-    @Param('clipId', ParseIntPipe) clipId: number,
-    @Body()
-    body: {
-      trimStartSec?: number | null;
-      trimEndSec?: number | null;
-    },
-  ) {
-    return this.reelProjectsService.updateClipTrim(
-      id,
-      clipId,
-      body.trimStartSec,
-      body.trimEndSec,
-    );
-  }
-
-  @UseGuards(EditAccessGuard)
-  @Post('projects/:id/clips/:clipId/trim')
-  trimProjectClip(
-    @Param('id', ParseIntPipe) id: number,
-    @Param('clipId', ParseIntPipe) clipId: number,
-  ) {
-    return this.reelProjectsService.applyTrim(id, clipId);
-  }
-
-  @UseGuards(EditAccessGuard)
-  @Delete('projects/:id/clips/:clipId')
-  removeProjectClip(
-    @Param('id', ParseIntPipe) id: number,
-    @Param('clipId', ParseIntPipe) clipId: number,
-  ) {
-    return this.reelProjectsService.removeClip(id, clipId);
   }
 }

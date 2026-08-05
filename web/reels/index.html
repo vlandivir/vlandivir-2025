@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/shared/site-theme.css?v=20260801-3" />
   <link rel="stylesheet" href="/shared/site-header.css?v=20260718-1" />
-  <link rel="stylesheet" href="/reels/styles.css?v=20260805-3" />
+  <link rel="stylesheet" href="/reels/styles.css?v=20260805-2" />
   <script src="/shared/site-header.js?v=20260801-1" defer></script>
 </head>
 <body>
@@ -46,7 +46,6 @@
             <input id="search-input" type="search" placeholder="Поиск по названию, описанию, автору…" autocomplete="off" />
           </div>
           <button id="ask-button" class="ghost-btn icon-btn" title="Спросить у записной книжки">🤖</button>
-          <button id="projects-toggle" class="ghost-btn icon-btn" title="Монтажные проекты">🎬</button>
           <button id="edit-toggle" class="ghost-btn icon-btn" title="Режим редактирования">✏️</button>
         </div>
       </div>
@@ -65,33 +64,13 @@
         <button type="submit" class="primary-btn" id="add-submit">Добавить</button>
       </form>
 
-      <section id="projects-panel" class="projects-panel editor-card hidden">
-        <div class="projects-panel-head">
-          <div>
-            <div class="section-kicker">Монтаж</div>
-            <h2 class="projects-panel-title">Проекты для CapCut</h2>
-          </div>
-          <button id="projects-close" class="ghost-btn icon-btn" title="Закрыть">✕</button>
-        </div>
-        <form id="project-create-form" class="project-create-form">
-          <input id="project-name-input" type="text" placeholder="Название проекта…" maxlength="120" autocomplete="off" />
-          <button type="submit" class="primary-btn" id="project-create-submit">Создать</button>
-        </form>
-        <div id="projects-list" class="projects-list"></div>
-        <div id="project-detail" class="project-detail hidden"></div>
-        <p class="projects-hint">
-          ZIP: файлы <code>01-….mp4</code>, <code>02-….mp4</code>… — импорт в CapCut по порядку.
-          Обрезка без перекодирования (по ключевым кадрам); точную подрезку сделаете в CapCut.
-        </p>
-      </section>
-
       <div id="empty-state" class="empty-state editor-card">
         Выберите ролик в списке — здесь появится описание и данные
       </div>
 
       <div id="reel-details" class="reel-details editor-card hidden"></div>
 
-      <section id="recent-section" class="recent-section editor-card">
+      <section class="recent-section editor-card">
         <div class="recent-header">Ролики</div>
         <div class="list-filters">
           <select id="filter-author">
@@ -136,6 +115,6 @@
     <div id="frames-lightbox-strip" class="frames-lightbox__strip" aria-label="Кадры ролика"></div>
   </div>
 
-  <script src="/reels/app.js?v=20260805-2"></script>
+  <script src="/reels/app.js?v=20260805-1"></script>
 </body>
 </html>

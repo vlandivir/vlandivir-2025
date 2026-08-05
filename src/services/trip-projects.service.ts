@@ -16,28 +16,29 @@ import { StorageService } from './storage.service';
 
 const FFMPEG_TIMEOUT_MS = 5 * 60 * 1000;
 
-const REEL_SUMMARY_SELECT = {
+const MEDIA_SUMMARY_SELECT = {
   id: true,
-  shortcode: true,
-  title: true,
-  author: true,
-  duration: true,
-  coverUrl: true,
-  videoUrl: true,
-  status: true,
+  url: true,
+  thumbUrl: true,
+  originalFilename: true,
+  kind: true,
+  durationMs: true,
+  mimeType: true,
+  deletedAt: true,
 } as const;
 
 @Injectable()
-export class ReelProjectsService {
-  private readonly logger = new Logger(ReelProjectsService.name);
+export class TripProjectsService {
+  private readonly logger = new Logger(TripProjectsService.name);
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
   ) {}
 
-  async listProjects() {
-    const projects = await this.prisma.reelProject.findMany({
+  async listProjects(tripId: string) {
+    const projects = await this.prisma.tripProject.findMany({
+      where: { tripId },
       orderBy: { updatedAt: 'desc' },
       include: { _count: { select: { clips: true } } },
     });
@@ -47,31 +48,33 @@ export class ReelProjectsService {
     }));
   }
 
-  async createProject(name: string) {
+  async createProject(tripId: string, name: string) {
     const trimmed = name.trim();
     if (!trimmed) throw new BadRequestException('Нужно имя проекта');
     if (trimmed.length > 120) {
       throw new BadRequestException('Имя проекта слишком длинное');
     }
-    return this.prisma.reelProject.create({ data: { name: trimmed } });
+    return this.prisma.tripProject.create({
+      data: { tripId, name: trimmed },
+    });
   }
 
-  async renameProject(id: number, name: string) {
-    await this.requireProject(id);
+  async renameProject(tripId: string, projectId: number, name: string) {
+    await this.requireProject(tripId, projectId);
     const trimmed = name.trim();
     if (!trimmed) throw new BadRequestException('Нужно имя проекта');
     if (trimmed.length > 120) {
       throw new BadRequestException('Имя проекта слишком длинное');
     }
-    return this.prisma.reelProject.update({
-      where: { id },
+    return this.prisma.tripProject.update({
+      where: { id: projectId },
       data: { name: trimmed },
     });
   }
 
-  async deleteProject(id: number) {
-    const project = await this.prisma.reelProject.findUnique({
-      where: { id },
+  async deleteProject(tripId: string, projectId: number) {
+    const project = await this.prisma.tripProject.findFirst({
+      where: { id: projectId, tripId },
       include: { clips: { select: { trimmedVideoUrl: true } } },
     });
     if (!project) throw new NotFoundException('Проект не найден');
@@ -79,17 +82,17 @@ export class ReelProjectsService {
     for (const clip of project.clips) {
       await this.storageService.deleteByPublicUrl(clip.trimmedVideoUrl);
     }
-    await this.prisma.reelProject.delete({ where: { id } });
+    await this.prisma.tripProject.delete({ where: { id: projectId } });
     return { deleted: true };
   }
 
-  async getProject(id: number) {
-    const project = await this.prisma.reelProject.findUnique({
-      where: { id },
+  async getProject(tripId: string, projectId: number) {
+    const project = await this.prisma.tripProject.findFirst({
+      where: { id: projectId, tripId },
       include: {
         clips: {
           orderBy: { position: 'asc' },
-          include: { reel: { select: REEL_SUMMARY_SELECT } },
+          include: { media: { select: MEDIA_SUMMARY_SELECT } },
         },
       },
     });
@@ -97,41 +100,41 @@ export class ReelProjectsService {
     return project;
   }
 
-  async addClip(projectId: number, reelId: number) {
-    await this.requireProject(projectId);
-    const reel = await this.prisma.reel.findUnique({ where: { id: reelId } });
-    if (!reel) throw new NotFoundException('Reel not found');
-    if (reel.status !== 'ready' || !reel.videoUrl) {
-      throw new BadRequestException(
-        'В проект можно добавить только готовый ролик с видео',
-      );
+  async addClip(tripId: string, projectId: number, mediaId: string) {
+    await this.requireProject(tripId, projectId);
+    const media = await this.prisma.tripMedia.findFirst({
+      where: { id: mediaId, tripId, deletedAt: null },
+    });
+    if (!media) throw new NotFoundException('Видео не найдено');
+    if (media.kind !== 'video') {
+      throw new BadRequestException('В проект можно добавить только видео');
     }
 
-    const max = await this.prisma.reelProjectClip.aggregate({
+    const max = await this.prisma.tripProjectClip.aggregate({
       where: { projectId },
       _max: { position: true },
     });
     const position = (max._max.position ?? -1) + 1;
 
-    const clip = await this.prisma.reelProjectClip.create({
-      data: { projectId, reelId, position },
-      include: { reel: { select: REEL_SUMMARY_SELECT } },
+    const clip = await this.prisma.tripProjectClip.create({
+      data: { projectId, mediaId, position },
+      include: { media: { select: MEDIA_SUMMARY_SELECT } },
     });
     await this.touchProject(projectId);
     return clip;
   }
 
-  async removeClip(projectId: number, clipId: number) {
-    const clip = await this.requireClip(projectId, clipId);
+  async removeClip(tripId: string, projectId: number, clipId: number) {
+    const clip = await this.requireClip(tripId, projectId, clipId);
     await this.storageService.deleteByPublicUrl(clip.trimmedVideoUrl);
-    await this.prisma.reelProjectClip.delete({ where: { id: clipId } });
+    await this.prisma.tripProjectClip.delete({ where: { id: clipId } });
     await this.reindexPositions(projectId);
     await this.touchProject(projectId);
     return { deleted: true };
   }
 
-  async reorderClips(projectId: number, clipIds: number[]) {
-    await this.requireProject(projectId);
+  async reorderClips(tripId: string, projectId: number, clipIds: number[]) {
+    await this.requireProject(tripId, projectId);
     if (!Array.isArray(clipIds) || clipIds.length === 0) {
       throw new BadRequestException('Нужен массив clipIds');
     }
@@ -139,7 +142,7 @@ export class ReelProjectsService {
       throw new BadRequestException('clipIds должны быть целыми числами');
     }
 
-    const existing = await this.prisma.reelProjectClip.findMany({
+    const existing = await this.prisma.tripProjectClip.findMany({
       where: { projectId },
       select: { id: true },
     });
@@ -155,73 +158,73 @@ export class ReelProjectsService {
 
     await this.prisma.$transaction(
       clipIds.map((id, position) =>
-        this.prisma.reelProjectClip.update({
+        this.prisma.tripProjectClip.update({
           where: { id },
           data: { position },
         }),
       ),
     );
     await this.touchProject(projectId);
-    return this.getProject(projectId);
+    return this.getProject(tripId, projectId);
   }
 
   async updateClipTrim(
+    tripId: string,
     projectId: number,
     clipId: number,
     trimStartSec: number | null | undefined,
     trimEndSec: number | null | undefined,
   ) {
-    const clip = await this.requireClip(projectId, clipId);
-    const reel = await this.prisma.reel.findUnique({
-      where: { id: clip.reelId },
+    const clip = await this.requireClip(tripId, projectId, clipId);
+    const media = await this.prisma.tripMedia.findUnique({
+      where: { id: clip.mediaId },
     });
-    if (!reel?.duration) {
-      throw new BadRequestException('У ролика нет длительности');
-    }
+    if (!media) throw new NotFoundException('Видео не найдено');
 
+    const durationSec =
+      media.durationMs != null ? media.durationMs / 1000 : undefined;
     const nextStart =
       trimStartSec === undefined ? clip.trimStartSec : trimStartSec;
     const nextEnd = trimEndSec === undefined ? clip.trimEndSec : trimEndSec;
-    this.assertTrimRange(nextStart, nextEnd, reel.duration);
+    this.assertTrimRange(nextStart, nextEnd, durationSec);
 
     if (clip.trimmedVideoUrl) {
       await this.storageService.deleteByPublicUrl(clip.trimmedVideoUrl);
     }
 
-    const updated = await this.prisma.reelProjectClip.update({
+    const updated = await this.prisma.tripProjectClip.update({
       where: { id: clipId },
       data: {
         trimStartSec: nextStart,
         trimEndSec: nextEnd,
         trimmedVideoUrl: null,
       },
-      include: { reel: { select: REEL_SUMMARY_SELECT } },
+      include: { media: { select: MEDIA_SUMMARY_SELECT } },
     });
     await this.touchProject(projectId);
     return updated;
   }
 
-  async applyTrim(projectId: number, clipId: number) {
-    const clip = await this.requireClip(projectId, clipId);
-    const reel = await this.prisma.reel.findUnique({
-      where: { id: clip.reelId },
+  async applyTrim(tripId: string, projectId: number, clipId: number) {
+    const clip = await this.requireClip(tripId, projectId, clipId);
+    const media = await this.prisma.tripMedia.findUnique({
+      where: { id: clip.mediaId },
     });
-    if (!reel?.videoUrl) {
-      throw new BadRequestException('У ролика нет видео');
+    if (!media?.url) {
+      throw new BadRequestException('У клипа нет видео');
     }
     if (clip.trimStartSec == null && clip.trimEndSec == null) {
       throw new BadRequestException('Сначала задайте границы обрезки');
     }
-    this.assertTrimRange(
-      clip.trimStartSec,
-      clip.trimEndSec,
-      reel.duration ?? undefined,
-    );
+    const durationSec =
+      media.durationMs != null ? media.durationMs / 1000 : undefined;
+    this.assertTrimRange(clip.trimStartSec, clip.trimEndSec, durationSec);
 
     const trimmedUrl = await this.trimAndUpload(
+      tripId,
       projectId,
       clipId,
-      reel.videoUrl,
+      media.url,
       clip.trimStartSec,
       clip.trimEndSec,
     );
@@ -230,17 +233,17 @@ export class ReelProjectsService {
       await this.storageService.deleteByPublicUrl(clip.trimmedVideoUrl);
     }
 
-    const updated = await this.prisma.reelProjectClip.update({
+    const updated = await this.prisma.tripProjectClip.update({
       where: { id: clipId },
       data: { trimmedVideoUrl: trimmedUrl },
-      include: { reel: { select: REEL_SUMMARY_SELECT } },
+      include: { media: { select: MEDIA_SUMMARY_SELECT } },
     });
     await this.touchProject(projectId);
     return updated;
   }
 
-  async exportZip(projectId: number): Promise<StreamableFile> {
-    const project = await this.getProject(projectId);
+  async exportZip(tripId: string, projectId: number): Promise<StreamableFile> {
+    const project = await this.getProject(tripId, projectId);
     if (!project.clips.length) {
       throw new BadRequestException('В проекте нет клипов');
     }
@@ -250,19 +253,20 @@ export class ReelProjectsService {
         (clip.trimStartSec != null || clip.trimEndSec != null) &&
         !clip.trimmedVideoUrl;
       if (needsTrim) {
-        if (!clip.reel.videoUrl) {
+        if (!clip.media.url) {
           throw new BadRequestException(
             `У клипа #${clip.id} нет исходного видео`,
           );
         }
         const trimmedUrl = await this.trimAndUpload(
+          tripId,
           projectId,
           clip.id,
-          clip.reel.videoUrl,
+          clip.media.url,
           clip.trimStartSec,
           clip.trimEndSec,
         );
-        await this.prisma.reelProjectClip.update({
+        await this.prisma.tripProjectClip.update({
           where: { id: clip.id },
           data: { trimmedVideoUrl: trimmedUrl },
         });
@@ -270,7 +274,6 @@ export class ReelProjectsService {
       }
     }
 
-    // store:true — no recompression of already-compressed MP4s
     const archive = new ZipArchive({ store: true });
     const pass = new PassThrough();
     archive.on('error', (error) => {
@@ -282,7 +285,7 @@ export class ReelProjectsService {
     const pad = String(project.clips.length).length;
     for (let i = 0; i < project.clips.length; i++) {
       const clip = project.clips[i];
-      const sourceUrl = clip.trimmedVideoUrl || clip.reel.videoUrl;
+      const sourceUrl = clip.trimmedVideoUrl || clip.media.url;
       if (!sourceUrl) {
         throw new BadRequestException(
           `У клипа #${clip.id} нет видео для экспорта`,
@@ -290,11 +293,11 @@ export class ReelProjectsService {
       }
       const buffer = await this.storageService.downloadFile(sourceUrl);
       const index = String(i + 1).padStart(Math.max(2, pad), '0');
-      const safeCode = (clip.reel.shortcode || `clip-${clip.id}`).replace(
-        /[^A-Za-z0-9_-]+/g,
-        '_',
-      );
-      archive.append(buffer, { name: `${index}-${safeCode}.mp4` });
+      const base = (clip.media.originalFilename || `clip-${clip.id}`)
+        .replace(/\.[^.]+$/, '')
+        .replace(/[^A-Za-z0-9_-]+/g, '_')
+        .slice(0, 60);
+      archive.append(buffer, { name: `${index}-${base || clip.id}.mp4` });
     }
 
     const asciiName =
@@ -304,39 +307,36 @@ export class ReelProjectsService {
         .replace(/[^A-Za-z0-9._ -]+/g, '_')
         .trim()
         .slice(0, 80) || `project-${project.id}`;
-    const filename = `${asciiName}.zip`;
 
     void archive.finalize();
 
     return new StreamableFile(pass as Readable, {
       type: 'application/zip',
-      disposition: `attachment; filename="${filename}"`,
+      disposition: `attachment; filename="${asciiName}.zip"`,
     });
   }
 
   private async trimAndUpload(
+    tripId: string,
     projectId: number,
     clipId: number,
     sourceUrl: string,
     trimStartSec: number | null,
     trimEndSec: number | null,
   ): Promise<string> {
-    const tempDir = await mkdtemp(path.join(os.tmpdir(), 'reel-trim-'));
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), 'trip-trim-'));
     const inputPath = path.join(tempDir, 'input.mp4');
     const outputPath = path.join(tempDir, 'output.mp4');
     try {
       const source = await this.storageService.downloadFile(sourceUrl);
       await writeFile(inputPath, source);
 
-      // -ss before -i (fast keyframe seek) + -t duration. Stream copy is
-      // keyframe-aligned; exact frame cuts stay for CapCut.
       const start = trimStartSec != null && trimStartSec > 0 ? trimStartSec : 0;
       const args = ['-y', '-hide_banner', '-loglevel', 'error'];
       if (start > 0) args.push('-ss', String(start));
       args.push('-i', inputPath);
       if (trimEndSec != null) {
-        const duration = Math.max(0.05, trimEndSec - start);
-        args.push('-t', String(duration));
+        args.push('-t', String(Math.max(0.05, trimEndSec - start)));
       }
       args.push('-c', 'copy', '-movflags', '+faststart', outputPath);
 
@@ -345,7 +345,8 @@ export class ReelProjectsService {
       if (!trimmed.length) {
         throw new Error('ffmpeg produced an empty file');
       }
-      return this.storageService.uploadReelProjectClip(
+      return this.storageService.uploadTripProjectClip(
+        tripId,
         projectId,
         clipId,
         trimmed,
@@ -385,14 +386,17 @@ export class ReelProjectsService {
     }
   }
 
-  private async requireProject(id: number) {
-    const project = await this.prisma.reelProject.findUnique({ where: { id } });
+  private async requireProject(tripId: string, projectId: number) {
+    const project = await this.prisma.tripProject.findFirst({
+      where: { id: projectId, tripId },
+    });
     if (!project) throw new NotFoundException('Проект не найден');
     return project;
   }
 
-  private async requireClip(projectId: number, clipId: number) {
-    const clip = await this.prisma.reelProjectClip.findFirst({
+  private async requireClip(tripId: string, projectId: number, clipId: number) {
+    await this.requireProject(tripId, projectId);
+    const clip = await this.prisma.tripProjectClip.findFirst({
       where: { id: clipId, projectId },
     });
     if (!clip) throw new NotFoundException('Клип не найден');
@@ -400,14 +404,14 @@ export class ReelProjectsService {
   }
 
   private async reindexPositions(projectId: number) {
-    const clips = await this.prisma.reelProjectClip.findMany({
+    const clips = await this.prisma.tripProjectClip.findMany({
       where: { projectId },
       orderBy: { position: 'asc' },
       select: { id: true },
     });
     await this.prisma.$transaction(
       clips.map((clip, position) =>
-        this.prisma.reelProjectClip.update({
+        this.prisma.tripProjectClip.update({
           where: { id: clip.id },
           data: { position },
         }),
@@ -416,7 +420,7 @@ export class ReelProjectsService {
   }
 
   private async touchProject(id: number) {
-    await this.prisma.reelProject.update({
+    await this.prisma.tripProject.update({
       where: { id },
       data: { updatedAt: new Date() },
     });

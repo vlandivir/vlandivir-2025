@@ -8,8 +8,10 @@ import {
   Headers,
   NotFoundException,
   Param,
+  ParseIntPipe,
   Patch,
   Post,
+  Put,
   Req,
 } from '@nestjs/common';
 import type { Request } from 'express';
@@ -17,6 +19,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { AuthService } from './auth/auth.service';
 import { PrismaService } from './prisma/prisma.service';
 import { StorageService } from './services/storage.service';
+import { TripProjectsService } from './services/trip-projects.service';
 import { TripThumbsService } from './services/trip-thumbs.service';
 
 const MAX_FILE_BYTES = 2 * 1024 * 1024 * 1024; // 2 GiB
@@ -59,6 +62,7 @@ export class TripApiController {
     private readonly storage: StorageService,
     private readonly authService: AuthService,
     private readonly tripThumbs: TripThumbsService,
+    private readonly tripProjects: TripProjectsService,
   ) {}
 
   @Post('trips')
@@ -331,6 +335,146 @@ export class TripApiController {
       status: 'deleted' as const,
       media: this.serializeMedia(updated),
     };
+  }
+
+  // --- Montage projects (Google admin only) ---
+
+  @Get('trips/:secret/projects')
+  async listProjects(@Param('secret') secret: string, @Req() req: Request) {
+    const trip = await this.requireAdminTrip(secret, req);
+    return this.tripProjects.listProjects(trip.id);
+  }
+
+  @Post('trips/:secret/projects')
+  async createProject(
+    @Param('secret') secret: string,
+    @Body() body: { name?: string },
+    @Req() req: Request,
+  ) {
+    const trip = await this.requireAdminTrip(secret, req);
+    return this.tripProjects.createProject(trip.id, body.name || '');
+  }
+
+  @Get('trips/:secret/projects/:projectId')
+  async getProject(
+    @Param('secret') secret: string,
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Req() req: Request,
+  ) {
+    const trip = await this.requireAdminTrip(secret, req);
+    return this.tripProjects.getProject(trip.id, projectId);
+  }
+
+  @Patch('trips/:secret/projects/:projectId')
+  async renameProject(
+    @Param('secret') secret: string,
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Body() body: { name?: string },
+    @Req() req: Request,
+  ) {
+    const trip = await this.requireAdminTrip(secret, req);
+    return this.tripProjects.renameProject(trip.id, projectId, body.name || '');
+  }
+
+  @Delete('trips/:secret/projects/:projectId')
+  async deleteProject(
+    @Param('secret') secret: string,
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Req() req: Request,
+  ) {
+    const trip = await this.requireAdminTrip(secret, req);
+    return this.tripProjects.deleteProject(trip.id, projectId);
+  }
+
+  @Get('trips/:secret/projects/:projectId/export.zip')
+  async exportProjectZip(
+    @Param('secret') secret: string,
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Req() req: Request,
+  ) {
+    const trip = await this.requireAdminTrip(secret, req);
+    return this.tripProjects.exportZip(trip.id, projectId);
+  }
+
+  @Post('trips/:secret/projects/:projectId/clips')
+  async addProjectClip(
+    @Param('secret') secret: string,
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Body() body: { mediaId?: string },
+    @Req() req: Request,
+  ) {
+    const trip = await this.requireAdminTrip(secret, req);
+    if (!body.mediaId || typeof body.mediaId !== 'string') {
+      throw new BadRequestException('Нужен mediaId');
+    }
+    return this.tripProjects.addClip(trip.id, projectId, body.mediaId);
+  }
+
+  @Put('trips/:secret/projects/:projectId/clips/order')
+  async reorderProjectClips(
+    @Param('secret') secret: string,
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Body() body: { clipIds?: number[] },
+    @Req() req: Request,
+  ) {
+    const trip = await this.requireAdminTrip(secret, req);
+    return this.tripProjects.reorderClips(
+      trip.id,
+      projectId,
+      body.clipIds || [],
+    );
+  }
+
+  @Patch('trips/:secret/projects/:projectId/clips/:clipId')
+  async updateProjectClip(
+    @Param('secret') secret: string,
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Param('clipId', ParseIntPipe) clipId: number,
+    @Body()
+    body: {
+      trimStartSec?: number | null;
+      trimEndSec?: number | null;
+    },
+    @Req() req: Request,
+  ) {
+    const trip = await this.requireAdminTrip(secret, req);
+    return this.tripProjects.updateClipTrim(
+      trip.id,
+      projectId,
+      clipId,
+      body.trimStartSec,
+      body.trimEndSec,
+    );
+  }
+
+  @Post('trips/:secret/projects/:projectId/clips/:clipId/trim')
+  async trimProjectClip(
+    @Param('secret') secret: string,
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Param('clipId', ParseIntPipe) clipId: number,
+    @Req() req: Request,
+  ) {
+    const trip = await this.requireAdminTrip(secret, req);
+    return this.tripProjects.applyTrim(trip.id, projectId, clipId);
+  }
+
+  @Delete('trips/:secret/projects/:projectId/clips/:clipId')
+  async removeProjectClip(
+    @Param('secret') secret: string,
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Param('clipId', ParseIntPipe) clipId: number,
+    @Req() req: Request,
+  ) {
+    const trip = await this.requireAdminTrip(secret, req);
+    return this.tripProjects.removeClip(trip.id, projectId, clipId);
+  }
+
+  private async requireAdminTrip(secret: string, req: Request) {
+    const trip = await this.findTripOrThrow(secret);
+    if (!this.authService.isAdminSession(req)) {
+      throw new ForbiddenException('Только для администратора');
+    }
+    return trip;
   }
 
   private async findTripOrThrow(secret: string) {
