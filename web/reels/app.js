@@ -78,6 +78,7 @@
   // --- Selection (player on the left, details in the panel) ---
 
   function selectReel(reel, { fromUrl = false } = {}) {
+    if (state.selected?.id !== reel.id) closeFramesLightbox();
     state.selected = reel;
     renderPlayer();
     renderDetails();
@@ -89,6 +90,7 @@
   }
 
   function clearSelection() {
+    closeFramesLightbox();
     state.selected = null;
     renderPlayer();
     renderDetails();
@@ -502,24 +504,144 @@
     container.appendChild(block);
   }
 
-  // --- Frames carousel + vision description ---
+  // --- Frames carousel + lightbox + vision description ---
+
+  const framesLightbox = el('frames-lightbox');
+  const framesLightboxImage = el('frames-lightbox-image');
+  const framesLightboxCounter = el('frames-lightbox-counter');
+  const framesLightboxTime = el('frames-lightbox-time');
+  const framesLightboxStrip = el('frames-lightbox-strip');
+  const framesLightboxPrev = el('frames-lightbox-prev');
+  const framesLightboxNext = el('frames-lightbox-next');
+
+  const framesLightboxState = {
+    urls: [],
+    index: -1,
+  };
+
+  function frameSecondLabel(index) {
+    return `${index + 1} сек`;
+  }
+
+  function showFramesLightboxAt(index) {
+    const urls = framesLightboxState.urls;
+    if (!urls.length) {
+      closeFramesLightbox();
+      return;
+    }
+    const clamped = Math.max(0, Math.min(index, urls.length - 1));
+    framesLightboxState.index = clamped;
+    framesLightboxImage.src = urls[clamped];
+    framesLightboxImage.alt = `Кадр ${frameSecondLabel(clamped)}`;
+    framesLightboxCounter.textContent = `${clamped + 1} / ${urls.length}`;
+    framesLightboxTime.textContent = frameSecondLabel(clamped);
+    framesLightboxPrev.disabled = clamped <= 0;
+    framesLightboxNext.disabled = clamped >= urls.length - 1;
+    framesLightboxStrip
+      .querySelectorAll('.frames-lightbox__thumb')
+      .forEach((thumb, thumbIndex) => {
+        thumb.classList.toggle('active', thumbIndex === clamped);
+      });
+    const activeThumb = framesLightboxStrip.querySelector(
+      '.frames-lightbox__thumb.active',
+    );
+    activeThumb?.scrollIntoView({
+      behavior: 'smooth',
+      inline: 'center',
+      block: 'nearest',
+    });
+    framesLightbox.hidden = false;
+    document.body.classList.add('frames-lightbox-open');
+  }
+
+  function openFramesLightbox(urls, index) {
+    framesLightboxState.urls = urls;
+    framesLightboxStrip.innerHTML = '';
+    urls.forEach((url, thumbIndex) => {
+      const thumb = document.createElement('button');
+      thumb.type = 'button';
+      thumb.className = 'frames-lightbox__thumb';
+      thumb.title = frameSecondLabel(thumbIndex);
+      thumb.setAttribute('aria-label', `Кадр ${frameSecondLabel(thumbIndex)}`);
+      const img = document.createElement('img');
+      img.src = url;
+      img.alt = '';
+      img.loading = 'lazy';
+      const badge = document.createElement('span');
+      badge.className = 'frame-second';
+      badge.textContent = frameSecondLabel(thumbIndex);
+      thumb.appendChild(img);
+      thumb.appendChild(badge);
+      thumb.addEventListener('click', () => showFramesLightboxAt(thumbIndex));
+      framesLightboxStrip.appendChild(thumb);
+    });
+    showFramesLightboxAt(index);
+  }
+
+  function stepFramesLightbox(delta) {
+    if (framesLightbox.hidden) return;
+    showFramesLightboxAt(framesLightboxState.index + delta);
+  }
+
+  function closeFramesLightbox() {
+    framesLightbox.hidden = true;
+    framesLightboxImage.removeAttribute('src');
+    framesLightboxImage.alt = '';
+    framesLightboxCounter.textContent = '';
+    framesLightboxTime.textContent = '';
+    framesLightboxStrip.innerHTML = '';
+    framesLightboxState.urls = [];
+    framesLightboxState.index = -1;
+    document.body.classList.remove('frames-lightbox-open');
+  }
+
+  framesLightboxPrev.addEventListener('click', () => stepFramesLightbox(-1));
+  framesLightboxNext.addEventListener('click', () => stepFramesLightbox(1));
+  el('frames-lightbox-close').addEventListener('click', closeFramesLightbox);
+  framesLightbox.addEventListener('click', (event) => {
+    if (event.target === framesLightbox) closeFramesLightbox();
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (framesLightbox.hidden) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeFramesLightbox();
+    } else if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      stepFramesLightbox(-1);
+    } else if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      stepFramesLightbox(1);
+    }
+  });
 
   function renderVision(container, reel) {
     if (reel.frameUrls?.length) {
       const strip = document.createElement('div');
       strip.className = 'frames-strip';
       reel.frameUrls.forEach((url, index) => {
-        const link = document.createElement('a');
-        link.href = url;
-        link.target = '_blank';
-        link.rel = 'noopener';
-        link.title = `${index + 1} сек`;
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'frames-strip__item';
+        button.title = frameSecondLabel(index);
+        button.setAttribute(
+          'aria-label',
+          `Открыть кадр ${frameSecondLabel(index)}`,
+        );
         const img = document.createElement('img');
         img.src = url;
         img.alt = '';
         img.loading = 'lazy';
-        link.appendChild(img);
-        strip.appendChild(link);
+        const badge = document.createElement('span');
+        badge.className = 'frame-second';
+        badge.textContent = frameSecondLabel(index);
+        button.appendChild(img);
+        button.appendChild(badge);
+        button.addEventListener('click', () =>
+          openFramesLightbox(reel.frameUrls, index),
+        );
+        strip.appendChild(button);
       });
       container.appendChild(strip);
     }

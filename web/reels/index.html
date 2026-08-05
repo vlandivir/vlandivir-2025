@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/shared/site-theme.css?v=20260801-3" />
   <link rel="stylesheet" href="/shared/site-header.css?v=20260718-1" />
-  <link rel="stylesheet" href="/reels/styles.css?v=20260801-1" />
+  <link rel="stylesheet" href="/reels/styles.css?v=20260805-1" />
   <script src="/shared/site-header.js?v=20260801-1" defer></script>
 </head>
 <body>
@@ -99,6 +99,20 @@
     </aside>
   </div>
 
-  <script src="/reels/app.js?v=20260719-1"></script>
+  <div id="frames-lightbox" class="frames-lightbox" hidden>
+    <button type="button" class="frames-lightbox__close" id="frames-lightbox-close" aria-label="Закрыть">×</button>
+    <button type="button" class="frames-lightbox__nav frames-lightbox__nav--prev" id="frames-lightbox-prev" aria-label="Предыдущий кадр">‹</button>
+    <button type="button" class="frames-lightbox__nav frames-lightbox__nav--next" id="frames-lightbox-next" aria-label="Следующий кадр">›</button>
+    <div class="frames-lightbox__stage">
+      <img id="frames-lightbox-image" class="frames-lightbox__image" alt="" />
+      <div class="frames-lightbox__meta">
+        <span id="frames-lightbox-counter" class="frames-lightbox__counter"></span>
+        <span id="frames-lightbox-time" class="frames-lightbox__time"></span>
+      </div>
+    </div>
+    <div id="frames-lightbox-strip" class="frames-lightbox__strip" aria-label="Кадры ролика"></div>
+  </div>
+
+  <script src="/reels/app.js?v=20260805-1"></script>
 </body>
 </html>
