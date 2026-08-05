@@ -11,7 +11,6 @@ import {
   Badge,
   Box,
   Button,
-  ButtonGroup,
   Divider,
   Flex,
   FormControl,
@@ -19,10 +18,6 @@ import {
   Heading,
   IconButton,
   Input,
-  Menu,
-  MenuButton,
-  MenuItem,
-  MenuList,
   Modal,
   ModalBody,
   ModalCloseButton,
@@ -191,6 +186,108 @@ function fileSize(bytes: number) {
 
 const ATTACH_ACCEPT =
   'image/*,video/*,.pdf,.txt,.md,.doc,.docx,.xls,.xlsx,.ppt,.pptx';
+
+function Icon({
+  children,
+  size = 18,
+}: {
+  children: React.ReactNode;
+  size?: number;
+}) {
+  return (
+    <Box
+      as="span"
+      display="inline-flex"
+      alignItems="center"
+      justifyContent="center"
+      w={`${size}px`}
+      h={`${size}px`}
+      flexShrink={0}
+      lineHeight={0}
+      aria-hidden
+    >
+      <svg
+        width={size}
+        height={size}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        {children}
+      </svg>
+    </Box>
+  );
+}
+
+const IconCheck = () => (
+  <Icon>
+    <path d="M20 6 9 17l-5-5" />
+  </Icon>
+);
+const IconSkip = () => (
+  <Icon>
+    <path d="M5 12h14" />
+    <path d="m13 6 6 6-6 6" />
+  </Icon>
+);
+const IconClock = () => (
+  <Icon>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3 2" />
+  </Icon>
+);
+const IconX = () => (
+  <Icon>
+    <path d="M18 6 6 18" />
+    <path d="m6 6 12 12" />
+  </Icon>
+);
+const IconFolder = () => (
+  <Icon>
+    <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
+  </Icon>
+);
+const IconPlus = () => (
+  <Icon>
+    <path d="M12 5v14" />
+    <path d="M5 12h14" />
+  </Icon>
+);
+const IconArchive = () => (
+  <Icon>
+    <path d="M3 7h18v4H3z" />
+    <path d="M5 11v8h14v-8" />
+    <path d="M10 15h4" />
+  </Icon>
+);
+const IconMore = () => (
+  <Icon>
+    <circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
+    <circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none" />
+  </Icon>
+);
+const IconEdit = () => (
+  <Icon size={16}>
+    <path d="M12 20h9" />
+    <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+  </Icon>
+);
+const IconHistory = () => (
+  <Icon size={16}>
+    <path d="M3 12a9 9 0 1 0 3-6.7" />
+    <path d="M3 4v5h5" />
+    <path d="M12 7v5l3 2" />
+  </Icon>
+);
+const IconPaperclip = () => (
+  <Icon size={16}>
+    <path d="m21.4 11.6-8.8 8.8a5 5 0 0 1-7.1-7.1l9.2-9.2a3.2 3.2 0 0 1 4.5 4.5l-9.2 9.2a1.4 1.4 0 0 1-2-2l8.2-8.2" />
+  </Icon>
+);
 
 /** Auth'd blob URL — Telegram Mini App can't put initData on <img src>. */
 function useAttachmentObjectUrl(attachment: Attachment) {
@@ -580,11 +677,12 @@ function GtdApp() {
         />
       )}
 
-      <Flex gap={2} mt={4} wrap={{ base: 'wrap', md: 'nowrap' }}>
+      <Flex gap={2} mt={4} align="center">
         <Select
           value={scope}
           onChange={(event) => setScope(event.target.value)}
-          flex={{ base: '1 1 100%', md: '1 1 auto' }}
+          flex="1"
+          minW={0}
         >
           <option value="all">Все задачи</option>
           <option value="today">Сегодня</option>
@@ -597,22 +695,32 @@ function GtdApp() {
               </option>
             ))}
         </Select>
-        <Button flex={{ base: '1', md: '0 0 auto' }} onClick={projects.onOpen}>
-          Проекты
-        </Button>
-        <Button variant="primary" onClick={create.onOpen} minW="48px">
-          ＋
-        </Button>
-      </Flex>
-      <Flex gap={2} mt={2} justify="flex-end">
-        <Button size="sm" variant="outline" onClick={archive.onOpen}>
-          Архив
-        </Button>
+        <IconButton
+          aria-label="Проекты"
+          title="Проекты"
+          variant="outline"
+          icon={<IconFolder />}
+          onClick={projects.onOpen}
+        />
+        <IconButton
+          aria-label="Новая задача"
+          title="Новая задача"
+          variant="primary"
+          icon={<IconPlus />}
+          onClick={create.onOpen}
+        />
+        <IconButton
+          aria-label="Архив"
+          title="Архив"
+          variant="outline"
+          icon={<IconArchive />}
+          onClick={archive.onOpen}
+        />
         <IconButton
           aria-label="Настройки"
-          size="sm"
+          title="Настройки"
           variant="outline"
-          icon={<Text fontSize="lg">⋯</Text>}
+          icon={<IconMore />}
           onClick={settings.onOpen}
         />
       </Flex>
@@ -658,7 +766,17 @@ function TaskCard(props: {
   const fileInput = useRef<HTMLInputElement>(null);
   const toast = useToast();
   const [uploading, setUploading] = useState(false);
+  const [snoozeOpen, setSnoozeOpen] = useState(false);
   const task = props.task;
+
+  useEffect(() => {
+    setSnoozeOpen(false);
+  }, [task?.id]);
+
+  const runAction = (value: string) => {
+    setSnoozeOpen(false);
+    props.onAction(value);
+  };
 
   const upload = async (files: FileList | null) => {
     if (!files || !task) return;
@@ -744,20 +862,31 @@ function TaskCard(props: {
       )}
 
       <Flex wrap="wrap" gap={2} mb={5}>
-        <Button size="sm" variant="ghost" onClick={props.onEdit}>
-          Редактировать
-        </Button>
-        <Button size="sm" variant="ghost" onClick={props.onHistory}>
-          История
-        </Button>
-        <Button
+        <IconButton
+          aria-label="Редактировать"
+          title="Редактировать"
           size="sm"
           variant="ghost"
+          icon={<IconEdit />}
+          onClick={props.onEdit}
+        />
+        <IconButton
+          aria-label="История"
+          title="История"
+          size="sm"
+          variant="ghost"
+          icon={<IconHistory />}
+          onClick={props.onHistory}
+        />
+        <IconButton
+          aria-label="Прикрепить"
+          title="Прикрепить"
+          size="sm"
+          variant="ghost"
+          icon={<IconPaperclip />}
           onClick={() => fileInput.current?.click()}
           isLoading={uploading}
-        >
-          Прикрепить
-        </Button>
+        />
         <input
           ref={fileInput}
           hidden
@@ -769,60 +898,88 @@ function TaskCard(props: {
       </Flex>
 
       <Divider mb={5} />
-      <Stack spacing={3}>
-        <ButtonGroup isAttached width="100%">
-          <Button
+      <Stack spacing={2}>
+        <Flex gap={2} width="100%">
+          <IconButton
             flex="1"
+            minW="40px"
+            aria-label="Выполнено"
+            title="Выполнено"
             variant="success"
-            onClick={() => props.onAction('COMPLETE')}
+            icon={<IconCheck />}
+            onClick={() => runAction('COMPLETE')}
             isDisabled={props.busy}
-          >
-            Выполнено
-          </Button>
-          <Button
+          />
+          <IconButton
             flex="1"
+            minW="40px"
+            aria-label="Не сейчас"
+            title="Не сейчас"
             variant="outline"
-            onClick={() => props.onAction('ROTATE')}
+            icon={<IconSkip />}
+            onClick={() => runAction('ROTATE')}
             isDisabled={props.busy}
-          >
-            Не сейчас
-          </Button>
-        </ButtonGroup>
-        <ButtonGroup width="100%">
-          <Menu>
-            <MenuButton
-              as={Button}
-              flex="1"
-              variant="outline"
-              isDisabled={props.busy}
-            >
-              Отложить ▾
-            </MenuButton>
-            <MenuList>
-              <MenuItem onClick={() => props.onAction('SNOOZE_HOUR')}>
-                На час
-              </MenuItem>
-              <MenuItem onClick={() => props.onAction('SNOOZE_TOMORROW')}>
-                До завтра, 09:00 UTC
-              </MenuItem>
-              <MenuItem onClick={() => props.onAction('SNOOZE_MONDAY')}>
-                До понедельника, 09:00 UTC
-              </MenuItem>
-              <MenuItem onClick={() => props.onAction('SNOOZE_WEEK')}>
-                На неделю
-              </MenuItem>
-            </MenuList>
-          </Menu>
-          <Button
+          />
+          <IconButton
             flex="1"
-            variant="ghost"
-            color="shadcn.destructive"
-            onClick={() => props.onAction('CANCEL')}
+            minW="40px"
+            aria-label="Отложить"
+            title="Отложить"
+            variant="outline"
+            bg={snoozeOpen ? 'shadcn.muted' : undefined}
+            icon={<IconClock />}
+            onClick={() => setSnoozeOpen((open) => !open)}
             isDisabled={props.busy}
+            aria-expanded={snoozeOpen}
+          />
+          <IconButton
+            flex="1"
+            minW="40px"
+            aria-label="Отменить"
+            title="Отменить"
+            variant="outline"
+            color="shadcn.destructive"
+            borderColor="shadcn.destructive"
+            icon={<IconX />}
+            onClick={() => runAction('CANCEL')}
+            isDisabled={props.busy}
+          />
+        </Flex>
+        <Box
+          overflow="hidden"
+          maxH={snoozeOpen ? '240px' : '0'}
+          opacity={snoozeOpen ? 1 : 0}
+          transition="max-height 0.2s ease, opacity 0.15s ease"
+        >
+          <Stack
+            spacing={1}
+            p={2}
+            borderWidth="1px"
+            borderColor="shadcn.border"
+            borderRadius="md"
+            bg="shadcn.muted"
           >
-            Отменить
-          </Button>
-        </ButtonGroup>
+            {(
+              [
+                ['SNOOZE_HOUR', 'На час'],
+                ['SNOOZE_TOMORROW', 'До завтра, 09:00 UTC'],
+                ['SNOOZE_MONDAY', 'До понедельника, 09:00 UTC'],
+                ['SNOOZE_WEEK', 'На неделю'],
+              ] as const
+            ).map(([action, label]) => (
+              <Button
+                key={action}
+                variant="ghost"
+                justifyContent="flex-start"
+                fontWeight="normal"
+                onClick={() => runAction(action)}
+                isDisabled={props.busy}
+              >
+                {label}
+              </Button>
+            ))}
+          </Stack>
+        </Box>
       </Stack>
     </Panel>
   );
