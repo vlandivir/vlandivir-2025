@@ -732,7 +732,7 @@
         button.textContent = original;
       }, 1500);
     } catch {
-      window.prompt('Ссылка:', url);
+      await window.AppDialog.prompt('Ссылка:', url);
     }
   }
 
@@ -1187,7 +1187,11 @@
   }
 
   async function deleteReel(reel) {
-    if (!confirm(`Удалить «${reel.title || reel.shortcode}»?`)) return;
+    const ok = await window.AppDialog.confirm(
+      `Удалить «${reel.title || reel.shortcode}»?`,
+      { danger: true, confirmLabel: 'Удалить' },
+    );
+    if (!ok) return;
     const response = await fetch(`${API_BASE}/reels/${reel.id}`, {
       method: 'DELETE',
       headers: { 'x-reels-api-key': getApiKey() },

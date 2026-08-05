@@ -347,7 +347,10 @@
     status.className = 'note-status';
 
     restoreBtn.addEventListener('click', async () => {
-      if (!confirm('Восстановить запись в дневник?')) return;
+      const ok = await window.AppDialog.confirm(
+        'Восстановить запись в дневник?',
+      );
+      if (!ok) return;
       restoreBtn.disabled = true;
       status.textContent = 'Восстановление…';
       try {
@@ -779,9 +782,11 @@
   }
 
   async function deleteNote(id, item, deleteBtn, status) {
-    if (!confirm('Удалить запись в архив? Её можно будет восстановить.')) {
-      return;
-    }
+    const ok = await window.AppDialog.confirm(
+      'Удалить запись в архив? Её можно будет восстановить.',
+      { danger: true, confirmLabel: 'Удалить' },
+    );
+    if (!ok) return;
     deleteBtn.disabled = true;
     status.className = 'note-status';
     status.textContent = 'Удаление…';

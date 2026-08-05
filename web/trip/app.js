@@ -115,6 +115,26 @@
     );
   }
 
+  function askConfirm(message, options = {}) {
+    return window.AppDialog.confirm(message, {
+      ...options,
+      confirmLabel:
+        options.confirmLabel ||
+        (options.danger
+          ? t('dialogDelete')
+          : t('dialogConfirm')),
+      cancelLabel: options.cancelLabel || t('dialogCancel'),
+    });
+  }
+
+  function askPrompt(message, defaultValue = '', options = {}) {
+    return window.AppDialog.prompt(message, defaultValue, {
+      ...options,
+      confirmLabel: options.confirmLabel || t('dialogOk'),
+      cancelLabel: options.cancelLabel || t('dialogCancel'),
+    });
+  }
+
   function uuid() {
     if (crypto.randomUUID) return crypto.randomUUID();
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -1073,7 +1093,11 @@
 
   async function deleteMedia(id) {
     if (!trip) return;
-    if (!confirm(t('confirmDelete'))) return;
+    const ok = await askConfirm(t('confirmDelete'), {
+      confirmLabel: t('dialogDelete'),
+      danger: true,
+    });
+    if (!ok) return;
     await api(`/trip-api/trips/${trip.secret}/media/${id}`, {
       method: 'DELETE',
       headers: { 'X-Contributor-Id': getContributorId() },
@@ -1196,17 +1220,23 @@
 
   copyLinkBtn.addEventListener('click', async () => {
     if (!trip) return;
+    const url = absoluteAlbumUrl(trip.secret);
     try {
-      await navigator.clipboard.writeText(absoluteAlbumUrl(trip.secret));
+      await navigator.clipboard.writeText(url);
       showStatus(t('linkCopied'));
     } catch {
-      prompt(t('copyLink'), absoluteAlbumUrl(trip.secret));
+      await askPrompt(t('copyLink'), url, {
+        title: t('copyLink'),
+        confirmLabel: t('dialogOk'),
+      });
     }
   });
 
   editTitleBtn.addEventListener('click', async () => {
     if (!trip) return;
-    const next = prompt(t('renamePrompt'), trip.title);
+    const next = await askPrompt(t('renamePrompt'), trip.title, {
+      title: t('editTitle'),
+    });
     if (!next || !next.trim() || next.trim() === trip.title) return;
     const updated = await api(`/trip-api/trips/${trip.secret}`, {
       method: 'PATCH',
@@ -1731,50 +1761,66 @@
 
   function buildMontageClipRow(clip, index) {
     const mediaItem = clip.media || {};
-    const row = document.createElement('div');
-    row.className =
+    const card = document.createElement('article');
+    card.className =
       'trip-montage__clip' +
       (selectedMontageClipId === clip.id ? ' is-selected' : '');
 
-    const cover = document.createElement('div');
-    cover.className = 'trip-montage__clip-cover';
+    const mediaBtn = document.createElement('button');
+    mediaBtn.type = 'button';
+    mediaBtn.className = 'trip-montage__clip-media';
+    const filename = mediaItem.originalFilename || clip.mediaId;
+    mediaBtn.title = `${String(index + 1).padStart(2, '0')}. ${filename}`;
+    mediaBtn.setAttribute(
+      'aria-label',
+      `${String(index + 1).padStart(2, '0')}. ${filename}`,
+    );
+
+    const indexBadge = document.createElement('span');
+    indexBadge.className = 'trip-montage__clip-index';
+    indexBadge.textContent = String(index + 1).padStart(2, '0');
+    mediaBtn.appendChild(indexBadge);
+
+    if (clip.trimmedVideoUrl) {
+      const trimmedBadge = document.createElement('span');
+      trimmedBadge.className = 'trip-montage__clip-badge';
+      trimmedBadge.textContent = t('montageTrimmed');
+      mediaBtn.appendChild(trimmedBadge);
+    }
+
     if (mediaItem.thumbUrl) {
       const img = document.createElement('img');
       img.src = mediaItem.thumbUrl;
       img.alt = '';
-      cover.appendChild(img);
+      img.loading = 'lazy';
+      mediaBtn.appendChild(img);
     } else {
-      cover.textContent = String(index + 1).padStart(2, '0');
+      const fallback = document.createElement('span');
+      fallback.className = 'trip-montage__clip-fallback';
+      fallback.textContent = '▶';
+      mediaBtn.appendChild(fallback);
     }
-    row.appendChild(cover);
 
-    const body = document.createElement('button');
-    body.type = 'button';
-    body.className = 'trip-montage__clip-body';
-    const title = document.createElement('div');
-    title.className = 'trip-montage__clip-title';
-    title.textContent = `${String(index + 1).padStart(2, '0')}. ${
-      mediaItem.originalFilename || clip.mediaId
-    }`;
+    mediaBtn.addEventListener('click', () => {
+      selectedMontageClipId = clip.id;
+      renderMontageDetail();
+    });
+    card.appendChild(mediaBtn);
+
+    const footer = document.createElement('div');
+    footer.className = 'trip-montage__clip-footer';
+
     const meta = document.createElement('div');
     meta.className = 'trip-montage__clip-meta';
     const durationSec =
       mediaItem.durationMs != null ? mediaItem.durationMs / 1000 : null;
     const start = clip.trimStartSec ?? 0;
     const end = clip.trimEndSec != null ? clip.trimEndSec : durationSec;
-    const range =
+    meta.textContent =
       end == null
         ? `${formatDurationSec(start)}–…`
         : `${formatDurationSec(start)}–${formatDurationSec(end)}`;
-    meta.textContent = [range, clip.trimmedVideoUrl ? t('montageTrimmed') : null]
-      .filter(Boolean)
-      .join(' · ');
-    body.append(title, meta);
-    body.addEventListener('click', () => {
-      selectedMontageClipId = clip.id;
-      renderMontageDetail();
-    });
-    row.appendChild(body);
+    footer.appendChild(meta);
 
     const tools = document.createElement('div');
     tools.className = 'trip-montage__clip-tools';
@@ -1782,22 +1828,35 @@
     up.type = 'button';
     up.className = 'ghost-btn icon-btn';
     up.textContent = '↑';
+    up.title = '↑';
     up.disabled = index === 0;
-    up.addEventListener('click', () => void moveMontageClip(clip.id, -1));
+    up.addEventListener('click', (event) => {
+      event.stopPropagation();
+      void moveMontageClip(clip.id, -1);
+    });
     const down = document.createElement('button');
     down.type = 'button';
     down.className = 'ghost-btn icon-btn';
     down.textContent = '↓';
+    down.title = '↓';
     down.disabled = index >= activeMontageProject.clips.length - 1;
-    down.addEventListener('click', () => void moveMontageClip(clip.id, 1));
+    down.addEventListener('click', (event) => {
+      event.stopPropagation();
+      void moveMontageClip(clip.id, 1);
+    });
     const remove = document.createElement('button');
     remove.type = 'button';
     remove.className = 'ghost-btn icon-btn';
     remove.textContent = '✕';
-    remove.addEventListener('click', () => void removeMontageClip(clip));
+    remove.title = '✕';
+    remove.addEventListener('click', (event) => {
+      event.stopPropagation();
+      void removeMontageClip(clip);
+    });
     tools.append(up, down, remove);
-    row.appendChild(tools);
-    return row;
+    footer.appendChild(tools);
+    card.appendChild(footer);
+    return card;
   }
 
   function buildMontageTrimPanel(clip) {
@@ -1979,7 +2038,11 @@
 
   async function removeMontageClip(clip) {
     const name = clip.media?.originalFilename || clip.mediaId;
-    if (!confirm(t('montageRemoveClipConfirm', { name }))) return;
+    const ok = await askConfirm(t('montageRemoveClipConfirm', { name }), {
+      confirmLabel: t('dialogDelete'),
+      danger: true,
+    });
+    if (!ok) return;
     await api(
       `${projectsBase()}/${activeMontageProject.id}/clips/${clip.id}`,
       { method: 'DELETE' },
@@ -1999,11 +2062,15 @@
     let projectId = activeMontageProject?.id;
     if (!projectId) {
       if (!montageProjects.length) {
-        const name = prompt(t('montageRenamePrompt'), trip.title || 'Project');
-        if (!name) return;
+        const name = await askPrompt(
+          t('montageRenamePrompt'),
+          trip.title || 'Project',
+          { title: t('montageCreate') },
+        );
+        if (!name || !name.trim()) return;
         const created = await api(projectsBase(), {
           method: 'POST',
-          body: JSON.stringify({ name }),
+          body: JSON.stringify({ name: name.trim() }),
         });
         projectId = created.id;
         localStorage.setItem(montageStorageKey(), String(projectId));
@@ -2039,26 +2106,30 @@
   });
 
   async function renameMontageProject() {
-    const name = prompt(
+    const name = await askPrompt(
       t('montageRenamePrompt'),
       activeMontageProject.name,
+      { title: t('montageRename') },
     );
-    if (!name || name.trim() === activeMontageProject.name) return;
+    if (!name || !name.trim() || name.trim() === activeMontageProject.name) {
+      return;
+    }
     await api(`${projectsBase()}/${activeMontageProject.id}`, {
       method: 'PATCH',
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name: name.trim() }),
     });
     await loadMontageProjects();
   }
 
   async function deleteMontageProject() {
-    if (
-      !confirm(
-        t('montageDeleteConfirm', { name: activeMontageProject.name }),
-      )
-    ) {
-      return;
-    }
+    const ok = await askConfirm(
+      t('montageDeleteConfirm', { name: activeMontageProject.name }),
+      {
+        confirmLabel: t('dialogDelete'),
+        danger: true,
+      },
+    );
+    if (!ok) return;
     await api(`${projectsBase()}/${activeMontageProject.id}`, {
       method: 'DELETE',
     });

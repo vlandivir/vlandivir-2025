@@ -5193,7 +5193,11 @@ cancelStyleEditButton.addEventListener('click', resetStyleForm);
 cancelCueEditButton.addEventListener('click', resetCueForm);
 closeCueEditorButton.addEventListener('click', resetCueForm);
 deleteCueButton.addEventListener('click', async () => {
-  if (!editingCueId || !window.confirm(TEXT.deleteCueConfirm)) return;
+  if (!editingCueId) return;
+  const ok = await window.AppDialog.confirm(TEXT.deleteCueConfirm, {
+    danger: true,
+  });
+  if (!ok) return;
 
   const cueId = editingCueId;
   resetCueForm();
@@ -5202,13 +5206,11 @@ deleteCueButton.addEventListener('click', async () => {
   await refreshEditor();
 });
 deleteAllCuesButton.addEventListener('click', async () => {
-  if (
-    !currentVideoHash ||
-    cachedCues.length === 0 ||
-    !window.confirm(TEXT.deleteAllCuesConfirm)
-  ) {
-    return;
-  }
+  if (!currentVideoHash || cachedCues.length === 0) return;
+  const ok = await window.AppDialog.confirm(TEXT.deleteAllCuesConfirm, {
+    danger: true,
+  });
+  if (!ok) return;
 
   deleteAllCuesButton.disabled = true;
   try {

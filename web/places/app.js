@@ -439,7 +439,7 @@
         button.textContent = original;
       }, 1500);
     } catch {
-      window.prompt('Ссылка:', url);
+      await window.AppDialog.prompt('Ссылка:', url);
     }
   }
 
@@ -1263,13 +1263,11 @@
   }
 
   async function deleteTag(tag) {
-    if (
-      !confirm(
-        `Удалить тег «${tag.name}»? Он будет снят со всех точек и треков.`,
-      )
-    ) {
-      return;
-    }
+    const ok = await window.AppDialog.confirm(
+      `Удалить тег «${tag.name}»? Он будет снят со всех точек и треков.`,
+      { danger: true, confirmLabel: 'Удалить' },
+    );
+    if (!ok) return;
     const response = await fetch(`${API_BASE}/tags/${tag.id}`, {
       method: 'DELETE',
       headers: { 'x-map-api-key': getApiKey() },
@@ -1384,7 +1382,11 @@
 
   async function deleteFeature(kind, feature) {
     const label = kind === 'track' ? 'трек' : 'точку';
-    if (!confirm(`Удалить ${label} «${feature.name}»?`)) return;
+    const ok = await window.AppDialog.confirm(
+      `Удалить ${label} «${feature.name}»?`,
+      { danger: true, confirmLabel: 'Удалить' },
+    );
+    if (!ok) return;
 
     const resource = kind === 'track' ? 'tracks' : 'points';
     const response = await fetch(`${API_BASE}/${resource}/${feature.id}`, {
