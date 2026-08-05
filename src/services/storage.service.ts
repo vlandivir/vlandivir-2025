@@ -9,8 +9,10 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Upload } from '@aws-sdk/lib-storage';
+import { createWriteStream } from 'fs';
 import { v4 as uuidv4 } from 'uuid';
-import { Readable } from 'stream';
+import { Readable, Transform } from 'stream';
+import { pipeline } from 'stream/promises';
 
 export type SubsAudioManifest = {
   hash: string;
@@ -669,9 +671,10 @@ export class StorageService implements OnModuleInit {
 
   async downloadFile(url: string): Promise<Buffer> {
     try {
-      // Extract key from URL
-      const urlParts = url.split('/');
-      const key = urlParts.slice(urlParts.indexOf(this.bucket) + 1).join('/');
+      const key = this.keyFromPublicUrl(url);
+      if (!key) {
+        throw new Error(`Could not parse Spaces key from URL: ${url}`);
+      }
 
       const response = await this.s3.getObject({
         Bucket: this.bucket,
@@ -684,10 +687,44 @@ export class StorageService implements OnModuleInit {
 
       return this.readStreamToBuffer(response.Body as NodeJS.ReadableStream);
     } catch (error) {
-      console.error('Error downloading file:', error);
+      this.logger.error(`Error downloading file: ${String(error)}`);
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
       throw new Error(`Failed to download file: ${errorMessage}`);
     }
+  }
+
+  /** Stream a Spaces object to a local path (avoids holding the whole file in RAM). */
+  async downloadFileToPath(
+    url: string,
+    destPath: string,
+  ): Promise<{ bytes: number }> {
+    const key = this.keyFromPublicUrl(url);
+    if (!key) {
+      throw new Error(`Could not parse Spaces key from URL: ${url}`);
+    }
+
+    const response = await this.s3.getObject({
+      Bucket: this.bucket,
+      Key: key,
+    });
+    if (!response.Body) {
+      throw new Error(`No body in response for key: ${key}`);
+    }
+
+    let bytes = 0;
+    const counter = new Transform({
+      transform(chunk, _enc, cb) {
+        bytes += chunk.length;
+        cb(null, chunk);
+      },
+    });
+
+    await pipeline(
+      response.Body as NodeJS.ReadableStream,
+      counter,
+      createWriteStream(destPath),
+    );
+    return { bytes };
   }
 }
