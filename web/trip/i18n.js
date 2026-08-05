@@ -110,6 +110,11 @@ window.PAGE_I18N = {
     montageTrimmed: 'обрезан',
     montageRemoveClipConfirm: 'Убрать «{name}» из проекта?',
     montageDuration: 'Длительность ролика: {duration}',
+    montageTrimReset: 'Сбросить обрезку',
+    montageTrimClose: 'Закрыть обрезку',
+    montagePreview: 'Просмотр',
+    montagePreviewTitle: 'Превью проекта',
+    montageClipStatus: 'Клип',
   },
   en: {
     title: 'Trip photos',
@@ -223,5 +228,10 @@ window.PAGE_I18N = {
     montageTrimmed: 'trimmed',
     montageRemoveClipConfirm: 'Remove “{name}” from the project?',
     montageDuration: 'Video duration: {duration}',
+    montageTrimReset: 'Reset trim',
+    montageTrimClose: 'Close trim',
+    montagePreview: 'Preview',
+    montagePreviewTitle: 'Project preview',
+    montageClipStatus: 'Clip',
   },
 };
