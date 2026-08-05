@@ -297,13 +297,13 @@
 
 .trip-card__footer {
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
+  align-items: stretch;
   gap: var(--v-space-2);
   padding: var(--v-space-2) var(--v-space-3) var(--v-space-3);
 }
 
 .trip-card__meta {
-  flex: 1;
   min-width: 0;
   display: grid;
   gap: 2px;
@@ -324,15 +324,15 @@
   white-space: nowrap;
 }
 
-.trip-card__badge {
-  position: absolute;
-  top: var(--v-space-2);
-  left: var(--v-space-2);
-  z-index: 1;
+.trip-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--v-space-2);
 }
 
-.trip-card__delete {
-  flex-shrink: 0;
+.trip-card__action {
+  flex: 0 0 auto;
   width: 36px;
   height: 36px;
   min-height: 36px;
@@ -340,6 +340,23 @@
   display: inline-grid;
   place-items: center;
   color: var(--v-muted);
+}
+
+.trip-card__action:hover {
+  color: var(--v-text);
+}
+
+.trip-card__action.is-active {
+  color: hsl(var(--primary));
+  border-color: hsl(var(--primary));
+  background: hsl(var(--primary) / 0.08);
+}
+
+.trip-card__badge {
+  position: absolute;
+  top: var(--v-space-2);
+  left: var(--v-space-2);
+  z-index: 1;
 }
 
 .trip-card__delete:hover {
@@ -777,6 +794,13 @@
   background: hsl(var(--shadcn-muted));
 }
 
+.trip-montage__trim-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--v-space-2);
+}
+
 .trip-montage__trim-label {
   font-size: 13px;
   font-weight: 650;
@@ -798,11 +822,32 @@
 .trip-montage__trim-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--v-space-2);
 }
 
-.trip-card__add {
-  flex: 0 0 auto;
+.trip-montage__icon-btn {
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  color: var(--v-muted);
+}
+
+.trip-montage__icon-btn:hover {
+  color: var(--v-text);
+}
+
+.trip-montage__icon-btn.is-primary {
+  color: hsl(var(--primary-foreground));
+  background: hsl(var(--primary));
+  border-color: hsl(var(--primary));
+}
+
+.trip-montage__icon-btn.is-primary:hover {
+  color: hsl(var(--primary-foreground));
 }
 
 .mini-btn.danger-btn {
