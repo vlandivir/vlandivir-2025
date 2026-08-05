@@ -451,6 +451,7 @@ export class StorageService implements OnModuleInit {
     stream: Readable,
     mimeType: string,
     key: string,
+    options?: { contentDisposition?: string },
   ): Promise<string> {
     const upload = new Upload({
       client: this.s3,
@@ -460,6 +461,9 @@ export class StorageService implements OnModuleInit {
         Body: stream,
         ContentType: mimeType,
         ACL: 'public-read',
+        ...(options?.contentDisposition
+          ? { ContentDisposition: options.contentDisposition }
+          : {}),
       },
     });
     await upload.done();
@@ -523,6 +527,10 @@ export class StorageService implements OnModuleInit {
     clipId: number,
   ): string {
     return `trips/${tripId}/projects/${projectId}/${clipId}.mp4`;
+  }
+
+  getTripProjectZipKey(tripId: string, projectId: number): string {
+    return `trips/${tripId}/projects/${projectId}/export.zip`;
   }
 
   async uploadTripProjectClip(

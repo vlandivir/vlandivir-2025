@@ -3,14 +3,14 @@ import {
   Injectable,
   Logger,
   NotFoundException,
-  StreamableFile,
 } from '@nestjs/common';
 import { ZipArchive } from 'archiver';
 import { spawn } from 'child_process';
+import { createReadStream, createWriteStream } from 'fs';
 import { mkdtemp, readFile, rm, writeFile } from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
-import { PassThrough, Readable } from 'stream';
+import { finished } from 'stream/promises';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from './storage.service';
 
@@ -82,6 +82,7 @@ export class TripProjectsService {
     for (const clip of project.clips) {
       await this.storageService.deleteByPublicUrl(clip.trimmedVideoUrl);
     }
+    await this.storageService.deleteByPublicUrl(project.exportZipUrl);
     await this.prisma.tripProject.delete({ where: { id: projectId } });
     return { deleted: true };
   }
@@ -242,7 +243,10 @@ export class TripProjectsService {
     return updated;
   }
 
-  async exportZip(tripId: string, projectId: number): Promise<StreamableFile> {
+  async exportZip(
+    tripId: string,
+    projectId: number,
+  ): Promise<{ url: string; filename: string }> {
     const project = await this.getProject(tripId, projectId);
     if (!project.clips.length) {
       throw new BadRequestException('В проекте нет клипов');
@@ -274,32 +278,6 @@ export class TripProjectsService {
       }
     }
 
-    const archive = new ZipArchive({ store: true });
-    const pass = new PassThrough();
-    archive.on('error', (error) => {
-      this.logger.error(`ZIP export failed: ${String(error)}`);
-      pass.destroy(error);
-    });
-    archive.pipe(pass);
-
-    const pad = String(project.clips.length).length;
-    for (let i = 0; i < project.clips.length; i++) {
-      const clip = project.clips[i];
-      const sourceUrl = clip.trimmedVideoUrl || clip.media.url;
-      if (!sourceUrl) {
-        throw new BadRequestException(
-          `У клипа #${clip.id} нет видео для экспорта`,
-        );
-      }
-      const buffer = await this.storageService.downloadFile(sourceUrl);
-      const index = String(i + 1).padStart(Math.max(2, pad), '0');
-      const base = (clip.media.originalFilename || `clip-${clip.id}`)
-        .replace(/\.[^.]+$/, '')
-        .replace(/[^A-Za-z0-9_-]+/g, '_')
-        .slice(0, 60);
-      archive.append(buffer, { name: `${index}-${base || clip.id}.mp4` });
-    }
-
     const asciiName =
       project.name
         .normalize('NFKD')
@@ -307,13 +285,58 @@ export class TripProjectsService {
         .replace(/[^A-Za-z0-9._ -]+/g, '_')
         .trim()
         .slice(0, 80) || `project-${project.id}`;
+    const filename = `${asciiName}.zip`;
+    const key = this.storageService.getTripProjectZipKey(tripId, projectId);
 
-    void archive.finalize();
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), 'trip-zip-'));
+    const zipPath = path.join(tempDir, 'export.zip');
+    try {
+      const archive = new ZipArchive({ store: true });
+      const output = createWriteStream(zipPath);
+      const outputDone = finished(output);
+      archive.on('error', (error) => {
+        this.logger.error(`ZIP export failed: ${String(error)}`);
+        output.destroy(error);
+      });
+      archive.pipe(output);
 
-    return new StreamableFile(pass as Readable, {
-      type: 'application/zip',
-      disposition: `attachment; filename="${asciiName}.zip"`,
-    });
+      const pad = String(project.clips.length).length;
+      for (let i = 0; i < project.clips.length; i++) {
+        const clip = project.clips[i];
+        const sourceUrl = clip.trimmedVideoUrl || clip.media.url;
+        if (!sourceUrl) {
+          throw new BadRequestException(
+            `У клипа #${clip.id} нет видео для экспорта`,
+          );
+        }
+        const buffer = await this.storageService.downloadFile(sourceUrl);
+        const index = String(i + 1).padStart(Math.max(2, pad), '0');
+        const base = (clip.media.originalFilename || `clip-${clip.id}`)
+          .replace(/\.[^.]+$/, '')
+          .replace(/[^A-Za-z0-9_-]+/g, '_')
+          .slice(0, 60);
+        archive.append(buffer, { name: `${index}-${base || clip.id}.mp4` });
+      }
+
+      await archive.finalize();
+      await outputDone;
+
+      const url = await this.storageService.uploadStreamWithKey(
+        createReadStream(zipPath),
+        'application/zip',
+        key,
+        { contentDisposition: `attachment; filename="${filename}"` },
+      );
+
+      await this.prisma.tripProject.update({
+        where: { id: projectId },
+        data: { exportZipUrl: url },
+      });
+
+      return { url, filename };
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
   }
 
   private async trimAndUpload(
@@ -420,9 +443,16 @@ export class TripProjectsService {
   }
 
   private async touchProject(id: number) {
+    const project = await this.prisma.tripProject.findUnique({
+      where: { id },
+      select: { exportZipUrl: true },
+    });
+    if (project?.exportZipUrl) {
+      await this.storageService.deleteByPublicUrl(project.exportZipUrl);
+    }
     await this.prisma.tripProject.update({
       where: { id },
-      data: { updatedAt: new Date() },
+      data: { updatedAt: new Date(), exportZipUrl: null },
     });
   }
 
