@@ -6,6 +6,7 @@ import { PdfService } from './pdf.service';
 import { DebugLogService } from './debug-log.service';
 import { InstagramMetaService } from './instagram-meta.service';
 import { ReelsService } from './reels.service';
+import { ReelProjectsService } from './reel-projects.service';
 import { EmbeddingsService } from './embeddings.service';
 import { MapSearchService } from './map-search.service';
 import { DiarySearchService } from './diary-search.service';
@@ -26,6 +27,7 @@ import { TripThumbsService } from './trip-thumbs.service';
     DebugLogService,
     InstagramMetaService,
     ReelsService,
+    ReelProjectsService,
     EmbeddingsService,
     MapSearchService,
     DiarySearchService,
@@ -45,6 +47,7 @@ import { TripThumbsService } from './trip-thumbs.service';
     DebugLogService,
     InstagramMetaService,
     ReelsService,
+    ReelProjectsService,
     EmbeddingsService,
     MapSearchService,
     DiarySearchService,

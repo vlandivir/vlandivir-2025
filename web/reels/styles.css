@@ -804,6 +804,233 @@ body.frames-lightbox-open {
   font-size: 13px;
 }
 
+/* --- Montage projects --- */
+
+.projects-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-3);
+}
+
+.projects-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--v-space-3);
+}
+
+.projects-panel-title {
+  margin: var(--v-space-1) 0 0;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.project-create-form {
+  display: flex;
+  gap: var(--v-control-gap);
+  align-items: stretch;
+}
+
+.project-create-form input {
+  flex: 1;
+  min-width: 0;
+}
+
+.projects-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-2);
+}
+
+.project-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--v-space-3);
+  width: 100%;
+  padding: var(--v-space-2) var(--v-space-3);
+  border: 1px solid hsl(var(--shadcn-border));
+  border-radius: calc(var(--radius) - 2px);
+  background: hsl(var(--background));
+  color: var(--v-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.project-row:hover {
+  border-color: hsl(var(--shadcn-ring));
+}
+
+.project-row.selected {
+  border-color: hsl(var(--primary));
+  background: hsl(var(--primary) / 0.08);
+}
+
+.project-row-name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.project-row-meta {
+  color: var(--v-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.projects-empty,
+.projects-hint {
+  margin: 0;
+  color: var(--v-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.projects-hint code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.project-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-3);
+  padding-top: var(--v-space-2);
+  border-top: 1px solid hsl(var(--shadcn-border));
+}
+
+.project-detail-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-2);
+}
+
+.project-detail-head h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.project-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-2);
+}
+
+.project-clips {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-2);
+}
+
+.project-clip {
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  gap: var(--v-space-2);
+  align-items: center;
+  padding: var(--v-space-2);
+  border: 1px solid hsl(var(--shadcn-border));
+  border-radius: calc(var(--radius) - 2px);
+  background: hsl(var(--background));
+}
+
+.project-clip.selected {
+  border-color: hsl(var(--primary));
+  background: hsl(var(--primary) / 0.08);
+}
+
+.project-clip-cover {
+  width: 48px;
+  height: 64px;
+  border-radius: calc(var(--radius) - 2px);
+  overflow: hidden;
+  background: hsl(var(--shadcn-muted));
+  color: var(--v-muted);
+  font-size: 12px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+
+.project-clip-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.project-clip-body {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.project-clip-title {
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-clip-meta {
+  margin-top: 2px;
+  color: var(--v-muted);
+  font-size: 12px;
+}
+
+.project-clip-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.project-clip-tools .icon-btn {
+  width: 32px;
+  flex-basis: 32px;
+  min-height: 32px;
+  font-size: 14px;
+}
+
+.project-trim {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-2);
+  padding: var(--v-space-3);
+  border: 1px solid hsl(var(--shadcn-border));
+  border-radius: calc(var(--radius) - 2px);
+  background: hsl(var(--shadcn-muted));
+}
+
+.project-trim-label {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.project-trim-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--v-space-2);
+}
+
+.project-trim-hint {
+  margin: 0;
+  color: var(--v-muted);
+  font-size: 12px;
+}
+
+.project-trim-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-2);
+}
+
 /* --- Mobile drawer --- */
 
 .drawer-overlay {

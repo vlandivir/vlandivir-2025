@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  DeleteObjectCommand,
   HeadObjectCommand,
   PutBucketCorsCommand,
   PutObjectCommand,
@@ -514,6 +515,56 @@ export class StorageService implements OnModuleInit {
     });
     await upload.done();
     return `${this.endpoint}/${this.bucket}/${key}`;
+  }
+
+  getReelProjectClipKey(projectId: number, clipId: number): string {
+    return `reels/projects/${projectId}/${clipId}.mp4`;
+  }
+
+  getReelProjectClipUrl(projectId: number, clipId: number): string {
+    return this.getPublicUrl(this.getReelProjectClipKey(projectId, clipId));
+  }
+
+  async uploadReelProjectClip(
+    projectId: number,
+    clipId: number,
+    buffer: Buffer,
+  ): Promise<string> {
+    return this.uploadFileWithKey(
+      buffer,
+      'video/mp4',
+      this.getReelProjectClipKey(projectId, clipId),
+    );
+  }
+
+  async deleteByPublicUrl(url: string | null | undefined): Promise<void> {
+    if (!url) return;
+    const key = this.keyFromPublicUrl(url);
+    if (!key) return;
+    try {
+      await this.s3.send(
+        new DeleteObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+        }),
+      );
+    } catch (error) {
+      if (this.isMissingObjectError(error)) return;
+      this.logger.warn(
+        `Failed to delete Spaces object ${key}: ${String(error)}`,
+      );
+    }
+  }
+
+  private keyFromPublicUrl(url: string): string | null {
+    try {
+      const parsed = new URL(url);
+      const prefix = `/${this.bucket}/`;
+      if (!parsed.pathname.startsWith(prefix)) return null;
+      return decodeURIComponent(parsed.pathname.slice(prefix.length));
+    } catch {
+      return null;
+    }
   }
 
   private getSubsVideoKey(hash: string): string {

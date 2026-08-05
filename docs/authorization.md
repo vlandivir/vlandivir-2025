@@ -71,6 +71,7 @@ redirect `/reels`, `/reels/<secret>/<id>` → 301 на `/reels/<id>` (дальш
 | Instagram-мета с `?force=1` | `POST /map-api/.../instagram-meta?force=1` | `x-map-api-key` |
 | Чтение рилсов | `GET /reels-api/reels[...]`, `/search`, `/ask` | `x-reels-api-key` |
 | Мутации рилсов | `POST/DELETE /reels-api/...` (создание, retry, теги, transcribe, vision, embed, key-check) | `x-reels-api-key` |
+| Монтажные проекты рилсов | `GET/POST/PATCH/DELETE /reels-api/projects…`, клипы (order/trim), `GET …/export.zip` | `x-reels-api-key` |
 
 ### Только машинные ключи / другие механизмы
 
