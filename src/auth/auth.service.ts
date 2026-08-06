@@ -175,11 +175,25 @@ export class AuthService {
     }
   }
 
-  getSessionFromRequest(request: Request): SessionUser | null {
+  /** Raw session JWT from Authorization Bearer or vl_session cookie. */
+  getSessionTokenFromRequest(request: Request): string | null {
     if (!this.enabled) return null;
-    const token = this.parseCookies(request.headers.cookie)[SESSION_COOKIE];
+    const bearer = this.bearerToken(request);
+    if (bearer) return bearer;
+    return this.parseCookies(request.headers.cookie)[SESSION_COOKIE] || null;
+  }
+
+  getSessionFromRequest(request: Request): SessionUser | null {
+    const token = this.getSessionTokenFromRequest(request);
     if (!token) return null;
     return this.verifySessionToken(token);
+  }
+
+  private bearerToken(request: Request): string | null {
+    const header = request.headers.authorization;
+    if (!header || typeof header !== 'string') return null;
+    const match = /^Bearer\s+(\S+)/i.exec(header.trim());
+    return match?.[1] || null;
   }
 
   /** True when the email is on ALLOWED_GOOGLE_EMAILS (site admin / owner). */

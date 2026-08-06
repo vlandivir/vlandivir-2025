@@ -9,7 +9,10 @@
 `ALLOWED_GOOGLE_EMAILS` (через запятую). Сейчас там: `vladimir.rybakov@gmail.com`.
 Любой другой Google-аккаунт получает 403 при попытке входа.
 Сессия — JWT в httpOnly-cookie `vl_session` на 30 дней, подпись `SESSION_SECRET`.
+Тот же JWT принимается в заголовке `Authorization: Bearer <token>` (desktop Tauri app).
 Выход: `GET /auth/logout`. Проверка: `GET /auth/me`.
+Desktop handoff: после Google login браузер открывает `GET /auth/desktop-handoff?port=<1024–65535>`
+(нужна валидная allowlist-сессия) → redirect на `http://127.0.0.1:<port>/?token=<jwt>`.
 
 **Машинные клиенты (скрипты, интеграции).** Секретные ключи в заголовках,
 значения — в env (см. таблицу env ниже). URL-секретов больше нет.
@@ -36,12 +39,13 @@
 | Share-страницы карты | `/places/point/:id`, `/places/track/:id` | `src/map-pages.controller.ts` |
 | Альбомы поездок (страницы) | `/trip`, `/trip/:secret`, `/trip/en`, `/trip/en/:secret` | `src/app.controller.ts` + `src/main.ts` |
 | API альбомов поездок | `POST/GET/PATCH /trip-api/trips…`, `GET /trip-api/my-trips`, uploads check/complete, soft-delete media | `src/trip-api.controller.ts` — доступ по `secret` в URL; авторство через `contributorId` (клиент) / `X-Contributor-Id`; `GET /my-trips` — список созданных альбомов по `X-Contributor-Id`; админы (Google allowlist) видят soft-deleted |
-| Монтаж видео поездки | `GET/POST/PATCH/DELETE /trip-api/trips/:secret/projects…`, клипы (order/trim), `POST …/export` (фоновая сборка ZIP → Spaces), `GET …/export` (статус) | `src/trip-api.controller.ts` — **только Google admin** (`isAdminSession`); проекты в рамках одной поездки |
+| Список всех альбомов (admin) | `GET /trip-api/admin/trips` | `src/trip-api.controller.ts` — **только Google admin** (`isAdminSession` / Bearer JWT) |
+| Монтаж видео поездки | `GET/POST/PATCH/DELETE /trip-api/trips/:secret/projects…`, клипы (order/trim), `POST …/export` (фоновая сборка ZIP → Spaces), `GET …/export` (статус) | `src/trip-api.controller.ts` — **только Google admin** (`isAdminSession`); проекты в рамках одной поездки. Trim/ZIP UI — в desktop; web оставляет create project + выбор клипов |
 | Чтение карты | `GET /map-api/points`, `/tracks`, `/tags`, `/resolve-google-link` | `src/map-api.controller.ts` (без guard) |
 | Семантический поиск по карте | `GET /map-api/search?q=` | `src/map-api.controller.ts` (без guard); ищет по точкам/трекам с прикреплённым рилсом через эмбеддинги рилсов |
 | Обновление Instagram-меты (без force) | `POST /map-api/{points,tracks}/:id/instagram-meta` | там же; окно 24 ч защищает от злоупотребления |
 | Subs-инструменты | `/subs-api/*` (загрузка видео, транскрипция, рендер) | `src/subs.controller.ts` — **без авторизации, публичный инструмент** |
-| Вход/выход | `/auth/google`, `/auth/google/callback`, `/auth/logout`, `/auth/me` | `src/auth/auth.controller.ts` |
+| Вход/выход | `/auth/google`, `/auth/google/callback`, `/auth/logout`, `/auth/me`, `/auth/desktop-handoff` | `src/auth/auth.controller.ts` |
 
 ### Только сессия Google (владелец)
 
