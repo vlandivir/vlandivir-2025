@@ -57,7 +57,7 @@
             <button id="cacheClearBtn" class="ghost-btn" type="button">
               Очистить кэш
             </button>
-            <span id="cacheStats" class="muted"></span>
+            <span id="cacheStats" class="muted cache-stats" title=""></span>
           </div>
         </div>
 
@@ -115,6 +115,14 @@
                     проигрывание и обрезка недоступны.
                   </p>
                   <button id="albumDownloadBtn" class="primary-btn" type="button"></button>
+                  <div id="albumDownloadProgress" class="cache-progress" hidden>
+                    <div class="progress">
+                      <div id="albumDownloadProgressBar" class="progress-bar"></div>
+                    </div>
+                    <p id="albumDownloadProgressLabel" class="muted cache-progress__label">
+                      0%
+                    </p>
+                  </div>
                 </div>
               </div>
               <div class="preview-meta">
@@ -146,6 +154,7 @@
             <h2 id="lightboxProjectTitle">Проект</h2>
           </div>
           <div class="project-lightbox__head-actions">
+            <span id="lightboxCacheStats" class="muted cache-stats" title=""></span>
             <button id="lightboxExportBtn" class="primary-btn" type="button">
               Export в папку
             </button>
@@ -168,6 +177,14 @@
                   задавать границы обрезки.
                 </p>
                 <button id="lightboxDownloadBtn" class="primary-btn" type="button"></button>
+                <div id="lightboxDownloadProgress" class="cache-progress" hidden>
+                  <div class="progress">
+                    <div id="lightboxDownloadProgressBar" class="progress-bar"></div>
+                  </div>
+                  <p id="lightboxDownloadProgressLabel" class="muted cache-progress__label">
+                    0%
+                  </p>
+                </div>
               </div>
             </div>
             <p id="lightboxDownloadStatus" class="muted"></p>

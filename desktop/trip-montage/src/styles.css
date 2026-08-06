@@ -194,22 +194,24 @@ body {
 }
 
 .media-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: var(--v-space-3);
   overflow-y: auto;
   min-height: 0;
   padding-right: var(--v-space-1);
-  align-content: start;
-  align-items: start;
+  align-content: flex-start;
+  align-items: flex-start;
 }
 
 .trip-card {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  align-self: start;
+  display: block;
+  box-sizing: border-box;
+  /* Fixed footprint — WKWebView collapses %, aspect-ratio, and padding-bottom
+     squares inside nested grid/flex (cards become thin overlapping strips). */
+  width: 168px;
+  flex: 0 0 168px;
   border: 1px solid hsl(var(--shadcn-border));
   border-radius: var(--radius);
   background: hsl(var(--card));
@@ -235,16 +237,15 @@ body {
   border-color: hsl(var(--primary) / 0.45);
 }
 
-/* padding-bottom square: WKWebView often collapses aspect-ratio in nested grids */
 .trip-card__media {
   position: relative;
-  width: 100%;
-  height: 0;
-  padding-bottom: 100%;
-  flex: 0 0 auto;
+  display: block;
+  width: 168px;
+  height: 168px;
   background: hsl(var(--shadcn-muted));
   overflow: hidden;
   border: 0;
+  padding: 0;
 }
 
 .trip-card__media img {
@@ -291,9 +292,10 @@ body {
 .trip-card__badge--cache {
   left: 8px;
   top: 8px;
-  color: hsl(var(--success));
-  border-color: hsl(var(--success) / 0.35);
-  background: hsl(var(--success) / 0.12);
+  color: hsl(var(--success-foreground));
+  border-color: transparent;
+  background: hsl(var(--success));
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
 }
 
 .trip-card__badge--fragment {
@@ -397,6 +399,48 @@ body {
 .preview-need-cache p {
   margin: 0;
   max-width: 360px;
+}
+
+.cache-progress {
+  width: min(360px, 100%);
+  display: grid;
+  gap: var(--v-space-2);
+  justify-items: stretch;
+}
+
+.cache-progress .progress {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: hsl(var(--secondary));
+}
+
+.cache-progress .progress-bar {
+  width: 0%;
+  height: 100%;
+  border-radius: inherit;
+  background: hsl(var(--primary));
+  transition: width 0.12s linear;
+}
+
+.cache-progress.is-indeterminate .progress-bar {
+  width: 40% !important;
+  animation: cache-progress-indeterminate 1.1s ease-in-out infinite;
+}
+
+.cache-progress__label {
+  margin: 0;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+@keyframes cache-progress-indeterminate {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(280%);
+  }
 }
 
 .preview-meta {
@@ -537,6 +581,11 @@ body {
   align-items: center;
 }
 
+.cache-stats {
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
 .project-lightbox__body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
@@ -637,9 +686,9 @@ body {
 
 .timeline-card__thumb {
   position: relative;
-  width: 100%;
-  height: 0;
-  padding-bottom: 177.78%; /* 9:16 — WKWebView-safe */
+  display: block;
+  width: 80px;
+  height: 142px; /* 9:16 at 80px wide */
   background: hsl(var(--shadcn-muted));
   overflow: hidden;
 }
@@ -675,6 +724,9 @@ body {
   bottom: 6px;
   width: 22px;
   height: 22px;
+  color: hsl(var(--success-foreground));
+  background: hsl(var(--success));
+  border-color: transparent;
 }
 
 .timeline-card__thumb .trip-card__badge--fragment {

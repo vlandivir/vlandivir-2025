@@ -20,6 +20,7 @@ const els = {
   mediaCount: document.getElementById('mediaCount'),
   cacheStats: document.getElementById('cacheStats'),
   cacheClearBtn: document.getElementById('cacheClearBtn'),
+  lightboxCacheStats: document.getElementById('lightboxCacheStats'),
   projectSelect: document.getElementById('projectSelect'),
   createProjectForm: document.getElementById('createProjectForm'),
   projectNameInput: document.getElementById('projectNameInput'),
@@ -34,6 +35,9 @@ const els = {
   albumPreviewVideo: document.getElementById('albumPreviewVideo'),
   albumPreviewNeedCache: document.getElementById('albumPreviewNeedCache'),
   albumDownloadBtn: document.getElementById('albumDownloadBtn'),
+  albumDownloadProgress: document.getElementById('albumDownloadProgress'),
+  albumDownloadProgressBar: document.getElementById('albumDownloadProgressBar'),
+  albumDownloadProgressLabel: document.getElementById('albumDownloadProgressLabel'),
   albumPreviewName: document.getElementById('albumPreviewName'),
   albumPreviewMeta: document.getElementById('albumPreviewMeta'),
   albumPreviewCache: document.getElementById('albumPreviewCache'),
@@ -48,6 +52,13 @@ const els = {
   lightboxVideo: document.getElementById('lightboxVideo'),
   lightboxNeedCache: document.getElementById('lightboxNeedCache'),
   lightboxDownloadBtn: document.getElementById('lightboxDownloadBtn'),
+  lightboxDownloadProgress: document.getElementById('lightboxDownloadProgress'),
+  lightboxDownloadProgressBar: document.getElementById(
+    'lightboxDownloadProgressBar',
+  ),
+  lightboxDownloadProgressLabel: document.getElementById(
+    'lightboxDownloadProgressLabel',
+  ),
   lightboxDownloadStatus: document.getElementById('lightboxDownloadStatus'),
   lightboxCacheActions: document.getElementById('lightboxCacheActions'),
   lightboxRemoveCacheBtn: document.getElementById('lightboxRemoveCacheBtn'),
@@ -89,6 +100,112 @@ let previewToken = 0;
 let cachedMediaIds = new Set();
 /** @type {Map<number, { bytes: number, path?: string, startSec?: number, endSec?: number }>} */
 let fragmentByClipId = new Map();
+/** @type {string | null} */
+let activeDownloadMediaId = null;
+/** @type {'album' | 'lightbox' | 'export' | null} */
+let activeDownloadUi = null;
+
+function progressTargets(ui) {
+  if (ui === 'lightbox') {
+    return {
+      root: els.lightboxDownloadProgress,
+      bar: els.lightboxDownloadProgressBar,
+      label: els.lightboxDownloadProgressLabel,
+    };
+  }
+  return {
+    root: els.albumDownloadProgress,
+    bar: els.albumDownloadProgressBar,
+    label: els.albumDownloadProgressLabel,
+  };
+}
+
+function resetDownloadProgress(ui = activeDownloadUi) {
+  const targets = [];
+  if (!ui || ui === 'album') targets.push(progressTargets('album'));
+  if (!ui || ui === 'lightbox') targets.push(progressTargets('lightbox'));
+  for (const t of targets) {
+    if (!t.root) continue;
+    t.root.hidden = true;
+    t.root.classList.remove('is-indeterminate');
+    if (t.bar) t.bar.style.width = '0%';
+    if (t.label) t.label.textContent = '0%';
+  }
+}
+
+function beginDownloadProgress(mediaId, ui) {
+  activeDownloadMediaId = mediaKey(mediaId);
+  activeDownloadUi = ui;
+  if (ui === 'export') return;
+  const t = progressTargets(ui);
+  if (!t.root) return;
+  t.root.hidden = false;
+  t.root.classList.remove('is-indeterminate');
+  if (t.bar) t.bar.style.width = '0%';
+  if (t.label) t.label.textContent = '0%';
+}
+
+function endDownloadProgress() {
+  resetDownloadProgress(activeDownloadUi);
+  activeDownloadMediaId = null;
+  activeDownloadUi = null;
+}
+
+function applyCacheProgress(payload) {
+  if (!payload) return;
+  const mediaId = mediaKey(payload.media_id ?? payload.mediaId);
+  if (
+    activeDownloadMediaId &&
+    mediaId &&
+    mediaId !== activeDownloadMediaId &&
+    activeDownloadUi !== 'export'
+  ) {
+    return;
+  }
+
+  const received = Number(payload.received || 0);
+  const total =
+    payload.total != null && Number(payload.total) > 0
+      ? Number(payload.total)
+      : null;
+  const percent =
+    payload.percent != null
+      ? Math.max(0, Math.min(100, Number(payload.percent)))
+      : total
+        ? Math.min(100, (received / total) * 100)
+        : null;
+
+  if (activeDownloadUi === 'export') {
+    const label =
+      percent != null
+        ? `Кэш ${Math.round(percent)}% · ${formatBytes(received)}${
+            total ? ` / ${formatBytes(total)}` : ''
+          }`
+        : `Кэш ${formatBytes(received)}…`;
+    showStatus(label);
+    return;
+  }
+
+  const ui = activeDownloadUi || 'album';
+  const t = progressTargets(ui);
+  if (!t.root) return;
+  t.root.hidden = false;
+
+  if (percent == null) {
+    t.root.classList.add('is-indeterminate');
+    if (t.bar) t.bar.style.width = '40%';
+    if (t.label) t.label.textContent = `${formatBytes(received)}…`;
+    return;
+  }
+
+  t.root.classList.remove('is-indeterminate');
+  if (t.bar) t.bar.style.width = `${percent}%`;
+  if (t.label) {
+    t.label.textContent = total
+      ? `${Math.round(percent)}% · ${formatBytes(received)} / ${formatBytes(total)}`
+      : `${Math.round(percent)}% · ${formatBytes(received)}`;
+  }
+}
 
 function showStatus(message, isError = false) {
   els.status.hidden = !message;
@@ -166,18 +283,29 @@ function initStaticIcons() {
 
 async function refreshCacheStats() {
   try {
-    const [stats, fragments] = await Promise.all([
+    const [stats, fragments, dir] = await Promise.all([
       invoke('get_cache_stats'),
       invoke('get_fragment_stats'),
+      invoke('get_media_cache_dir').catch(() => ''),
     ]);
     const cachePart = `Кэш: ${stats.files} файл. · ${formatBytes(stats.bytes)}`;
     const fragPart =
       fragments.files > 0
         ? ` · Отрезки: ${fragments.files} · ${formatBytes(fragments.bytes)}`
         : '';
-    els.cacheStats.textContent = cachePart + fragPart;
+    const label = cachePart + fragPart;
+    for (const el of [els.cacheStats, els.lightboxCacheStats]) {
+      if (!el) continue;
+      el.textContent = label;
+      el.title = dir || '';
+    }
   } catch {
-    els.cacheStats.textContent = '';
+    for (const el of [els.cacheStats, els.lightboxCacheStats]) {
+      if (el) {
+        el.textContent = '';
+        el.title = '';
+      }
+    }
   }
 }
 
@@ -218,13 +346,27 @@ function fragmentInsertIndex(clips, sourceClipId, sourceMediaId) {
   return insertAt;
 }
 
+function mediaKey(id) {
+  return id == null ? '' : String(id);
+}
+
+function appendCacheBadge(parent) {
+  const cacheBadge = document.createElement('span');
+  cacheBadge.className = 'trip-card__badge trip-card__badge--cache';
+  cacheBadge.title = 'В локальном кэше';
+  cacheBadge.setAttribute('aria-label', 'В локальном кэше');
+  cacheBadge.innerHTML = icons.hardDrive;
+  parent.appendChild(cacheBadge);
+  return cacheBadge;
+}
+
 /** Local video URL via custom `media://` protocol (Range streaming). */
 async function localVideoUrl(path) {
   return invoke('media_file_url', { path });
 }
 
 async function getCacheStatus(mediaId) {
-  return invoke('is_media_cached', { mediaId });
+  return invoke('is_media_cached', { mediaId: mediaKey(mediaId) });
 }
 
 async function removeMediaFromCache(mediaId) {
@@ -248,7 +390,7 @@ async function refreshCachedMediaIds() {
     videos.map(async (item) => {
       try {
         const status = await getCacheStatus(item.id);
-        if (status.cached) next.add(item.id);
+        if (status.cached) next.add(mediaKey(item.id));
       } catch {
         /* ignore */
       }
@@ -421,7 +563,7 @@ function renderMediaList() {
   for (const item of mediaItems) {
     const inProjectClip =
       item.kind === 'video' ? clipForMedia(item.id) : null;
-    const isCached = item.kind === 'video' && cachedMediaIds.has(item.id);
+    const isCached = item.kind === 'video' && cachedMediaIds.has(mediaKey(item.id));
 
     const card = document.createElement('article');
     card.className =
@@ -445,11 +587,7 @@ function renderMediaList() {
     media.appendChild(img);
 
     if (isCached) {
-      const cacheBadge = document.createElement('span');
-      cacheBadge.className = 'trip-card__badge trip-card__badge--cache';
-      cacheBadge.title = 'Загружено локально';
-      cacheBadge.innerHTML = icons.hardDrive;
-      media.appendChild(cacheBadge);
+      appendCacheBadge(media);
     }
 
     if (item.kind === 'video') {
@@ -598,14 +736,15 @@ async function downloadAlbumMedia(item) {
   const token = previewToken;
   els.albumDownloadBtn.disabled = true;
   setButtonContent(els.albumDownloadBtn, icons.download, 'Загрузка…');
+  beginDownloadProgress(item.id, 'album');
   try {
     const cached = await invoke('ensure_media_cached', {
-      mediaId: item.id,
+      mediaId: mediaKey(item.id),
       url: item.url,
     });
     if (token !== previewToken) return;
     await refreshCacheStats();
-    cachedMediaIds.add(item.id);
+    cachedMediaIds.add(mediaKey(item.id));
     renderMediaList();
     els.albumPreviewCache.textContent = `Локально · ${formatBytes(cached.bytes)}`;
     els.albumPreviewNeedCache.hidden = true;
@@ -625,6 +764,8 @@ async function downloadAlbumMedia(item) {
     showStatus(error.message || String(error), true);
     setButtonContent(els.albumDownloadBtn, icons.download, 'Загрузить локально');
     els.albumDownloadBtn.disabled = false;
+  } finally {
+    endDownloadProgress();
   }
 }
 
@@ -681,6 +822,8 @@ async function openLightbox(preferClipId = null) {
   if (!els.projectLightbox.open) {
     els.projectLightbox.showModal();
   }
+  await refreshCachedMediaIds();
+  await refreshCacheStats();
   renderLightbox();
   const clips = activeProject.clips || [];
   const target =
@@ -810,12 +953,8 @@ function renderTimeline() {
       fragmentBadge.title = 'Отрезок';
       fragmentBadge.innerHTML = icons.scissors;
       thumb.appendChild(fragmentBadge);
-    } else if (cachedMediaIds.has(clip.mediaId)) {
-      const cacheBadge = document.createElement('span');
-      cacheBadge.className = 'trip-card__badge trip-card__badge--cache';
-      cacheBadge.title = 'Загружено локально';
-      cacheBadge.innerHTML = icons.hardDrive;
-      thumb.appendChild(cacheBadge);
+    } else if (cachedMediaIds.has(mediaKey(clip.mediaId))) {
+      appendCacheBadge(thumb);
     }
     const meta = document.createElement('div');
     meta.className = 'timeline-card__meta';
@@ -932,14 +1071,15 @@ async function downloadLightboxClip(clip, media) {
   const token = previewToken;
   els.lightboxDownloadBtn.disabled = true;
   setButtonContent(els.lightboxDownloadBtn, icons.download, 'Загрузка…');
+  beginDownloadProgress(clip.mediaId, 'lightbox');
   try {
     const cached = await invoke('ensure_media_cached', {
-      mediaId: clip.mediaId,
+      mediaId: mediaKey(clip.mediaId),
       url: media.url,
     });
     if (token !== previewToken) return;
     await refreshCacheStats();
-    cachedMediaIds.add(clip.mediaId);
+    cachedMediaIds.add(mediaKey(clip.mediaId));
     renderMediaList();
     renderTimeline();
     els.lightboxDownloadStatus.textContent = cached.downloaded
@@ -959,6 +1099,7 @@ async function downloadLightboxClip(clip, media) {
       localPath: cached.path,
       isFragment: false,
     };
+    renderTimeline();
   } catch (error) {
     els.lightboxDownloadStatus.textContent = error.message || String(error);
     setButtonContent(
@@ -967,6 +1108,8 @@ async function downloadLightboxClip(clip, media) {
       'Загрузить локально',
     );
     els.lightboxDownloadBtn.disabled = false;
+  } finally {
+    endDownloadProgress();
   }
 }
 
@@ -1164,13 +1307,13 @@ async function exportActiveProject(button) {
       }
 
       if (!sourcePath) {
+        beginDownloadProgress(clip.mediaId, 'export');
         const cached = await invoke('ensure_media_cached', {
-          mediaId: clip.mediaId,
+          mediaId: mediaKey(clip.mediaId),
           url: media.url,
         });
         sourcePath = cached.path;
       }
-
       const base = sanitizeFilename(
         (media.originalFilename || `clip-${clip.id}`).replace(/\.[^.]+$/, ''),
       );
@@ -1183,6 +1326,7 @@ async function exportActiveProject(button) {
         output_name: `${padIndex(i + 1, total)}-${base}${suffix}.mp4`,
       });
     }
+    endDownloadProgress();
 
     button.textContent = 'ffmpeg…';
     const out = await invoke('export_clips', {
@@ -1190,11 +1334,17 @@ async function exportActiveProject(button) {
       outputDir,
     });
     showStatus(`Готово: ${out}`);
-    await invoke('open_in_finder', { path: out });
+    for (const clip of activeProject.clips) {
+      cachedMediaIds.add(mediaKey(clip.mediaId));
+    }
+    renderMediaList();
+    if (els.projectLightbox.open) renderTimeline();
     await refreshCacheStats();
+    await invoke('open_in_finder', { path: out });
   } catch (error) {
     showStatus(error.message || String(error), true);
   } finally {
+    endDownloadProgress();
     button.disabled = false;
     button.innerHTML = original;
   }
@@ -1320,6 +1470,10 @@ els.timelineTrack.addEventListener(
   },
   { passive: false },
 );
+
+void listen('cache-progress', (event) => {
+  applyCacheProgress(event.payload);
+});
 
 void listen('export-progress', (event) => {
   const p = event.payload;

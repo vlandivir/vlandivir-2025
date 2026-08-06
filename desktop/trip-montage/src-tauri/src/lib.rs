@@ -58,6 +58,11 @@ fn media_cache_dir(app: &AppHandle) -> AppResult<PathBuf> {
     Ok(dir)
 }
 
+#[tauri::command]
+fn get_media_cache_dir(app: AppHandle) -> AppResult<String> {
+    Ok(media_cache_dir(&app)?.to_string_lossy().into_owned())
+}
+
 fn read_token(app: &AppHandle) -> AppResult<Option<String>> {
     let path = token_path(app)?;
     if !path.exists() {
@@ -368,6 +373,14 @@ struct CacheEnsureResult {
     bytes: u64,
 }
 
+#[derive(Serialize, Clone)]
+struct CacheProgress {
+    media_id: String,
+    received: u64,
+    total: Option<u64>,
+    percent: Option<f64>,
+}
+
 #[tauri::command]
 async fn ensure_media_cached(
     app: AppHandle,
@@ -376,6 +389,15 @@ async fn ensure_media_cached(
 ) -> AppResult<CacheEnsureResult> {
     if let Some(path) = find_cached_media(&app, &media_id)? {
         let meta = fs::metadata(&path).map_err(|e| err(format!("stat cache: {e}")))?;
+        let _ = app.emit(
+            "cache-progress",
+            CacheProgress {
+                media_id: media_id.clone(),
+                received: meta.len(),
+                total: Some(meta.len()),
+                percent: Some(100.0),
+            },
+        );
         return Ok(CacheEnsureResult {
             path: path.to_string_lossy().into_owned(),
             downloaded: false,
@@ -401,6 +423,7 @@ async fn ensure_media_cached(
         .get(reqwest::header::CONTENT_TYPE)
         .and_then(|v| v.to_str().ok())
         .map(str::to_string);
+    let total = response.content_length();
     let ext = extension_from_url_or_type(&url, content_type.as_deref());
     let path = media_path_with_ext(&app, &media_id, ext)?;
 
@@ -410,12 +433,35 @@ async fn ensure_media_cached(
         .map_err(|e| err(format!("create partial: {e}")))?;
     let mut stream = response.bytes_stream();
     let mut bytes: u64 = 0;
+    let mut last_emit = std::time::Instant::now();
+
+    let emit_progress = |app: &AppHandle, media_id: &str, received: u64, total: Option<u64>| {
+        let percent = total
+            .filter(|t| *t > 0)
+            .map(|t| ((received as f64) / (t as f64) * 100.0).min(100.0));
+        let _ = app.emit(
+            "cache-progress",
+            CacheProgress {
+                media_id: media_id.to_string(),
+                received,
+                total,
+                percent,
+            },
+        );
+    };
+
+    emit_progress(&app, &media_id, 0, total);
+
     while let Some(chunk) = stream.next().await {
         let chunk = chunk.map_err(|e| err(format!("download chunk: {e}")))?;
         bytes += chunk.len() as u64;
         tokio::io::AsyncWriteExt::write_all(&mut file, &chunk)
             .await
             .map_err(|e| err(format!("write cache: {e}")))?;
+        if last_emit.elapsed() >= Duration::from_millis(120) {
+            emit_progress(&app, &media_id, bytes, total);
+            last_emit = std::time::Instant::now();
+        }
     }
     tokio::io::AsyncWriteExt::flush(&mut file)
         .await
@@ -438,6 +484,8 @@ async fn ensure_media_cached(
     } else {
         path
     };
+
+    emit_progress(&app, &media_id, bytes, Some(bytes.max(total.unwrap_or(0))));
 
     Ok(CacheEnsureResult {
         path: final_path.to_string_lossy().into_owned(),
@@ -1095,6 +1143,7 @@ pub fn run() {
             is_media_cached,
             ensure_media_cached,
             get_cache_stats,
+            get_media_cache_dir,
             clear_media_cache,
             remove_cached_media,
             extract_media_fragment,
