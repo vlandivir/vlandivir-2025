@@ -6,6 +6,11 @@ import React, {
   useState,
 } from 'react';
 import {
+  Accordion,
+  AccordionButton,
+  AccordionIcon,
+  AccordionItem,
+  AccordionPanel,
   Alert,
   AlertIcon,
   Badge,
@@ -1444,15 +1449,42 @@ function ArchiveModal({
   const [tasks, setTasks] = useState<Task[]>([]);
   const [status, setStatus] = useState('all');
   const [loading, setLoading] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [detailsById, setDetailsById] = useState<
+    Record<string, TaskDetails>
+  >({});
+  const [historyLoadingId, setHistoryLoadingId] = useState<string | null>(null);
+
   useEffect(() => {
-    if (!disclosure.isOpen) return;
+    if (!disclosure.isOpen) {
+      setExpandedId(null);
+      return;
+    }
     setLoading(true);
+    setExpandedId(null);
     api<{ tasks: Task[] }>(
       `/archive${status === 'all' ? '' : `?status=${status}`}`,
     )
       .then((result) => setTasks(result.tasks))
       .finally(() => setLoading(false));
   }, [disclosure.isOpen, status]);
+
+  const loadHistory = (taskId: string) => {
+    if (detailsById[taskId] || historyLoadingId === taskId) return;
+    setHistoryLoadingId(taskId);
+    void api<TaskDetails>(`/tasks/${taskId}`)
+      .then((details) =>
+        setDetailsById((prev) => ({ ...prev, [taskId]: details })),
+      )
+      .finally(() =>
+        setHistoryLoadingId((current) => (current === taskId ? null : current)),
+      );
+  };
+
+  const expandedIndex = expandedId
+    ? tasks.findIndex((task) => task.id === expandedId)
+    : -1;
+
   return (
     <Modal isOpen={disclosure.isOpen} onClose={disclosure.onClose} size="xl">
       <ModalOverlay />
@@ -1471,36 +1503,92 @@ function ArchiveModal({
           </Select>
           {loading ? (
             <Spinner />
+          ) : tasks.length === 0 ? (
+            <Text color="shadcn.mutedForeground">Архив пуст</Text>
           ) : (
-            <Stack divider={<Divider />}>
-              {tasks.length === 0 && (
-                <Text color="shadcn.mutedForeground">Архив пуст</Text>
-              )}
-              {tasks.map((task) => (
-                <Box key={task.id}>
-                  <Badge
-                    mb={1}
-                    variant={
-                      task.status === 'COMPLETED' ? 'success' : 'destructive'
-                    }
-                  >
-                    {task.status === 'COMPLETED' ? 'Выполнено' : 'Отменено'}
-                  </Badge>
-                  <Text whiteSpace="pre-wrap">{task.content}</Text>
-                  {task.attachments.length > 0 && (
-                    <Box mt={3}>
-                      <AttachmentsList
-                        attachments={task.attachments}
-                        compact
-                      />
-                    </Box>
-                  )}
-                  <Text fontSize="xs" color="shadcn.mutedForeground" mt={2}>
-                    {formatDate(task.updatedAt)}
-                  </Text>
-                </Box>
-              ))}
-            </Stack>
+            <Accordion
+              allowToggle
+              index={expandedIndex}
+              onChange={(index) => {
+                const nextIndex = typeof index === 'number' ? index : -1;
+                if (nextIndex < 0) {
+                  setExpandedId(null);
+                  return;
+                }
+                const task = tasks[nextIndex];
+                if (!task) {
+                  setExpandedId(null);
+                  return;
+                }
+                setExpandedId(task.id);
+                loadHistory(task.id);
+              }}
+            >
+              {tasks.map((task) => {
+                const details = detailsById[task.id];
+                const isExpanded = expandedId === task.id;
+                const historyLoading = historyLoadingId === task.id;
+                let historyContent: React.ReactNode = null;
+                if (isExpanded) {
+                  if (historyLoading && !details) {
+                    historyContent = <Spinner size="sm" />;
+                  } else if (details) {
+                    historyContent = <TaskHistoryPanel details={details} />;
+                  } else {
+                    historyContent = (
+                      <Text fontSize="sm" color="shadcn.mutedForeground">
+                        Не удалось загрузить историю
+                      </Text>
+                    );
+                  }
+                }
+                return (
+                  <AccordionItem key={task.id} borderColor="shadcn.border">
+                    <AccordionButton
+                      px={0}
+                      py={3}
+                      _hover={{ bg: 'transparent' }}
+                      alignItems="flex-start"
+                    >
+                      <Box flex="1" textAlign="left" minW={0} pr={2}>
+                        <Badge
+                          mb={1}
+                          variant={
+                            task.status === 'COMPLETED'
+                              ? 'success'
+                              : 'destructive'
+                          }
+                        >
+                          {task.status === 'COMPLETED'
+                            ? 'Выполнено'
+                            : 'Отменено'}
+                        </Badge>
+                        <Text whiteSpace="pre-wrap">{task.content}</Text>
+                        <Text
+                          fontSize="xs"
+                          color="shadcn.mutedForeground"
+                          mt={2}
+                        >
+                          {formatDate(task.updatedAt)}
+                        </Text>
+                      </Box>
+                      <AccordionIcon mt={1} flexShrink={0} />
+                    </AccordionButton>
+                    {task.attachments.length > 0 && (
+                      <Box px={0} pb={3}>
+                        <AttachmentsList
+                          attachments={task.attachments}
+                          compact
+                        />
+                      </Box>
+                    )}
+                    <AccordionPanel px={0} pb={4} pt={0}>
+                      {historyContent}
+                    </AccordionPanel>
+                  </AccordionItem>
+                );
+              })}
+            </Accordion>
           )}
         </ModalBody>
         <ModalFooter>
@@ -1508,6 +1596,30 @@ function ArchiveModal({
         </ModalFooter>
       </ModalContent>
     </Modal>
+  );
+}
+
+function TaskHistoryPanel({ details }: { details: TaskDetails }) {
+  return (
+    <Stack spacing={4}>
+      <Flex gap={2} wrap="wrap">
+        <Badge>Отложено: {details.stats.snoozed}</Badge>
+        <Badge>Не сейчас: {details.stats.rotated}</Badge>
+      </Flex>
+      {details.events.map((event) => (
+        <Box
+          key={event.id}
+          borderLeft="2px solid"
+          borderColor="shadcn.border"
+          pl={3}
+        >
+          <Text fontWeight="semibold">{eventName(event.type)}</Text>
+          <Text fontSize="sm" color="shadcn.mutedForeground">
+            {formatDate(event.createdAt)}
+          </Text>
+        </Box>
+      ))}
+    </Stack>
   );
 }
 
@@ -1522,6 +1634,7 @@ function HistoryModal({
   useEffect(() => {
     if (disclosure.isOpen && task)
       void api<TaskDetails>(`/tasks/${task.id}`).then(setDetails);
+    else setDetails(null);
   }, [disclosure.isOpen, task]);
   return (
     <Modal isOpen={disclosure.isOpen} onClose={disclosure.onClose} size="lg">
@@ -1530,29 +1643,7 @@ function HistoryModal({
         <ModalHeader>История задачи</ModalHeader>
         <ModalCloseButton />
         <ModalBody>
-          {!details ? (
-            <Spinner />
-          ) : (
-            <Stack spacing={4}>
-              <Flex gap={2}>
-                <Badge>Отложено: {details.stats.snoozed}</Badge>
-                <Badge>Не сейчас: {details.stats.rotated}</Badge>
-              </Flex>
-              {details.events.map((event) => (
-                <Box
-                  key={event.id}
-                  borderLeft="2px solid"
-                  borderColor="shadcn.border"
-                  pl={3}
-                >
-                  <Text fontWeight="semibold">{eventName(event.type)}</Text>
-                  <Text fontSize="sm" color="shadcn.mutedForeground">
-                    {formatDate(event.createdAt)}
-                  </Text>
-                </Box>
-              ))}
-            </Stack>
-          )}
+          {!details ? <Spinner /> : <TaskHistoryPanel details={details} />}
         </ModalBody>
         <ModalFooter>
           <Button onClick={disclosure.onClose}>Закрыть</Button>
