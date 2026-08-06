@@ -324,6 +324,10 @@
   white-space: nowrap;
 }
 
+.trip-card__size {
+  font-variant-numeric: tabular-nums;
+}
+
 .trip-card__actions {
   display: flex;
   flex-wrap: wrap;
