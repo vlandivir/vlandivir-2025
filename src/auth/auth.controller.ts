@@ -1,10 +1,12 @@
 import {
+  BadRequestException,
   Controller,
   Get,
   Query,
   Req,
   Res,
   ServiceUnavailableException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
@@ -22,6 +24,39 @@ export class AuthController {
     const { state, nonce } = this.authService.createState(redirect || '/');
     response.setHeader('Set-Cookie', this.authService.stateCookie(nonce));
     response.redirect(this.authService.buildAuthUrl(state));
+  }
+
+  /**
+   * Desktop (Tauri) OAuth handoff: after Google login, browser lands here with
+   * the session cookie, then we bounce the same JWT to 127.0.0.1:<port>.
+   * Only loopback is allowed — never a public host.
+   */
+  @Get('desktop-handoff')
+  desktopHandoff(
+    @Query('port') portRaw: string | undefined,
+    @Req() request: Request,
+    @Res() response: Response,
+  ) {
+    this.ensureEnabled();
+    const port = Number(portRaw);
+    if (
+      !Number.isInteger(port) ||
+      port < 1024 ||
+      port > 65535 ||
+      String(port) !== String(portRaw).trim()
+    ) {
+      throw new BadRequestException('Invalid desktop handoff port');
+    }
+
+    const user = this.authService.getSessionFromRequest(request);
+    const token = this.authService.getSessionTokenFromRequest(request);
+    if (!user || !token || !this.authService.isAllowedEmail(user.email)) {
+      throw new UnauthorizedException('Sign in required for desktop handoff');
+    }
+
+    const target = new URL(`http://127.0.0.1:${port}/`);
+    target.searchParams.set('token', token);
+    response.redirect(target.toString());
   }
 
   @Get('google/callback')

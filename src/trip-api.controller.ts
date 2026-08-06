@@ -121,6 +121,39 @@ export class TripApiController {
     };
   }
 
+  /** All albums for Google admin (desktop montage app / owner tools). */
+  @Get('admin/trips')
+  async listAdminTrips(@Req() req: Request) {
+    if (!this.authService.isAdminSession(req)) {
+      throw new ForbiddenException('Admin session required');
+    }
+    const trips = await this.prisma.trip.findMany({
+      orderBy: { updatedAt: 'desc' },
+      take: 200,
+      select: {
+        id: true,
+        secret: true,
+        title: true,
+        ownerContributorId: true,
+        createdAt: true,
+        updatedAt: true,
+        _count: { select: { media: true, projects: true } },
+      },
+    });
+    return {
+      trips: trips.map((trip) => ({
+        id: trip.id,
+        secret: trip.secret,
+        title: trip.title,
+        ownerContributorId: trip.ownerContributorId,
+        mediaCount: trip._count.media,
+        projectCount: trip._count.projects,
+        createdAt: trip.createdAt.toISOString(),
+        updatedAt: trip.updatedAt.toISOString(),
+      })),
+    };
+  }
+
   @Get('trips/:secret')
   async getTrip(@Param('secret') secret: string, @Req() req: Request) {
     const trip = await this.findTripOrThrow(secret);
