@@ -703,6 +703,19 @@
         meta.appendChild(dateEl);
       }
 
+      const sizeLabel =
+        item.size != null && Number.isFinite(Number(item.size))
+          ? formatBytes(Number(item.size))
+          : '';
+      const durationLabel = formatDuration(item.durationMs);
+      const sizeTimeBits = [sizeLabel, durationLabel].filter(Boolean);
+      if (sizeTimeBits.length) {
+        const sizeTimeEl = document.createElement('span');
+        sizeTimeEl.className = 'trip-card__size';
+        sizeTimeEl.textContent = sizeTimeBits.join(' · ');
+        meta.appendChild(sizeTimeEl);
+      }
+
       if (item.cameraModel) {
         const deviceEl = document.createElement('span');
         deviceEl.textContent = item.cameraModel;
