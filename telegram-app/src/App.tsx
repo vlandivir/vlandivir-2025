@@ -947,12 +947,12 @@ function TaskCard(props: {
         </Flex>
         <Box
           overflow="hidden"
-          maxH={snoozeOpen ? '240px' : '0'}
+          maxH={snoozeOpen ? '220px' : '0'}
           opacity={snoozeOpen ? 1 : 0}
           transition="max-height 0.2s ease, opacity 0.15s ease"
         >
           <Stack
-            spacing={1}
+            spacing={2}
             p={2}
             borderWidth="1px"
             borderColor="shadcn.border"
@@ -961,22 +961,63 @@ function TaskCard(props: {
           >
             {(
               [
-                ['SNOOZE_HOUR', 'На час'],
-                ['SNOOZE_TOMORROW', 'До завтра, 09:00 UTC'],
-                ['SNOOZE_MONDAY', 'До понедельника, 09:00 UTC'],
-                ['SNOOZE_WEEK', 'На неделю'],
+                {
+                  label: 'Час',
+                  options: [
+                    ['SNOOZE_HOUR', '1'],
+                    ['SNOOZE_HOURS_2', '2'],
+                    ['SNOOZE_HOURS_4', '4'],
+                    ['SNOOZE_EVENING', 'Вечер'],
+                  ],
+                },
+                {
+                  label: 'День',
+                  options: [
+                    ['SNOOZE_TOMORROW', 'Завтра'],
+                    ['SNOOZE_DAYS_2', '2'],
+                    ['SNOOZE_DAYS_7', '7'],
+                    ['SNOOZE_DAYS_14', '14'],
+                    ['SNOOZE_DAYS_30', '30'],
+                  ],
+                },
+                {
+                  label: 'Нед',
+                  options: [
+                    ['SNOOZE_MONDAY', 'Пн'],
+                    ['SNOOZE_TUESDAY', 'Вт'],
+                    ['SNOOZE_WEDNESDAY', 'Ср'],
+                    ['SNOOZE_THURSDAY', 'Чт'],
+                    ['SNOOZE_FRIDAY', 'Пт'],
+                    ['SNOOZE_SATURDAY', 'Сб'],
+                    ['SNOOZE_SUNDAY', 'Вс'],
+                  ],
+                },
               ] as const
-            ).map(([action, label]) => (
-              <Button
-                key={action}
-                variant="ghost"
-                justifyContent="flex-start"
-                fontWeight="normal"
-                onClick={() => runAction(action)}
-                isDisabled={props.busy}
-              >
-                {label}
-              </Button>
+            ).map((group) => (
+              <Flex key={group.label} align="center" gap={1} wrap="wrap">
+                <Text
+                  fontSize="xs"
+                  color="shadcn.mutedForeground"
+                  minW="32px"
+                  flexShrink={0}
+                >
+                  {group.label}
+                </Text>
+                {group.options.map(([action, label]) => (
+                  <Button
+                    key={action}
+                    size="sm"
+                    variant="ghost"
+                    fontWeight="normal"
+                    minW="auto"
+                    px={2}
+                    onClick={() => runAction(action)}
+                    isDisabled={props.busy}
+                  >
+                    {label}
+                  </Button>
+                ))}
+              </Flex>
             ))}
           </Stack>
         </Box>

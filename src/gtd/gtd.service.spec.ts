@@ -14,19 +14,40 @@ describe('GtdService', () => {
       }
     ).snoozeUntil(action, now);
 
-  it('calculates all snooze presets in UTC', () => {
+  it('calculates hour and day snooze presets', () => {
     const now = new Date('2026-07-31T20:15:00.000Z');
     expect(snoozeUntil('SNOOZE_HOUR', now).toISOString()).toBe(
       '2026-07-31T21:15:00.000Z',
     );
+    expect(snoozeUntil('SNOOZE_HOURS_2', now).toISOString()).toBe(
+      '2026-07-31T22:15:00.000Z',
+    );
+    expect(snoozeUntil('SNOOZE_HOURS_4', now).toISOString()).toBe(
+      '2026-08-01T00:15:00.000Z',
+    );
     expect(snoozeUntil('SNOOZE_TOMORROW', now).toISOString()).toBe(
       '2026-08-01T09:00:00.000Z',
+    );
+    expect(snoozeUntil('SNOOZE_DAYS_2', now).toISOString()).toBe(
+      '2026-08-02T09:00:00.000Z',
+    );
+    expect(snoozeUntil('SNOOZE_DAYS_7', now).toISOString()).toBe(
+      '2026-08-07T09:00:00.000Z',
+    );
+    expect(snoozeUntil('SNOOZE_DAYS_14', now).toISOString()).toBe(
+      '2026-08-14T09:00:00.000Z',
+    );
+    expect(snoozeUntil('SNOOZE_DAYS_30', now).toISOString()).toBe(
+      '2026-08-30T09:00:00.000Z',
     );
     expect(snoozeUntil('SNOOZE_MONDAY', now).toISOString()).toBe(
       '2026-08-03T09:00:00.000Z',
     );
-    expect(snoozeUntil('SNOOZE_WEEK', now).toISOString()).toBe(
-      '2026-08-07T20:15:00.000Z',
+    expect(snoozeUntil('SNOOZE_FRIDAY', now).toISOString()).toBe(
+      '2026-08-07T09:00:00.000Z',
+    );
+    expect(snoozeUntil('SNOOZE_SUNDAY', now).toISOString()).toBe(
+      '2026-08-02T09:00:00.000Z',
     );
   });
 
@@ -35,6 +56,29 @@ describe('GtdService', () => {
     expect(snoozeUntil('SNOOZE_MONDAY', now).toISOString()).toBe(
       '2026-08-03T09:00:00.000Z',
     );
+  });
+
+  it('snoozes to next evening at 20:00 Europe/Berlin', () => {
+    // Summer (CEST, UTC+2): 20:00 → 18:00Z
+    expect(
+      snoozeUntil(
+        'SNOOZE_EVENING',
+        new Date('2026-08-06T10:00:00.000Z'),
+      ).toISOString(),
+    ).toBe('2026-08-06T18:00:00.000Z');
+    expect(
+      snoozeUntil(
+        'SNOOZE_EVENING',
+        new Date('2026-08-06T18:30:00.000Z'),
+      ).toISOString(),
+    ).toBe('2026-08-07T18:00:00.000Z');
+    // Winter (CET, UTC+1): 20:00 → 19:00Z
+    expect(
+      snoozeUntil(
+        'SNOOZE_EVENING',
+        new Date('2026-01-15T10:00:00.000Z'),
+      ).toISOString(),
+    ).toBe('2026-01-15T19:00:00.000Z');
   });
 
   it('serializes orderKey on act so Nest can JSON-encode the response', async () => {
