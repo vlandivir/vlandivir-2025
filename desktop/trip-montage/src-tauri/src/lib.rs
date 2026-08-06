@@ -124,6 +124,55 @@ fn clear_session_token(app: AppHandle) -> AppResult<()> {
     clear_token_file(&app)
 }
 
+#[derive(Serialize)]
+struct ApiFetchResult {
+    status: u16,
+    body: String,
+}
+
+/// Browser fetch from the WebView hits CORS against vlandivir.com; go via reqwest.
+#[tauri::command]
+async fn api_fetch(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    method: String,
+    path: String,
+    body: Option<String>,
+) -> AppResult<ApiFetchResult> {
+    if !path.starts_with('/') {
+        return Err(err("API path must start with /"));
+    }
+    let token = read_token(&app)?.ok_or_else(|| err("Not signed in"))?;
+    let base = api_base(&state);
+    let url = format!("{base}{path}");
+    let client = reqwest::Client::new();
+    let method = method.to_uppercase();
+    let mut builder = match method.as_str() {
+        "GET" => client.get(&url),
+        "POST" => client.post(&url),
+        "PUT" => client.put(&url),
+        "PATCH" => client.patch(&url),
+        "DELETE" => client.delete(&url),
+        _ => return Err(err(format!("unsupported method: {method}"))),
+    };
+    builder = builder.header("Authorization", format!("Bearer {token}"));
+    if let Some(body) = body.as_ref() {
+        builder = builder
+            .header("Content-Type", "application/json")
+            .body(body.clone());
+    }
+    let response = builder
+        .send()
+        .await
+        .map_err(|e| err(format!("API request failed: {e}")))?;
+    let status = response.status().as_u16();
+    let body = response
+        .text()
+        .await
+        .map_err(|e| err(format!("read API body: {e}")))?;
+    Ok(ApiFetchResult { status, body })
+}
+
 /// Opens system browser for Google OAuth and waits for loopback handoff.
 #[tauri::command]
 async fn login_with_google(app: AppHandle, state: State<'_, AppState>) -> AppResult<String> {
@@ -465,6 +514,7 @@ pub fn run() {
             get_session_token,
             save_session_token,
             clear_session_token,
+            api_fetch,
             login_with_google,
             ensure_media_cached,
             get_cache_stats,

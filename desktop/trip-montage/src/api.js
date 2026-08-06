@@ -1,4 +1,6 @@
-/** Trip API client for the desktop montage app (Bearer session JWT). */
+/** Trip API client for the desktop montage app (Bearer session JWT via Rust). */
+
+import { invoke } from '@tauri-apps/api/core';
 
 let apiBase = 'https://vlandivir.com';
 let token = null;
@@ -21,30 +23,39 @@ export function getToken() {
 
 async function api(path, options = {}) {
   if (!token) throw new Error('Not signed in');
-  const headers = new Headers(options.headers || {});
-  headers.set('Authorization', `Bearer ${token}`);
-  if (options.body && !headers.has('Content-Type')) {
-    headers.set('Content-Type', 'application/json');
-  }
-  const res = await fetch(`${apiBase}${path}`, { ...options, headers });
-  if (res.status === 401) {
+  const method = (options.method || 'GET').toUpperCase();
+  const body =
+    options.body == null
+      ? null
+      : typeof options.body === 'string'
+        ? options.body
+        : JSON.stringify(options.body);
+
+  /** @type {{ status: number, body: string }} */
+  const result = await invoke('api_fetch', {
+    method,
+    path,
+    body,
+  });
+
+  if (result.status === 401) {
     throw new Error('Session expired — sign in again');
   }
-  if (!res.ok) {
-    let message = `HTTP ${res.status}`;
-    try {
-      const data = await res.json();
-      message = data.message || data.error || message;
-      if (Array.isArray(message)) message = message.join(', ');
-    } catch {
-      /* ignore */
+  if (result.status < 200 || result.status >= 300) {
+    let message = `HTTP ${result.status}`;
+    if (result.body) {
+      try {
+        const data = JSON.parse(result.body);
+        message = data.message || data.error || message;
+        if (Array.isArray(message)) message = message.join(', ');
+      } catch {
+        message = result.body.slice(0, 200) || message;
+      }
     }
     throw new Error(message);
   }
-  if (res.status === 204) return null;
-  const text = await res.text();
-  if (!text) return null;
-  return JSON.parse(text);
+  if (result.status === 204 || !result.body) return null;
+  return JSON.parse(result.body);
 }
 
 export async function fetchMe() {
