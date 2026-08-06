@@ -703,6 +703,13 @@
   font-weight: 700;
 }
 
+.trip-montage__summary {
+  margin: 0 0 var(--v-space-3);
+  color: var(--v-muted);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
 .trip-montage__detail-actions {
   display: flex;
   flex-wrap: wrap;
@@ -770,6 +777,21 @@
   color: #fff;
   font-size: 11px;
   font-weight: 700;
+  line-height: 1.4;
+}
+
+.trip-montage__clip-duration {
+  position: absolute;
+  right: var(--v-space-1);
+  bottom: var(--v-space-1);
+  z-index: 1;
+  padding: 1px 5px;
+  border-radius: calc(var(--radius) - 4px);
+  background: rgba(0, 0, 0, 0.55); /* overlay on thumbnail */
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
   line-height: 1.4;
   text-align: center;
 }

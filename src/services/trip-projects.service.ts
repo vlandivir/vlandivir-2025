@@ -7,7 +7,7 @@ import {
 import { ZipArchive } from 'archiver';
 import { spawn } from 'child_process';
 import { createReadStream, createWriteStream } from 'fs';
-import { mkdtemp, readFile, rm, writeFile } from 'fs/promises';
+import { mkdtemp, readFile, rm, stat, writeFile } from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 import { finished } from 'stream/promises';
@@ -15,6 +15,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from './storage.service';
 
 const FFMPEG_TIMEOUT_MS = 5 * 60 * 1000;
+
+type ExportStatus = {
+  status: 'idle' | 'building' | 'ready' | 'error';
+  url: string | null;
+  error: string | null;
+  progress: string | null;
+  filename: string;
+};
 
 const MEDIA_SUMMARY_SELECT = {
   id: true,
@@ -243,64 +251,140 @@ export class TripProjectsService {
     return updated;
   }
 
-  async exportZip(
+  async getExportStatus(
     tripId: string,
     projectId: number,
-  ): Promise<{ url: string; filename: string }> {
+  ): Promise<ExportStatus> {
+    const project = await this.requireProject(tripId, projectId);
+    return this.toExportStatus(project);
+  }
+
+  /**
+   * Start ZIP build in the background and return immediately.
+   * Large albums OOM'd / timed out when the HTTP request held all clips in RAM.
+   */
+  async startExportZip(
+    tripId: string,
+    projectId: number,
+  ): Promise<ExportStatus> {
     const project = await this.getProject(tripId, projectId);
     if (!project.clips.length) {
       throw new BadRequestException('В проекте нет клипов');
     }
 
-    for (const clip of project.clips) {
+    if (project.exportZipStatus === 'building') {
+      this.logger.log(
+        `ZIP export already building for project ${projectId} (${project.exportZipProgress || '?'})`,
+      );
+      return this.toExportStatus(project);
+    }
+
+    const total = project.clips.length;
+    this.logger.log(
+      `ZIP export requested for project ${projectId} «${project.name}»: ${total} clips`,
+    );
+
+    if (project.exportZipUrl) {
+      await this.storageService.deleteByPublicUrl(project.exportZipUrl);
+    }
+
+    const updated = await this.prisma.tripProject.update({
+      where: { id: projectId },
+      data: {
+        exportZipStatus: 'building',
+        exportZipError: null,
+        exportZipProgress: `0/${total}`,
+        exportZipUrl: null,
+      },
+    });
+
+    void this.buildExportZip(tripId, projectId).catch(async (error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `ZIP export failed for project ${projectId}: ${message}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      try {
+        await this.prisma.tripProject.update({
+          where: { id: projectId },
+          data: {
+            exportZipStatus: 'error',
+            exportZipError: message.slice(0, 500),
+            exportZipProgress: null,
+          },
+        });
+      } catch (updateError) {
+        this.logger.error(
+          `Failed to persist ZIP export error for project ${projectId}: ${String(updateError)}`,
+        );
+      }
+    });
+
+    return this.toExportStatus(updated);
+  }
+
+  private async buildExportZip(
+    tripId: string,
+    projectId: number,
+  ): Promise<void> {
+    const startedAt = Date.now();
+    const project = await this.getProject(tripId, projectId);
+    const total = project.clips.length;
+    this.logger.log(
+      `ZIP export build start project=${projectId} clips=${total}`,
+    );
+
+    for (let i = 0; i < project.clips.length; i++) {
+      const clip = project.clips[i];
       const needsTrim =
         (clip.trimStartSec != null || clip.trimEndSec != null) &&
         !clip.trimmedVideoUrl;
-      if (needsTrim) {
-        if (!clip.media.url) {
-          throw new BadRequestException(
-            `У клипа #${clip.id} нет исходного видео`,
-          );
-        }
-        const trimmedUrl = await this.trimAndUpload(
-          tripId,
-          projectId,
-          clip.id,
-          clip.media.url,
-          clip.trimStartSec,
-          clip.trimEndSec,
+      if (!needsTrim) continue;
+      if (!clip.media.url) {
+        throw new BadRequestException(
+          `У клипа #${clip.id} нет исходного видео`,
         );
-        await this.prisma.tripProjectClip.update({
-          where: { id: clip.id },
-          data: { trimmedVideoUrl: trimmedUrl },
-        });
-        clip.trimmedVideoUrl = trimmedUrl;
       }
+      this.logger.log(
+        `ZIP export trim clip ${clip.id} (${i + 1}/${total}) start=${clip.trimStartSec} end=${clip.trimEndSec}`,
+      );
+      const trimStarted = Date.now();
+      const trimmedUrl = await this.trimAndUpload(
+        tripId,
+        projectId,
+        clip.id,
+        clip.media.url,
+        clip.trimStartSec,
+        clip.trimEndSec,
+      );
+      await this.prisma.tripProjectClip.update({
+        where: { id: clip.id },
+        data: { trimmedVideoUrl: trimmedUrl },
+      });
+      clip.trimmedVideoUrl = trimmedUrl;
+      this.logger.log(
+        `ZIP export trim clip ${clip.id} done in ${Date.now() - trimStarted}ms`,
+      );
     }
 
-    const asciiName =
-      project.name
-        .normalize('NFKD')
-        .replace(/[^\x20-\x7E]+/g, '')
-        .replace(/[^A-Za-z0-9._ -]+/g, '_')
-        .trim()
-        .slice(0, 80) || `project-${project.id}`;
-    const filename = `${asciiName}.zip`;
+    const filename = this.exportFilename(project.name, project.id);
     const key = this.storageService.getTripProjectZipKey(tripId, projectId);
-
     const tempDir = await mkdtemp(path.join(os.tmpdir(), 'trip-zip-'));
     const zipPath = path.join(tempDir, 'export.zip');
+
     try {
       const archive = new ZipArchive({ store: true });
       const output = createWriteStream(zipPath);
       const outputDone = finished(output);
       archive.on('error', (error) => {
-        this.logger.error(`ZIP export failed: ${String(error)}`);
+        this.logger.error(`ZIP archive error: ${String(error)}`);
         output.destroy(error);
       });
       archive.pipe(output);
 
-      const pad = String(project.clips.length).length;
+      const pad = String(total).length;
+      let downloadedBytes = 0;
+
       for (let i = 0; i < project.clips.length; i++) {
         const clip = project.clips[i];
         const sourceUrl = clip.trimmedVideoUrl || clip.media.url;
@@ -309,34 +393,124 @@ export class TripProjectsService {
             `У клипа #${clip.id} нет видео для экспорта`,
           );
         }
-        const buffer = await this.storageService.downloadFile(sourceUrl);
+
+        const progress = `${i + 1}/${total}`;
+        await this.prisma.tripProject.update({
+          where: { id: projectId },
+          data: { exportZipProgress: progress },
+        });
+
+        const clipPath = path.join(tempDir, `${clip.id}.mp4`);
+        const dlStarted = Date.now();
+        const { bytes } = await this.storageService.downloadFileToPath(
+          sourceUrl,
+          clipPath,
+        );
+        downloadedBytes += bytes;
+        this.logger.log(
+          `ZIP export downloaded clip ${clip.id} ${progress} ${this.formatBytes(bytes)} in ${Date.now() - dlStarted}ms`,
+        );
+
         const index = String(i + 1).padStart(Math.max(2, pad), '0');
         const base = (clip.media.originalFilename || `clip-${clip.id}`)
           .replace(/\.[^.]+$/, '')
           .replace(/[^A-Za-z0-9_-]+/g, '_')
           .slice(0, 60);
-        archive.append(buffer, { name: `${index}-${base || clip.id}.mp4` });
+        archive.append(createReadStream(clipPath), {
+          name: `${index}-${base || clip.id}.mp4`,
+        });
       }
 
+      this.logger.log(
+        `ZIP export finalizing archive project=${projectId} clipsBytes=${this.formatBytes(downloadedBytes)}`,
+      );
+      await this.prisma.tripProject.update({
+        where: { id: projectId },
+        data: { exportZipProgress: `zip/${total}` },
+      });
       await archive.finalize();
       await outputDone;
 
+      const zipStat = await stat(zipPath);
+      this.logger.log(
+        `ZIP export archive ready project=${projectId} size=${this.formatBytes(zipStat.size)}; uploading to Spaces…`,
+      );
+
+      await this.prisma.tripProject.update({
+        where: { id: projectId },
+        data: { exportZipProgress: `upload/${total}` },
+      });
+      const uploadStarted = Date.now();
       const url = await this.storageService.uploadStreamWithKey(
         createReadStream(zipPath),
         'application/zip',
         key,
         { contentDisposition: `attachment; filename="${filename}"` },
       );
+      this.logger.log(
+        `ZIP export uploaded project=${projectId} in ${Date.now() - uploadStarted}ms url=${url}`,
+      );
 
       await this.prisma.tripProject.update({
         where: { id: projectId },
-        data: { exportZipUrl: url },
+        data: {
+          exportZipUrl: url,
+          exportZipStatus: 'ready',
+          exportZipError: null,
+          exportZipProgress: null,
+        },
       });
-
-      return { url, filename };
+      this.logger.log(
+        `ZIP export complete project=${projectId} in ${Date.now() - startedAt}ms`,
+      );
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
+  }
+
+  private toExportStatus(project: {
+    id: number;
+    name: string;
+    exportZipUrl?: string | null;
+    exportZipStatus?: string | null;
+    exportZipError?: string | null;
+    exportZipProgress?: string | null;
+  }): ExportStatus {
+    const status =
+      project.exportZipStatus === 'building' ||
+      project.exportZipStatus === 'ready' ||
+      project.exportZipStatus === 'error'
+        ? project.exportZipStatus
+        : project.exportZipUrl
+          ? 'ready'
+          : 'idle';
+    return {
+      status,
+      url: project.exportZipUrl || null,
+      error: project.exportZipError || null,
+      progress: project.exportZipProgress || null,
+      filename: this.exportFilename(project.name, project.id),
+    };
+  }
+
+  private exportFilename(name: string, projectId: number): string {
+    const asciiName =
+      name
+        .normalize('NFKD')
+        .replace(/[^\x20-\x7E]+/g, '')
+        .replace(/[^A-Za-z0-9._ -]+/g, '_')
+        .trim()
+        .slice(0, 80) || `project-${projectId}`;
+    return `${asciiName}.zip`;
+  }
+
+  private formatBytes(bytes: number): string {
+    if (bytes < 1024) return `${bytes}B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+    if (bytes < 1024 * 1024 * 1024) {
+      return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+    }
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)}GB`;
   }
 
   private async trimAndUpload(
@@ -445,14 +619,32 @@ export class TripProjectsService {
   private async touchProject(id: number) {
     const project = await this.prisma.tripProject.findUnique({
       where: { id },
-      select: { exportZipUrl: true },
+      select: {
+        exportZipUrl: true,
+        exportZipStatus: true,
+      },
     });
+    // Don't wipe a running build mid-flight from clip edits in another tab —
+    // only clear ready/error/idle artifacts. Building jobs own their own state.
+    if (project?.exportZipStatus === 'building') {
+      await this.prisma.tripProject.update({
+        where: { id },
+        data: { updatedAt: new Date() },
+      });
+      return;
+    }
     if (project?.exportZipUrl) {
       await this.storageService.deleteByPublicUrl(project.exportZipUrl);
     }
     await this.prisma.tripProject.update({
       where: { id },
-      data: { updatedAt: new Date(), exportZipUrl: null },
+      data: {
+        updatedAt: new Date(),
+        exportZipUrl: null,
+        exportZipStatus: null,
+        exportZipError: null,
+        exportZipProgress: null,
+      },
     });
   }
 

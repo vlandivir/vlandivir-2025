@@ -515,14 +515,17 @@ model TripMedia {
 
 // Named CapCut montage projects for trip videos (Google admin only).
 model TripProject {
-  id           Int               @id @default(autoincrement())
-  tripId       String
-  name         String
-  exportZipUrl String? // CapCut ZIP on Spaces after last successful export
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-  trip         Trip              @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  clips        TripProjectClip[]
+  id                Int               @id @default(autoincrement())
+  tripId            String
+  name              String
+  exportZipUrl      String? // CapCut ZIP on Spaces after last successful export
+  exportZipStatus   String? // building | ready | error
+  exportZipError    String?
+  exportZipProgress String? // e.g. "5/28" while building
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  trip              Trip              @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  clips             TripProjectClip[]
 
   @@index([tripId])
 }

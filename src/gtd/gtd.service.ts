@@ -26,11 +26,70 @@ type Scope = {
 export type GtdAction =
   | 'ROTATE'
   | 'SNOOZE_HOUR'
+  | 'SNOOZE_HOURS_2'
+  | 'SNOOZE_HOURS_4'
+  | 'SNOOZE_EVENING'
   | 'SNOOZE_TOMORROW'
+  | 'SNOOZE_DAYS_2'
+  | 'SNOOZE_DAYS_7'
+  | 'SNOOZE_DAYS_14'
+  | 'SNOOZE_DAYS_30'
   | 'SNOOZE_MONDAY'
-  | 'SNOOZE_WEEK'
+  | 'SNOOZE_TUESDAY'
+  | 'SNOOZE_WEDNESDAY'
+  | 'SNOOZE_THURSDAY'
+  | 'SNOOZE_FRIDAY'
+  | 'SNOOZE_SATURDAY'
+  | 'SNOOZE_SUNDAY'
   | 'COMPLETE'
   | 'CANCEL';
+
+const GTD_SNOOZE_ACTIONS: GtdAction[] = [
+  'SNOOZE_HOUR',
+  'SNOOZE_HOURS_2',
+  'SNOOZE_HOURS_4',
+  'SNOOZE_EVENING',
+  'SNOOZE_TOMORROW',
+  'SNOOZE_DAYS_2',
+  'SNOOZE_DAYS_7',
+  'SNOOZE_DAYS_14',
+  'SNOOZE_DAYS_30',
+  'SNOOZE_MONDAY',
+  'SNOOZE_TUESDAY',
+  'SNOOZE_WEDNESDAY',
+  'SNOOZE_THURSDAY',
+  'SNOOZE_FRIDAY',
+  'SNOOZE_SATURDAY',
+  'SNOOZE_SUNDAY',
+];
+
+const WEEKDAY_SNOOZE: Partial<Record<GtdAction, number>> = {
+  SNOOZE_SUNDAY: 0,
+  SNOOZE_MONDAY: 1,
+  SNOOZE_TUESDAY: 2,
+  SNOOZE_WEDNESDAY: 3,
+  SNOOZE_THURSDAY: 4,
+  SNOOZE_FRIDAY: 5,
+  SNOOZE_SATURDAY: 6,
+};
+
+const DAY_OFFSET_SNOOZE: Partial<Record<GtdAction, number>> = {
+  SNOOZE_TOMORROW: 1,
+  SNOOZE_DAYS_2: 2,
+  SNOOZE_DAYS_7: 7,
+  SNOOZE_DAYS_14: 14,
+  SNOOZE_DAYS_30: 30,
+};
+
+const HOUR_OFFSET_SNOOZE: Partial<Record<GtdAction, number>> = {
+  SNOOZE_HOUR: 1,
+  SNOOZE_HOURS_2: 2,
+  SNOOZE_HOURS_4: 4,
+};
+
+const EUROPE_BERLIN = 'Europe/Berlin';
+const MORNING_UTC_HOUR = 9;
+const EVENING_CET_HOUR = 20;
 
 @Injectable()
 export class GtdService {
@@ -241,10 +300,7 @@ export class GtdService {
     const action = String(actionValue || '') as GtdAction;
     const allowed: GtdAction[] = [
       'ROTATE',
-      'SNOOZE_HOUR',
-      'SNOOZE_TOMORROW',
-      'SNOOZE_MONDAY',
-      'SNOOZE_WEEK',
+      ...GTD_SNOOZE_ACTIONS,
       'COMPLETE',
       'CANCEL',
     ];
@@ -667,25 +723,125 @@ export class GtdService {
     return task;
   }
   private snoozeUntil(action: GtdAction, now: Date) {
-    if (action === 'SNOOZE_HOUR') return new Date(now.getTime() + 3_600_000);
-    if (action === 'SNOOZE_WEEK') return new Date(now.getTime() + 604_800_000);
-    if (action === 'SNOOZE_TOMORROW')
-      return new Date(
-        Date.UTC(
-          now.getUTCFullYear(),
-          now.getUTCMonth(),
-          now.getUTCDate() + 1,
-          9,
-        ),
-      );
-    const candidate = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 9),
+    const hours = HOUR_OFFSET_SNOOZE[action];
+    if (hours != null) return new Date(now.getTime() + hours * 3_600_000);
+    if (action === 'SNOOZE_EVENING') return this.nextEveningCet(now);
+    const dayOffset = DAY_OFFSET_SNOOZE[action];
+    if (dayOffset != null) return this.morningUtc(now, dayOffset);
+    const weekday = WEEKDAY_SNOOZE[action];
+    if (weekday != null) return this.weekdayMorningUtc(now, weekday);
+    throw new BadRequestException('Invalid snooze action');
+  }
+
+  /** Morning wake time: 09:00 UTC on the given UTC calendar day offset. */
+  private morningUtc(now: Date, daysAhead: number) {
+    return new Date(
+      Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate() + daysAhead,
+        MORNING_UTC_HOUR,
+      ),
     );
+  }
+
+  /** Next occurrence of weekday at 09:00 UTC (0=Sun … 6=Sat). */
+  private weekdayMorningUtc(now: Date, targetWeekday: number) {
+    const candidate = this.morningUtc(now, 0);
     candidate.setUTCDate(
-      candidate.getUTCDate() + ((8 - candidate.getUTCDay()) % 7),
+      candidate.getUTCDate() +
+        ((targetWeekday - candidate.getUTCDay() + 7) % 7),
     );
     if (candidate <= now) candidate.setUTCDate(candidate.getUTCDate() + 7);
     return candidate;
+  }
+
+  /** Next 20:00 Europe/Berlin (CET/CEST). */
+  private nextEveningCet(now: Date) {
+    const parts = this.zonedParts(now, EUROPE_BERLIN);
+    let candidate = this.instantAtZone(
+      EUROPE_BERLIN,
+      parts.year,
+      parts.month,
+      parts.day,
+      EVENING_CET_HOUR,
+      0,
+    );
+    if (candidate <= now) {
+      const noon = this.instantAtZone(
+        EUROPE_BERLIN,
+        parts.year,
+        parts.month,
+        parts.day,
+        12,
+        0,
+      );
+      const next = this.zonedParts(
+        new Date(noon.getTime() + 86_400_000),
+        EUROPE_BERLIN,
+      );
+      candidate = this.instantAtZone(
+        EUROPE_BERLIN,
+        next.year,
+        next.month,
+        next.day,
+        EVENING_CET_HOUR,
+        0,
+      );
+    }
+    return candidate;
+  }
+
+  private zonedParts(date: Date, timeZone: string) {
+    const map = Object.fromEntries(
+      new Intl.DateTimeFormat('en-US', {
+        timeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hourCycle: 'h23',
+      })
+        .formatToParts(date)
+        .filter((part) => part.type !== 'literal')
+        .map((part) => [part.type, part.value]),
+    ) as Record<string, string>;
+    return {
+      year: Number(map.year),
+      month: Number(map.month),
+      day: Number(map.day),
+      hour: Number(map.hour),
+      minute: Number(map.minute),
+      second: Number(map.second),
+    };
+  }
+
+  /** UTC instant for a wall-clock time in `timeZone`. */
+  private instantAtZone(
+    timeZone: string,
+    year: number,
+    month: number,
+    day: number,
+    hour: number,
+    minute: number,
+  ) {
+    const desiredAsUtc = Date.UTC(year, month - 1, day, hour, minute, 0);
+    let guess = desiredAsUtc;
+    for (let i = 0; i < 3; i += 1) {
+      const parts = this.zonedParts(new Date(guess), timeZone);
+      const asUtc = Date.UTC(
+        parts.year,
+        parts.month - 1,
+        parts.day,
+        parts.hour,
+        parts.minute,
+        parts.second,
+      );
+      guess -= asUtc - desiredAsUtc;
+    }
+    return new Date(guess);
   }
   private allowedMime(mime: string) {
     return (

@@ -1595,11 +1595,49 @@
   }
 
   function formatDurationSec(seconds) {
-    if (typeof seconds !== 'number' || !Number.isFinite(seconds)) return '';
+    if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds < 0) {
+      return '';
+    }
     const total = Math.round(seconds);
-    const minutes = Math.floor(total / 60);
-    const rest = String(total % 60).padStart(2, '0');
-    return `${minutes}:${rest}`;
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    const pad = (n) => String(n).padStart(2, '0');
+    if (h > 0) return `${h}:${pad(m)}:${pad(s)}`;
+    return `${m}:${pad(s)}`;
+  }
+
+  /** Effective clip length after trim (seconds), or null if unknown. */
+  function montageClipDurationSec(clip) {
+    const mediaItem = clip?.media || {};
+    const sourceSec =
+      mediaItem.durationMs != null && Number.isFinite(mediaItem.durationMs)
+        ? mediaItem.durationMs / 1000
+        : null;
+    const start =
+      clip.trimStartSec != null && Number.isFinite(clip.trimStartSec)
+        ? Math.max(0, clip.trimStartSec)
+        : 0;
+    const end =
+      clip.trimEndSec != null && Number.isFinite(clip.trimEndSec)
+        ? clip.trimEndSec
+        : sourceSec;
+    if (end == null || !Number.isFinite(end)) return null;
+    return Math.max(0, end - start);
+  }
+
+  function montageProjectDurationSec(project) {
+    if (!project?.clips?.length) return null;
+    let total = 0;
+    let known = 0;
+    for (const clip of project.clips) {
+      const sec = montageClipDurationSec(clip);
+      if (sec == null) continue;
+      total += sec;
+      known += 1;
+    }
+    if (!known) return null;
+    return total;
   }
 
   function setMontageOpen(open) {
@@ -1761,11 +1799,23 @@
     head.appendChild(actions);
     montageDetail.appendChild(head);
 
+    const summary = document.createElement('p');
+    summary.className = 'trip-montage__summary';
+    const clipCount = activeMontageProject.clips.length;
+    const totalSec = montageProjectDurationSec(activeMontageProject);
+    const totalLabel =
+      totalSec != null
+        ? t('montageTotalDuration').replace(
+            '{duration}',
+            formatDurationSec(totalSec),
+          )
+        : t('montageTotalDurationUnknown');
+    summary.textContent = clipCount
+      ? `${clipCount} ${t('montageClips')} · ${totalLabel}`
+      : t('montageEmptyClips');
+    montageDetail.appendChild(summary);
+
     if (!activeMontageProject.clips.length) {
-      const empty = document.createElement('p');
-      empty.className = 'trip-montage__empty';
-      empty.textContent = t('montageEmptyClips');
-      montageDetail.appendChild(empty);
       return;
     }
 
@@ -1811,6 +1861,14 @@
       mediaBtn.appendChild(trimmedBadge);
     }
 
+    const clipDurationSec = montageClipDurationSec(clip);
+    if (clipDurationSec != null) {
+      const durationBadge = document.createElement('span');
+      durationBadge.className = 'trip-montage__clip-duration';
+      durationBadge.textContent = formatDurationSec(clipDurationSec);
+      mediaBtn.appendChild(durationBadge);
+    }
+
     if (mediaItem.thumbUrl) {
       const img = document.createElement('img');
       img.src = mediaItem.thumbUrl;
@@ -1835,14 +1893,20 @@
 
     const meta = document.createElement('div');
     meta.className = 'trip-montage__clip-meta';
-    const durationSec =
+    const sourceSec =
       mediaItem.durationMs != null ? mediaItem.durationMs / 1000 : null;
     const start = clip.trimStartSec ?? 0;
-    const end = clip.trimEndSec != null ? clip.trimEndSec : durationSec;
-    meta.textContent =
+    const end = clip.trimEndSec != null ? clip.trimEndSec : sourceSec;
+    const rangeLabel =
       end == null
         ? `${formatDurationSec(start)}–…`
         : `${formatDurationSec(start)}–${formatDurationSec(end)}`;
+    const lengthLabel =
+      clipDurationSec != null
+        ? formatDurationSec(clipDurationSec)
+        : t('montageDurationUnknown');
+    meta.textContent = lengthLabel;
+    meta.title = rangeLabel;
     footer.appendChild(meta);
 
     const tools = document.createElement('div');
@@ -2167,17 +2231,35 @@
     const prev = button.textContent;
     button.textContent = t('montageExporting');
     try {
-      const result = await api(
+      let status = await api(
         `${projectsBase()}/${activeMontageProject.id}/export`,
         { method: 'POST' },
       );
-      if (!result?.url) throw new Error(t('failed'));
-      activeMontageProject.exportZipUrl = result.url;
+
+      while (status?.status === 'building') {
+        const label = status.progress
+          ? t('montageExportProgress').replace('{progress}', status.progress)
+          : t('montageExporting');
+        button.textContent = label;
+        showStatus(label);
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        status = await api(
+          `${projectsBase()}/${activeMontageProject.id}/export`,
+        );
+      }
+
+      if (status?.status === 'error') {
+        throw new Error(status.error || t('failed'));
+      }
+      if (!status?.url) throw new Error(t('failed'));
+
+      activeMontageProject.exportZipUrl = status.url;
+      activeMontageProject.exportZipStatus = status.status;
       const a = document.createElement('a');
-      a.href = result.url;
+      a.href = status.url;
       a.target = '_blank';
       a.rel = 'noopener';
-      a.download = result.filename || `${activeMontageProject.name}.zip`;
+      a.download = status.filename || `${activeMontageProject.name}.zip`;
       document.body.appendChild(a);
       a.click();
       a.remove();
