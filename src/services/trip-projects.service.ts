@@ -31,9 +31,22 @@ const MEDIA_SUMMARY_SELECT = {
   originalFilename: true,
   kind: true,
   durationMs: true,
+  size: true,
   mimeType: true,
   deletedAt: true,
 } as const;
+
+type MediaSummaryRow = {
+  id: string;
+  url: string;
+  thumbUrl: string | null;
+  originalFilename: string;
+  kind: string;
+  durationMs: number | null;
+  size: bigint | number;
+  mimeType: string;
+  deletedAt: Date | null;
+};
 
 @Injectable()
 export class TripProjectsService {
@@ -106,7 +119,7 @@ export class TripProjectsService {
       },
     });
     if (!project) throw new NotFoundException('Проект не найден');
-    return project;
+    return this.serializeProject(project);
   }
 
   async addClip(tripId: string, projectId: number, mediaId: string) {
@@ -130,7 +143,7 @@ export class TripProjectsService {
       include: { media: { select: MEDIA_SUMMARY_SELECT } },
     });
     await this.touchProject(projectId);
-    return clip;
+    return this.serializeClip(clip);
   }
 
   async removeClip(tripId: string, projectId: number, clipId: number) {
@@ -211,7 +224,7 @@ export class TripProjectsService {
       include: { media: { select: MEDIA_SUMMARY_SELECT } },
     });
     await this.touchProject(projectId);
-    return updated;
+    return this.serializeClip(updated);
   }
 
   async applyTrim(tripId: string, projectId: number, clipId: number) {
@@ -248,7 +261,7 @@ export class TripProjectsService {
       include: { media: { select: MEDIA_SUMMARY_SELECT } },
     });
     await this.touchProject(projectId);
-    return updated;
+    return this.serializeClip(updated);
   }
 
   async getExportStatus(
@@ -581,6 +594,30 @@ export class TripProjectsService {
         throw new BadRequestException('trimEndSec за пределами ролика');
       }
     }
+  }
+
+  private serializeMediaSummary(media: MediaSummaryRow) {
+    return {
+      ...media,
+      size: Number(media.size),
+    };
+  }
+
+  private serializeClip<T extends { media?: MediaSummaryRow | null }>(clip: T) {
+    if (!clip.media) return clip;
+    return {
+      ...clip,
+      media: this.serializeMediaSummary(clip.media),
+    };
+  }
+
+  private serializeProject<
+    T extends { clips: Array<{ media?: MediaSummaryRow | null }> },
+  >(project: T) {
+    return {
+      ...project,
+      clips: project.clips.map((clip) => this.serializeClip(clip)),
+    };
   }
 
   private async requireProject(tripId: string, projectId: number) {

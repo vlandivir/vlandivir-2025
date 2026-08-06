@@ -829,6 +829,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 .trip-montage__clip-tools {

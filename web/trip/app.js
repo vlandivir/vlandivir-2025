@@ -908,7 +908,7 @@
   function lightboxItems() {
     if (lightboxMode === 'montage') {
       return (activeMontageProject?.clips || []).map((clip) => {
-        const mediaItem = clip.media || {};
+        const mediaItem = montageMediaFields(clip);
         return {
           id: `clip-${clip.id}`,
           clipId: clip.id,
@@ -1607,9 +1607,39 @@
     return `${m}:${pad(s)}`;
   }
 
+  /** Merge clip.media with gallery row so size/duration stay visible. */
+  function montageMediaFields(clip) {
+    const fromClip = clip?.media || {};
+    const fromGallery =
+      media.find((row) => row.id === (clip?.mediaId || fromClip.id)) || {};
+    const size =
+      fromClip.size != null
+        ? fromClip.size
+        : fromGallery.size != null
+          ? fromGallery.size
+          : null;
+    const durationMs =
+      fromClip.durationMs != null
+        ? fromClip.durationMs
+        : fromGallery.durationMs != null
+          ? fromGallery.durationMs
+          : null;
+    return {
+      ...fromGallery,
+      ...fromClip,
+      size,
+      durationMs,
+      thumbUrl: fromClip.thumbUrl || fromGallery.thumbUrl || null,
+      url: fromClip.url || fromGallery.url || null,
+      originalFilename:
+        fromClip.originalFilename || fromGallery.originalFilename || null,
+      displayName: fromClip.displayName || fromGallery.displayName || null,
+    };
+  }
+
   /** Effective clip length after trim (seconds), or null if unknown. */
   function montageClipDurationSec(clip) {
-    const mediaItem = clip?.media || {};
+    const mediaItem = montageMediaFields(clip);
     const sourceSec =
       mediaItem.durationMs != null && Number.isFinite(mediaItem.durationMs)
         ? mediaItem.durationMs / 1000
@@ -1833,7 +1863,7 @@
   }
 
   function buildMontageClipRow(clip, index) {
-    const mediaItem = clip.media || {};
+    const mediaItem = montageMediaFields(clip);
     const card = document.createElement('article');
     card.className =
       'trip-montage__clip' +
@@ -1894,19 +1924,25 @@
     const meta = document.createElement('div');
     meta.className = 'trip-montage__clip-meta';
     const sourceSec =
-      mediaItem.durationMs != null ? mediaItem.durationMs / 1000 : null;
+      mediaItem.durationMs != null && Number.isFinite(mediaItem.durationMs)
+        ? mediaItem.durationMs / 1000
+        : null;
     const start = clip.trimStartSec ?? 0;
     const end = clip.trimEndSec != null ? clip.trimEndSec : sourceSec;
     const rangeLabel =
       end == null
         ? `${formatDurationSec(start)}–…`
         : `${formatDurationSec(start)}–${formatDurationSec(end)}`;
+    const sizeLabel =
+      mediaItem.size != null && Number.isFinite(Number(mediaItem.size))
+        ? formatBytes(Number(mediaItem.size))
+        : '';
     const lengthLabel =
       clipDurationSec != null
         ? formatDurationSec(clipDurationSec)
         : t('montageDurationUnknown');
-    meta.textContent = lengthLabel;
-    meta.title = rangeLabel;
+    meta.textContent = [sizeLabel, lengthLabel].filter(Boolean).join(' · ');
+    meta.title = [sizeLabel, rangeLabel].filter(Boolean).join(' · ');
     footer.appendChild(meta);
 
     const tools = document.createElement('div');
@@ -1947,7 +1983,7 @@
   }
 
   function buildMontageTrimPanel(clip) {
-    const mediaItem = clip.media || {};
+    const mediaItem = montageMediaFields(clip);
     const durationSec =
       mediaItem.durationMs != null ? mediaItem.durationMs / 1000 : 0;
     const panel = document.createElement('div');
