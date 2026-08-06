@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Trip Montage</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <div id="app" class="app">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">vlandivir</p>
+          <h1>Trip Montage</h1>
+        </div>
+        <div class="topbar-actions">
+          <span id="userLabel" class="user-label"></span>
+          <button id="loginBtn" class="primary-btn" type="button">
+            Войти через Google
+          </button>
+          <button id="logoutBtn" class="ghost-btn" type="button" hidden>
+            Выйти
+          </button>
+        </div>
+      </header>
+
+      <p id="status" class="status" hidden></p>
+
+      <section id="loginView" class="panel">
+        <p class="lead">
+          Войдите тем же Google-аккаунтом, что и на сайте. Монтаж и локальный
+          export для CapCut — здесь; на вебе остаются просмотр и выбор клипов.
+        </p>
+      </section>
+
+      <section id="tripsView" class="panel" hidden>
+        <div class="panel-head">
+          <h2>Альбомы</h2>
+          <button id="refreshTripsBtn" class="ghost-btn" type="button">
+            Обновить
+          </button>
+        </div>
+        <div id="tripsList" class="trips-list"></div>
+      </section>
+
+      <section id="albumView" class="panel album-layout" hidden>
+        <div class="album-main">
+          <div class="panel-head">
+            <button id="backBtn" class="ghost-btn" type="button">← Альбомы</button>
+            <h2 id="albumTitle">…</h2>
+            <div class="panel-head-actions">
+              <button id="cacheClearBtn" class="ghost-btn" type="button">
+                Очистить кэш
+              </button>
+              <span id="cacheStats" class="muted"></span>
+            </div>
+          </div>
+          <div id="gallery" class="trip-gallery"></div>
+        </div>
+
+        <aside class="montage-panel editor-card">
+          <p class="section-kicker">CapCut</p>
+          <h3>Проекты</h3>
+          <form id="createProjectForm" class="create-row">
+            <input
+              id="projectNameInput"
+              type="text"
+              maxlength="120"
+              placeholder="Название проекта…"
+              required
+            />
+            <button class="primary-btn" type="submit">Создать</button>
+          </form>
+          <div id="projectsList" class="projects-list"></div>
+          <div id="projectDetail" class="project-detail" hidden></div>
+        </aside>
+      </section>
+
+      <dialog id="trimDialog" class="trim-dialog">
+        <form method="dialog" class="trim-dialog__form">
+          <header class="trim-dialog__head">
+            <h3 id="trimTitle">Обрезка</h3>
+            <button value="cancel" class="ghost-btn icon-btn" type="submit">
+              ✕
+            </button>
+          </header>
+          <p id="trimDownloadStatus" class="muted"></p>
+          <video id="trimVideo" controls playsinline></video>
+          <div class="trim-fields">
+            <label>
+              Старт, с
+              <input id="trimStartInput" type="number" min="0" step="0.1" />
+            </label>
+            <label>
+              Конец, с
+              <input id="trimEndInput" type="number" min="0" step="0.1" />
+            </label>
+          </div>
+          <div class="trim-actions">
+            <button id="markStartBtn" class="mini-btn" type="button">
+              Старт = сейчас
+            </button>
+            <button id="markEndBtn" class="mini-btn" type="button">
+              Конец = сейчас
+            </button>
+            <button id="saveTrimBtn" class="primary-btn" type="button">
+              Сохранить границы
+            </button>
+            <button id="resetTrimBtn" class="ghost-btn" type="button">
+              Сбросить
+            </button>
+          </div>
+        </form>
+      </dialog>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
