@@ -42,6 +42,11 @@
   box-sizing: border-box;
 }
 
+/* Author display:grid/flex on .panel would otherwise override [hidden]. */
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   margin: 0;
