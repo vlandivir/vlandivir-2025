@@ -1,12 +1,15 @@
 use futures_util::StreamExt;
+use http_range::HttpRange;
+use percent_encoding::{percent_decode_str, utf8_percent_encode, NON_ALPHANUMERIC};
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::io::{Read, Write};
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Mutex;
 use std::time::Duration;
+use tauri::http::{header::*, StatusCode};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_opener::OpenerExt;
 use url::Url;
@@ -252,12 +255,110 @@ fn wait_for_handoff(listener: TcpListener) -> AppResult<String> {
     Ok(token)
 }
 
-fn media_path(app: &AppHandle, media_id: &str) -> AppResult<PathBuf> {
-    let safe = media_id
+fn safe_media_id(media_id: &str) -> String {
+    media_id
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
-        .collect::<String>();
-    Ok(media_cache_dir(app)?.join(format!("{safe}.bin")))
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect()
+}
+
+fn media_file_stem(app: &AppHandle, media_id: &str) -> AppResult<PathBuf> {
+    Ok(media_cache_dir(app)?.join(safe_media_id(media_id)))
+}
+
+fn sniff_container_ext(path: &Path) -> &'static str {
+    let mut buf = [0u8; 12];
+    if let Ok(mut file) = fs::File::open(path) {
+        if file.read(&mut buf).ok().unwrap_or(0) >= 12 && &buf[4..8] == b"ftyp" {
+            let brand = &buf[8..12];
+            if brand == b"qt  " {
+                return "mov";
+            }
+            return "mp4";
+        }
+    }
+    "mp4"
+}
+
+fn extension_from_url_or_type(url: &str, content_type: Option<&str>) -> &'static str {
+    if let Some(ct) = content_type {
+        let ct = ct.to_ascii_lowercase();
+        if ct.contains("quicktime") {
+            return "mov";
+        }
+        if ct.contains("mp4") || ct.contains("mpeg") || ct.contains("m4v") {
+            return "mp4";
+        }
+    }
+    let lower = url.to_ascii_lowercase();
+    if lower.contains(".mov") {
+        return "mov";
+    }
+    if lower.contains(".m4v") {
+        return "m4v";
+    }
+    if lower.contains(".mp4") {
+        return "mp4";
+    }
+    "mp4"
+}
+
+fn media_path_with_ext(app: &AppHandle, media_id: &str, ext: &str) -> AppResult<PathBuf> {
+    Ok(media_file_stem(app, media_id)?.with_extension(ext))
+}
+
+/// Prefer real media extensions so WKWebView picks the right MIME type.
+/// Legacy `.bin` caches are migrated in place when found.
+fn find_cached_media(app: &AppHandle, media_id: &str) -> AppResult<Option<PathBuf>> {
+    for ext in ["mp4", "mov", "m4v"] {
+        let path = media_path_with_ext(app, media_id, ext)?;
+        if path.exists() {
+            return Ok(Some(path));
+        }
+    }
+
+    let legacy = media_path_with_ext(app, media_id, "bin")?;
+    if !legacy.exists() {
+        return Ok(None);
+    }
+    let ext = sniff_container_ext(&legacy);
+    let migrated = media_path_with_ext(app, media_id, ext)?;
+    if !migrated.exists() {
+        fs::rename(&legacy, &migrated).map_err(|e| err(format!("migrate cache ext: {e}")))?;
+        return Ok(Some(migrated));
+    }
+    // Collision — keep using legacy only if identical path somehow.
+    Ok(Some(legacy))
+}
+
+#[derive(Serialize)]
+struct MediaCacheStatus {
+    cached: bool,
+    path: Option<String>,
+    bytes: Option<u64>,
+}
+
+#[tauri::command]
+fn is_media_cached(app: AppHandle, media_id: String) -> AppResult<MediaCacheStatus> {
+    let Some(path) = find_cached_media(&app, &media_id)? else {
+        return Ok(MediaCacheStatus {
+            cached: false,
+            path: None,
+            bytes: None,
+        });
+    };
+    let meta = fs::metadata(&path).map_err(|e| err(format!("stat cache: {e}")))?;
+    Ok(MediaCacheStatus {
+        cached: true,
+        path: Some(path.to_string_lossy().into_owned()),
+        bytes: Some(meta.len()),
+    })
 }
 
 #[derive(Serialize)]
@@ -273,8 +374,7 @@ async fn ensure_media_cached(
     media_id: String,
     url: String,
 ) -> AppResult<CacheEnsureResult> {
-    let path = media_path(&app, &media_id)?;
-    if path.exists() {
+    if let Some(path) = find_cached_media(&app, &media_id)? {
         let meta = fs::metadata(&path).map_err(|e| err(format!("stat cache: {e}")))?;
         return Ok(CacheEnsureResult {
             path: path.to_string_lossy().into_owned(),
@@ -296,7 +396,15 @@ async fn ensure_media_cached(
         )));
     }
 
-    let tmp = path.with_extension("partial");
+    let content_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_string);
+    let ext = extension_from_url_or_type(&url, content_type.as_deref());
+    let path = media_path_with_ext(&app, &media_id, ext)?;
+
+    let tmp = path.with_extension(format!("{ext}.partial"));
     let mut file = tokio::fs::File::create(&tmp)
         .await
         .map_err(|e| err(format!("create partial: {e}")))?;
@@ -317,8 +425,22 @@ async fn ensure_media_cached(
         .await
         .map_err(|e| err(format!("finalize cache: {e}")))?;
 
+    // Prefer sniffed container if Content-Type/URL lied.
+    let sniffed = sniff_container_ext(&path);
+    let final_path = if sniffed != ext {
+        let renamed = media_path_with_ext(&app, &media_id, sniffed)?;
+        if renamed != path {
+            let _ = fs::rename(&path, &renamed);
+            renamed
+        } else {
+            path
+        }
+    } else {
+        path
+    };
+
     Ok(CacheEnsureResult {
-        path: path.to_string_lossy().into_owned(),
+        path: final_path.to_string_lossy().into_owned(),
         downloaded: true,
         bytes,
     })
@@ -404,13 +526,13 @@ async fn export_clips(
         let source = PathBuf::from(&clip.source_path);
         if !source.exists() {
             // Try cache by media id if caller path is stale.
-            let cached = media_path(&app, &clip.media_id)?;
-            if !cached.exists() {
+            let cached = find_cached_media(&app, &clip.media_id)?;
+            let Some(cached) = cached else {
                 return Err(err(format!(
                     "missing local file for {}",
                     clip.output_name
                 )));
-            }
+            };
             run_ffmpeg_copy(
                 &cached,
                 &out.join(&clip.output_name),
@@ -483,8 +605,130 @@ fn run_ffmpeg_copy(
 }
 
 #[tauri::command]
+fn media_file_url(app: AppHandle, path: String) -> AppResult<String> {
+    let file = PathBuf::from(&path);
+    let cache = media_cache_dir(&app)?;
+    let canonical = file
+        .canonicalize()
+        .map_err(|e| err(format!("canonicalize media: {e}")))?;
+    let cache_canon = cache
+        .canonicalize()
+        .map_err(|e| err(format!("canonicalize cache: {e}")))?;
+    if !canonical.starts_with(&cache_canon) {
+        return Err(err("media path outside cache"));
+    }
+    let name = canonical
+        .file_name()
+        .and_then(|s| s.to_str())
+        .ok_or_else(|| err("invalid media filename"))?;
+    let encoded = utf8_percent_encode(name, NON_ALPHANUMERIC).to_string();
+    // WKWebView needs a custom scheme with Range support; asset:// corrupts video.
+    // Origin/URL form differs by platform (see Tauri uri scheme docs).
+    #[cfg(any(target_os = "windows", target_os = "android"))]
+    {
+        Ok(format!("http://media.localhost/{encoded}"))
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "android")))]
+    {
+        Ok(format!("media://localhost/{encoded}"))
+    }
+}
+
+fn content_type_for_path(path: &Path) -> &'static str {
+    match path
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "mov" => "video/quicktime",
+        "m4v" => "video/x-m4v",
+        "webm" => "video/webm",
+        _ => "video/mp4",
+    }
+}
+
+fn media_stream_response(
+    app: &AppHandle,
+    request: tauri::http::Request<Vec<u8>>,
+) -> Result<tauri::http::Response<Vec<u8>>, Box<dyn std::error::Error>> {
+    let raw_path = request.uri().path().trim_start_matches('/');
+    let name = percent_decode_str(raw_path).decode_utf8_lossy();
+    if name.contains('/') || name.contains("..") || name.is_empty() {
+        return Ok(tauri::http::Response::builder()
+            .status(StatusCode::FORBIDDEN)
+            .body(Vec::new())?);
+    }
+
+    let file_path = media_cache_dir(app)?.join(name.as_ref());
+    if !file_path.exists() {
+        return Ok(tauri::http::Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .body(Vec::new())?);
+    }
+
+    let mut file = fs::File::open(&file_path)?;
+    let len = {
+        let old = file.stream_position()?;
+        let len = file.seek(SeekFrom::End(0))?;
+        file.seek(SeekFrom::Start(old))?;
+        len
+    };
+    let content_type = content_type_for_path(&file_path);
+
+    if let Some(range_header) = request.headers().get(RANGE) {
+        let ranges = HttpRange::parse(range_header.to_str()?, len).map_err(|_| {
+            std::io::Error::new(std::io::ErrorKind::InvalidInput, "invalid range")
+        })?;
+        if ranges.is_empty() {
+            return Ok(tauri::http::Response::builder()
+                .status(StatusCode::RANGE_NOT_SATISFIABLE)
+                .header(CONTENT_RANGE, format!("bytes */{len}"))
+                .body(Vec::new())?);
+        }
+
+        const MAX_LEN: u64 = 2 * 1024 * 1024;
+        let r = &ranges[0];
+        let start = r.start;
+        let mut end = r.start + r.length - 1;
+        if start >= len {
+            return Ok(tauri::http::Response::builder()
+                .status(StatusCode::RANGE_NOT_SATISFIABLE)
+                .header(CONTENT_RANGE, format!("bytes */{len}"))
+                .body(Vec::new())?);
+        }
+        end = end.min(len - 1).min(start + MAX_LEN - 1);
+        let bytes_to_read = end + 1 - start;
+        let mut buf = vec![0_u8; bytes_to_read as usize];
+        file.seek(SeekFrom::Start(start))?;
+        file.read_exact(&mut buf)?;
+
+        return Ok(tauri::http::Response::builder()
+            .status(StatusCode::PARTIAL_CONTENT)
+            .header(ACCEPT_RANGES, "bytes")
+            .header(CONTENT_TYPE, content_type)
+            .header(CONTENT_RANGE, format!("bytes {start}-{end}/{len}"))
+            .header(CONTENT_LENGTH, bytes_to_read)
+            .header(ACCESS_CONTROL_ALLOW_ORIGIN, "*")
+            .body(buf)?);
+    }
+
+    // No Range — return full body (WebKit almost always sends Range for <video>).
+    let mut buf = Vec::with_capacity(len as usize);
+    file.seek(SeekFrom::Start(0))?;
+    file.read_to_end(&mut buf)?;
+    Ok(tauri::http::Response::builder()
+        .status(StatusCode::OK)
+        .header(ACCEPT_RANGES, "bytes")
+        .header(CONTENT_TYPE, content_type)
+        .header(CONTENT_LENGTH, len)
+        .header(ACCESS_CONTROL_ALLOW_ORIGIN, "*")
+        .body(buf)?)
+}
+
+#[tauri::command]
 fn path_to_asset_url(path: String) -> AppResult<String> {
-    // Frontend uses convertFileSrc; this helper validates the path exists.
     let p = PathBuf::from(&path);
     if !p.exists() {
         return Err(err("file does not exist"));
@@ -508,6 +752,19 @@ pub fn run() {
         .manage(AppState {
             api_base: Mutex::new(DEFAULT_API_BASE.to_string()),
         })
+        .register_asynchronous_uri_scheme_protocol("media", move |ctx, request, responder| {
+            let app = ctx.app_handle().clone();
+            match media_stream_response(&app, request) {
+                Ok(response) => responder.respond(response),
+                Err(error) => responder.respond(
+                    tauri::http::Response::builder()
+                        .status(StatusCode::INTERNAL_SERVER_ERROR)
+                        .header(CONTENT_TYPE, "text/plain")
+                        .body(error.to_string().into_bytes())
+                        .unwrap_or_else(|_| tauri::http::Response::new(Vec::new())),
+                ),
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             get_api_base,
             set_api_base,
@@ -516,10 +773,12 @@ pub fn run() {
             clear_session_token,
             api_fetch,
             login_with_google,
+            is_media_cached,
             ensure_media_cached,
             get_cache_stats,
             clear_media_cache,
             export_clips,
+            media_file_url,
             path_to_asset_url,
             open_in_finder,
         ])

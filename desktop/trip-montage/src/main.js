@@ -1,8 +1,8 @@
 import { invoke } from '@tauri-apps/api/core';
-import { convertFileSrc } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { open } from '@tauri-apps/plugin-dialog';
 import * as api from './api.js';
+import { icons, withIcon } from './icons.js';
 
 const els = {
   status: document.getElementById('status'),
@@ -17,22 +17,52 @@ const els = {
   albumTitle: document.getElementById('albumTitle'),
   backBtn: document.getElementById('backBtn'),
   gallery: document.getElementById('gallery'),
+  mediaCount: document.getElementById('mediaCount'),
   cacheStats: document.getElementById('cacheStats'),
   cacheClearBtn: document.getElementById('cacheClearBtn'),
+  projectSelect: document.getElementById('projectSelect'),
   createProjectForm: document.getElementById('createProjectForm'),
   projectNameInput: document.getElementById('projectNameInput'),
-  projectsList: document.getElementById('projectsList'),
-  projectDetail: document.getElementById('projectDetail'),
-  trimDialog: document.getElementById('trimDialog'),
-  trimTitle: document.getElementById('trimTitle'),
-  trimDownloadStatus: document.getElementById('trimDownloadStatus'),
-  trimVideo: document.getElementById('trimVideo'),
+  projectActions: document.getElementById('projectActions'),
+  openProjectBtn: document.getElementById('openProjectBtn'),
+  exportProjectBtn: document.getElementById('exportProjectBtn'),
+  renameProjectBtn: document.getElementById('renameProjectBtn'),
+  deleteProjectBtn: document.getElementById('deleteProjectBtn'),
+  albumPreviewEmpty: document.getElementById('albumPreviewEmpty'),
+  albumPreviewBody: document.getElementById('albumPreviewBody'),
+  albumPreviewImage: document.getElementById('albumPreviewImage'),
+  albumPreviewVideo: document.getElementById('albumPreviewVideo'),
+  albumPreviewNeedCache: document.getElementById('albumPreviewNeedCache'),
+  albumDownloadBtn: document.getElementById('albumDownloadBtn'),
+  albumPreviewName: document.getElementById('albumPreviewName'),
+  albumPreviewMeta: document.getElementById('albumPreviewMeta'),
+  albumPreviewCache: document.getElementById('albumPreviewCache'),
+  albumPreviewProjectActions: document.getElementById('albumPreviewProjectActions'),
+  albumToggleProjectBtn: document.getElementById('albumToggleProjectBtn'),
+  projectLightbox: document.getElementById('projectLightbox'),
+  lightboxProjectTitle: document.getElementById('lightboxProjectTitle'),
+  lightboxExportBtn: document.getElementById('lightboxExportBtn'),
+  closeLightboxBtn: document.getElementById('closeLightboxBtn'),
+  lightboxVideo: document.getElementById('lightboxVideo'),
+  lightboxNeedCache: document.getElementById('lightboxNeedCache'),
+  lightboxDownloadBtn: document.getElementById('lightboxDownloadBtn'),
+  lightboxDownloadStatus: document.getElementById('lightboxDownloadStatus'),
+  lightboxClipEmpty: document.getElementById('lightboxClipEmpty'),
+  lightboxClipInfo: document.getElementById('lightboxClipInfo'),
+  lightboxClipName: document.getElementById('lightboxClipName'),
+  lightboxClipMeta: document.getElementById('lightboxClipMeta'),
+  lightboxClipTrim: document.getElementById('lightboxClipTrim'),
   trimStartInput: document.getElementById('trimStartInput'),
   trimEndInput: document.getElementById('trimEndInput'),
   markStartBtn: document.getElementById('markStartBtn'),
   markEndBtn: document.getElementById('markEndBtn'),
   saveTrimBtn: document.getElementById('saveTrimBtn'),
   resetTrimBtn: document.getElementById('resetTrimBtn'),
+  moveClipUpBtn: document.getElementById('moveClipUpBtn'),
+  moveClipDownBtn: document.getElementById('moveClipDownBtn'),
+  removeClipBtn: document.getElementById('removeClipBtn'),
+  timelineTrack: document.getElementById('timelineTrack'),
+  timelineSummary: document.getElementById('timelineSummary'),
 };
 
 /** @type {{ id: string, secret: string, title: string } | null} */
@@ -43,10 +73,16 @@ let mediaItems = [];
 let projects = [];
 /** @type {any | null} */
 let activeProject = null;
+/** @type {any | null} */
+let selectedMedia = null;
 /** @type {number | null} */
 let selectedClipId = null;
 /** @type {{ clipId: number, mediaId: string, localPath: string } | null} */
 let trimContext = null;
+/** @type {number} */
+let previewToken = 0;
+/** @type {Set<string>} */
+let cachedMediaIds = new Set();
 
 function showStatus(message, isError = false) {
   els.status.hidden = !message;
@@ -82,6 +118,44 @@ function sanitizeFilename(name) {
     .slice(0, 80);
 }
 
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
+}
+
+function clipForMedia(mediaId) {
+  return (activeProject?.clips || []).find((c) => c.mediaId === mediaId) || null;
+}
+
+function selectedClip() {
+  return (activeProject?.clips || []).find((c) => c.id === selectedClipId) || null;
+}
+
+function selectedClipIndex() {
+  if (!activeProject?.clips || selectedClipId == null) return -1;
+  return activeProject.clips.findIndex((c) => c.id === selectedClipId);
+}
+
+function setButtonContent(el, iconHtml, label) {
+  el.innerHTML = withIcon(iconHtml, label);
+}
+
+function initStaticIcons() {
+  setButtonContent(els.albumDownloadBtn, icons.download, 'Загрузить локально');
+  setButtonContent(els.lightboxDownloadBtn, icons.download, 'Загрузить локально');
+  els.closeLightboxBtn.innerHTML = icons.x;
+  setButtonContent(els.markStartBtn, icons.flag, 'Старт = сейчас');
+  setButtonContent(els.markEndBtn, icons.flagEnd, 'Конец = сейчас');
+  setButtonContent(els.saveTrimBtn, icons.check, 'Сохранить');
+  setButtonContent(els.resetTrimBtn, icons.rotateCcw, 'Сбросить');
+  els.moveClipUpBtn.innerHTML = icons.chevronUp;
+  els.moveClipDownBtn.innerHTML = icons.chevronDown;
+  setButtonContent(els.removeClipBtn, icons.trash, 'Убрать');
+}
+
 async function refreshCacheStats() {
   try {
     const stats = await invoke('get_cache_stats');
@@ -89,6 +163,31 @@ async function refreshCacheStats() {
   } catch {
     els.cacheStats.textContent = '';
   }
+}
+
+/** Local video URL via custom `media://` protocol (Range streaming). */
+async function localVideoUrl(path) {
+  return invoke('media_file_url', { path });
+}
+
+async function getCacheStatus(mediaId) {
+  return invoke('is_media_cached', { mediaId });
+}
+
+async function refreshCachedMediaIds() {
+  const videos = mediaItems.filter((m) => m.kind === 'video');
+  const next = new Set();
+  await Promise.all(
+    videos.map(async (item) => {
+      try {
+        const status = await getCacheStatus(item.id);
+        if (status.cached) next.add(item.id);
+      } catch {
+        /* ignore */
+      }
+    }),
+  );
+  cachedMediaIds = next;
 }
 
 function setAuthedUi(user) {
@@ -102,11 +201,14 @@ function setAuthedUi(user) {
   els.tripsView.hidden = !signedIn;
   if (!signedIn) {
     els.albumView.hidden = true;
+    closeLightbox();
     currentTrip = null;
+    selectedMedia = null;
   }
 }
 
 async function bootstrap() {
+  initStaticIcons();
   try {
     const base = await invoke('get_api_base');
     api.setApiBase(base);
@@ -176,240 +278,278 @@ async function openTrip(tripSummary) {
   els.albumTitle.textContent = currentTrip.title;
   els.tripsView.hidden = true;
   els.albumView.hidden = false;
+  activeProject = null;
+  selectedClipId = null;
+  selectedMedia = null;
+  clearAlbumPreview();
   const mediaData = await api.listMedia(currentTrip.secret);
   mediaItems = (mediaData.media || []).filter((m) => !m.deleted);
-  renderGallery();
+  await refreshCachedMediaIds();
   await loadProjects();
   await refreshCacheStats();
   showStatus('');
 }
 
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;');
+async function loadProjects() {
+  if (!currentTrip) return;
+  const previousId = activeProject?.id ?? null;
+  projects = await api.listProjects(currentTrip.secret);
+  if (previousId && projects.some((p) => p.id === previousId)) {
+    activeProject = await api.getProject(currentTrip.secret, previousId);
+  } else {
+    activeProject = null;
+  }
+  renderProjectSelect();
+  renderMediaList();
+  if (selectedMedia) {
+    await showAlbumPreview(selectedMedia);
+  }
+  if (els.projectLightbox.open && activeProject) {
+    renderLightbox();
+  }
 }
 
-function renderGallery() {
-  els.gallery.innerHTML = '';
-  for (const item of mediaItems) {
-    const card = document.createElement('article');
-    card.className = 'trip-card';
+function renderProjectSelect() {
+  const select = els.projectSelect;
+  const current = activeProject?.id != null ? String(activeProject.id) : '';
+  select.innerHTML = '';
+  const none = document.createElement('option');
+  none.value = '';
+  none.textContent = '— не выбран —';
+  select.appendChild(none);
+  for (const project of projects) {
+    const opt = document.createElement('option');
+    opt.value = String(project.id);
+    opt.textContent = `${project.name} (${project.clipCount ?? 0})`;
+    select.appendChild(opt);
+  }
+  select.value = current;
+  els.projectActions.hidden = !activeProject;
+  if (activeProject) {
+    els.exportProjectBtn.disabled = !(activeProject.clips?.length > 0);
+  }
+}
 
-    const mediaBtn = document.createElement('button');
-    mediaBtn.type = 'button';
-    mediaBtn.className =
+async function selectProjectById(projectId) {
+  if (!currentTrip) return;
+  if (!projectId) {
+    activeProject = null;
+    selectedClipId = null;
+    renderProjectSelect();
+    renderMediaList();
+    if (selectedMedia) await showAlbumPreview(selectedMedia);
+    return;
+  }
+  activeProject = await api.getProject(currentTrip.secret, projectId);
+  selectedClipId = null;
+  renderProjectSelect();
+  renderMediaList();
+  if (selectedMedia) await showAlbumPreview(selectedMedia);
+}
+
+function renderMediaList() {
+  els.gallery.innerHTML = '';
+  els.mediaCount.textContent = `${mediaItems.length}`;
+  for (const item of mediaItems) {
+    const inProjectClip =
+      item.kind === 'video' ? clipForMedia(item.id) : null;
+    const isCached = item.kind === 'video' && cachedMediaIds.has(item.id);
+
+    const card = document.createElement('article');
+    card.className =
+      'trip-card' +
+      (selectedMedia?.id === item.id ? ' is-selected' : '') +
+      (inProjectClip ? ' is-in-project' : '');
+    card.tabIndex = 0;
+    card.setAttribute('role', 'button');
+    card.setAttribute(
+      'aria-label',
+      item.originalFilename || item.id || 'Медиа',
+    );
+
+    const media = document.createElement('div');
+    media.className =
       'trip-card__media' + (item.kind === 'video' ? ' is-video' : '');
     const img = document.createElement('img');
     img.loading = 'lazy';
-    img.alt = item.originalFilename || '';
-    img.src = item.thumbUrl || item.url;
-    mediaBtn.appendChild(img);
-    mediaBtn.addEventListener('click', () => {
-      if (item.kind === 'video') void openMediaViewer(item);
-    });
+    img.alt = '';
+    img.src = item.thumbUrl || item.url || '';
+    media.appendChild(img);
+
+    if (isCached) {
+      const cacheBadge = document.createElement('span');
+      cacheBadge.className = 'trip-card__badge trip-card__badge--cache';
+      cacheBadge.title = 'Загружено локально';
+      cacheBadge.innerHTML = icons.hardDrive;
+      media.appendChild(cacheBadge);
+    }
+
+    if (item.kind === 'video') {
+      const playBadge = document.createElement('span');
+      playBadge.className = 'trip-card__badge trip-card__badge--play';
+      playBadge.innerHTML = icons.play;
+      media.appendChild(playBadge);
+    }
+
+    if (activeProject && item.kind === 'video') {
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className =
+        'trip-card__badge trip-card__badge--toggle' +
+        (inProjectClip ? ' is-remove' : '');
+      toggle.title = inProjectClip ? 'Убрать из проекта' : 'Добавить в проект';
+      toggle.setAttribute(
+        'aria-label',
+        inProjectClip ? 'Убрать из проекта' : 'Добавить в проект',
+      );
+      toggle.innerHTML = inProjectClip ? icons.minus : icons.plus;
+      toggle.addEventListener('click', (event) => {
+        event.stopPropagation();
+        if (inProjectClip) {
+          void removeClipFromProject(inProjectClip.id);
+        } else {
+          void addMediaToProject(item.id);
+        }
+      });
+      media.appendChild(toggle);
+    }
 
     const footer = document.createElement('div');
     footer.className = 'trip-card__footer';
     const meta = document.createElement('div');
     meta.className = 'trip-card__meta';
     meta.innerHTML = `<strong title="${escapeHtml(item.originalFilename || '')}">${escapeHtml(item.originalFilename || item.id)}</strong><span>${item.kind}${item.durationMs ? ' · ' + formatDurationMs(item.durationMs) : ''} · ${formatBytes(Number(item.size || 0))}</span>`;
+    footer.appendChild(meta);
 
-    const actions = document.createElement('div');
-    actions.className = 'trip-card__actions';
-    if (item.kind === 'video' && activeProject) {
-      const add = document.createElement('button');
-      add.type = 'button';
-      add.className = 'mini-btn';
-      add.textContent = 'В проект';
-      add.addEventListener('click', () => void addMediaToProject(item.id));
-      actions.appendChild(add);
-    }
-
-    footer.append(meta, actions);
-    card.append(mediaBtn, footer);
+    card.append(media, footer);
+    card.addEventListener('click', () => void selectAlbumMedia(item));
+    card.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        void selectAlbumMedia(item);
+      }
+    });
     els.gallery.appendChild(card);
   }
 }
 
-async function openMediaViewer(item) {
-  // Photos stay remote-thumb only; videos lazy-download for scrubbing.
-  selectedClipId = null;
-  trimContext = null;
-  els.trimTitle.textContent = item.originalFilename || 'Видео';
-  els.trimStartInput.value = '';
-  els.trimEndInput.value = '';
-  els.trimDownloadStatus.textContent = 'Загружаю в локальный кэш…';
-  els.trimVideo.removeAttribute('src');
-  els.trimDialog.showModal();
+function clearAlbumPreview() {
+  previewToken += 1;
+  els.albumPreviewEmpty.hidden = false;
+  els.albumPreviewBody.hidden = true;
+  els.albumPreviewImage.hidden = true;
+  els.albumPreviewImage.removeAttribute('src');
+  els.albumPreviewVideo.hidden = true;
+  els.albumPreviewVideo.removeAttribute('src');
+  els.albumPreviewNeedCache.hidden = true;
+  els.albumPreviewProjectActions.hidden = true;
+}
+
+async function selectAlbumMedia(item) {
+  selectedMedia = item;
+  renderMediaList();
+  await showAlbumPreview(item);
+}
+
+async function showAlbumPreview(item) {
+  const token = ++previewToken;
+  els.albumPreviewEmpty.hidden = true;
+  els.albumPreviewBody.hidden = false;
+  els.albumPreviewName.textContent = item.originalFilename || item.id;
+  els.albumPreviewMeta.textContent = [
+    item.kind,
+    item.durationMs ? formatDurationMs(item.durationMs) : null,
+    formatBytes(Number(item.size || 0)),
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  els.albumPreviewImage.hidden = true;
+  els.albumPreviewVideo.hidden = true;
+  els.albumPreviewNeedCache.hidden = true;
+  els.albumPreviewVideo.removeAttribute('src');
+
+  const inProjectClip =
+    item.kind === 'video' && activeProject ? clipForMedia(item.id) : null;
+  if (activeProject && item.kind === 'video') {
+    els.albumPreviewProjectActions.hidden = false;
+    if (inProjectClip) {
+      setButtonContent(els.albumToggleProjectBtn, icons.minus, 'Убрать из проекта');
+      els.albumToggleProjectBtn.classList.add('danger-btn');
+      els.albumToggleProjectBtn.onclick = () =>
+        void removeClipFromProject(inProjectClip.id);
+    } else {
+      setButtonContent(els.albumToggleProjectBtn, icons.plus, 'В проект');
+      els.albumToggleProjectBtn.classList.remove('danger-btn');
+      els.albumToggleProjectBtn.onclick = () => void addMediaToProject(item.id);
+    }
+  } else {
+    els.albumPreviewProjectActions.hidden = true;
+  }
+
+  if (item.kind !== 'video') {
+    els.albumPreviewCache.textContent = 'Фото — превью с сервера';
+    els.albumPreviewImage.src = item.url || item.thumbUrl || '';
+    els.albumPreviewImage.hidden = false;
+    return;
+  }
+
+  try {
+    const status = await getCacheStatus(item.id);
+    if (token !== previewToken) return;
+    if (status.cached && status.path) {
+      els.albumPreviewCache.textContent = `Локально · ${formatBytes(status.bytes || 0)}`;
+      els.albumPreviewVideo.src = await localVideoUrl(status.path);
+      els.albumPreviewVideo.hidden = false;
+      els.albumPreviewNeedCache.hidden = true;
+    } else {
+      els.albumPreviewCache.textContent = 'Не загружено локально';
+      els.albumPreviewNeedCache.hidden = false;
+      els.albumDownloadBtn.disabled = false;
+      setButtonContent(els.albumDownloadBtn, icons.download, 'Загрузить локально');
+      els.albumDownloadBtn.onclick = () => void downloadAlbumMedia(item);
+    }
+  } catch (error) {
+    if (token !== previewToken) return;
+    els.albumPreviewCache.textContent = error.message || String(error);
+    els.albumPreviewNeedCache.hidden = false;
+  }
+}
+
+async function downloadAlbumMedia(item) {
+  if (!item?.url) return;
+  const token = previewToken;
+  els.albumDownloadBtn.disabled = true;
+  setButtonContent(els.albumDownloadBtn, icons.download, 'Загрузка…');
   try {
     const cached = await invoke('ensure_media_cached', {
       mediaId: item.id,
       url: item.url,
     });
-    els.trimDownloadStatus.textContent = cached.downloaded
-      ? `Скачано ${formatBytes(cached.bytes)}`
-      : `Из кэша · ${formatBytes(cached.bytes)}`;
-    els.trimVideo.src = convertFileSrc(cached.path);
-    trimContext = {
-      clipId: 0,
-      mediaId: item.id,
-      localPath: cached.path,
-    };
+    if (token !== previewToken) return;
     await refreshCacheStats();
+    cachedMediaIds.add(item.id);
+    renderMediaList();
+    els.albumPreviewCache.textContent = `Локально · ${formatBytes(cached.bytes)}`;
+    els.albumPreviewNeedCache.hidden = true;
+    els.albumPreviewVideo.src = await localVideoUrl(cached.path);
+    els.albumPreviewVideo.hidden = false;
+    showStatus(
+      cached.downloaded
+        ? `Скачано ${formatBytes(cached.bytes)}`
+        : `Уже в кэше · ${formatBytes(cached.bytes)}`,
+    );
   } catch (error) {
-    els.trimDownloadStatus.textContent = error.message || String(error);
+    showStatus(error.message || String(error), true);
+    setButtonContent(els.albumDownloadBtn, icons.download, 'Загрузить локально');
+    els.albumDownloadBtn.disabled = false;
   }
-}
-
-async function loadProjects() {
-  if (!currentTrip) return;
-  projects = await api.listProjects(currentTrip.secret);
-  if (
-    activeProject &&
-    !projects.some((p) => p.id === activeProject.id)
-  ) {
-    activeProject = null;
-  }
-  renderProjects();
-  if (activeProject) {
-    await openProject(activeProject.id);
-  } else if (projects[0]) {
-    await openProject(projects[0].id);
-  } else {
-    els.projectDetail.hidden = true;
-    els.projectDetail.innerHTML = '';
-    renderGallery();
-  }
-}
-
-function renderProjects() {
-  els.projectsList.innerHTML = '';
-  if (!projects.length) {
-    const empty = document.createElement('p');
-    empty.className = 'muted';
-    empty.textContent = 'Пока нет проектов';
-    els.projectsList.appendChild(empty);
-    return;
-  }
-  for (const project of projects) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className =
-      'project-row' + (activeProject?.id === project.id ? ' is-active' : '');
-    btn.innerHTML = `<strong>${escapeHtml(project.name)}</strong><span class="muted">${project.clipCount} клип.</span>`;
-    btn.addEventListener('click', () => void openProject(project.id));
-    els.projectsList.appendChild(btn);
-  }
-}
-
-async function openProject(projectId) {
-  activeProject = await api.getProject(currentTrip.secret, projectId);
-  selectedClipId = null;
-  renderProjects();
-  renderProjectDetail();
-  renderGallery();
-}
-
-function renderProjectDetail() {
-  const root = els.projectDetail;
-  root.innerHTML = '';
-  if (!activeProject) {
-    root.hidden = true;
-    return;
-  }
-  root.hidden = false;
-
-  const head = document.createElement('div');
-  head.className = 'clip-actions';
-  const rename = document.createElement('button');
-  rename.type = 'button';
-  rename.className = 'mini-btn';
-  rename.textContent = 'Переименовать';
-  rename.addEventListener('click', () => void renameActiveProject());
-  const exportBtn = document.createElement('button');
-  exportBtn.type = 'button';
-  exportBtn.className = 'primary-btn';
-  exportBtn.textContent = 'Export в папку';
-  exportBtn.disabled = !activeProject.clips?.length;
-  exportBtn.addEventListener('click', () => void exportActiveProject(exportBtn));
-  const del = document.createElement('button');
-  del.type = 'button';
-  del.className = 'mini-btn danger-btn';
-  del.textContent = 'Удалить';
-  del.addEventListener('click', () => void deleteActiveProject());
-  head.append(rename, exportBtn, del);
-  root.appendChild(head);
-
-  const summary = document.createElement('p');
-  summary.className = 'muted';
-  summary.textContent = activeProject.clips?.length
-    ? `${activeProject.clips.length} клип.`
-    : 'Клипов пока нет — нажмите «В проект» на видео';
-  root.appendChild(summary);
-
-  const list = document.createElement('div');
-  list.className = 'clip-list';
-  (activeProject.clips || []).forEach((clip, index) => {
-    list.appendChild(buildClipRow(clip, index));
-  });
-  root.appendChild(list);
-}
-
-function buildClipRow(clip, index) {
-  const media = clip.media || {};
-  const row = document.createElement('article');
-  row.className =
-    'clip-row' + (selectedClipId === clip.id ? ' is-selected' : '');
-
-  const idx = document.createElement('span');
-  idx.className = 'clip-index';
-  idx.textContent = padIndex(index + 1, activeProject.clips.length);
-
-  const body = document.createElement('div');
-  body.innerHTML = `<strong>${escapeHtml(media.originalFilename || clip.mediaId)}</strong><div class="muted">${clip.trimStartSec != null || clip.trimEndSec != null ? `trim ${clip.trimStartSec ?? 0}–${clip.trimEndSec ?? '…'}с` : 'без обрезки'}</div>`;
-
-  const actions = document.createElement('div');
-  actions.className = 'clip-actions';
-
-  const trimBtn = document.createElement('button');
-  trimBtn.type = 'button';
-  trimBtn.className = 'mini-btn';
-  trimBtn.textContent = 'Обрезка';
-  trimBtn.addEventListener('click', () => void openClipTrim(clip));
-
-  const up = document.createElement('button');
-  up.type = 'button';
-  up.className = 'mini-btn';
-  up.textContent = '↑';
-  up.disabled = index === 0;
-  up.addEventListener('click', () => void moveClip(index, -1));
-
-  const down = document.createElement('button');
-  down.type = 'button';
-  down.className = 'mini-btn';
-  down.textContent = '↓';
-  down.disabled = index >= activeProject.clips.length - 1;
-  down.addEventListener('click', () => void moveClip(index, 1));
-
-  const remove = document.createElement('button');
-  remove.type = 'button';
-  remove.className = 'mini-btn danger-btn';
-  remove.textContent = 'Убрать';
-  remove.addEventListener('click', () => void removeClipFromProject(clip.id));
-
-  actions.append(trimBtn, up, down, remove);
-  row.append(idx, body, actions);
-  return row;
 }
 
 async function addMediaToProject(mediaId) {
   if (!activeProject || !currentTrip) return;
   try {
     await api.addClip(currentTrip.secret, activeProject.id, mediaId);
-    await openProject(activeProject.id);
     await loadProjects();
     showStatus('Клип добавлен');
   } catch (error) {
@@ -420,13 +560,250 @@ async function addMediaToProject(mediaId) {
 async function removeClipFromProject(clipId) {
   if (!activeProject || !currentTrip) return;
   if (!confirm('Убрать клип из проекта?')) return;
+  const wasSelected = selectedClipId === clipId;
   await api.removeClip(currentTrip.secret, activeProject.id, clipId);
-  await openProject(activeProject.id);
+  if (wasSelected) {
+    selectedClipId = null;
+    trimContext = null;
+  }
   await loadProjects();
+  if (els.projectLightbox.open) {
+    renderLightbox();
+    if (!selectedClipId && activeProject?.clips?.[0]) {
+      await selectClip(activeProject.clips[0].id);
+    } else if (!activeProject?.clips?.length) {
+      clearLightboxPreview();
+    }
+  }
 }
 
-async function moveClip(index, delta) {
+async function openLightbox(preferClipId = null) {
   if (!activeProject) return;
+  els.lightboxProjectTitle.textContent = activeProject.name || 'Проект';
+  if (!els.projectLightbox.open) {
+    els.projectLightbox.showModal();
+  }
+  renderLightbox();
+  const clips = activeProject.clips || [];
+  const target =
+    (preferClipId && clips.find((c) => c.id === preferClipId)?.id) ||
+    selectedClipId ||
+    clips[0]?.id ||
+    null;
+  if (target != null) {
+    await selectClip(target);
+  } else {
+    clearLightboxPreview();
+  }
+}
+
+function closeLightbox() {
+  if (els.projectLightbox.open) {
+    els.projectLightbox.close();
+  }
+  previewToken += 1;
+  els.lightboxVideo.removeAttribute('src');
+  els.lightboxVideo.hidden = true;
+}
+
+function clearLightboxPreview() {
+  els.lightboxClipEmpty.hidden = false;
+  els.lightboxClipInfo.hidden = true;
+  els.lightboxDownloadStatus.textContent = '';
+  els.lightboxVideo.hidden = true;
+  els.lightboxVideo.removeAttribute('src');
+  els.lightboxNeedCache.hidden = true;
+  els.trimStartInput.value = '';
+  els.trimEndInput.value = '';
+  trimContext = null;
+  selectedClipId = null;
+  renderTimeline();
+}
+
+function renderLightbox() {
+  els.lightboxProjectTitle.textContent = activeProject?.name || 'Проект';
+  els.lightboxExportBtn.disabled = !(activeProject?.clips?.length > 0);
+  const clip = selectedClip();
+  if (!clip) {
+    els.lightboxClipEmpty.hidden = false;
+    els.lightboxClipInfo.hidden = true;
+  } else {
+    els.lightboxClipEmpty.hidden = true;
+    els.lightboxClipInfo.hidden = false;
+    updateClipSidePanel(clip);
+  }
+  renderTimeline();
+}
+
+function updateClipSidePanel(clip) {
+  const media =
+    clip.media || mediaItems.find((m) => m.id === clip.mediaId) || {};
+  const index = selectedClipIndex();
+  const total = activeProject?.clips?.length || 0;
+  els.lightboxClipName.textContent =
+    media.originalFilename || clip.mediaId || `Клип ${clip.id}`;
+  els.lightboxClipMeta.textContent = [
+    media.durationMs ? formatDurationMs(media.durationMs) : null,
+    media.size != null ? formatBytes(Number(media.size)) : null,
+    index >= 0 ? `${padIndex(index + 1, total)} / ${total}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  const trimmed =
+    clip.trimStartSec != null || clip.trimEndSec != null;
+  els.lightboxClipTrim.textContent = trimmed
+    ? `Trim ${clip.trimStartSec ?? 0}–${clip.trimEndSec ?? '…'} с`
+    : 'Без обрезки';
+  els.lightboxClipTrim.classList.toggle('badge--local', trimmed);
+  els.trimStartInput.value =
+    clip.trimStartSec != null ? String(clip.trimStartSec) : '';
+  els.trimEndInput.value =
+    clip.trimEndSec != null ? String(clip.trimEndSec) : '';
+  els.moveClipUpBtn.disabled = index <= 0;
+  els.moveClipDownBtn.disabled = index < 0 || index >= total - 1;
+}
+
+function renderTimeline() {
+  els.timelineTrack.innerHTML = '';
+  const clips = activeProject?.clips || [];
+  els.timelineSummary.textContent = clips.length
+    ? `${clips.length} клип.`
+    : 'Клипов пока нет — добавьте с экрана альбома';
+  clips.forEach((clip, index) => {
+    const media =
+      clip.media || mediaItems.find((m) => m.id === clip.mediaId) || {};
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className =
+      'timeline-card' + (selectedClipId === clip.id ? ' is-selected' : '');
+    const thumb = document.createElement('div');
+    thumb.className = 'timeline-card__thumb';
+    const img = document.createElement('img');
+    img.loading = 'lazy';
+    img.alt = '';
+    img.src = media.thumbUrl || media.url || '';
+    const idx = document.createElement('span');
+    idx.className = 'timeline-card__index';
+    idx.textContent = padIndex(index + 1, clips.length);
+    thumb.append(img, idx);
+    if (cachedMediaIds.has(clip.mediaId)) {
+      const cacheBadge = document.createElement('span');
+      cacheBadge.className = 'trip-card__badge trip-card__badge--cache';
+      cacheBadge.title = 'Загружено локально';
+      cacheBadge.innerHTML = icons.hardDrive;
+      thumb.appendChild(cacheBadge);
+    }
+    const meta = document.createElement('div');
+    meta.className = 'timeline-card__meta';
+    meta.textContent = media.originalFilename || clip.mediaId;
+    card.append(thumb, meta);
+    card.addEventListener('click', () => void selectClip(clip.id));
+    els.timelineTrack.appendChild(card);
+    if (selectedClipId === clip.id) {
+      requestAnimationFrame(() => {
+        card.scrollIntoView({
+          inline: 'nearest',
+          block: 'nearest',
+          behavior: 'smooth',
+        });
+      });
+    }
+  });
+}
+
+async function selectClip(clipId) {
+  if (!activeProject) return;
+  const clip = activeProject.clips.find((c) => c.id === clipId);
+  if (!clip) return;
+  selectedClipId = clipId;
+  renderLightbox();
+  await loadClipPreview(clip);
+}
+
+async function loadClipPreview(clip) {
+  const media =
+    clip.media || mediaItems.find((m) => m.id === clip.mediaId) || {};
+  const token = ++previewToken;
+  els.lightboxVideo.hidden = true;
+  els.lightboxVideo.removeAttribute('src');
+  els.lightboxNeedCache.hidden = true;
+  trimContext = null;
+
+  if (!media.url) {
+    els.lightboxDownloadStatus.textContent = 'Нет URL медиа';
+    return;
+  }
+
+  try {
+    const status = await getCacheStatus(clip.mediaId);
+    if (token !== previewToken) return;
+    if (status.cached && status.path) {
+      els.lightboxDownloadStatus.textContent = `Локально · ${formatBytes(status.bytes || 0)}`;
+      els.lightboxVideo.src = await localVideoUrl(status.path);
+      els.lightboxVideo.hidden = false;
+      els.lightboxNeedCache.hidden = true;
+      trimContext = {
+        clipId: clip.id,
+        mediaId: clip.mediaId,
+        localPath: status.path,
+      };
+    } else {
+      els.lightboxDownloadStatus.textContent = 'Не загружено локально';
+      els.lightboxNeedCache.hidden = false;
+      els.lightboxDownloadBtn.disabled = false;
+      setButtonContent(
+        els.lightboxDownloadBtn,
+        icons.download,
+        'Загрузить локально',
+      );
+      els.lightboxDownloadBtn.onclick = () => void downloadLightboxClip(clip, media);
+    }
+  } catch (error) {
+    if (token !== previewToken) return;
+    els.lightboxDownloadStatus.textContent = error.message || String(error);
+    els.lightboxNeedCache.hidden = false;
+  }
+}
+
+async function downloadLightboxClip(clip, media) {
+  const token = previewToken;
+  els.lightboxDownloadBtn.disabled = true;
+  setButtonContent(els.lightboxDownloadBtn, icons.download, 'Загрузка…');
+  try {
+    const cached = await invoke('ensure_media_cached', {
+      mediaId: clip.mediaId,
+      url: media.url,
+    });
+    if (token !== previewToken) return;
+    await refreshCacheStats();
+    cachedMediaIds.add(clip.mediaId);
+    renderMediaList();
+    els.lightboxDownloadStatus.textContent = cached.downloaded
+      ? `Скачано ${formatBytes(cached.bytes)}`
+      : `Из кэша · ${formatBytes(cached.bytes)}`;
+    els.lightboxNeedCache.hidden = true;
+    els.lightboxVideo.src = await localVideoUrl(cached.path);
+    els.lightboxVideo.hidden = false;
+    trimContext = {
+      clipId: clip.id,
+      mediaId: clip.mediaId,
+      localPath: cached.path,
+    };
+  } catch (error) {
+    els.lightboxDownloadStatus.textContent = error.message || String(error);
+    setButtonContent(
+      els.lightboxDownloadBtn,
+      icons.download,
+      'Загрузить локально',
+    );
+    els.lightboxDownloadBtn.disabled = false;
+  }
+}
+
+async function moveSelectedClip(delta) {
+  if (!activeProject || !currentTrip) return;
+  const index = selectedClipIndex();
+  if (index < 0) return;
   const ids = activeProject.clips.map((c) => c.id);
   const target = index + delta;
   if (target < 0 || target >= ids.length) return;
@@ -438,48 +815,13 @@ async function moveClip(index, delta) {
     activeProject.id,
     ids,
   );
-  renderProjectDetail();
-}
-
-async function openClipTrim(clip) {
-  selectedClipId = clip.id;
-  const media = clip.media || mediaItems.find((m) => m.id === clip.mediaId);
-  if (!media?.url) {
-    showStatus('Нет URL медиа', true);
-    return;
-  }
-  els.trimTitle.textContent = media.originalFilename || `Клип ${clip.id}`;
-  els.trimStartInput.value =
-    clip.trimStartSec != null ? String(clip.trimStartSec) : '';
-  els.trimEndInput.value =
-    clip.trimEndSec != null ? String(clip.trimEndSec) : '';
-  els.trimDownloadStatus.textContent = 'Загружаю в локальный кэш…';
-  els.trimVideo.removeAttribute('src');
-  els.trimDialog.showModal();
-  try {
-    const cached = await invoke('ensure_media_cached', {
-      mediaId: clip.mediaId,
-      url: media.url,
-    });
-    els.trimDownloadStatus.textContent = cached.downloaded
-      ? `Скачано ${formatBytes(cached.bytes)}`
-      : `Из кэша · ${formatBytes(cached.bytes)}`;
-    els.trimVideo.src = convertFileSrc(cached.path);
-    trimContext = {
-      clipId: clip.id,
-      mediaId: clip.mediaId,
-      localPath: cached.path,
-    };
-    await refreshCacheStats();
-    renderProjectDetail();
-  } catch (error) {
-    els.trimDownloadStatus.textContent = error.message || String(error);
-  }
+  renderProjectSelect();
+  renderLightbox();
 }
 
 async function saveTrimBounds() {
   if (!trimContext?.clipId || !activeProject || !currentTrip) {
-    showStatus('Откройте клип проекта для сохранения trim', true);
+    showStatus('Сначала загрузите клип локально', true);
     return;
   }
   const startRaw = els.trimStartInput.value.trim();
@@ -500,7 +842,9 @@ async function saveTrimBounds() {
     trimStartSec,
     trimEndSec,
   );
-  await openProject(activeProject.id);
+  activeProject = await api.getProject(currentTrip.secret, activeProject.id);
+  renderProjectSelect();
+  renderLightbox();
   showStatus('Границы сохранены (обрезание при export)');
 }
 
@@ -515,21 +859,29 @@ async function resetTrimBounds() {
     null,
     null,
   );
-  await openProject(activeProject.id);
+  activeProject = await api.getProject(currentTrip.secret, activeProject.id);
+  renderProjectSelect();
+  renderLightbox();
   showStatus('Обрезка сброшена');
 }
 
 async function renameActiveProject() {
   const name = prompt('Новое имя проекта', activeProject?.name || '');
-  if (!name?.trim()) return;
+  if (!name?.trim() || !activeProject || !currentTrip) return;
   await api.renameProject(currentTrip.secret, activeProject.id, name.trim());
   await loadProjects();
+  if (els.projectLightbox.open) {
+    els.lightboxProjectTitle.textContent = activeProject?.name || 'Проект';
+  }
 }
 
 async function deleteActiveProject() {
+  if (!activeProject || !currentTrip) return;
   if (!confirm(`Удалить проект «${activeProject.name}»?`)) return;
   await api.deleteProject(currentTrip.secret, activeProject.id);
   activeProject = null;
+  selectedClipId = null;
+  closeLightbox();
   await loadProjects();
 }
 
@@ -543,7 +895,7 @@ async function exportActiveProject(button) {
   if (!outputDir) return;
 
   button.disabled = true;
-  const original = button.textContent;
+  const original = button.innerHTML;
   try {
     showStatus('Готовлю клипы (ленивая загрузка + ffmpeg)…');
     const exportClips = [];
@@ -580,41 +932,101 @@ async function exportActiveProject(button) {
     showStatus(error.message || String(error), true);
   } finally {
     button.disabled = false;
-    button.textContent = original;
+    button.innerHTML = original;
   }
 }
 
 els.loginBtn.addEventListener('click', () => void login());
 els.logoutBtn.addEventListener('click', () => void logout());
-els.refreshTripsBtn.addEventListener('click', () => void loadTrips().catch((e) => showStatus(e.message, true)));
+els.refreshTripsBtn.addEventListener('click', () =>
+  void loadTrips().catch((e) => showStatus(e.message, true)),
+);
 els.backBtn.addEventListener('click', () => {
+  closeLightbox();
   els.albumView.hidden = true;
   els.tripsView.hidden = false;
   currentTrip = null;
+  activeProject = null;
+  selectedMedia = null;
 });
 els.cacheClearBtn.addEventListener('click', () => {
   void (async () => {
     if (!confirm('Удалить локальный кэш видео?')) return;
     await invoke('clear_media_cache');
+    cachedMediaIds = new Set();
+    renderMediaList();
     await refreshCacheStats();
+    if (selectedMedia) await showAlbumPreview(selectedMedia);
+    if (els.projectLightbox.open && selectedClip()) {
+      await loadClipPreview(selectedClip());
+    }
     showStatus('Кэш очищен');
   })();
 });
+
+els.projectSelect.addEventListener('change', () => {
+  const value = els.projectSelect.value;
+  void selectProjectById(value ? Number(value) : null).catch((e) =>
+    showStatus(e.message, true),
+  );
+});
+
 els.createProjectForm.addEventListener('submit', (event) => {
   event.preventDefault();
   void (async () => {
     const name = els.projectNameInput.value.trim();
     if (!name || !currentTrip) return;
-    await api.createProject(currentTrip.secret, name);
+    const created = await api.createProject(currentTrip.secret, name);
     els.projectNameInput.value = '';
-    await loadProjects();
+    projects = await api.listProjects(currentTrip.secret);
+    const id = created?.id ?? projects.find((p) => p.name === name)?.id;
+    if (id != null) {
+      await selectProjectById(id);
+    } else {
+      await loadProjects();
+    }
   })().catch((e) => showStatus(e.message, true));
 });
+
+els.openProjectBtn.addEventListener('click', () => {
+  void openLightbox().catch((e) => showStatus(e.message, true));
+});
+els.exportProjectBtn.addEventListener('click', () => {
+  void exportActiveProject(els.exportProjectBtn).catch((e) =>
+    showStatus(e.message, true),
+  );
+});
+els.renameProjectBtn.addEventListener('click', () => {
+  void renameActiveProject().catch((e) => showStatus(e.message, true));
+});
+els.deleteProjectBtn.addEventListener('click', () => {
+  void deleteActiveProject().catch((e) => showStatus(e.message, true));
+});
+
+els.closeLightboxBtn.addEventListener('click', () => closeLightbox());
+els.projectLightbox.addEventListener('cancel', (event) => {
+  event.preventDefault();
+  closeLightbox();
+});
+els.lightboxExportBtn.addEventListener('click', () => {
+  void exportActiveProject(els.lightboxExportBtn).catch((e) =>
+    showStatus(e.message, true),
+  );
+});
+
 els.markStartBtn.addEventListener('click', () => {
-  els.trimStartInput.value = els.trimVideo.currentTime.toFixed(1);
+  if (els.lightboxVideo.hidden || !els.lightboxVideo.src) {
+    showStatus('Сначала загрузите клип локально', true);
+    return;
+  }
+  els.trimStartInput.value = els.lightboxVideo.currentTime.toFixed(1);
 });
 els.markEndBtn.addEventListener('click', () => {
-  els.trimEndInput.value = els.trimVideo.currentTime.toFixed(1);
+  if (els.lightboxVideo.hidden || !els.lightboxVideo.src) {
+    showStatus('Сначала загрузите клип локально', true);
+    return;
+  }
+  els.trimEndInput.value = els.lightboxVideo.currentTime.toFixed(1);
 });
 els.saveTrimBtn.addEventListener('click', () => {
   void saveTrimBounds().catch((e) => showStatus(e.message, true));
@@ -622,6 +1034,28 @@ els.saveTrimBtn.addEventListener('click', () => {
 els.resetTrimBtn.addEventListener('click', () => {
   void resetTrimBounds().catch((e) => showStatus(e.message, true));
 });
+els.moveClipUpBtn.addEventListener('click', () => {
+  void moveSelectedClip(-1).catch((e) => showStatus(e.message, true));
+});
+els.moveClipDownBtn.addEventListener('click', () => {
+  void moveSelectedClip(1).catch((e) => showStatus(e.message, true));
+});
+els.removeClipBtn.addEventListener('click', () => {
+  const clip = selectedClip();
+  if (clip) void removeClipFromProject(clip.id);
+});
+
+els.timelineTrack.addEventListener(
+  'wheel',
+  (event) => {
+    if (els.timelineTrack.scrollWidth <= els.timelineTrack.clientWidth) return;
+    const mostlyVertical = Math.abs(event.deltaY) >= Math.abs(event.deltaX);
+    if (!mostlyVertical) return;
+    event.preventDefault();
+    els.timelineTrack.scrollLeft += event.deltaY + event.deltaX;
+  },
+  { passive: false },
+);
 
 void listen('export-progress', (event) => {
   const p = event.payload;
