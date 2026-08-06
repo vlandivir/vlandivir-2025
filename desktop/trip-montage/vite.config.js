@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import path from 'node:path';
 
 const host = process.env.TAURI_DEV_HOST;
+const repoRoot = path.resolve(__dirname, '../..');
 
 export default defineConfig({
   clearScreen: false,
@@ -13,10 +14,13 @@ export default defineConfig({
       ? { protocol: 'ws', host, port: 1421 }
       : undefined,
     watch: { ignored: ['**/src-tauri/**'] },
+    fs: {
+      allow: [repoRoot],
+    },
   },
   resolve: {
     alias: {
-      '@shared': path.resolve(__dirname, '../../web/shared'),
+      '@shared': path.resolve(repoRoot, 'web/shared'),
     },
   },
   build: {

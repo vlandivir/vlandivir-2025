@@ -4303,6 +4303,8 @@ version = "0.1.0"
 dependencies = [
  "dirs",
  "futures-util",
+ "http-range",
+ "percent-encoding",
  "reqwest 0.12.28",
  "serde",
  "serde_json",

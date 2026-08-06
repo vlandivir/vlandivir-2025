@@ -25,6 +25,8 @@ url = "2"
 thiserror = "2"
 futures-util = "0.3"
 dirs = "6"
+http-range = "0.1"
+percent-encoding = "2"
 
 [profile.release]
 panic = "abort"
