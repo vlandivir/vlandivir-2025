@@ -13,15 +13,32 @@ const els = {
   tripsView: document.getElementById('tripsView'),
   tripsList: document.getElementById('tripsList'),
   refreshTripsBtn: document.getElementById('refreshTripsBtn'),
+  openCacheBtn: document.getElementById('openCacheBtn'),
+  cacheView: document.getElementById('cacheView'),
+  cacheBackBtn: document.getElementById('cacheBackBtn'),
+  cacheClearBtn: document.getElementById('cacheClearBtn'),
+  cachePageStats: document.getElementById('cachePageStats'),
+  cacheFileCount: document.getElementById('cacheFileCount'),
+  cacheGallery: document.getElementById('cacheGallery'),
+  cachePreviewEmpty: document.getElementById('cachePreviewEmpty'),
+  cachePreviewBody: document.getElementById('cachePreviewBody'),
+  cachePreviewVideo: document.getElementById('cachePreviewVideo'),
+  cachePreviewImage: document.getElementById('cachePreviewImage'),
+  cachePreviewName: document.getElementById('cachePreviewName'),
+  cachePreviewMeta: document.getElementById('cachePreviewMeta'),
+  cachePreviewPath: document.getElementById('cachePreviewPath'),
+  cachePreviewAlbums: document.getElementById('cachePreviewAlbums'),
+  cachePreviewProjects: document.getElementById('cachePreviewProjects'),
+  cacheRemoveFileBtn: document.getElementById('cacheRemoveFileBtn'),
+  openCacheFromAlbumBtn: document.getElementById('openCacheFromAlbumBtn'),
   albumView: document.getElementById('albumView'),
   albumTitle: document.getElementById('albumTitle'),
   backBtn: document.getElementById('backBtn'),
   gallery: document.getElementById('gallery'),
   mediaCount: document.getElementById('mediaCount'),
   cacheStats: document.getElementById('cacheStats'),
-  cacheClearBtn: document.getElementById('cacheClearBtn'),
   lightboxCacheStats: document.getElementById('lightboxCacheStats'),
-  projectSelect: document.getElementById('projectSelect'),
+  projectList: document.getElementById('projectList'),
   createProjectForm: document.getElementById('createProjectForm'),
   projectNameInput: document.getElementById('projectNameInput'),
   projectActions: document.getElementById('projectActions'),
@@ -47,6 +64,7 @@ const els = {
   albumToggleProjectBtn: document.getElementById('albumToggleProjectBtn'),
   projectLightbox: document.getElementById('projectLightbox'),
   lightboxProjectTitle: document.getElementById('lightboxProjectTitle'),
+  lightboxProjectStats: document.getElementById('lightboxProjectStats'),
   lightboxExportBtn: document.getElementById('lightboxExportBtn'),
   closeLightboxBtn: document.getElementById('closeLightboxBtn'),
   lightboxVideo: document.getElementById('lightboxVideo'),
@@ -98,8 +116,14 @@ let trimContext = null;
 let previewToken = 0;
 /** @type {Set<string>} */
 let cachedMediaIds = new Set();
-/** @type {Map<number, { bytes: number, path?: string, startSec?: number, endSec?: number }>} */
+/** @type {Map<number, { bytes: number, path?: string, startSec?: number, endSec?: number, thumbUrl?: string | null }>} */
 let fragmentByClipId = new Map();
+/** @type {Map<string, { media: any, album: { id: string, secret: string, title: string }, projects: Array<{ id: number, name: string }> }>} */
+let mediaMembershipIndex = new Map();
+/** @type {Array<{ media_id: string, file_name: string, path: string, bytes: number, ext: string }>} */
+let cacheEntries = [];
+/** @type {string | null} */
+let selectedCacheMediaId = null;
 /** @type {string | null} */
 let activeDownloadMediaId = null;
 /** @type {'album' | 'lightbox' | 'export' | null} */
@@ -271,6 +295,7 @@ function initStaticIcons() {
   setButtonContent(els.lightboxDownloadBtn, icons.download, 'Загрузить локально');
   setButtonContent(els.albumRemoveCacheBtn, icons.trash, 'Удалить из кэша');
   setButtonContent(els.lightboxRemoveCacheBtn, icons.trash, 'Удалить из кэша');
+  setButtonContent(els.cacheRemoveFileBtn, icons.trash, 'Удалить из кэша');
   els.closeLightboxBtn.innerHTML = icons.x;
   setButtonContent(els.markStartBtn, icons.flag, 'Старт = сейчас');
   setButtonContent(els.markEndBtn, icons.flagEnd, 'Конец = сейчас');
@@ -294,13 +319,13 @@ async function refreshCacheStats() {
         ? ` · Отрезки: ${fragments.files} · ${formatBytes(fragments.bytes)}`
         : '';
     const label = cachePart + fragPart;
-    for (const el of [els.cacheStats, els.lightboxCacheStats]) {
+    for (const el of [els.cacheStats, els.lightboxCacheStats, els.cachePageStats]) {
       if (!el) continue;
       el.textContent = label;
       el.title = dir || '';
     }
   } catch {
-    for (const el of [els.cacheStats, els.lightboxCacheStats]) {
+    for (const el of [els.cacheStats, els.lightboxCacheStats, els.cachePageStats]) {
       if (el) {
         el.textContent = '';
         el.title = '';
@@ -313,17 +338,104 @@ async function refreshFragmentIndex() {
   try {
     const entries = await invoke('list_clip_fragments');
     const next = new Map();
-    for (const entry of entries || []) {
-      next.set(Number(entry.clip_id), {
-        bytes: Number(entry.bytes) || 0,
-        startSec: entry.start_sec,
-        endSec: entry.end_sec,
-        path: undefined,
-      });
-    }
+    await Promise.all(
+      (entries || []).map(async (entry) => {
+        let thumbUrl = null;
+        if (entry.thumb_path) {
+          try {
+            thumbUrl = await localVideoUrl(entry.thumb_path);
+          } catch {
+            thumbUrl = null;
+          }
+        }
+        next.set(Number(entry.clip_id), {
+          bytes: Number(entry.bytes) || 0,
+          startSec: entry.start_sec,
+          endSec: entry.end_sec,
+          path: entry.path || undefined,
+          thumbUrl,
+        });
+      }),
+    );
     fragmentByClipId = next;
   } catch {
     fragmentByClipId = new Map();
+  }
+}
+
+function clipEffectiveDurationMs(clip) {
+  const frag = fragmentByClipId.get(Number(clip.id));
+  if (frag) {
+    const start = Number(frag.startSec ?? clip.trimStartSec ?? 0);
+    const end = Number(frag.endSec ?? clip.trimEndSec);
+    if (!Number.isNaN(start) && !Number.isNaN(end) && end > start) {
+      return (end - start) * 1000;
+    }
+  }
+  const media =
+    clip.media || mediaItems.find((m) => m.id === clip.mediaId) || {};
+  const fullMs = Number(media.durationMs) || 0;
+  const startSec =
+    clip.trimStartSec != null ? Number(clip.trimStartSec) : 0;
+  const endSec =
+    clip.trimEndSec != null
+      ? Number(clip.trimEndSec)
+      : fullMs > 0
+        ? fullMs / 1000
+        : null;
+  if (endSec != null && !Number.isNaN(startSec) && !Number.isNaN(endSec) && endSec > startSec) {
+    return (endSec - startSec) * 1000;
+  }
+  return fullMs;
+}
+
+function clipEffectiveBytes(clip) {
+  const frag = fragmentByClipId.get(Number(clip.id));
+  if (frag?.bytes) return Number(frag.bytes) || 0;
+  const media =
+    clip.media || mediaItems.find((m) => m.id === clip.mediaId) || {};
+  return Number(media.size) || 0;
+}
+
+function computeProjectStats(project = activeProject) {
+  const clips = project?.clips || [];
+  let bytes = 0;
+  let durationMs = 0;
+  for (const clip of clips) {
+    bytes += clipEffectiveBytes(clip);
+    durationMs += clipEffectiveDurationMs(clip);
+  }
+  return {
+    files: clips.length,
+    bytes,
+    durationMs,
+  };
+}
+
+function formatProjectStatsLabel(stats) {
+  if (!stats || !stats.files) return 'Нет клипов';
+  return [
+    `${stats.files} файл.`,
+    formatBytes(stats.bytes),
+    formatDurationMs(stats.durationMs),
+  ].join(' · ');
+}
+
+function updateProjectStatsUi() {
+  const stats = computeProjectStats(activeProject);
+  const label = activeProject ? formatProjectStatsLabel(stats) : '';
+  if (els.lightboxProjectStats) {
+    els.lightboxProjectStats.textContent = activeProject ? label : '';
+  }
+  if (!els.projectList) return;
+  for (const project of projects) {
+    const row = els.projectList.querySelector(
+      `[data-project-id="${project.id}"] .project-list__stats`,
+    );
+    if (!row) continue;
+    const source =
+      activeProject?.id === project.id ? activeProject : project;
+    row.textContent = formatProjectStatsLabel(computeProjectStats(source));
   }
 }
 
@@ -358,6 +470,227 @@ function appendCacheBadge(parent) {
   cacheBadge.innerHTML = icons.hardDrive;
   parent.appendChild(cacheBadge);
   return cacheBadge;
+}
+
+function renderMembershipChips(container, label, items, emptyText) {
+  if (!container) return;
+  container.innerHTML = '';
+  const title = document.createElement('p');
+  title.className = 'section-kicker';
+  title.textContent = label;
+  container.appendChild(title);
+  if (!items.length) {
+    const empty = document.createElement('p');
+    empty.className = 'muted';
+    empty.textContent = emptyText;
+    container.appendChild(empty);
+    return;
+  }
+  const row = document.createElement('div');
+  row.className = 'cache-chip-row';
+  for (const item of items) {
+    const chip = document.createElement('span');
+    chip.className = 'meta-chip';
+    chip.textContent = item;
+    row.appendChild(chip);
+  }
+  container.appendChild(row);
+}
+
+async function buildMediaMembershipIndex() {
+  const next = new Map();
+  const data = await api.listAdminTrips();
+  const trips = data.trips || [];
+  await Promise.all(
+    trips.map(async (trip) => {
+      const mediaData = await api.listMedia(trip.secret);
+      for (const media of mediaData.media || []) {
+        const id = mediaKey(media.id);
+        if (!id) continue;
+        next.set(id, {
+          media,
+          album: {
+            id: trip.id,
+            secret: trip.secret,
+            title: trip.title || 'Альбом',
+          },
+          projects: [],
+        });
+      }
+      const projectList = await api.listProjects(trip.secret);
+      await Promise.all(
+        (projectList || []).map(async (project) => {
+          try {
+            const full = await api.getProject(trip.secret, project.id);
+            const name = full.name || project.name || `Проект ${project.id}`;
+            for (const clip of full.clips || []) {
+              const entry = next.get(mediaKey(clip.mediaId));
+              if (!entry) continue;
+              if (entry.projects.some((p) => p.id === project.id)) continue;
+              entry.projects.push({ id: project.id, name });
+            }
+          } catch {
+            /* skip broken project */
+          }
+        }),
+      );
+    }),
+  );
+  mediaMembershipIndex = next;
+}
+
+function clearCachePreview() {
+  selectedCacheMediaId = null;
+  els.cachePreviewEmpty.hidden = false;
+  els.cachePreviewBody.hidden = true;
+  els.cachePreviewVideo.hidden = true;
+  els.cachePreviewVideo.removeAttribute('src');
+  els.cachePreviewImage.hidden = true;
+  els.cachePreviewImage.removeAttribute('src');
+  els.cachePreviewAlbums.innerHTML = '';
+  els.cachePreviewProjects.innerHTML = '';
+}
+
+async function showCachePreview(entry) {
+  selectedCacheMediaId = mediaKey(entry.media_id);
+  const membership = mediaMembershipIndex.get(selectedCacheMediaId);
+  const media = membership?.media;
+  els.cachePreviewEmpty.hidden = true;
+  els.cachePreviewBody.hidden = false;
+  els.cachePreviewVideo.hidden = true;
+  els.cachePreviewVideo.removeAttribute('src');
+  els.cachePreviewImage.hidden = true;
+  els.cachePreviewImage.removeAttribute('src');
+
+  els.cachePreviewName.textContent =
+    media?.originalFilename || entry.file_name || entry.media_id;
+  els.cachePreviewMeta.textContent = [
+    formatBytes(entry.bytes),
+    entry.ext ? entry.ext.toUpperCase() : null,
+    media?.durationMs ? formatDurationMs(media.durationMs) : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  els.cachePreviewPath.textContent = entry.path || '';
+  els.cachePreviewPath.title = entry.path || '';
+
+  renderMembershipChips(
+    els.cachePreviewAlbums,
+    'Альбом',
+    membership?.album?.title ? [membership.album.title] : [],
+    'Не найден на сервере',
+  );
+  renderMembershipChips(
+    els.cachePreviewProjects,
+    'Проекты',
+    (membership?.projects || []).map((p) => p.name),
+    'Не входит ни в один проект',
+  );
+
+  try {
+    els.cachePreviewVideo.src = await localVideoUrl(entry.path);
+    els.cachePreviewVideo.hidden = false;
+  } catch (error) {
+    if (media?.thumbUrl) {
+      els.cachePreviewImage.src = media.thumbUrl;
+      els.cachePreviewImage.hidden = false;
+    }
+    showStatus(error.message || String(error), true);
+  }
+
+  renderCacheGallery();
+}
+
+function renderCacheGallery() {
+  els.cacheGallery.innerHTML = '';
+  els.cacheFileCount.textContent = `${cacheEntries.length}`;
+  for (const entry of cacheEntries) {
+    const mediaId = mediaKey(entry.media_id);
+    const membership = mediaMembershipIndex.get(mediaId);
+    const media = membership?.media;
+    const card = document.createElement('article');
+    card.className =
+      'trip-card' + (selectedCacheMediaId === mediaId ? ' is-selected' : '');
+    card.tabIndex = 0;
+    card.setAttribute('role', 'button');
+
+    const mediaEl = document.createElement('div');
+    mediaEl.className = 'trip-card__media is-video';
+    const img = document.createElement('img');
+    img.loading = 'lazy';
+    img.alt = '';
+    img.src = media?.thumbUrl || media?.url || '';
+    mediaEl.appendChild(img);
+    appendCacheBadge(mediaEl);
+
+    const footer = document.createElement('div');
+    footer.className = 'trip-card__footer';
+    const meta = document.createElement('div');
+    meta.className = 'trip-card__meta';
+    const title = media?.originalFilename || entry.file_name || mediaId;
+    const albumLabel = membership?.album?.title || 'Неизвестный альбом';
+    const projectLabels = (membership?.projects || [])
+      .map((p) => p.name)
+      .join(', ');
+    meta.innerHTML = `<strong title="${escapeHtml(title)}">${escapeHtml(title)}</strong><span>${escapeHtml(albumLabel)}${projectLabels ? ' · ' + escapeHtml(projectLabels) : ''}</span><span>${formatBytes(entry.bytes)}</span>`;
+    footer.appendChild(meta);
+
+    card.append(mediaEl, footer);
+    card.addEventListener('click', () => void showCachePreview(entry));
+    card.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        void showCachePreview(entry);
+      }
+    });
+    els.cacheGallery.appendChild(card);
+  }
+}
+
+async function openCacheView() {
+  closeLightbox();
+  els.tripsView.hidden = true;
+  els.albumView.hidden = true;
+  els.cacheView.hidden = false;
+  showStatus('Загружаю кэш…');
+  try {
+    await Promise.all([buildMediaMembershipIndex(), refreshCacheStats()]);
+    cacheEntries = await invoke('list_cached_media');
+    clearCachePreview();
+    renderCacheGallery();
+    showStatus(cacheEntries.length ? '' : 'Локальный кэш пуст');
+  } catch (error) {
+    showStatus(error.message || String(error), true);
+  }
+}
+
+function closeCacheView() {
+  els.cacheView.hidden = true;
+  clearCachePreview();
+}
+
+async function removeSelectedCacheFile() {
+  if (!selectedCacheMediaId) return;
+  if (!confirm('Удалить этот файл из локального кэша?')) return;
+  await invoke('remove_cached_media', { mediaId: selectedCacheMediaId });
+  cachedMediaIds.delete(selectedCacheMediaId);
+  cacheEntries = cacheEntries.filter(
+    (e) => mediaKey(e.media_id) !== selectedCacheMediaId,
+  );
+  clearCachePreview();
+  renderCacheGallery();
+  await refreshCacheStats();
+  if (!els.albumView.hidden) renderMediaList();
+  showStatus('Файл удалён из кэша');
+}
+
+async function resolveFragmentThumbUrl(thumbPath) {
+  if (!thumbPath) return null;
+  try {
+    return await localVideoUrl(thumbPath);
+  } catch {
+    return null;
+  }
 }
 
 /** Local video URL via custom `media://` protocol (Range streaming). */
@@ -410,7 +743,9 @@ function setAuthedUi(user) {
   els.tripsView.hidden = !signedIn;
   if (!signedIn) {
     els.albumView.hidden = true;
+    els.cacheView.hidden = true;
     closeLightbox();
+    closeCacheView();
     currentTrip = null;
     selectedMedia = null;
   }
@@ -483,6 +818,7 @@ async function loadTrips() {
 
 async function openTrip(tripSummary) {
   showStatus('Открываю альбом…');
+  closeCacheView();
   currentTrip = await api.getTrip(tripSummary.secret);
   els.albumTitle.textContent = currentTrip.title;
   els.tripsView.hidden = true;
@@ -503,13 +839,24 @@ async function openTrip(tripSummary) {
 async function loadProjects() {
   if (!currentTrip) return;
   const previousId = activeProject?.id ?? null;
-  projects = await api.listProjects(currentTrip.secret);
+  const summaries = await api.listProjects(currentTrip.secret);
+  projects = await Promise.all(
+    (summaries || []).map(async (summary) => {
+      try {
+        return await api.getProject(currentTrip.secret, summary.id);
+      } catch {
+        return { ...summary, clips: [] };
+      }
+    }),
+  );
   if (previousId && projects.some((p) => p.id === previousId)) {
-    activeProject = await api.getProject(currentTrip.secret, previousId);
+    activeProject =
+      projects.find((p) => p.id === previousId) ||
+      (await api.getProject(currentTrip.secret, previousId));
   } else {
     activeProject = null;
   }
-  renderProjectSelect();
+  renderProjectList();
   renderMediaList();
   if (selectedMedia) {
     await showAlbumPreview(selectedMedia);
@@ -519,24 +866,70 @@ async function loadProjects() {
   }
 }
 
-function renderProjectSelect() {
-  const select = els.projectSelect;
-  const current = activeProject?.id != null ? String(activeProject.id) : '';
-  select.innerHTML = '';
-  const none = document.createElement('option');
-  none.value = '';
-  none.textContent = '— не выбран —';
-  select.appendChild(none);
-  for (const project of projects) {
-    const opt = document.createElement('option');
-    opt.value = String(project.id);
-    opt.textContent = `${project.name} (${project.clipCount ?? 0})`;
-    select.appendChild(opt);
+function syncActiveProjectInList() {
+  if (!activeProject) return;
+  const idx = projects.findIndex((p) => p.id === activeProject.id);
+  if (idx >= 0) projects[idx] = activeProject;
+  else projects.push(activeProject);
+}
+
+function renderProjectList() {
+  const list = els.projectList;
+  if (!list) return;
+  list.innerHTML = '';
+  if (!projects.length) {
+    const empty = document.createElement('p');
+    empty.className = 'muted project-list__empty';
+    empty.textContent = 'Пока нет проектов — создайте первый выше';
+    list.appendChild(empty);
+  } else {
+    for (const project of projects) {
+      const stats = computeProjectStats(project);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className =
+        'project-list__item' +
+        (activeProject?.id === project.id ? ' is-selected' : '');
+      btn.setAttribute('role', 'option');
+      btn.setAttribute(
+        'aria-selected',
+        activeProject?.id === project.id ? 'true' : 'false',
+      );
+      btn.dataset.projectId = String(project.id);
+
+      const name = document.createElement('span');
+      name.className = 'project-list__name';
+      name.textContent = project.name || `Проект ${project.id}`;
+
+      const meta = document.createElement('span');
+      meta.className = 'project-list__stats';
+      meta.textContent = formatProjectStatsLabel(stats);
+
+      btn.append(name, meta);
+      btn.addEventListener('click', () => {
+        void selectProjectById(Number(project.id)).catch((e) =>
+          showStatus(e.message, true),
+        );
+      });
+      btn.addEventListener('dblclick', () => {
+        void (async () => {
+          await selectProjectById(Number(project.id));
+          await openLightbox();
+        })().catch((e) => showStatus(e.message, true));
+      });
+      list.appendChild(btn);
+    }
   }
-  select.value = current;
+
   els.projectActions.hidden = !activeProject;
   if (activeProject) {
     els.exportProjectBtn.disabled = !(activeProject.clips?.length > 0);
+  }
+  const lightboxStats = computeProjectStats(activeProject);
+  if (els.lightboxProjectStats) {
+    els.lightboxProjectStats.textContent = activeProject
+      ? formatProjectStatsLabel(lightboxStats)
+      : '';
   }
 }
 
@@ -545,14 +938,15 @@ async function selectProjectById(projectId) {
   if (!projectId) {
     activeProject = null;
     selectedClipId = null;
-    renderProjectSelect();
+    renderProjectList();
     renderMediaList();
     if (selectedMedia) await showAlbumPreview(selectedMedia);
     return;
   }
   activeProject = await api.getProject(currentTrip.secret, projectId);
+  syncActiveProjectInList();
   selectedClipId = null;
-  renderProjectSelect();
+  renderProjectList();
   renderMediaList();
   if (selectedMedia) await showAlbumPreview(selectedMedia);
 }
@@ -886,8 +1280,8 @@ function updateClipSidePanel(clip) {
   els.lightboxClipName.textContent =
     media.originalFilename || clip.mediaId || `Клип ${clip.id}`;
   els.lightboxClipMeta.textContent = [
-    media.durationMs ? formatDurationMs(media.durationMs) : null,
-    media.size != null ? formatBytes(Number(media.size)) : null,
+    formatDurationMs(clipEffectiveDurationMs(clip)) || null,
+    formatBytes(clipEffectiveBytes(clip)),
     index >= 0 ? `${padIndex(index + 1, total)} / ${total}` : null,
   ]
     .filter(Boolean)
@@ -914,25 +1308,15 @@ function updateClipSidePanel(clip) {
 function renderTimeline() {
   els.timelineTrack.innerHTML = '';
   const clips = activeProject?.clips || [];
-  let fragmentCount = 0;
-  let fragmentBytes = 0;
-  for (const clip of clips) {
-    const frag = fragmentByClipId.get(Number(clip.id));
-    if (frag) {
-      fragmentCount += 1;
-      fragmentBytes += frag.bytes || 0;
-    }
-  }
-  const parts = [];
-  if (clips.length) parts.push(`${clips.length} клип.`);
-  else parts.push('Клипов пока нет — добавьте с экрана альбома');
-  if (fragmentCount) {
-    parts.push(`${fragmentCount} отрез. · ${formatBytes(fragmentBytes)}`);
-  }
-  els.timelineSummary.textContent = parts.join(' · ');
+  const stats = computeProjectStats(activeProject);
+  els.timelineSummary.textContent = clips.length
+    ? formatProjectStatsLabel(stats)
+    : 'Клипов пока нет — добавьте с экрана альбома';
+  updateProjectStatsUi();
   clips.forEach((clip, index) => {
     const media =
       clip.media || mediaItems.find((m) => m.id === clip.mediaId) || {};
+    const frag = fragmentByClipId.get(Number(clip.id));
     const card = document.createElement('button');
     card.type = 'button';
     card.className =
@@ -942,7 +1326,10 @@ function renderTimeline() {
     const img = document.createElement('img');
     img.loading = 'lazy';
     img.alt = '';
-    img.src = media.thumbUrl || media.url || '';
+    // Fragments must use a frame from the cut file, never the original media thumb.
+    img.src = frag
+      ? frag.thumbUrl || ''
+      : media.thumbUrl || media.url || '';
     const idx = document.createElement('span');
     idx.className = 'timeline-card__index';
     idx.textContent = padIndex(index + 1, clips.length);
@@ -1004,6 +1391,7 @@ async function loadClipPreview(clip) {
         path: fragment.path,
         startSec: fragment.start_sec,
         endSec: fragment.end_sec,
+        thumbUrl: await resolveFragmentThumbUrl(fragment.thumb_path),
       });
       els.lightboxDownloadStatus.textContent = `Отрезок · ${formatBytes(fragment.bytes || 0)}`;
       els.lightboxVideo.src = await localVideoUrl(fragment.path);
@@ -1138,7 +1526,8 @@ async function moveSelectedClip(delta) {
     activeProject.id,
     ids,
   );
-  renderProjectSelect();
+  syncActiveProjectInList();
+  renderProjectList();
   renderLightbox();
 }
 
@@ -1198,7 +1587,7 @@ async function saveTrimBounds() {
       trimEndSec,
     );
 
-    await invoke('register_clip_fragment', {
+    const registered = await invoke('register_clip_fragment', {
       fragmentId: extracted.fragment_id,
       clipId: Number(newClipId),
     });
@@ -1223,12 +1612,16 @@ async function saveTrimBounds() {
       path: extracted.path,
       startSec: extracted.start_sec,
       endSec: extracted.end_sec,
+      thumbUrl: await resolveFragmentThumbUrl(
+        registered?.thumb_path || extracted.thumb_path,
+      ),
     });
 
     els.trimStartInput.value = '';
     els.trimEndInput.value = '';
     await refreshCacheStats();
-    renderProjectSelect();
+    syncActiveProjectInList();
+    renderProjectList();
     renderLightbox();
     await selectClip(newClipId);
     showStatus(
@@ -1355,6 +1748,19 @@ els.logoutBtn.addEventListener('click', () => void logout());
 els.refreshTripsBtn.addEventListener('click', () =>
   void loadTrips().catch((e) => showStatus(e.message, true)),
 );
+els.openCacheBtn.addEventListener('click', () => {
+  void openCacheView().catch((e) => showStatus(e.message, true));
+});
+els.openCacheFromAlbumBtn.addEventListener('click', () => {
+  void openCacheView().catch((e) => showStatus(e.message, true));
+});
+els.cacheBackBtn.addEventListener('click', () => {
+  closeCacheView();
+  els.tripsView.hidden = false;
+});
+els.cacheRemoveFileBtn.addEventListener('click', () => {
+  void removeSelectedCacheFile().catch((e) => showStatus(e.message, true));
+});
 els.backBtn.addEventListener('click', () => {
   closeLightbox();
   els.albumView.hidden = true;
@@ -1365,24 +1771,22 @@ els.backBtn.addEventListener('click', () => {
 });
 els.cacheClearBtn.addEventListener('click', () => {
   void (async () => {
-    if (!confirm('Удалить локальный кэш видео?')) return;
+    if (!confirm('Удалить весь локальный кэш видео?')) return;
     await invoke('clear_media_cache');
     cachedMediaIds = new Set();
+    cacheEntries = [];
+    clearCachePreview();
+    renderCacheGallery();
     renderMediaList();
     await refreshCacheStats();
-    if (selectedMedia) await showAlbumPreview(selectedMedia);
+    if (selectedMedia && !els.albumView.hidden) {
+      await showAlbumPreview(selectedMedia);
+    }
     if (els.projectLightbox.open && selectedClip()) {
       await loadClipPreview(selectedClip());
     }
     showStatus('Кэш очищен');
-  })();
-});
-
-els.projectSelect.addEventListener('change', () => {
-  const value = els.projectSelect.value;
-  void selectProjectById(value ? Number(value) : null).catch((e) =>
-    showStatus(e.message, true),
-  );
+  })().catch((e) => showStatus(e.message, true));
 });
 
 els.createProjectForm.addEventListener('submit', (event) => {
@@ -1392,12 +1796,10 @@ els.createProjectForm.addEventListener('submit', (event) => {
     if (!name || !currentTrip) return;
     const created = await api.createProject(currentTrip.secret, name);
     els.projectNameInput.value = '';
-    projects = await api.listProjects(currentTrip.secret);
-    const id = created?.id ?? projects.find((p) => p.name === name)?.id;
+    const id = created?.id;
+    await loadProjects();
     if (id != null) {
       await selectProjectById(id);
-    } else {
-      await loadProjects();
     }
   })().catch((e) => showStatus(e.message, true));
 });

@@ -42,11 +42,71 @@
       <section id="tripsView" class="panel" hidden>
         <div class="panel-head">
           <h2>Альбомы</h2>
-          <button id="refreshTripsBtn" class="ghost-btn" type="button">
-            Обновить
-          </button>
+          <div class="panel-head-actions">
+            <button id="openCacheBtn" class="ghost-btn" type="button">Кэш</button>
+            <button id="refreshTripsBtn" class="ghost-btn" type="button">
+              Обновить
+            </button>
+          </div>
         </div>
         <div id="tripsList" class="trips-list"></div>
+      </section>
+
+      <section id="cacheView" class="panel album-page" hidden>
+        <div class="panel-head">
+          <button id="cacheBackBtn" class="ghost-btn" type="button">
+            ← Альбомы
+          </button>
+          <h2>Локальный кэш</h2>
+          <div class="panel-head-actions">
+            <button id="cacheClearBtn" class="ghost-btn" type="button">
+              Очистить кэш
+            </button>
+            <span id="cachePageStats" class="muted cache-stats" title=""></span>
+          </div>
+        </div>
+
+        <div class="album-split">
+          <div class="album-list editor-card">
+            <div class="panel-head album-list__head">
+              <h3>Файлы</h3>
+              <span id="cacheFileCount" class="muted"></span>
+            </div>
+            <div id="cacheGallery" class="media-list"></div>
+          </div>
+
+          <aside class="album-preview editor-card">
+            <div id="cachePreviewEmpty" class="preview-empty muted">
+              Выберите файл слева
+            </div>
+            <div id="cachePreviewBody" class="preview-body" hidden>
+              <div class="preview-stage">
+                <video
+                  id="cachePreviewVideo"
+                  class="preview-video"
+                  controls
+                  playsinline
+                  hidden
+                ></video>
+                <img id="cachePreviewImage" class="preview-image" alt="" hidden />
+              </div>
+              <div class="preview-meta">
+                <h3 id="cachePreviewName">…</h3>
+                <p id="cachePreviewMeta" class="muted"></p>
+                <p id="cachePreviewPath" class="muted cache-path"></p>
+                <div id="cachePreviewAlbums" class="cache-membership"></div>
+                <div id="cachePreviewProjects" class="cache-membership"></div>
+                <div class="preview-actions">
+                  <button
+                    id="cacheRemoveFileBtn"
+                    class="ghost-btn danger-btn"
+                    type="button"
+                  ></button>
+                </div>
+              </div>
+            </div>
+          </aside>
+        </div>
       </section>
 
       <section id="albumView" class="panel album-page" hidden>
@@ -54,28 +114,28 @@
           <button id="backBtn" class="ghost-btn" type="button">← Альбомы</button>
           <h2 id="albumTitle">…</h2>
           <div class="panel-head-actions">
-            <button id="cacheClearBtn" class="ghost-btn" type="button">
-              Очистить кэш
+            <button id="openCacheFromAlbumBtn" class="ghost-btn" type="button">
+              Кэш
             </button>
             <span id="cacheStats" class="muted cache-stats" title=""></span>
           </div>
         </div>
 
         <div class="project-bar editor-card">
-          <label class="project-bar__label" for="projectSelect">Проект</label>
-          <select id="projectSelect" class="project-select">
-            <option value="">— не выбран —</option>
-          </select>
-          <form id="createProjectForm" class="create-row project-bar__create">
-            <input
-              id="projectNameInput"
-              type="text"
-              maxlength="120"
-              placeholder="Новый проект…"
-              required
-            />
-            <button class="primary-btn" type="submit">Создать</button>
-          </form>
+          <div class="project-bar__head">
+            <p class="project-bar__label">Проекты</p>
+            <form id="createProjectForm" class="create-row project-bar__create">
+              <input
+                id="projectNameInput"
+                type="text"
+                maxlength="120"
+                placeholder="Новый проект…"
+                required
+              />
+              <button class="primary-btn" type="submit">Создать</button>
+            </form>
+          </div>
+          <div id="projectList" class="project-list" role="listbox" aria-label="Проекты"></div>
           <div id="projectActions" class="project-bar__actions" hidden>
             <button id="openProjectBtn" class="primary-btn" type="button">
               Открыть
@@ -152,6 +212,7 @@
           <div>
             <p class="section-kicker">CapCut</p>
             <h2 id="lightboxProjectTitle">Проект</h2>
+            <p id="lightboxProjectStats" class="muted project-stats"></p>
           </div>
           <div class="project-lightbox__head-actions">
             <span id="lightboxCacheStats" class="muted cache-stats" title=""></span>
