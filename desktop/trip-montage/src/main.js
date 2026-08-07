@@ -37,6 +37,8 @@ const els = {
   albumPreviewName: document.getElementById('albumPreviewName'),
   albumPreviewMeta: document.getElementById('albumPreviewMeta'),
   albumPreviewCache: document.getElementById('albumPreviewCache'),
+  albumPreviewCacheActions: document.getElementById('albumPreviewCacheActions'),
+  albumRemoveCacheBtn: document.getElementById('albumRemoveCacheBtn'),
   albumPreviewProjectActions: document.getElementById('albumPreviewProjectActions'),
   albumToggleProjectBtn: document.getElementById('albumToggleProjectBtn'),
   projectLightbox: document.getElementById('projectLightbox'),
@@ -47,6 +49,8 @@ const els = {
   lightboxNeedCache: document.getElementById('lightboxNeedCache'),
   lightboxDownloadBtn: document.getElementById('lightboxDownloadBtn'),
   lightboxDownloadStatus: document.getElementById('lightboxDownloadStatus'),
+  lightboxCacheActions: document.getElementById('lightboxCacheActions'),
+  lightboxRemoveCacheBtn: document.getElementById('lightboxRemoveCacheBtn'),
   lightboxClipEmpty: document.getElementById('lightboxClipEmpty'),
   lightboxClipInfo: document.getElementById('lightboxClipInfo'),
   lightboxClipName: document.getElementById('lightboxClipName'),
@@ -146,6 +150,8 @@ function setButtonContent(el, iconHtml, label) {
 function initStaticIcons() {
   setButtonContent(els.albumDownloadBtn, icons.download, 'Загрузить локально');
   setButtonContent(els.lightboxDownloadBtn, icons.download, 'Загрузить локально');
+  setButtonContent(els.albumRemoveCacheBtn, icons.trash, 'Удалить из кэша');
+  setButtonContent(els.lightboxRemoveCacheBtn, icons.trash, 'Удалить из кэша');
   els.closeLightboxBtn.innerHTML = icons.x;
   setButtonContent(els.markStartBtn, icons.flag, 'Старт = сейчас');
   setButtonContent(els.markEndBtn, icons.flagEnd, 'Конец = сейчас');
@@ -172,6 +178,20 @@ async function localVideoUrl(path) {
 
 async function getCacheStatus(mediaId) {
   return invoke('is_media_cached', { mediaId });
+}
+
+async function removeMediaFromCache(mediaId) {
+  if (!mediaId) return false;
+  if (!confirm('Удалить этот файл из локального кэша?')) return false;
+  await invoke('remove_cached_media', { mediaId });
+  cachedMediaIds.delete(mediaId);
+  await refreshCacheStats();
+  renderMediaList();
+  if (els.projectLightbox.open) {
+    renderTimeline();
+  }
+  showStatus('Файл удалён из кэша');
+  return true;
 }
 
 async function refreshCachedMediaIds() {
@@ -442,6 +462,7 @@ function clearAlbumPreview() {
   els.albumPreviewVideo.hidden = true;
   els.albumPreviewVideo.removeAttribute('src');
   els.albumPreviewNeedCache.hidden = true;
+  els.albumPreviewCacheActions.hidden = true;
   els.albumPreviewProjectActions.hidden = true;
 }
 
@@ -467,6 +488,7 @@ async function showAlbumPreview(item) {
   els.albumPreviewImage.hidden = true;
   els.albumPreviewVideo.hidden = true;
   els.albumPreviewNeedCache.hidden = true;
+  els.albumPreviewCacheActions.hidden = true;
   els.albumPreviewVideo.removeAttribute('src');
 
   const inProjectClip =
@@ -502,9 +524,15 @@ async function showAlbumPreview(item) {
       els.albumPreviewVideo.src = await localVideoUrl(status.path);
       els.albumPreviewVideo.hidden = false;
       els.albumPreviewNeedCache.hidden = true;
+      els.albumPreviewCacheActions.hidden = false;
+      els.albumRemoveCacheBtn.onclick = () =>
+        void removeAlbumMediaCache(item).catch((e) =>
+          showStatus(e.message || String(e), true),
+        );
     } else {
       els.albumPreviewCache.textContent = 'Не загружено локально';
       els.albumPreviewNeedCache.hidden = false;
+      els.albumPreviewCacheActions.hidden = true;
       els.albumDownloadBtn.disabled = false;
       setButtonContent(els.albumDownloadBtn, icons.download, 'Загрузить локально');
       els.albumDownloadBtn.onclick = () => void downloadAlbumMedia(item);
@@ -513,6 +541,7 @@ async function showAlbumPreview(item) {
     if (token !== previewToken) return;
     els.albumPreviewCache.textContent = error.message || String(error);
     els.albumPreviewNeedCache.hidden = false;
+    els.albumPreviewCacheActions.hidden = true;
   }
 }
 
@@ -532,6 +561,11 @@ async function downloadAlbumMedia(item) {
     renderMediaList();
     els.albumPreviewCache.textContent = `Локально · ${formatBytes(cached.bytes)}`;
     els.albumPreviewNeedCache.hidden = true;
+    els.albumPreviewCacheActions.hidden = false;
+    els.albumRemoveCacheBtn.onclick = () =>
+      void removeAlbumMediaCache(item).catch((e) =>
+        showStatus(e.message || String(e), true),
+      );
     els.albumPreviewVideo.src = await localVideoUrl(cached.path);
     els.albumPreviewVideo.hidden = false;
     showStatus(
@@ -543,6 +577,14 @@ async function downloadAlbumMedia(item) {
     showStatus(error.message || String(error), true);
     setButtonContent(els.albumDownloadBtn, icons.download, 'Загрузить локально');
     els.albumDownloadBtn.disabled = false;
+  }
+}
+
+async function removeAlbumMediaCache(item) {
+  if (!item?.id) return;
+  const removed = await removeMediaFromCache(item.id);
+  if (removed && selectedMedia?.id === item.id) {
+    await showAlbumPreview(item);
   }
 }
 
@@ -610,6 +652,7 @@ function clearLightboxPreview() {
   els.lightboxClipEmpty.hidden = false;
   els.lightboxClipInfo.hidden = true;
   els.lightboxDownloadStatus.textContent = '';
+  els.lightboxCacheActions.hidden = true;
   els.lightboxVideo.hidden = true;
   els.lightboxVideo.removeAttribute('src');
   els.lightboxNeedCache.hidden = true;
@@ -727,6 +770,7 @@ async function loadClipPreview(clip) {
   els.lightboxVideo.hidden = true;
   els.lightboxVideo.removeAttribute('src');
   els.lightboxNeedCache.hidden = true;
+  els.lightboxCacheActions.hidden = true;
   trimContext = null;
 
   if (!media.url) {
@@ -742,6 +786,11 @@ async function loadClipPreview(clip) {
       els.lightboxVideo.src = await localVideoUrl(status.path);
       els.lightboxVideo.hidden = false;
       els.lightboxNeedCache.hidden = true;
+      els.lightboxCacheActions.hidden = false;
+      els.lightboxRemoveCacheBtn.onclick = () =>
+        void removeLightboxClipCache(clip).catch((e) =>
+          showStatus(e.message || String(e), true),
+        );
       trimContext = {
         clipId: clip.id,
         mediaId: clip.mediaId,
@@ -750,6 +799,7 @@ async function loadClipPreview(clip) {
     } else {
       els.lightboxDownloadStatus.textContent = 'Не загружено локально';
       els.lightboxNeedCache.hidden = false;
+      els.lightboxCacheActions.hidden = true;
       els.lightboxDownloadBtn.disabled = false;
       setButtonContent(
         els.lightboxDownloadBtn,
@@ -762,6 +812,7 @@ async function loadClipPreview(clip) {
     if (token !== previewToken) return;
     els.lightboxDownloadStatus.textContent = error.message || String(error);
     els.lightboxNeedCache.hidden = false;
+    els.lightboxCacheActions.hidden = true;
   }
 }
 
@@ -778,10 +829,16 @@ async function downloadLightboxClip(clip, media) {
     await refreshCacheStats();
     cachedMediaIds.add(clip.mediaId);
     renderMediaList();
+    renderTimeline();
     els.lightboxDownloadStatus.textContent = cached.downloaded
       ? `Скачано ${formatBytes(cached.bytes)}`
       : `Из кэша · ${formatBytes(cached.bytes)}`;
     els.lightboxNeedCache.hidden = true;
+    els.lightboxCacheActions.hidden = false;
+    els.lightboxRemoveCacheBtn.onclick = () =>
+      void removeLightboxClipCache(clip).catch((e) =>
+        showStatus(e.message || String(e), true),
+      );
     els.lightboxVideo.src = await localVideoUrl(cached.path);
     els.lightboxVideo.hidden = false;
     trimContext = {
@@ -797,6 +854,16 @@ async function downloadLightboxClip(clip, media) {
       'Загрузить локально',
     );
     els.lightboxDownloadBtn.disabled = false;
+  }
+}
+
+async function removeLightboxClipCache(clip) {
+  if (!clip?.mediaId) return;
+  const removed = await removeMediaFromCache(clip.mediaId);
+  if (!removed) return;
+  trimContext = null;
+  if (selectedClip()?.id === clip.id) {
+    await loadClipPreview(clip);
   }
 }
 

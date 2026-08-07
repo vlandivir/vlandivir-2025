@@ -484,6 +484,45 @@ fn clear_media_cache(app: AppHandle) -> AppResult<CacheStats> {
     get_cache_stats(app)
 }
 
+/// Remove one media file (and leftover `.partial` downloads) from the local cache.
+#[tauri::command]
+fn remove_cached_media(app: AppHandle, media_id: String) -> AppResult<CacheStats> {
+    let stem = media_file_stem(&app, &media_id)?;
+    let dir = media_cache_dir(&app)?;
+    let stem_name = stem
+        .file_name()
+        .and_then(|s| s.to_str())
+        .ok_or_else(|| err("invalid media id"))?;
+
+    let mut removed = false;
+    for entry in fs::read_dir(&dir).map_err(|e| err(format!("read cache: {e}")))? {
+        let entry = entry.map_err(|e| err(format!("cache entry: {e}")))?;
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let name = path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or_default();
+        // Match `stem.ext`, `stem.ext.partial`, or bare stem.
+        let matches = name == stem_name
+            || name
+                .strip_prefix(stem_name)
+                .is_some_and(|rest| rest.starts_with('.'));
+        if matches {
+            fs::remove_file(&path).map_err(|e| err(format!("remove cache file: {e}")))?;
+            removed = true;
+        }
+    }
+
+    if !removed {
+        // Idempotent: already gone is fine.
+        return get_cache_stats(app);
+    }
+    get_cache_stats(app)
+}
+
 #[derive(Deserialize)]
 struct ExportClip {
     media_id: String,
@@ -777,6 +816,7 @@ pub fn run() {
             ensure_media_cached,
             get_cache_stats,
             clear_media_cache,
+            remove_cached_media,
             export_clips,
             media_file_url,
             path_to_asset_url,
