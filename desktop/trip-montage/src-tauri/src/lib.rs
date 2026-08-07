@@ -505,6 +505,66 @@ fn is_fragment_file_name(name: &str) -> bool {
     name.starts_with("frag_")
 }
 
+#[derive(Serialize)]
+struct CachedMediaEntry {
+    media_id: String,
+    file_name: String,
+    path: String,
+    bytes: u64,
+    ext: String,
+}
+
+#[tauri::command]
+fn list_cached_media(app: AppHandle) -> AppResult<Vec<CachedMediaEntry>> {
+    let dir = media_cache_dir(&app)?;
+    let mut out = Vec::new();
+    if !dir.exists() {
+        return Ok(out);
+    }
+    for entry in fs::read_dir(&dir).map_err(|e| err(format!("read cache: {e}")))? {
+        let entry = entry.map_err(|e| err(format!("cache entry: {e}")))?;
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if is_fragment_file_name(&name)
+            || name.ends_with(".partial")
+            || name == FRAGMENTS_INDEX
+        {
+            continue;
+        }
+        let ext = path
+            .extension()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_ascii_lowercase();
+        if !matches!(ext.as_str(), "mp4" | "mov" | "m4v" | "bin") {
+            continue;
+        }
+        let media_id = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_string();
+        if media_id.is_empty() {
+            continue;
+        }
+        let meta = entry
+            .metadata()
+            .map_err(|e| err(format!("cache meta: {e}")))?;
+        out.push(CachedMediaEntry {
+            media_id,
+            file_name: name,
+            path: path.to_string_lossy().into_owned(),
+            bytes: meta.len(),
+            ext,
+        });
+    }
+    out.sort_by(|a, b| a.file_name.cmp(&b.file_name));
+    Ok(out)
+}
+
 #[tauri::command]
 fn get_cache_stats(app: AppHandle) -> AppResult<CacheStats> {
     let dir = media_cache_dir(&app)?;
@@ -603,6 +663,8 @@ struct FragmentEntry {
     source_media_id: String,
     start_sec: f64,
     end_sec: f64,
+    #[serde(default)]
+    thumb_file_name: Option<String>,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -620,6 +682,8 @@ struct PendingFragment {
     source_media_id: String,
     start_sec: f64,
     end_sec: f64,
+    #[serde(default)]
+    thumb_file_name: Option<String>,
 }
 
 fn fragments_index_path(app: &AppHandle) -> AppResult<PathBuf> {
@@ -655,6 +719,59 @@ fn fragment_path(app: &AppHandle, file_name: &str) -> AppResult<PathBuf> {
     Ok(media_cache_dir(app)?.join(file_name))
 }
 
+fn fragment_thumb_name(fragment_id: &str) -> String {
+    format!("frag_{fragment_id}.jpg")
+}
+
+fn run_ffmpeg_thumbnail(input: &Path, output: &Path) -> AppResult<()> {
+    let status = Command::new("ffmpeg")
+        .args([
+            "-y",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-ss",
+            "0.05",
+            "-i",
+            &input.to_string_lossy(),
+            "-frames:v",
+            "1",
+            "-q:v",
+            "3",
+            &output.to_string_lossy(),
+        ])
+        .status()
+        .map_err(|e| err(format!("ffmpeg not available: {e}")))?;
+    if !status.success() || !output.exists() {
+        return Err(err(format!(
+            "ffmpeg thumbnail failed for {}",
+            input.file_name().and_then(|s| s.to_str()).unwrap_or("?")
+        )));
+    }
+    Ok(())
+}
+
+fn ensure_fragment_thumbnail(
+    app: &AppHandle,
+    fragment_id: &str,
+    video_path: &Path,
+    thumb_file_name: &mut Option<String>,
+) -> AppResult<Option<PathBuf>> {
+    let name = thumb_file_name
+        .clone()
+        .unwrap_or_else(|| fragment_thumb_name(fragment_id));
+    let thumb_path = fragment_path(app, &name)?;
+    if !thumb_path.exists() {
+        if let Err(e) = run_ffmpeg_thumbnail(video_path, &thumb_path) {
+            // Non-fatal: UI shows empty thumb rather than the original media preview.
+            eprintln!("fragment thumb: {e}");
+            return Ok(None);
+        }
+    }
+    *thumb_file_name = Some(name);
+    Ok(Some(thumb_path))
+}
+
 fn new_fragment_id() -> String {
     let millis = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -670,6 +787,7 @@ struct FragmentExtractResult {
     bytes: u64,
     start_sec: f64,
     end_sec: f64,
+    thumb_path: Option<String>,
 }
 
 /// Cut `[start_sec, end_sec)` from a local video into a new `frag_*.mp4` cache file.
@@ -705,6 +823,9 @@ fn extract_media_fragment(
         return Err(err("ffmpeg вернул пустой отрезок"));
     }
 
+    let mut thumb_file_name = None;
+    let thumb_path = ensure_fragment_thumbnail(&app, &fragment_id, &dest, &mut thumb_file_name)?;
+
     let mut index = load_fragments_index(&app)?;
     index.pending.retain(|p| p.fragment_id != fragment_id);
     index.pending.push(PendingFragment {
@@ -714,6 +835,7 @@ fn extract_media_fragment(
         source_media_id,
         start_sec,
         end_sec,
+        thumb_file_name: thumb_file_name.clone(),
     });
     save_fragments_index(&app, &index)?;
 
@@ -723,6 +845,7 @@ fn extract_media_fragment(
         bytes,
         start_sec,
         end_sec,
+        thumb_path: thumb_path.map(|p| p.to_string_lossy().into_owned()),
     })
 }
 
@@ -734,6 +857,7 @@ struct FragmentStatus {
     start_sec: Option<f64>,
     end_sec: Option<f64>,
     source_media_id: Option<String>,
+    thumb_path: Option<String>,
 }
 
 #[tauri::command]
@@ -755,6 +879,10 @@ fn register_clip_fragment(
         return Err(err("файл отрезка пропал с диска"));
     }
 
+    let mut thumb_file_name = pending.thumb_file_name.clone();
+    let thumb_path =
+        ensure_fragment_thumbnail(&app, &pending.fragment_id, &path, &mut thumb_file_name)?;
+
     index.entries.retain(|e| e.clip_id != clip_id);
     index.entries.push(FragmentEntry {
         clip_id,
@@ -764,6 +892,7 @@ fn register_clip_fragment(
         source_media_id: pending.source_media_id.clone(),
         start_sec: pending.start_sec,
         end_sec: pending.end_sec,
+        thumb_file_name,
     });
     save_fragments_index(&app, &index)?;
 
@@ -774,13 +903,14 @@ fn register_clip_fragment(
         start_sec: Some(pending.start_sec),
         end_sec: Some(pending.end_sec),
         source_media_id: Some(pending.source_media_id),
+        thumb_path: thumb_path.map(|p| p.to_string_lossy().into_owned()),
     })
 }
 
 #[tauri::command]
 fn get_clip_fragment(app: AppHandle, clip_id: i64) -> AppResult<FragmentStatus> {
-    let index = load_fragments_index(&app)?;
-    let Some(entry) = index.entries.iter().find(|e| e.clip_id == clip_id) else {
+    let mut index = load_fragments_index(&app)?;
+    let Some(pos) = index.entries.iter().position(|e| e.clip_id == clip_id) else {
         return Ok(FragmentStatus {
             registered: false,
             path: None,
@@ -788,8 +918,10 @@ fn get_clip_fragment(app: AppHandle, clip_id: i64) -> AppResult<FragmentStatus> 
             start_sec: None,
             end_sec: None,
             source_media_id: None,
+            thumb_path: None,
         });
     };
+    let entry = &mut index.entries[pos];
     let path = fragment_path(&app, &entry.file_name)?;
     if !path.exists() {
         return Ok(FragmentStatus {
@@ -799,23 +931,90 @@ fn get_clip_fragment(app: AppHandle, clip_id: i64) -> AppResult<FragmentStatus> 
             start_sec: Some(entry.start_sec),
             end_sec: Some(entry.end_sec),
             source_media_id: Some(entry.source_media_id.clone()),
+            thumb_path: None,
         });
     }
     let meta = fs::metadata(&path).ok();
-    Ok(FragmentStatus {
+    let mut thumb_file_name = entry.thumb_file_name.clone();
+    let fragment_id = entry.fragment_id.clone();
+    let source_media_id = entry.source_media_id.clone();
+    let start_sec = entry.start_sec;
+    let end_sec = entry.end_sec;
+    let fallback_bytes = entry.bytes;
+    let previous_thumb = entry.thumb_file_name.clone();
+    let thumb_path =
+        ensure_fragment_thumbnail(&app, &fragment_id, &path, &mut thumb_file_name)?;
+    let thumb_changed = previous_thumb != thumb_file_name;
+    if thumb_changed {
+        entry.thumb_file_name = thumb_file_name;
+    }
+    // End mutable borrow of `entry` before saving the whole index.
+    let status = FragmentStatus {
         registered: true,
         path: Some(path.to_string_lossy().into_owned()),
-        bytes: Some(meta.map(|m| m.len()).unwrap_or(entry.bytes)),
-        start_sec: Some(entry.start_sec),
-        end_sec: Some(entry.end_sec),
-        source_media_id: Some(entry.source_media_id.clone()),
-    })
+        bytes: Some(meta.map(|m| m.len()).unwrap_or(fallback_bytes)),
+        start_sec: Some(start_sec),
+        end_sec: Some(end_sec),
+        source_media_id: Some(source_media_id),
+        thumb_path: thumb_path.map(|p| p.to_string_lossy().into_owned()),
+    };
+    if thumb_changed {
+        let _ = save_fragments_index(&app, &index);
+    }
+    Ok(status)
+}
+
+#[derive(Serialize)]
+struct FragmentListItem {
+    clip_id: i64,
+    fragment_id: String,
+    file_name: String,
+    bytes: u64,
+    source_media_id: String,
+    start_sec: f64,
+    end_sec: f64,
+    path: Option<String>,
+    thumb_path: Option<String>,
 }
 
 #[tauri::command]
-fn list_clip_fragments(app: AppHandle) -> AppResult<Vec<FragmentEntry>> {
-    let index = load_fragments_index(&app)?;
-    Ok(index.entries)
+fn list_clip_fragments(app: AppHandle) -> AppResult<Vec<FragmentListItem>> {
+    let mut index = load_fragments_index(&app)?;
+    let mut changed = false;
+    let mut out = Vec::with_capacity(index.entries.len());
+    for entry in &mut index.entries {
+        let path = fragment_path(&app, &entry.file_name)?;
+        let path_str = if path.exists() {
+            Some(path.to_string_lossy().into_owned())
+        } else {
+            None
+        };
+        let mut thumb_file_name = entry.thumb_file_name.clone();
+        let thumb_path = if path.exists() {
+            ensure_fragment_thumbnail(&app, &entry.fragment_id, &path, &mut thumb_file_name)?
+        } else {
+            None
+        };
+        if entry.thumb_file_name != thumb_file_name {
+            entry.thumb_file_name = thumb_file_name;
+            changed = true;
+        }
+        out.push(FragmentListItem {
+            clip_id: entry.clip_id,
+            fragment_id: entry.fragment_id.clone(),
+            file_name: entry.file_name.clone(),
+            bytes: entry.bytes,
+            source_media_id: entry.source_media_id.clone(),
+            start_sec: entry.start_sec,
+            end_sec: entry.end_sec,
+            path: path_str,
+            thumb_path: thumb_path.map(|p| p.to_string_lossy().into_owned()),
+        });
+    }
+    if changed {
+        let _ = save_fragments_index(&app, &index);
+    }
+    Ok(out)
 }
 
 #[tauri::command]
@@ -826,6 +1025,12 @@ fn remove_clip_fragment(app: AppHandle, clip_id: i64) -> AppResult<CacheStats> {
         let path = fragment_path(&app, &entry.file_name)?;
         if path.exists() {
             fs::remove_file(&path).map_err(|e| err(format!("remove fragment: {e}")))?;
+        }
+        if let Some(thumb_name) = entry.thumb_file_name {
+            let thumb = fragment_path(&app, &thumb_name)?;
+            if thumb.exists() {
+                let _ = fs::remove_file(&thumb);
+            }
         }
         save_fragments_index(&app, &index)?;
     }
@@ -1012,6 +1217,9 @@ fn content_type_for_path(path: &Path) -> &'static str {
         "mov" => "video/quicktime",
         "m4v" => "video/x-m4v",
         "webm" => "video/webm",
+        "jpg" | "jpeg" => "image/jpeg",
+        "png" => "image/png",
+        "webp" => "image/webp",
         _ => "video/mp4",
     }
 }
@@ -1143,6 +1351,7 @@ pub fn run() {
             is_media_cached,
             ensure_media_cached,
             get_cache_stats,
+            list_cached_media,
             get_media_cache_dir,
             clear_media_cache,
             remove_cached_media,
