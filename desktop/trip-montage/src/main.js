@@ -37,6 +37,8 @@ const els = {
   albumPreviewName: document.getElementById('albumPreviewName'),
   albumPreviewMeta: document.getElementById('albumPreviewMeta'),
   albumPreviewCache: document.getElementById('albumPreviewCache'),
+  albumPreviewCacheActions: document.getElementById('albumPreviewCacheActions'),
+  albumRemoveCacheBtn: document.getElementById('albumRemoveCacheBtn'),
   albumPreviewProjectActions: document.getElementById('albumPreviewProjectActions'),
   albumToggleProjectBtn: document.getElementById('albumToggleProjectBtn'),
   projectLightbox: document.getElementById('projectLightbox'),
@@ -47,6 +49,8 @@ const els = {
   lightboxNeedCache: document.getElementById('lightboxNeedCache'),
   lightboxDownloadBtn: document.getElementById('lightboxDownloadBtn'),
   lightboxDownloadStatus: document.getElementById('lightboxDownloadStatus'),
+  lightboxCacheActions: document.getElementById('lightboxCacheActions'),
+  lightboxRemoveCacheBtn: document.getElementById('lightboxRemoveCacheBtn'),
   lightboxClipEmpty: document.getElementById('lightboxClipEmpty'),
   lightboxClipInfo: document.getElementById('lightboxClipInfo'),
   lightboxClipName: document.getElementById('lightboxClipName'),
@@ -77,12 +81,14 @@ let activeProject = null;
 let selectedMedia = null;
 /** @type {number | null} */
 let selectedClipId = null;
-/** @type {{ clipId: number, mediaId: string, localPath: string } | null} */
+/** @type {{ clipId: number, mediaId: string, localPath: string, isFragment?: boolean } | null} */
 let trimContext = null;
 /** @type {number} */
 let previewToken = 0;
 /** @type {Set<string>} */
 let cachedMediaIds = new Set();
+/** @type {Map<number, { bytes: number, path?: string, startSec?: number, endSec?: number }>} */
+let fragmentByClipId = new Map();
 
 function showStatus(message, isError = false) {
   els.status.hidden = !message;
@@ -146,10 +152,12 @@ function setButtonContent(el, iconHtml, label) {
 function initStaticIcons() {
   setButtonContent(els.albumDownloadBtn, icons.download, 'Загрузить локально');
   setButtonContent(els.lightboxDownloadBtn, icons.download, 'Загрузить локально');
+  setButtonContent(els.albumRemoveCacheBtn, icons.trash, 'Удалить из кэша');
+  setButtonContent(els.lightboxRemoveCacheBtn, icons.trash, 'Удалить из кэша');
   els.closeLightboxBtn.innerHTML = icons.x;
   setButtonContent(els.markStartBtn, icons.flag, 'Старт = сейчас');
   setButtonContent(els.markEndBtn, icons.flagEnd, 'Конец = сейчас');
-  setButtonContent(els.saveTrimBtn, icons.check, 'Сохранить');
+  setButtonContent(els.saveTrimBtn, icons.scissors, 'Вырезать отрезок');
   setButtonContent(els.resetTrimBtn, icons.rotateCcw, 'Сбросить');
   els.moveClipUpBtn.innerHTML = icons.chevronUp;
   els.moveClipDownBtn.innerHTML = icons.chevronDown;
@@ -158,11 +166,56 @@ function initStaticIcons() {
 
 async function refreshCacheStats() {
   try {
-    const stats = await invoke('get_cache_stats');
-    els.cacheStats.textContent = `Кэш: ${stats.files} файл. · ${formatBytes(stats.bytes)}`;
+    const [stats, fragments] = await Promise.all([
+      invoke('get_cache_stats'),
+      invoke('get_fragment_stats'),
+    ]);
+    const cachePart = `Кэш: ${stats.files} файл. · ${formatBytes(stats.bytes)}`;
+    const fragPart =
+      fragments.files > 0
+        ? ` · Отрезки: ${fragments.files} · ${formatBytes(fragments.bytes)}`
+        : '';
+    els.cacheStats.textContent = cachePart + fragPart;
   } catch {
     els.cacheStats.textContent = '';
   }
+}
+
+async function refreshFragmentIndex() {
+  try {
+    const entries = await invoke('list_clip_fragments');
+    const next = new Map();
+    for (const entry of entries || []) {
+      next.set(Number(entry.clip_id), {
+        bytes: Number(entry.bytes) || 0,
+        startSec: entry.start_sec,
+        endSec: entry.end_sec,
+        path: undefined,
+      });
+    }
+    fragmentByClipId = next;
+  } catch {
+    fragmentByClipId = new Map();
+  }
+}
+
+function isFragmentClip(clipId) {
+  return fragmentByClipId.has(Number(clipId));
+}
+
+function fragmentInsertIndex(clips, sourceClipId, sourceMediaId) {
+  const sourceIndex = clips.findIndex((c) => c.id === sourceClipId);
+  if (sourceIndex < 0) return clips.length;
+  let insertAt = sourceIndex + 1;
+  while (insertAt < clips.length) {
+    const clip = clips[insertAt];
+    if (clip.mediaId === sourceMediaId && isFragmentClip(clip.id)) {
+      insertAt += 1;
+    } else {
+      break;
+    }
+  }
+  return insertAt;
 }
 
 /** Local video URL via custom `media://` protocol (Range streaming). */
@@ -172,6 +225,20 @@ async function localVideoUrl(path) {
 
 async function getCacheStatus(mediaId) {
   return invoke('is_media_cached', { mediaId });
+}
+
+async function removeMediaFromCache(mediaId) {
+  if (!mediaId) return false;
+  if (!confirm('Удалить этот файл из локального кэша?')) return false;
+  await invoke('remove_cached_media', { mediaId });
+  cachedMediaIds.delete(mediaId);
+  await refreshCacheStats();
+  renderMediaList();
+  if (els.projectLightbox.open) {
+    renderTimeline();
+  }
+  showStatus('Файл удалён из кэша');
+  return true;
 }
 
 async function refreshCachedMediaIds() {
@@ -285,6 +352,7 @@ async function openTrip(tripSummary) {
   const mediaData = await api.listMedia(currentTrip.secret);
   mediaItems = (mediaData.media || []).filter((m) => !m.deleted);
   await refreshCachedMediaIds();
+  await refreshFragmentIndex();
   await loadProjects();
   await refreshCacheStats();
   showStatus('');
@@ -442,6 +510,7 @@ function clearAlbumPreview() {
   els.albumPreviewVideo.hidden = true;
   els.albumPreviewVideo.removeAttribute('src');
   els.albumPreviewNeedCache.hidden = true;
+  els.albumPreviewCacheActions.hidden = true;
   els.albumPreviewProjectActions.hidden = true;
 }
 
@@ -467,6 +536,7 @@ async function showAlbumPreview(item) {
   els.albumPreviewImage.hidden = true;
   els.albumPreviewVideo.hidden = true;
   els.albumPreviewNeedCache.hidden = true;
+  els.albumPreviewCacheActions.hidden = true;
   els.albumPreviewVideo.removeAttribute('src');
 
   const inProjectClip =
@@ -502,9 +572,15 @@ async function showAlbumPreview(item) {
       els.albumPreviewVideo.src = await localVideoUrl(status.path);
       els.albumPreviewVideo.hidden = false;
       els.albumPreviewNeedCache.hidden = true;
+      els.albumPreviewCacheActions.hidden = false;
+      els.albumRemoveCacheBtn.onclick = () =>
+        void removeAlbumMediaCache(item).catch((e) =>
+          showStatus(e.message || String(e), true),
+        );
     } else {
       els.albumPreviewCache.textContent = 'Не загружено локально';
       els.albumPreviewNeedCache.hidden = false;
+      els.albumPreviewCacheActions.hidden = true;
       els.albumDownloadBtn.disabled = false;
       setButtonContent(els.albumDownloadBtn, icons.download, 'Загрузить локально');
       els.albumDownloadBtn.onclick = () => void downloadAlbumMedia(item);
@@ -513,6 +589,7 @@ async function showAlbumPreview(item) {
     if (token !== previewToken) return;
     els.albumPreviewCache.textContent = error.message || String(error);
     els.albumPreviewNeedCache.hidden = false;
+    els.albumPreviewCacheActions.hidden = true;
   }
 }
 
@@ -532,6 +609,11 @@ async function downloadAlbumMedia(item) {
     renderMediaList();
     els.albumPreviewCache.textContent = `Локально · ${formatBytes(cached.bytes)}`;
     els.albumPreviewNeedCache.hidden = true;
+    els.albumPreviewCacheActions.hidden = false;
+    els.albumRemoveCacheBtn.onclick = () =>
+      void removeAlbumMediaCache(item).catch((e) =>
+        showStatus(e.message || String(e), true),
+      );
     els.albumPreviewVideo.src = await localVideoUrl(cached.path);
     els.albumPreviewVideo.hidden = false;
     showStatus(
@@ -543,6 +625,14 @@ async function downloadAlbumMedia(item) {
     showStatus(error.message || String(error), true);
     setButtonContent(els.albumDownloadBtn, icons.download, 'Загрузить локально');
     els.albumDownloadBtn.disabled = false;
+  }
+}
+
+async function removeAlbumMediaCache(item) {
+  if (!item?.id) return;
+  const removed = await removeMediaFromCache(item.id);
+  if (removed && selectedMedia?.id === item.id) {
+    await showAlbumPreview(item);
   }
 }
 
@@ -562,11 +652,18 @@ async function removeClipFromProject(clipId) {
   if (!confirm('Убрать клип из проекта?')) return;
   const wasSelected = selectedClipId === clipId;
   await api.removeClip(currentTrip.secret, activeProject.id, clipId);
+  try {
+    await invoke('remove_clip_fragment', { clipId: Number(clipId) });
+  } catch {
+    /* fragment may not exist */
+  }
+  fragmentByClipId.delete(Number(clipId));
   if (wasSelected) {
     selectedClipId = null;
     trimContext = null;
   }
   await loadProjects();
+  await refreshCacheStats();
   if (els.projectLightbox.open) {
     renderLightbox();
     if (!selectedClipId && activeProject?.clips?.[0]) {
@@ -579,6 +676,7 @@ async function removeClipFromProject(clipId) {
 
 async function openLightbox(preferClipId = null) {
   if (!activeProject) return;
+  await refreshFragmentIndex();
   els.lightboxProjectTitle.textContent = activeProject.name || 'Проект';
   if (!els.projectLightbox.open) {
     els.projectLightbox.showModal();
@@ -610,6 +708,7 @@ function clearLightboxPreview() {
   els.lightboxClipEmpty.hidden = false;
   els.lightboxClipInfo.hidden = true;
   els.lightboxDownloadStatus.textContent = '';
+  els.lightboxCacheActions.hidden = true;
   els.lightboxVideo.hidden = true;
   els.lightboxVideo.removeAttribute('src');
   els.lightboxNeedCache.hidden = true;
@@ -640,6 +739,7 @@ function updateClipSidePanel(clip) {
     clip.media || mediaItems.find((m) => m.id === clip.mediaId) || {};
   const index = selectedClipIndex();
   const total = activeProject?.clips?.length || 0;
+  const fragment = fragmentByClipId.get(Number(clip.id));
   els.lightboxClipName.textContent =
     media.originalFilename || clip.mediaId || `Клип ${clip.id}`;
   els.lightboxClipMeta.textContent = [
@@ -649,16 +749,21 @@ function updateClipSidePanel(clip) {
   ]
     .filter(Boolean)
     .join(' · ');
-  const trimmed =
-    clip.trimStartSec != null || clip.trimEndSec != null;
-  els.lightboxClipTrim.textContent = trimmed
-    ? `Trim ${clip.trimStartSec ?? 0}–${clip.trimEndSec ?? '…'} с`
-    : 'Без обрезки';
-  els.lightboxClipTrim.classList.toggle('badge--local', trimmed);
-  els.trimStartInput.value =
-    clip.trimStartSec != null ? String(clip.trimStartSec) : '';
-  els.trimEndInput.value =
-    clip.trimEndSec != null ? String(clip.trimEndSec) : '';
+  if (fragment) {
+    const start = fragment.startSec ?? clip.trimStartSec ?? 0;
+    const end = fragment.endSec ?? clip.trimEndSec ?? '…';
+    els.lightboxClipTrim.textContent = `Отрезок ${start}–${end} с · ${formatBytes(fragment.bytes || 0)}`;
+    els.lightboxClipTrim.classList.add('badge--local');
+  } else {
+    const trimmed =
+      clip.trimStartSec != null || clip.trimEndSec != null;
+    els.lightboxClipTrim.textContent = trimmed
+      ? `Trim ${clip.trimStartSec ?? 0}–${clip.trimEndSec ?? '…'} с`
+      : 'Исходный ролик';
+    els.lightboxClipTrim.classList.toggle('badge--local', trimmed);
+  }
+  els.trimStartInput.value = '';
+  els.trimEndInput.value = '';
   els.moveClipUpBtn.disabled = index <= 0;
   els.moveClipDownBtn.disabled = index < 0 || index >= total - 1;
 }
@@ -666,9 +771,22 @@ function updateClipSidePanel(clip) {
 function renderTimeline() {
   els.timelineTrack.innerHTML = '';
   const clips = activeProject?.clips || [];
-  els.timelineSummary.textContent = clips.length
-    ? `${clips.length} клип.`
-    : 'Клипов пока нет — добавьте с экрана альбома';
+  let fragmentCount = 0;
+  let fragmentBytes = 0;
+  for (const clip of clips) {
+    const frag = fragmentByClipId.get(Number(clip.id));
+    if (frag) {
+      fragmentCount += 1;
+      fragmentBytes += frag.bytes || 0;
+    }
+  }
+  const parts = [];
+  if (clips.length) parts.push(`${clips.length} клип.`);
+  else parts.push('Клипов пока нет — добавьте с экрана альбома');
+  if (fragmentCount) {
+    parts.push(`${fragmentCount} отрез. · ${formatBytes(fragmentBytes)}`);
+  }
+  els.timelineSummary.textContent = parts.join(' · ');
   clips.forEach((clip, index) => {
     const media =
       clip.media || mediaItems.find((m) => m.id === clip.mediaId) || {};
@@ -686,7 +804,13 @@ function renderTimeline() {
     idx.className = 'timeline-card__index';
     idx.textContent = padIndex(index + 1, clips.length);
     thumb.append(img, idx);
-    if (cachedMediaIds.has(clip.mediaId)) {
+    if (isFragmentClip(clip.id)) {
+      const fragmentBadge = document.createElement('span');
+      fragmentBadge.className = 'trip-card__badge trip-card__badge--fragment';
+      fragmentBadge.title = 'Отрезок';
+      fragmentBadge.innerHTML = icons.scissors;
+      thumb.appendChild(fragmentBadge);
+    } else if (cachedMediaIds.has(clip.mediaId)) {
       const cacheBadge = document.createElement('span');
       cacheBadge.className = 'trip-card__badge trip-card__badge--cache';
       cacheBadge.title = 'Загружено локально';
@@ -727,7 +851,38 @@ async function loadClipPreview(clip) {
   els.lightboxVideo.hidden = true;
   els.lightboxVideo.removeAttribute('src');
   els.lightboxNeedCache.hidden = true;
+  els.lightboxCacheActions.hidden = true;
   trimContext = null;
+
+  try {
+    const fragment = await invoke('get_clip_fragment', {
+      clipId: Number(clip.id),
+    });
+    if (token !== previewToken) return;
+    if (fragment?.registered && fragment.path) {
+      fragmentByClipId.set(Number(clip.id), {
+        bytes: Number(fragment.bytes) || 0,
+        path: fragment.path,
+        startSec: fragment.start_sec,
+        endSec: fragment.end_sec,
+      });
+      els.lightboxDownloadStatus.textContent = `Отрезок · ${formatBytes(fragment.bytes || 0)}`;
+      els.lightboxVideo.src = await localVideoUrl(fragment.path);
+      els.lightboxVideo.hidden = false;
+      els.lightboxNeedCache.hidden = true;
+      els.lightboxCacheActions.hidden = true;
+      trimContext = {
+        clipId: clip.id,
+        mediaId: clip.mediaId,
+        localPath: fragment.path,
+        isFragment: true,
+      };
+      renderTimeline();
+      return;
+    }
+  } catch {
+    /* fall through to original media */
+  }
 
   if (!media.url) {
     els.lightboxDownloadStatus.textContent = 'Нет URL медиа';
@@ -742,14 +897,21 @@ async function loadClipPreview(clip) {
       els.lightboxVideo.src = await localVideoUrl(status.path);
       els.lightboxVideo.hidden = false;
       els.lightboxNeedCache.hidden = true;
+      els.lightboxCacheActions.hidden = false;
+      els.lightboxRemoveCacheBtn.onclick = () =>
+        void removeLightboxClipCache(clip).catch((e) =>
+          showStatus(e.message || String(e), true),
+        );
       trimContext = {
         clipId: clip.id,
         mediaId: clip.mediaId,
         localPath: status.path,
+        isFragment: false,
       };
     } else {
       els.lightboxDownloadStatus.textContent = 'Не загружено локально';
       els.lightboxNeedCache.hidden = false;
+      els.lightboxCacheActions.hidden = true;
       els.lightboxDownloadBtn.disabled = false;
       setButtonContent(
         els.lightboxDownloadBtn,
@@ -762,6 +924,7 @@ async function loadClipPreview(clip) {
     if (token !== previewToken) return;
     els.lightboxDownloadStatus.textContent = error.message || String(error);
     els.lightboxNeedCache.hidden = false;
+    els.lightboxCacheActions.hidden = true;
   }
 }
 
@@ -778,16 +941,23 @@ async function downloadLightboxClip(clip, media) {
     await refreshCacheStats();
     cachedMediaIds.add(clip.mediaId);
     renderMediaList();
+    renderTimeline();
     els.lightboxDownloadStatus.textContent = cached.downloaded
       ? `Скачано ${formatBytes(cached.bytes)}`
       : `Из кэша · ${formatBytes(cached.bytes)}`;
     els.lightboxNeedCache.hidden = true;
+    els.lightboxCacheActions.hidden = false;
+    els.lightboxRemoveCacheBtn.onclick = () =>
+      void removeLightboxClipCache(clip).catch((e) =>
+        showStatus(e.message || String(e), true),
+      );
     els.lightboxVideo.src = await localVideoUrl(cached.path);
     els.lightboxVideo.hidden = false;
     trimContext = {
       clipId: clip.id,
       mediaId: clip.mediaId,
       localPath: cached.path,
+      isFragment: false,
     };
   } catch (error) {
     els.lightboxDownloadStatus.textContent = error.message || String(error);
@@ -797,6 +967,16 @@ async function downloadLightboxClip(clip, media) {
       'Загрузить локально',
     );
     els.lightboxDownloadBtn.disabled = false;
+  }
+}
+
+async function removeLightboxClipCache(clip) {
+  if (!clip?.mediaId) return;
+  const removed = await removeMediaFromCache(clip.mediaId);
+  if (!removed) return;
+  trimContext = null;
+  if (selectedClip()?.id === clip.id) {
+    await loadClipPreview(clip);
   }
 }
 
@@ -820,49 +1000,109 @@ async function moveSelectedClip(delta) {
 }
 
 async function saveTrimBounds() {
-  if (!trimContext?.clipId || !activeProject || !currentTrip) {
+  if (!trimContext?.localPath || !activeProject || !currentTrip) {
     showStatus('Сначала загрузите клип локально', true);
     return;
   }
   const startRaw = els.trimStartInput.value.trim();
   const endRaw = els.trimEndInput.value.trim();
-  const trimStartSec = startRaw === '' ? null : Number(startRaw);
-  const trimEndSec = endRaw === '' ? null : Number(endRaw);
-  if (
-    (trimStartSec != null && Number.isNaN(trimStartSec)) ||
-    (trimEndSec != null && Number.isNaN(trimEndSec))
-  ) {
-    showStatus('Некорректные границы', true);
+  if (startRaw === '' || endRaw === '') {
+    showStatus('Укажите старт и конец отрезка', true);
     return;
   }
-  await api.updateClipTrim(
-    currentTrip.secret,
-    activeProject.id,
-    trimContext.clipId,
-    trimStartSec,
-    trimEndSec,
-  );
-  activeProject = await api.getProject(currentTrip.secret, activeProject.id);
-  renderProjectSelect();
-  renderLightbox();
-  showStatus('Границы сохранены (обрезание при export)');
+  const trimStartSec = Number(startRaw);
+  const trimEndSec = Number(endRaw);
+  if (
+    Number.isNaN(trimStartSec) ||
+    Number.isNaN(trimEndSec) ||
+    trimStartSec < 0 ||
+    trimEndSec <= trimStartSec
+  ) {
+    showStatus('Некорректные границы отрезка', true);
+    return;
+  }
+
+  const sourceClipId = trimContext.clipId;
+  const sourceMediaId = trimContext.mediaId;
+  const sourcePath = trimContext.localPath;
+
+  els.saveTrimBtn.disabled = true;
+  const originalLabel = els.saveTrimBtn.innerHTML;
+  setButtonContent(els.saveTrimBtn, icons.scissors, 'Вырезаю…');
+  try {
+    const extracted = await invoke('extract_media_fragment', {
+      sourcePath,
+      sourceMediaId,
+      startSec: trimStartSec,
+      endSec: trimEndSec,
+    });
+
+    const created = await api.addClip(
+      currentTrip.secret,
+      activeProject.id,
+      sourceMediaId,
+    );
+    const newClipId = created?.id;
+    if (newClipId == null) {
+      throw new Error('Не удалось создать клип отрезка');
+    }
+
+    await api.updateClipTrim(
+      currentTrip.secret,
+      activeProject.id,
+      newClipId,
+      trimStartSec,
+      trimEndSec,
+    );
+
+    await invoke('register_clip_fragment', {
+      fragmentId: extracted.fragment_id,
+      clipId: Number(newClipId),
+    });
+
+    activeProject = await api.getProject(currentTrip.secret, activeProject.id);
+    const clips = activeProject.clips || [];
+    const orderedIds = clips.map((c) => c.id).filter((id) => id !== newClipId);
+    const insertAt = fragmentInsertIndex(
+      clips.filter((c) => c.id !== newClipId),
+      sourceClipId,
+      sourceMediaId,
+    );
+    orderedIds.splice(insertAt, 0, newClipId);
+    activeProject = await api.reorderClips(
+      currentTrip.secret,
+      activeProject.id,
+      orderedIds,
+    );
+
+    fragmentByClipId.set(Number(newClipId), {
+      bytes: Number(extracted.bytes) || 0,
+      path: extracted.path,
+      startSec: extracted.start_sec,
+      endSec: extracted.end_sec,
+    });
+
+    els.trimStartInput.value = '';
+    els.trimEndInput.value = '';
+    await refreshCacheStats();
+    renderProjectSelect();
+    renderLightbox();
+    await selectClip(newClipId);
+    showStatus(
+      `Отрезок сохранён · ${formatBytes(extracted.bytes)} · вставлен после исходного`,
+    );
+  } catch (error) {
+    showStatus(error.message || String(error), true);
+  } finally {
+    els.saveTrimBtn.disabled = false;
+    els.saveTrimBtn.innerHTML = originalLabel;
+  }
 }
 
 async function resetTrimBounds() {
-  if (!trimContext?.clipId || !activeProject || !currentTrip) return;
   els.trimStartInput.value = '';
   els.trimEndInput.value = '';
-  await api.updateClipTrim(
-    currentTrip.secret,
-    activeProject.id,
-    trimContext.clipId,
-    null,
-    null,
-  );
-  activeProject = await api.getProject(currentTrip.secret, activeProject.id);
-  renderProjectSelect();
-  renderLightbox();
-  showStatus('Обрезка сброшена');
+  showStatus('Границы отрезка сброшены');
 }
 
 async function renameActiveProject() {
@@ -904,19 +1144,43 @@ async function exportActiveProject(button) {
       const clip = activeProject.clips[i];
       const media = clip.media || {};
       button.textContent = `Кэш ${i + 1}/${total}`;
-      const cached = await invoke('ensure_media_cached', {
-        mediaId: clip.mediaId,
-        url: media.url,
-      });
+
+      let sourcePath = null;
+      let trimStart = clip.trimStartSec ?? null;
+      let trimEnd = clip.trimEndSec ?? null;
+
+      try {
+        const fragment = await invoke('get_clip_fragment', {
+          clipId: Number(clip.id),
+        });
+        if (fragment?.registered && fragment.path) {
+          sourcePath = fragment.path;
+          // Already cut — export file as-is.
+          trimStart = null;
+          trimEnd = null;
+        }
+      } catch {
+        /* use original */
+      }
+
+      if (!sourcePath) {
+        const cached = await invoke('ensure_media_cached', {
+          mediaId: clip.mediaId,
+          url: media.url,
+        });
+        sourcePath = cached.path;
+      }
+
       const base = sanitizeFilename(
         (media.originalFilename || `clip-${clip.id}`).replace(/\.[^.]+$/, ''),
       );
+      const suffix = isFragmentClip(clip.id) ? '-cut' : '';
       exportClips.push({
         media_id: clip.mediaId,
-        source_path: cached.path,
-        trim_start_sec: clip.trimStartSec ?? null,
-        trim_end_sec: clip.trimEndSec ?? null,
-        output_name: `${padIndex(i + 1, total)}-${base}.mp4`,
+        source_path: sourcePath,
+        trim_start_sec: trimStart,
+        trim_end_sec: trimEnd,
+        output_name: `${padIndex(i + 1, total)}-${base}${suffix}.mp4`,
       });
     }
 

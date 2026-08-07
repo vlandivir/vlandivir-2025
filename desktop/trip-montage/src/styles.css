@@ -296,6 +296,14 @@ body {
   background: hsl(var(--success) / 0.12);
 }
 
+.trip-card__badge--fragment {
+  left: 8px;
+  top: 8px;
+  color: hsl(var(--primary));
+  border-color: hsl(var(--primary) / 0.35);
+  background: hsl(var(--primary) / 0.12);
+}
+
 .trip-card__badge--toggle {
   right: 8px;
   top: 8px;
@@ -669,7 +677,16 @@ body {
   height: 22px;
 }
 
-.timeline-card__thumb .trip-card__badge--cache svg {
+.timeline-card__thumb .trip-card__badge--fragment {
+  right: 6px;
+  left: auto;
+  top: 6px;
+  width: 22px;
+  height: 22px;
+}
+
+.timeline-card__thumb .trip-card__badge--cache svg,
+.timeline-card__thumb .trip-card__badge--fragment svg {
   width: 12px;
   height: 12px;
 }

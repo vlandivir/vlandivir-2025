@@ -453,19 +453,29 @@ struct CacheStats {
     path: String,
 }
 
+fn is_fragment_file_name(name: &str) -> bool {
+    name.starts_with("frag_")
+}
+
 #[tauri::command]
 fn get_cache_stats(app: AppHandle) -> AppResult<CacheStats> {
     let dir = media_cache_dir(&app)?;
     let mut files = 0usize;
     let mut bytes = 0u64;
-    for entry in fs::read_dir(&dir).map_err(|e| err(format!("read cache: {e}")))? {
-        let entry = entry.map_err(|e| err(format!("cache entry: {e}")))?;
-        let meta = entry
-            .metadata()
-            .map_err(|e| err(format!("cache meta: {e}")))?;
-        if meta.is_file() {
-            files += 1;
-            bytes += meta.len();
+    if dir.exists() {
+        for entry in fs::read_dir(&dir).map_err(|e| err(format!("read cache: {e}")))? {
+            let entry = entry.map_err(|e| err(format!("cache entry: {e}")))?;
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if is_fragment_file_name(&name) {
+                continue;
+            }
+            let meta = entry
+                .metadata()
+                .map_err(|e| err(format!("cache meta: {e}")))?;
+            if meta.is_file() {
+                files += 1;
+                bytes += meta.len();
+            }
         }
     }
     Ok(CacheStats {
@@ -479,9 +489,318 @@ fn get_cache_stats(app: AppHandle) -> AppResult<CacheStats> {
 fn clear_media_cache(app: AppHandle) -> AppResult<CacheStats> {
     let dir = media_cache_dir(&app)?;
     if dir.exists() {
-        fs::remove_dir_all(&dir).map_err(|e| err(format!("clear cache: {e}")))?;
+        for entry in fs::read_dir(&dir).map_err(|e| err(format!("read cache: {e}")))? {
+            let entry = entry.map_err(|e| err(format!("cache entry: {e}")))?;
+            let path = entry.path();
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if !path.is_file() || is_fragment_file_name(&name) {
+                continue;
+            }
+            fs::remove_file(&path).map_err(|e| err(format!("clear cache file: {e}")))?;
+        }
     }
     get_cache_stats(app)
+}
+
+/// Remove one media file (and leftover `.partial` downloads) from the local cache.
+#[tauri::command]
+fn remove_cached_media(app: AppHandle, media_id: String) -> AppResult<CacheStats> {
+    let stem = media_file_stem(&app, &media_id)?;
+    let dir = media_cache_dir(&app)?;
+    let stem_name = stem
+        .file_name()
+        .and_then(|s| s.to_str())
+        .ok_or_else(|| err("invalid media id"))?;
+
+    let mut removed = false;
+    for entry in fs::read_dir(&dir).map_err(|e| err(format!("read cache: {e}")))? {
+        let entry = entry.map_err(|e| err(format!("cache entry: {e}")))?;
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let name = path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or_default();
+        if is_fragment_file_name(name) {
+            continue;
+        }
+        // Match `stem.ext`, `stem.ext.partial`, or bare stem.
+        let matches = name == stem_name
+            || name
+                .strip_prefix(stem_name)
+                .is_some_and(|rest| rest.starts_with('.'));
+        if matches {
+            fs::remove_file(&path).map_err(|e| err(format!("remove cache file: {e}")))?;
+            removed = true;
+        }
+    }
+
+    if !removed {
+        // Idempotent: already gone is fine.
+        return get_cache_stats(app);
+    }
+    get_cache_stats(app)
+}
+
+const FRAGMENTS_INDEX: &str = "fragments.json";
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct FragmentEntry {
+    clip_id: i64,
+    fragment_id: String,
+    file_name: String,
+    bytes: u64,
+    source_media_id: String,
+    start_sec: f64,
+    end_sec: f64,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+struct FragmentsIndex {
+    /// Pending extracts not yet bound to a server clip id.
+    pending: Vec<PendingFragment>,
+    entries: Vec<FragmentEntry>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct PendingFragment {
+    fragment_id: String,
+    file_name: String,
+    bytes: u64,
+    source_media_id: String,
+    start_sec: f64,
+    end_sec: f64,
+}
+
+fn fragments_index_path(app: &AppHandle) -> AppResult<PathBuf> {
+    Ok(app_data_dir(app)?.join(FRAGMENTS_INDEX))
+}
+
+fn load_fragments_index(app: &AppHandle) -> AppResult<FragmentsIndex> {
+    let path = fragments_index_path(app)?;
+    if !path.exists() {
+        return Ok(FragmentsIndex::default());
+    }
+    let raw = fs::read_to_string(&path).map_err(|e| err(format!("read fragments index: {e}")))?;
+    serde_json::from_str(&raw).map_err(|e| err(format!("parse fragments index: {e}")))
+}
+
+fn save_fragments_index(app: &AppHandle, index: &FragmentsIndex) -> AppResult<()> {
+    let path = fragments_index_path(app)?;
+    let dir = app_data_dir(app)?;
+    fs::create_dir_all(&dir).map_err(|e| err(format!("create data dir: {e}")))?;
+    let raw =
+        serde_json::to_string_pretty(index).map_err(|e| err(format!("serialize fragments: {e}")))?;
+    fs::write(path, raw).map_err(|e| err(format!("write fragments index: {e}")))
+}
+
+fn fragment_path(app: &AppHandle, file_name: &str) -> AppResult<PathBuf> {
+    if !is_fragment_file_name(file_name)
+        || file_name.contains('/')
+        || file_name.contains('\\')
+        || file_name.contains("..")
+    {
+        return Err(err("invalid fragment file name"));
+    }
+    Ok(media_cache_dir(app)?.join(file_name))
+}
+
+fn new_fragment_id() -> String {
+    let millis = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    format!("{millis}-{}", millis.wrapping_mul(2654435761) % 1_000_000)
+}
+
+#[derive(Serialize)]
+struct FragmentExtractResult {
+    fragment_id: String,
+    path: String,
+    bytes: u64,
+    start_sec: f64,
+    end_sec: f64,
+}
+
+/// Cut `[start_sec, end_sec)` from a local video into a new `frag_*.mp4` cache file.
+#[tauri::command]
+fn extract_media_fragment(
+    app: AppHandle,
+    source_path: String,
+    source_media_id: String,
+    start_sec: f64,
+    end_sec: f64,
+) -> AppResult<FragmentExtractResult> {
+    if !(start_sec >= 0.0) || !(end_sec > start_sec) {
+        return Err(err("нужны корректные границы отрезка (конец > старт ≥ 0)"));
+    }
+    let source = PathBuf::from(&source_path);
+    if !source.exists() {
+        return Err(err("исходный локальный файл не найден"));
+    }
+
+    let fragment_id = safe_media_id(&new_fragment_id());
+    let file_name = format!("frag_{fragment_id}.mp4");
+    let dest = fragment_path(&app, &file_name)?;
+    run_ffmpeg_copy(
+        &source,
+        &dest,
+        Some(start_sec),
+        Some(end_sec),
+    )?;
+    let meta = fs::metadata(&dest).map_err(|e| err(format!("stat fragment: {e}")))?;
+    let bytes = meta.len();
+    if bytes == 0 {
+        let _ = fs::remove_file(&dest);
+        return Err(err("ffmpeg вернул пустой отрезок"));
+    }
+
+    let mut index = load_fragments_index(&app)?;
+    index.pending.retain(|p| p.fragment_id != fragment_id);
+    index.pending.push(PendingFragment {
+        fragment_id: fragment_id.clone(),
+        file_name: file_name.clone(),
+        bytes,
+        source_media_id,
+        start_sec,
+        end_sec,
+    });
+    save_fragments_index(&app, &index)?;
+
+    Ok(FragmentExtractResult {
+        fragment_id,
+        path: dest.to_string_lossy().into_owned(),
+        bytes,
+        start_sec,
+        end_sec,
+    })
+}
+
+#[derive(Serialize)]
+struct FragmentStatus {
+    registered: bool,
+    path: Option<String>,
+    bytes: Option<u64>,
+    start_sec: Option<f64>,
+    end_sec: Option<f64>,
+    source_media_id: Option<String>,
+}
+
+#[tauri::command]
+fn register_clip_fragment(
+    app: AppHandle,
+    fragment_id: String,
+    clip_id: i64,
+) -> AppResult<FragmentStatus> {
+    let mut index = load_fragments_index(&app)?;
+    let pending_idx = index
+        .pending
+        .iter()
+        .position(|p| p.fragment_id == fragment_id)
+        .ok_or_else(|| err("отрезок не найден (pending)"))?;
+    let pending = index.pending.remove(pending_idx);
+    let path = fragment_path(&app, &pending.file_name)?;
+    if !path.exists() {
+        save_fragments_index(&app, &index)?;
+        return Err(err("файл отрезка пропал с диска"));
+    }
+
+    index.entries.retain(|e| e.clip_id != clip_id);
+    index.entries.push(FragmentEntry {
+        clip_id,
+        fragment_id: pending.fragment_id,
+        file_name: pending.file_name.clone(),
+        bytes: pending.bytes,
+        source_media_id: pending.source_media_id.clone(),
+        start_sec: pending.start_sec,
+        end_sec: pending.end_sec,
+    });
+    save_fragments_index(&app, &index)?;
+
+    Ok(FragmentStatus {
+        registered: true,
+        path: Some(path.to_string_lossy().into_owned()),
+        bytes: Some(pending.bytes),
+        start_sec: Some(pending.start_sec),
+        end_sec: Some(pending.end_sec),
+        source_media_id: Some(pending.source_media_id),
+    })
+}
+
+#[tauri::command]
+fn get_clip_fragment(app: AppHandle, clip_id: i64) -> AppResult<FragmentStatus> {
+    let index = load_fragments_index(&app)?;
+    let Some(entry) = index.entries.iter().find(|e| e.clip_id == clip_id) else {
+        return Ok(FragmentStatus {
+            registered: false,
+            path: None,
+            bytes: None,
+            start_sec: None,
+            end_sec: None,
+            source_media_id: None,
+        });
+    };
+    let path = fragment_path(&app, &entry.file_name)?;
+    if !path.exists() {
+        return Ok(FragmentStatus {
+            registered: true,
+            path: None,
+            bytes: Some(entry.bytes),
+            start_sec: Some(entry.start_sec),
+            end_sec: Some(entry.end_sec),
+            source_media_id: Some(entry.source_media_id.clone()),
+        });
+    }
+    let meta = fs::metadata(&path).ok();
+    Ok(FragmentStatus {
+        registered: true,
+        path: Some(path.to_string_lossy().into_owned()),
+        bytes: Some(meta.map(|m| m.len()).unwrap_or(entry.bytes)),
+        start_sec: Some(entry.start_sec),
+        end_sec: Some(entry.end_sec),
+        source_media_id: Some(entry.source_media_id.clone()),
+    })
+}
+
+#[tauri::command]
+fn list_clip_fragments(app: AppHandle) -> AppResult<Vec<FragmentEntry>> {
+    let index = load_fragments_index(&app)?;
+    Ok(index.entries)
+}
+
+#[tauri::command]
+fn remove_clip_fragment(app: AppHandle, clip_id: i64) -> AppResult<CacheStats> {
+    let mut index = load_fragments_index(&app)?;
+    if let Some(pos) = index.entries.iter().position(|e| e.clip_id == clip_id) {
+        let entry = index.entries.remove(pos);
+        let path = fragment_path(&app, &entry.file_name)?;
+        if path.exists() {
+            fs::remove_file(&path).map_err(|e| err(format!("remove fragment: {e}")))?;
+        }
+        save_fragments_index(&app, &index)?;
+    }
+    get_fragment_stats(app)
+}
+
+#[tauri::command]
+fn get_fragment_stats(app: AppHandle) -> AppResult<CacheStats> {
+    let index = load_fragments_index(&app)?;
+    let mut files = 0usize;
+    let mut bytes = 0u64;
+    for entry in &index.entries {
+        let path = fragment_path(&app, &entry.file_name)?;
+        if path.exists() {
+            files += 1;
+            bytes += fs::metadata(&path).map(|m| m.len()).unwrap_or(entry.bytes);
+        }
+    }
+    Ok(CacheStats {
+        files,
+        bytes,
+        path: media_cache_dir(&app)?.to_string_lossy().into_owned(),
+    })
 }
 
 #[derive(Deserialize)]
@@ -777,6 +1096,13 @@ pub fn run() {
             ensure_media_cached,
             get_cache_stats,
             clear_media_cache,
+            remove_cached_media,
+            extract_media_fragment,
+            register_clip_fragment,
+            get_clip_fragment,
+            list_clip_fragments,
+            remove_clip_fragment,
+            get_fragment_stats,
             export_clips,
             media_file_url,
             path_to_asset_url,
